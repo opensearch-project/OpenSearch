@@ -38,8 +38,6 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 
@@ -165,17 +163,5 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         RankFeatureFieldMapper fieldMapper = (RankFeatureFieldMapper) mapper.mappers().getMapper("field");
         assertNotNull(fieldMapper);
         assertEquals("rank_feature", fieldMapper.typeName());
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatRankFeatureThrows() throws IOException {
-        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", 10)), docInput)
-        );
-        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 }

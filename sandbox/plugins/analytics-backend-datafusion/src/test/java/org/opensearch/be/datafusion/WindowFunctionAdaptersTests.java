@@ -41,6 +41,8 @@ import java.util.List;
  *   <li>{@code ARG_MIN(value, ts)} → {@code FIRST_VALUE(value) ORDER BY ts ASC}</li>
  *   <li>{@code ARG_MAX(value, ts)} → {@code LAST_VALUE(value) ORDER BY ts ASC}</li>
  *   <li>{@code DISTINCT_COUNT_APPROX(x)} → {@code APPROX_COUNT_DISTINCT(x)}</li>
+ *   <li>{@code COUNT(DISTINCT x) OVER(...)} → {@code os_count_distinct(x) OVER(...)}</li>
+ *   <li>{@code COUNT(x) OVER(...)} (non-distinct) — passthrough, distinct flag stays cleared</li>
  * </ul>
  */
 public class WindowFunctionAdaptersTests extends OpenSearchTestCase {
@@ -179,6 +181,63 @@ public class WindowFunctionAdaptersTests extends OpenSearchTestCase {
         assertEquals("rewritten call's return type must equal the original", original.getType(), over.getType());
     }
 
+    /** {@code COUNT(DISTINCT x) OVER(...)} → {@code os_count_distinct(x) OVER(...)} with the
+     *  distinct flag cleared on the rebuilt RexOver (the operator name now carries the DISTINCT
+     *  semantic). Pinning this contract guards the workaround for DataFusion 54.x's substrait
+     *  window consumer that drops {@code AggregationInvocation::DISTINCT}. */
+    public void testCountDistinctRewritesToOsCountDistinct() {
+        RexNode argument = rexBuilder.makeInputRef(varcharNullable, 0);
+        RexNode partitionKey = rexBuilder.makeInputRef(varcharNullable, 1);
+        RexFieldCollation orderKey = new RexFieldCollation(rexBuilder.makeInputRef(varcharNullable, 2), Collections.emptySet());
+
+        RexOver original = (RexOver) makeOver(
+            SqlStdOperatorTable.COUNT,
+            bigintNullable,
+            List.of(argument),
+            List.of(partitionKey),
+            ImmutableList.of(orderKey),
+            /* distinct */ true
+        );
+
+        RexNode adapted = WindowFunctionAdapters.countDistinctExact()
+            .adapt(original, List.of(argument), List.of(partitionKey), List.of(orderKey), cluster);
+
+        RexOver over = (RexOver) adapted;
+        assertSame(
+            "COUNT(DISTINCT) must rewrite to LOCAL_OS_COUNT_DISTINCT_OP",
+            DataFusionFragmentConvertor.LOCAL_OS_COUNT_DISTINCT_OP,
+            over.getAggOperator()
+        );
+        assertFalse("distinct flag must be cleared on the rebuilt over", over.isDistinct());
+        assertEquals("operand list must be preserved", List.of(argument), over.getOperands());
+        assertEquals("partition keys must be preserved", List.of(partitionKey), over.getWindow().partitionKeys);
+        assertEquals("order keys must be preserved", 1, over.getWindow().orderKeys.size());
+        assertEquals("rewritten call's return type must equal the original", original.getType(), over.getType());
+    }
+
+    /** {@code COUNT(x) OVER(...)} (non-distinct) — must pass through unchanged. The adapter
+     *  is registered for {@link org.opensearch.analytics.spi.WindowFunction#COUNT} so it sees
+     *  every COUNT-OVER call; only DISTINCT-flagged ones get rewritten. */
+    public void testNonDistinctCountIsPassthrough() {
+        RexNode argument = rexBuilder.makeInputRef(varcharNullable, 0);
+
+        RexOver original = (RexOver) makeOver(
+            SqlStdOperatorTable.COUNT,
+            bigintNullable,
+            List.of(argument),
+            ImmutableList.of(),
+            ImmutableList.of(),
+            /* distinct */ false
+        );
+
+        RexNode adapted = WindowFunctionAdapters.countDistinctExact()
+            .adapt(original, List.of(argument), ImmutableList.of(), ImmutableList.of(), cluster);
+
+        RexOver over = (RexOver) adapted;
+        assertSame("non-distinct COUNT must keep its operator", SqlStdOperatorTable.COUNT, over.getAggOperator());
+        assertFalse("non-distinct COUNT must remain non-distinct", over.isDistinct());
+    }
+
     /** Build a {@link RexOver} with the given function, operand list, partition keys, order keys,
      *  and an UNBOUNDED PRECEDING / UNBOUNDED FOLLOWING frame — the default frame eventstats
      *  uses for ARG_MIN/ARG_MAX/DISTINCT_COUNT_APPROX. The 13-arg {@link RexBuilder#makeOver}
@@ -190,6 +249,17 @@ public class WindowFunctionAdaptersTests extends OpenSearchTestCase {
         List<RexNode> operands,
         List<RexNode> partitions,
         List<RexFieldCollation> orderKeys
+    ) {
+        return makeOver(op, returnType, operands, partitions, orderKeys, /* distinct */ false);
+    }
+
+    private RexNode makeOver(
+        SqlAggFunction op,
+        RelDataType returnType,
+        List<RexNode> operands,
+        List<RexNode> partitions,
+        List<RexFieldCollation> orderKeys,
+        boolean distinct
     ) {
         return rexBuilder.makeOver(
             returnType,
@@ -203,7 +273,7 @@ public class WindowFunctionAdaptersTests extends OpenSearchTestCase {
             true,
             true,
             false,
-            false,
+            distinct,
             false
         );
     }

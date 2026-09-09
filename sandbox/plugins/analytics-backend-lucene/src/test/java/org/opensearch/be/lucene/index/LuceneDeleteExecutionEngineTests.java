@@ -15,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.queue.Lockable;
 import org.opensearch.common.queue.LockablePool;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -1389,7 +1390,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             2L,
@@ -1399,7 +1401,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
 
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2);
@@ -1456,7 +1459,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1);
 
@@ -1519,7 +1523,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             2L,
@@ -1529,7 +1534,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2);
 
@@ -1615,7 +1621,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             2L,
@@ -1625,7 +1632,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer3 = new LuceneWriter(
             3L,
@@ -1635,7 +1643,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 
@@ -1747,7 +1756,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             2L,
@@ -1757,7 +1767,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer3 = new LuceneWriter(
             3L,
@@ -1767,7 +1778,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 
@@ -1842,7 +1854,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             2L,
@@ -1852,7 +1865,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer3 = new LuceneWriter(
             3L,
@@ -1862,7 +1876,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 

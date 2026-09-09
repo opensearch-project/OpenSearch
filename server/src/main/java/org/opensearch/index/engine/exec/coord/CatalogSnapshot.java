@@ -244,6 +244,24 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     }
 
     /**
+     * Finds the {@link WriterFileSet} for the given data format whose {@code writerGeneration}
+     * matches, or {@code null} if no segment carries a non-empty file set for that format/generation.
+     *
+     * @param format           the data format name (e.g. {@code "parquet"})
+     * @param writerGeneration the writer generation to match
+     * @return the matching file set, or {@code null}
+     */
+    public WriterFileSet findFileSet(String format, long writerGeneration) {
+        for (Segment seg : getSegments()) {
+            WriterFileSet candidate = seg.dfGroupedSearchableFiles().get(format);
+            if (candidate == null || candidate.files().isEmpty()) continue;
+            if (candidate.writerGeneration() != writerGeneration) continue;
+            return candidate;
+        }
+        return null;
+    }
+
+    /**
      * Sets user-defined metadata for this catalog snapshot.
      *
      * @param userData map of user data key-value pairs

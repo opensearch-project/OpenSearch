@@ -66,11 +66,13 @@ public class AnalysisTests extends OpenSearchTestCase {
         assertThat(set.contains("baz"), is(false));
     }
 
-    public void testParseNonExistingFile() {
-        Path tempDir = createTempDir();
+    public void testParseNonExistingFile() throws IOException {
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
         Settings nodeSettings = Settings.builder()
-            .put("foo.bar_path", tempDir.resolve("foo.dict"))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put("foo.bar_path", config.resolve("foo.dict"))
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException ex = expectThrows(
@@ -82,9 +84,11 @@ public class AnalysisTests extends OpenSearchTestCase {
     }
 
     public void testParseFalseEncodedFile() throws IOException {
-        Path tempDir = createTempDir();
-        Path dict = tempDir.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Path dict = config.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         try (OutputStream writer = Files.newOutputStream(dict)) {
             writer.write(new byte[] { (byte) 0xff, 0x00, 0x00 }); // some invalid UTF-8
             writer.write('\n');
@@ -99,9 +103,11 @@ public class AnalysisTests extends OpenSearchTestCase {
     }
 
     public void testParseWordList() throws IOException {
-        Path tempDir = createTempDir();
-        Path dict = tempDir.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Path dict = config.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
             writer.write("hello");
             writer.write('\n');
@@ -140,9 +146,33 @@ public class AnalysisTests extends OpenSearchTestCase {
         }
         Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        RuntimeException ex = expectThrows(RuntimeException.class, () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> {
-            throw new RuntimeException("Error while parsing rule = " + s);
-        }));
-        assertEquals("Line [1]: Invalid rule", ex.getMessage());
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> s)
+        );
+        assertTrue(ex.getMessage().contains("Resource path must be inside config directory"));
+    }
+
+    public void testResolveAnalyzerPathRejectsPathTraversal() {
+        Path home = createTempDir();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.resolveAnalyzerPath(env, "../../tmp/data.txt")
+        );
+        assertTrue(ex.getMessage().contains("Resource path must be inside config directory"));
+    }
+
+    public void testResolveAnalyzerPathValidPath() {
+        Path home = createTempDir();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+
+        Path resolved = Analysis.resolveAnalyzerPath(env, "analyzers/stopwords.txt");
+        Path configDir = env.configDir().toAbsolutePath();
+
+        assertTrue("Valid path should resolve within configDir", resolved.startsWith(configDir));
     }
 }

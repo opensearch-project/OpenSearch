@@ -364,10 +364,18 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         // update visible checkpoint to primary
                         updateVisibleCheckpoint(state.getReplicationId(), replicaShard);
 
-                        // if we received a checkpoint during the copy event that is ahead of this
-                        // try and process it.
+                        // If the latest checkpoint known from the primary is still ahead of what this replica has
+                        // actually replicated, process it to catch up. We compare against the replica's achieved
+                        // checkpoint rather than the checkpoint this round targeted (receivedCheckpoint). A retry
+                        // round may finalize against a stale metadata checkpoint returned by the primary (see #20550
+                        // and #20551), leaving the replica behind the checkpoint it was asked to sync to. Comparing
+                        // against the targeted checkpoint would miss this case and leave the replica permanently
+                        // behind until the next publish; comparing against the achieved checkpoint re-triggers the
+                        // catch-up. In the normal case the achieved checkpoint is at least the targeted one, so this
+                        // does not introduce extra rounds.
                         ReplicationCheckpoint latestReceivedCheckpoint = replicator.getPrimaryCheckpoint(replicaShard.shardId());
-                        if (Objects.nonNull(latestReceivedCheckpoint) && latestReceivedCheckpoint.isAheadOf(receivedCheckpoint)) {
+                        if (Objects.nonNull(latestReceivedCheckpoint)
+                            && latestReceivedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
                             processLatestReceivedCheckpoint(replicaShard, thread);
                         }
                     }

@@ -126,7 +126,7 @@ final class ShardSplittingQuery extends Query {
                     }
                     if (indexMetadata.isRoutingPartitionedIndex()) {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
-                        // this this index is routing partitioned.
+                        // this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
                         TwoPhaseIterator twoPhaseIterator = parentBitSet == null
                             ? new RoutingPartitionedDocIdSetIterator(visitor)
@@ -223,8 +223,11 @@ final class ShardSplittingQuery extends Query {
 
     private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer)
         throws IOException {
-        Terms terms = leafReader.terms(idField);
-        TermsEnum iterator = terms.iterator();
+        final Terms terms = leafReader.terms(idField);
+        if (terms == null) {
+            return;
+        }
+        final TermsEnum iterator = terms.iterator();
         BytesRef idTerm;
         PostingsEnum postingsEnum = null;
         while ((idTerm = iterator.next()) != null) {

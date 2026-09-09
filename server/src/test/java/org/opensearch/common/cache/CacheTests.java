@@ -56,6 +56,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
@@ -64,6 +65,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class CacheTests extends OpenSearchTestCase {
+    private static final String IN_FLIGHT_KEY = "in_flight";
+    private static final String STALL_KEY = "stall";
+
     private int numberOfEntries;
 
     @Before
@@ -956,11 +960,186 @@ public class CacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testKeysSnapshotContainsAllKeys() {
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        Set<Integer> expected = new HashSet<>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+            expected.add(i);
+        }
+        List<Integer> snapshot = cache.keysSnapshot();
+        assertEquals(expected.size(), snapshot.size());
+        assertEquals(expected, new HashSet<>(snapshot));
+
+        // the snapshot is a copy: invalidating entries does not affect it
+        for (int i = 0; i < numberOfEntries / 2; i++) {
+            cache.invalidate(i);
+        }
+        assertEquals(expected, new HashSet<>(snapshot));
+    }
+
+    // Unlike Cache.keys(), whose iterator can silently skip entries when a concurrent cache hit relinks the
+    // current entry to the head of the LRU list, keysSnapshot must observe every key that is present for the
+    // whole duration of the call, regardless of concurrent reads promoting entries.
+    public void testKeysSnapshotUnderConcurrentPromotion() throws BrokenBarrierException, InterruptedException {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        final int entries = randomIntBetween(1000, 5000);
+        final Set<Integer> expected = new HashSet<>();
+        for (int i = 0; i < entries; i++) {
+            cache.put(i, Integer.toString(i));
+            expected.add(i);
+        }
+
+        final int numberOfReaders = randomIntBetween(2, 4);
+        final AtomicBoolean done = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfReaders);
+        final List<Thread> threads = new ArrayList<>();
+        for (int t = 0; t < numberOfReaders; t++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    Random random = new Random(randomLong());
+                    while (done.get() == false) {
+                        cache.get(random.nextInt(entries));
+                    }
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        barrier.await();
+        try {
+            for (int iteration = 0; iteration < 100; iteration++) {
+                List<Integer> snapshot = cache.keysSnapshot();
+                assertEquals(expected.size(), snapshot.size());
+                assertEquals(expected, new HashSet<>(snapshot));
+            }
+        } finally {
+            done.set(true);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+    }
+
     public void testWithInvalidSegmentNumber() {
         assertThrows(
             "Number of segments for cache should be a power of two up-to 256",
             IllegalArgumentException.class,
             () -> CacheBuilder.<Integer, String>builder().setMaximumWeight(1000).setNumberOfSegments(21).build()
         );
+    }
+
+    // A cache segment maps each key to a CompletableFuture, and computeIfAbsent installs that future in the segment
+    // map before the value is loaded, so there is a window in which a key is in the segment map but its entry is not
+    // yet linked into the LRU list. The two tests below cover what invalidate(key) does with a key in that window.
+
+    /**
+     * {@link Cache#keysSnapshot()} contains keys whose load is still in flight, and
+     * {@link Cache#invalidate(Object)} on such a key parks the caller until the load completes: the
+     * invalidation consumer calls {@code future.get()} on the incomplete future with no timeout.
+     */
+    public void testInvalidateBlocksOnInFlightLoad() throws Exception {
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
+        final CountDownLatch loadStarted = new CountDownLatch(1);
+        final CountDownLatch releaseLoad = new CountDownLatch(1);
+
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad), "loader");
+        loader.start();
+        assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
+
+        // the in-flight key is in the segment map, so keysSnapshot() returns it, even though nothing is
+        // cached yet: it is not in the LRU list and is not counted
+        assertEquals(List.of(IN_FLIGHT_KEY), cache.keysSnapshot());
+        assertEquals(List.of(), lruKeys(cache));
+        assertEquals(0, cache.count());
+
+        Thread invalidator = new Thread(() -> cache.invalidate(IN_FLIGHT_KEY), "invalidator");
+        invalidator.start();
+
+        // invalidate() cannot return while the load is in flight
+        assertBusy(() -> assertEquals(Thread.State.WAITING, invalidator.getState()));
+        invalidator.join(500);
+        assertTrue("invalidate() should still be blocked on the in-flight load", invalidator.isAlive());
+
+        // it only unblocks once the loader finishes, however long that takes
+        releaseLoad.countDown();
+        invalidator.join(10_000);
+        loader.join(10_000);
+        assertFalse(invalidator.isAlive());
+    }
+
+    /**
+     * When {@code invalidate(key)} deletes an entry before the thread that loaded it has promoted it,
+     * {@code unlink()} finds {@code state == NEW}, returns false, and drops the removal notification.
+     * The loading thread then links the entry into the LRU list even though its key is already gone from
+     * the segment map, leaving an entry that is counted in {@code count()}/{@code weight()}, is
+     * unreachable via {@code get()}, and can no longer be invalidated by key -- so its removal listener
+     * never fires and the memory it accounts for is never given back.
+     * <p>
+     * The interleaving is forced rather than raced for: the weigher runs inside {@code linkAtHead()},
+     * which gives the test thread a point where it holds the LRU lock, so the loading thread cannot
+     * promote its entry until the test thread has finished invalidating it.
+     */
+    public void testInvalidateBeforePromoteLeavesUnreclaimableEntry() throws Exception {
+        final AtomicReference<Cache<String, String>> cacheRef = new AtomicReference<>();
+        final List<RemovalNotification<String, String>> removals = new CopyOnWriteArrayList<>();
+        final CountDownLatch loadStarted = new CountDownLatch(1);
+        final CountDownLatch releaseLoad = new CountDownLatch(1);
+        final AtomicBoolean invalidatedUnderLruLock = new AtomicBoolean();
+
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().weigher((key, value) -> {
+            if (STALL_KEY.equals(key) && invalidatedUnderLruLock.compareAndSet(false, true)) {
+                // holding the LRU lock: let the load finish and invalidate IN_FLIGHT_KEY before its entry
+                // can be promoted. invalidate() blocks until the load completes, then reenters the LRU lock.
+                releaseLoad.countDown();
+                cacheRef.get().invalidate(IN_FLIGHT_KEY);
+            }
+            return 1L;
+        }).removalListener(removals::add).build();
+        cacheRef.set(cache);
+
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad), "loader");
+        loader.start();
+        assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
+
+        // IN_FLIGHT_KEY's load is in flight; this put takes the LRU lock and runs the weigher above
+        cache.put(STALL_KEY, "v");
+        loader.join(10_000);
+        assertFalse(loader.isAlive());
+        assertTrue("the weigher never ran, so the interleaving under test did not happen", invalidatedUnderLruLock.get());
+
+        assertEquals("the invalidated key should be gone from the segment map", List.of(STALL_KEY), cache.keysSnapshot());
+        assertNull(cache.get(IN_FLIGHT_KEY));
+        assertEquals("the invalidated key should not be left in the LRU list", List.of(STALL_KEY), lruKeys(cache));
+        assertEquals(1, cache.count());
+        assertEquals(1L, cache.weight());
+        assertEquals("the removal listener should have been notified", 1, removals.size());
+        assertEquals(IN_FLIGHT_KEY, removals.get(0).getKey());
+        assertEquals(RemovalReason.INVALIDATED, removals.get(0).getRemovalReason());
+    }
+
+    private void loadInFlightKey(Cache<String, String> cache, CountDownLatch loadStarted, CountDownLatch releaseLoad) {
+        try {
+            cache.computeIfAbsent(IN_FLIGHT_KEY, k -> {
+                loadStarted.countDown();
+                releaseLoad.await();
+                return "v";
+            });
+        } catch (ExecutionException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** The keys in the LRU list, head first. */
+    private <K, V> List<K> lruKeys(Cache<K, V> cache) {
+        List<K> keys = new ArrayList<>();
+        for (K key : cache.keys()) {
+            keys.add(key);
+        }
+        return keys;
     }
 }

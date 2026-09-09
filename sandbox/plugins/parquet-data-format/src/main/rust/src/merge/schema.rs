@@ -33,18 +33,15 @@ pub fn build_parquet_root_schema(
     for descr in schema_descriptors {
         let root = descr.root_schema();
         for field in root.get_fields() {
-            if field.name() != ROW_ID_COLUMN_NAME
-                && seen_names.insert(field.name().to_string())
-            {
+            if field.name() != ROW_ID_COLUMN_NAME && seen_names.insert(field.name().to_string()) {
                 parquet_fields.push(Arc::new(field.as_ref().clone()));
             }
         }
     }
 
-    let row_id_type =
-        Type::primitive_type_builder(ROW_ID_COLUMN_NAME, parquet::basic::Type::INT64)
-            .with_repetition(Repetition::REQUIRED)
-            .build()?;
+    let row_id_type = Type::primitive_type_builder(ROW_ID_COLUMN_NAME, parquet::basic::Type::INT64)
+        .with_repetition(Repetition::REQUIRED)
+        .build()?;
     parquet_fields.push(Arc::new(row_id_type));
 
     let parquet_root = Type::group_type_builder("schema")
@@ -64,7 +61,6 @@ pub fn projection_indices_excluding_row_id(schema: &ArrowSchema) -> Vec<usize> {
         .map(|(i, _)| i)
         .collect()
 }
-
 
 /// Appends a `__row_id__` column with sequential values `[start_id, start_id + N)`
 /// to the given batch, producing a new batch with the output schema.
@@ -117,7 +113,11 @@ impl ColumnMapping {
             }
         }
 
-        Self { mapping, target_schema: target_schema.clone(), is_identity }
+        Self {
+            mapping,
+            target_schema: target_schema.clone(),
+            is_identity,
+        }
     }
 
     /// Remap a batch using the precomputed mapping. Zero-copy when schemas match.

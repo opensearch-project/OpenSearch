@@ -11,7 +11,6 @@ package org.opensearch.be.datafusion;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import io.substrait.expression.Expression;
 import io.substrait.expression.ImmutableExpression;
@@ -23,22 +22,12 @@ import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.util.EmptyVisitationContext;
 
 /**
- * POJO-layer Substrait plan rewriter. Runs before the plan is serialized to protobuf
- * and patches expressions that isthmus emits incorrectly or that DataFusion's
- * substrait consumer cannot handle. Today it covers two cases:
- * <ul>
- *   <li>{@code PrecisionTimestampLiteral} arrives at precision 6 (µs) regardless of
- *       the source type; rescaled to precision 3 (ms) to match parquet storage.</li>
- *   <li>{@code VarCharLiteral} → {@code StrLiteral} — DataFusion 53.1.0's consumer
- *       has no VarCharLiteral arm; the two literal types are byte-identical.</li>
- * </ul>
+ * POJO-layer Substrait plan rewriter. Rewrites {@code VarCharLiteral} → {@code StrLiteral}
+ * — DataFusion 53.1.0's consumer has no VarCharLiteral arm; the two literal types are
+ * byte-identical. Sibling {@link SubstraitPlanProtoRewriter} runs after this on the proto
+ * layer for fixes the POJO API can't express.
  *
- * <p>Sibling {@link SubstraitPlanProtoRewriter} runs after this class on the proto layer
- * for fixes that require setting fields the POJO API doesn't expose.
- *
- * <p>TODO: remove this class once both upstream gaps are closed — substrait-java
- * isthmus inspects the source precision when lowering timestamp literals, and
- * datafusion-substrait adds a VarCharLiteral arm to its consumer.
+ * <p>TODO: remove this class once datafusion-substrait adds a VarCharLiteral arm to its consumer.
  *
  * @opensearch.internal
  */
@@ -122,42 +111,12 @@ class SubstraitPlanPojoRewriter {
             super(relVisitor);
         }
 
-        // Isthmus hardcodes timestamp literals to precision 6 (microseconds).
-        // Parquet stores Timestamp(MILLISECOND), so convert to precision 3.
-        @Override
-        public Optional<Expression> visit(Expression.PrecisionTimestampLiteral pts, EmptyVisitationContext ctx) {
-            if (pts.precision() != 3) {
-                return Optional.of(
-                    ImmutableExpression.PrecisionTimestampLiteral.builder()
-                        .value(toMillis(pts.value(), pts.precision()))
-                        .precision(3)
-                        .nullable(pts.nullable())
-                        .build()
-                );
-            }
-            return Optional.empty();
-        }
-
-        // Convert VarCharLiteral to StrLiteral — DataFusion 53.1.0's Substrait consumer
-        // does not support VarChar literals (errors with "Unsupported literal_type: Some(VarChar(...))").
-        // VARCHAR and STRING are semantically identical for literals (both represent UTF-8 strings);
-        // only the type system distinguishes them via length constraints. Rewriting VarCharLiteral →
-        // StrLiteral preserves value and nullability while making the plan consumable by DataFusion.
-        // Affects: AddTotals label parameters, Chart/Trendline string options, CASE string constants.
+        // VarChar → Str: DataFusion 53.1.0 errors on VarChar with "Unsupported literal_type"; the
+        // two are byte-identical for literals. Affects AddTotals labels, Chart/Trendline options,
+        // CASE string constants.
         @Override
         public Optional<Expression> visit(Expression.VarCharLiteral vcl, EmptyVisitationContext ctx) {
             return Optional.of(ImmutableExpression.StrLiteral.builder().value(vcl.value()).nullable(vcl.nullable()).build());
         }
-    }
-
-    private static long toMillis(long value, int precision) {
-        return switch (precision) {
-            case 0 -> value * 1000L;
-            case 6 -> TimeUnit.MICROSECONDS.toMillis(value);
-            case 9 -> TimeUnit.NANOSECONDS.toMillis(value);
-            default -> throw new IllegalArgumentException(
-                "Unsupported timestamp precision: " + precision + ". Expected 0 (seconds), 6 (micros), or 9 (nanos)."
-            );
-        };
     }
 }

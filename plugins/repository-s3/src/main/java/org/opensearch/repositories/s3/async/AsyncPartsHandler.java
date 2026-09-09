@@ -119,8 +119,52 @@ public class AsyncPartsHandler {
                 if (semaphore != null) {
                     semaphore.release();
                 }
+                // provideStream() threw before futures.add() was reached, so futures.size()
+                // is now less than streamContext.getNumberOfParts(). This mismatch has two
+                // consequences if left unaddressed:
+                //
+                // 1. NPE in mergeAndVerifyChecksum: allOfExceptionForwarded() sees only the
+                // shorter futures list and completes successfully (no failure signal for the
+                // missing parts). It then calls mergeAndVerifyChecksum(), which iterates the
+                // full-length inputStreamContainers array and dereferences the null slot left
+                // by the failed part — throwing NPE instead of propagating the real cause.
+                //
+                // 2. Race: indexInput closed while the uploadParts() loop is still running.
+                // allOfExceptionForwarded() on the shorter list completes while the for-loop
+                // is still calling provideStream() (and indexInput.clone()) for later parts.
+                // The completion triggers completionListener → indexInput.close(), which
+                // closes the Arena backing the MemorySegmentIndexInput. Any subsequent
+                // clone() call in the still-running loop then hits AlreadyClosedException,
+                // masking the original failure with a confusing secondary error.
+                //
+                // Fix: add a pre-failed future so futures.size() == numberOfParts always.
+                // allOfExceptionForwarded() then waits for all parts, the chain fails cleanly,
+                // cleanUpParts() aborts the multipart upload, and the original exception
+                // propagates to the caller.
+                final int failedPartNumber = partIdx + 1;
+                log.warn(
+                    () -> new ParameterizedMessage(
+                        "provideStream failed for part {} of file [{}] (total parts: {}); "
+                            + "marking part as failed so the multipart upload is aborted cleanly.",
+                        failedPartNumber,
+                        uploadRequest.getKey(),
+                        streamContext.getNumberOfParts()
+                    ),
+                    ex
+                );
+                CompletableFuture<CompletedPart> failedFuture = new CompletableFuture<>();
+                failedFuture.completeExceptionally(ex);
+                futures.add(failedFuture);
             }
         }
+
+        assert futures.size() == streamContext.getNumberOfParts() : "futures list size ["
+            + futures.size()
+            + "] must equal numberOfParts ["
+            + streamContext.getNumberOfParts()
+            + "];"
+            + " a size mismatch means allOfExceptionForwarded will complete before all parts are accounted for,"
+            + " allowing mergeAndVerifyChecksum to dereference a null inputStreamContainers slot";
 
         return futures;
     }

@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
@@ -55,7 +56,13 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         Path dataDir = createTempDir("datafusion-data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)), storeHandle);
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
     }
 
     @Override
@@ -81,10 +88,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            BufferAllocator staging = alloc.newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
             ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
+            execCtx.setImportStagingAllocator(staging);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
@@ -110,10 +119,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            BufferAllocator staging = alloc.newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
             ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
+            execCtx.setImportStagingAllocator(staging);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
@@ -136,10 +147,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            BufferAllocator staging = alloc.newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
             ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
+            execCtx.setImportStagingAllocator(staging);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
@@ -164,6 +177,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             runtimeHandle.get(),
             tableName,
             0L,
+            false,
             configSegment.address(),
             new byte[0]
         );

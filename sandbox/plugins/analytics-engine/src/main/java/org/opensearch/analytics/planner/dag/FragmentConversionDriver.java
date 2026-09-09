@@ -14,7 +14,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,12 +23,15 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotationResolver;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -80,13 +82,9 @@ public class FragmentConversionDriver {
     /**
      * Converts all {@link StagePlan} alternatives in the DAG, populating
      * {@link StagePlan#convertedBytes()} on each plan.
-     *
-     * @param fuseDualViable when {@code true}, performance-delegated leaves fuse with
-     *     correctness-delegated siblings even under OR/NOT. Sourced from the cluster setting
-     *     {@code analytics.delegation.fuse_dual_viable}.
      */
-    public static void convertAll(QueryDAG dag, CapabilityRegistry registry, boolean fuseDualViable) {
-        convertStage(dag.rootStage(), registry, fuseDualViable);
+    public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
+        convertStage(dag.rootStage(), registry);
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -95,9 +93,9 @@ public class FragmentConversionDriver {
         }
     }
 
-    private static void convertStage(Stage stage, CapabilityRegistry registry, boolean fuseDualViable) {
+    private static void convertStage(Stage stage, CapabilityRegistry registry) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry, fuseDualViable);
+            convertStage(child, registry);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -115,15 +113,19 @@ public class FragmentConversionDriver {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());
             FragmentConvertor convertor = backend.getFragmentConvertor();
 
-            // Derive filter tree shape BEFORE stripping (annotations must be intact). Mirrors
-            // fuseDualViable so the deriver's classification matches the post-combiner tree
-            // the data node actually sees.
-            OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
+            // Derive filter tree shape BEFORE stripping (annotations must be intact). The deriver
+            // mirrors the combiner's post-combine shape so the data node's classification matches
+            // the tree it actually receives.
+            // Pushdown+merge rules leave delegated annotations only in the bottommost (WHERE) filter;
+            // a HAVING stays in a separate un-delegated filter above the Aggregate. Pick the WHERE,
+            // not findNode's topmost (HAVING → NO_DELEGATION → collector skipped → over-count).
+            List<OpenSearchFilter> filters = RelNodeUtils.findAllNodes(plan.resolvedFragment(), OpenSearchFilter.class);
+            OpenSearchFilter filter = filters.isEmpty() ? null : filters.getLast();
             FilterTreeShape treeShape = filter != null
-                ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), fuseDualViable)
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
 
-            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry, fuseDualViable);
+            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
 
             // Assemble instruction list
@@ -176,9 +178,20 @@ public class FragmentConversionDriver {
      * have multiple {@code StageInputScan} leaves and this needs a multi-leaf walker.
      */
     private static void populatePostDecorationSchemas(Stage stage, CapabilityRegistry registry) {
+        // A multi-input parent fragment (e.g. a Join or Union) has one OpenSearchStageInputScan
+        // leaf per child stage. findNode walks only the first-input chain, so match each child
+        // against ALL input-scan leaves; otherwise every child but the one on the first chain is
+        // silently skipped, leaving its partition schema underived at the reduce sink.
+        List<OpenSearchStageInputScan> inputScans = RelNodeUtils.findNodes(stage.getFragment(), OpenSearchStageInputScan.class);
         for (Stage child : stage.getChildStages()) {
-            OpenSearchStageInputScan inputScan = RelNodeUtils.findNode(stage.getFragment(), OpenSearchStageInputScan.class);
-            if (inputScan == null || inputScan.getChildStageId() != child.getStageId()) continue;
+            OpenSearchStageInputScan inputScan = null;
+            for (OpenSearchStageInputScan candidate : inputScans) {
+                if (candidate.getChildStageId() == child.getStageId()) {
+                    inputScan = candidate;
+                    break;
+                }
+            }
+            if (inputScan == null) continue;
             RelDataType produced = child.getFragment().getRowType();
             RelDataType expected = inputScan.getRowType();
             boolean schemaMismatch = produced.getFieldCount() != expected.getFieldCount() || produced.equals(expected) == false;
@@ -230,20 +243,53 @@ public class FragmentConversionDriver {
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
-        RelNode leaf = findLeaf(plan.resolvedFragment());
+        RelNode resolvedFragment = plan.resolvedFragment();
+        RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan tableScan) {
+            // The leaf's qualified name is the planner's logical table name (alias / index pattern /
+            // index) — the same single segment isthmus emits as the Substrait NamedTable. Pass it to
+            // the data node so it registers the scanned shard's table under this name, instead of the
+            // backend reverse-engineering it from the plan bytes.
+            String logicalTableName = tableScan.getTable().getQualifiedName().getLast();
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
             // backend so it picks the row-id-aware table provider regardless of delegation.
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName)
+                    .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds, logicalTableName).ifPresent(instructions::add);
             }
+            if (containsPartialAggregate(resolvedFragment)) {
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
+        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
+            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
         return instructions;
+    }
+
+    // TODO: consolidate with isAggregatePath / findBuriedPartialAggregate into a shared utility
+    private static boolean containsPartialAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) return true;
+        for (RelNode child : root.getInputs()) {
+            if (containsPartialAggregate(child)) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
+        if (root instanceof OpenSearchAggregate agg
+            && agg.getMode() == mode
+            && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+            return true;
+        }
+        for (RelNode child : root.getInputs()) {
+            if (containsEngineNativeAggregate(child, mode)) return true;
+        }
+        return false;
     }
 
     /**
@@ -256,16 +302,10 @@ public class FragmentConversionDriver {
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
-        private final boolean fuseDualViable;
         private List<DelegatedExpression> delegatedExpressions;
 
         IntraOperatorDelegationBytes(CapabilityRegistry registry) {
-            this(registry, false);
-        }
-
-        IntraOperatorDelegationBytes(CapabilityRegistry registry, boolean fuseDualViable) {
             this.registry = registry;
-            this.fuseDualViable = fuseDualViable;
         }
 
         /**
@@ -282,8 +322,7 @@ public class FragmentConversionDriver {
                 fieldStorage,
                 registry,
                 rexBuilder,
-                delegatedExpressions,
-                fuseDualViable
+                delegatedExpressions
             );
             return new AnnotationResolver() {
 
@@ -391,14 +430,38 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan) {
-            // Partial agg at top: convert everything below it, then attach partial agg on top.
-            // strippedInputs passed to stripAnnotations for schema validity (LogicalAggregate needs its inputs).
-            if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                List<RelNode> strippedInputs = agg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
+            // Identify the PARTIAL aggregate — either at the top of the fragment or buried
+            // under TopK's Sort/Project wrapper.
+            OpenSearchAggregate partialAgg = null;
+            if (resolvedFragment instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+                partialAgg = agg;
+            } else {
+                partialAgg = findBuriedPartialAggregate(resolvedFragment);
+            }
+
+            if (partialAgg != null) {
+                // Layered conversion: convert scan below → attachPartialAggOnTop → attach
+                // any operators above the aggregate (zero iterations when agg is the top).
+                List<RelNode> strippedInputs = partialAgg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
                 byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
-                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(agg, agg.getCluster().getRexBuilder());
-                RelNode strippedAgg = agg.stripAnnotations(strippedInputs, resolver);
-                return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(
+                    partialAgg,
+                    partialAgg.getCluster().getRexBuilder()
+                );
+                RelNode strippedAgg = partialAgg.stripAnnotations(strippedInputs, resolver);
+                byte[] current = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+                List<RelNode> aboveAgg = new ArrayList<>();
+                RelNode walk = resolvedFragment;
+                while (walk != partialAgg) {
+                    aboveAgg.add(walk);
+                    walk = walk.getInputs().getFirst();
+                }
+                for (int i = aboveAgg.size() - 1; i >= 0; i--) {
+                    current = convertor.attachFragmentOnTop(stripSingleOperator(aboveAgg.get(i)), current);
+                }
+                return current;
             }
 
             RelNode stripped = strip(resolvedFragment, delegationBytes);
@@ -409,7 +472,7 @@ public class FragmentConversionDriver {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
         }
 
-        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+        if (leaf instanceof OpenSearchValues) {
             // Coord-only literal source — convert the whole fragment via the same isthmus
             // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
             // leaf; DataFusion executes it locally without any input partitions.
@@ -450,6 +513,20 @@ public class FragmentConversionDriver {
         if (node instanceof OpenSearchExchangeReducer) {
             // Strip ExchangeReducer — StageInputScan below it is the schema source.
             return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip ShuffleExchange — same shape as ExchangeReducer at this layer. The
+            // partitioning is enforced at runtime by the producer-side sink; the consumer
+            // fragment converts as if the input arrived as plain StageInputScan named-input.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchStageInputScan) {
+            // Direct StageInputScan boundary — happens after the hash-shuffle rewriter inserts
+            // a worker stage and the consumer fragment becomes Sort/Project/StageInputScan
+            // (no intermediate ExchangeReducer wrapper). Treat the leaf itself as the boundary;
+            // the convertor's StageInputScan→NamedScan rewrite handles binding. Single-input
+            // ancestors above this boundary attach via attachFragmentOnTop on the way back up.
+            return convertor.convertFragment(node);
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
             List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
@@ -498,18 +575,31 @@ public class FragmentConversionDriver {
             }
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
+            // A pure-reorder Project above an engine-native-merge FINAL is emitted like any other operator;
+            // dropping it would strand operators above it (e.g. Sort) with the post-reorder schema over
+            // un-reordered data, corrupting the final column order.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
     }
 
-    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */
+    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan and
+     * OpenSearchBroadcastScan as-is (backend-side rewriter maps them to NamedScans). */
     private static RelNode strip(RelNode node, IntraOperatorDelegationBytes delegationBytes) {
         if (node instanceof OpenSearchStageInputScan) {
             return node; // kept for schema inference at reduce stage
         }
+        if (node instanceof OpenSearchBroadcastScan) {
+            return node; // kept for schema inference at probe stage; backend rewriter maps to NamedScan
+        }
         if (node instanceof OpenSearchExchangeReducer) {
+            return strip(node.getInputs().getFirst(), delegationBytes);
+        }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip the hash-shuffle wrapper. Partitioning happens at runtime inside the
+            // backend's createPartitionedSink (driven by ShuffleProducerOutputState), not in
+            // Substrait — the convertor never needs to lower the shuffle node itself.
             return strip(node.getInputs().getFirst(), delegationBytes);
         }
         List<RelNode> strippedChildren = new ArrayList<>(node.getInputs().size());
@@ -521,18 +611,86 @@ public class FragmentConversionDriver {
             if (node instanceof OpenSearchFilter filter && resolver instanceof AnnotationResolver ar) {
                 // Combine delegated predicates in a single pass, then strip with simple unwrapper
                 RexNode resolved = ar.resolveTree(filter.getCondition());
-                RexNode flattened = RexUtil.flatten(node.getCluster().getRexBuilder(), resolved);
+                RexNode flattened = RelNodeUtils.deepFlatten(node.getCluster().getRexBuilder(), resolved);
                 return LogicalFilter.create(strippedChildren.getFirst(), flattened);
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);
         }
-        return node;
+        boolean childrenChanged = false;
+        for (int i = 0; i < strippedChildren.size(); i++) {
+            if (strippedChildren.get(i) != node.getInputs().get(i)) {
+                childrenChanged = true;
+                break;
+            }
+        }
+        return childrenChanged ? node.copy(node.getTraitSet(), strippedChildren) : node;
     }
 
+    /**
+     * Walks down the fragment to find the leaf that drives stage classification — the
+     * {@link OpenSearchTableScan} or {@link OpenSearchStageInputScan} that determines whether
+     * this fragment is a shard-scan stage or a coordinator-reduce stage.
+     *
+     * <p>For binary-input nodes, prefers the input subtree that contains a real driving leaf
+     * over one whose first leaf is an {@link OpenSearchBroadcastScan} placeholder. The broadcast
+     * scan is a runtime-injected memtable input — it never drives stage targeting or
+     * instruction assembly, so a probe-side join with shape
+     * {@code Join(OpenSearchBroadcastScan, OpenSearchTableScan)} (build = left) must still
+     * route through the shard-scan path on the right.
+     */
     private static RelNode findLeaf(RelNode node) {
         if (node.getInputs().isEmpty()) {
             return node;
         }
+        // For binary inputs (Join), prefer the side whose subtree's leaf is NOT an
+        // OpenSearchBroadcastScan placeholder. With one driving leaf and one broadcast-scan
+        // leaf the broadcast side is the runtime-injected one and must not classify the stage.
+        if (node.getInputs().size() == 2) {
+            RelNode leftLeaf = findLeaf(node.getInputs().get(0));
+            if (!(leftLeaf instanceof OpenSearchBroadcastScan)) {
+                return leftLeaf;
+            }
+            return findLeaf(node.getInputs().get(1));
+        }
         return findLeaf(node.getInputs().getFirst());
     }
+
+    /** Finds an engine-native-merge PARTIAL aggregate buried under operators (not at fragment top). */
+    private static OpenSearchAggregate findBuriedPartialAggregate(RelNode fragment) {
+        if (fragment instanceof OpenSearchAggregate) return null;
+        RelNode node = fragment;
+        while (node.getInputs().size() == 1) {
+            RelNode child = node.getInputs().getFirst();
+            if (child instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+                return agg;
+            }
+            node = child;
+        }
+        return null;
+    }
+
+    /**
+     * Strips a single operator with a placeholder child for use with {@code attachFragmentOnTop}.
+     * Uses direct {@code stripAnnotations} (no delegation resolver) since TopK operators have
+     * no delegated predicates — avoids the getOutputFieldStorage() call that would fail on
+     * the placeholder.
+     */
+    private static RelNode stripSingleOperator(RelNode node) {
+        RelNode child = node.getInputs().getFirst();
+        OpenSearchStageInputScan placeholder = new OpenSearchStageInputScan(
+            node.getCluster(),
+            node.getTraitSet(),
+            -1,
+            child.getRowType(),
+            List.of(),
+            List.of()
+        );
+        if (node instanceof OpenSearchRelNode openSearchNode) {
+            return openSearchNode.stripAnnotations(List.of(placeholder), OperatorAnnotation::unwrap);
+        }
+        return node.copy(node.getTraitSet(), List.of(placeholder));
+    }
+
 }

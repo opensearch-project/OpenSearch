@@ -73,10 +73,26 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
         return Collections.emptyMap();
     }
 
+    /**
+     * Whether to force the MPP distributed path on every query. Default {@code false} — the suite verifies
+     * the coordinator-centric multi-shard reduce. A subclass returning {@code true} (with the tiny
+     * {@code analytics.mpp.distribute.min_rows} floor) drives the same query families through the
+     * distribution-enforcement pass + reduce-stage substrait emit, guarding the MPP-reduce shapes
+     * (percentile literal, HLL partial-state typing, computed-column type drift).
+     */
+    protected boolean forceMpp() {
+        return false;
+    }
+
     // ── provisioning ────────────────────────────────────────────────────────────
 
     @Override
     protected void onBeforeQuery() throws IOException {
+        if (forceMpp()) {
+            Request mpp = new Request("PUT", "/_cluster/settings");
+            mpp.setJsonEntity("{\"transient\":{\"analytics.mpp.enabled\": true, \"analytics.mpp.distribute.min_rows\": 1}}");
+            client().performRequest(mpp);
+        }
         if (provisioned == false) {
             DatasetProvisioner.provision(client(), BASELINE, 1);
             DatasetProvisioner.provision(client(), SHARDED, 2);
@@ -85,6 +101,18 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
             assertShardsPopulated(INDEX_2SHARD, 2);
             provisioned = true;
         }
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        // Reset the cluster-wide MPP transient a forceMpp() subclass applied, so it does not leak onto
+        // sibling test classes on the shared cluster (see TpchPplIT for the same hygiene).
+        if (forceMpp()) {
+            Request reset = new Request("PUT", "/_cluster/settings");
+            reset.setJsonEntity("{\"transient\":{\"analytics.mpp.enabled\": null, \"analytics.mpp.distribute.min_rows\": null}}");
+            client().performRequest(reset);
+        }
+        super.tearDown();
     }
 
     // ── the test ──────────────────────────────────────────────────────────────────
@@ -158,9 +186,17 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
             Map<String, Object> golden = loadGolden(queryDir + "/expected/" + name + ".json");
             if (golden != null) {
                 normalizeArrayCells(golden);
-                String pin = ResponseValidator.compareData(golden, r2, name + " [2-shard vs golden]");
-                if (pin != null) {
-                    return pin;
+                // Pin BOTH shard counts to the golden. The differential above already proves
+                // r1 == r2, so 2-shard-vs-golden alone would catch a regression transitively — but
+                // pinning 1-shard directly guards the baseline even if the differential is ever
+                // relaxed, and a baseline-vs-coordinator regression surfaces on the right side.
+                String pin1 = ResponseValidator.compareData(golden, r1, name + " [1-shard vs golden]");
+                if (pin1 != null) {
+                    return pin1;
+                }
+                String pin2 = ResponseValidator.compareData(golden, r2, name + " [2-shard vs golden]");
+                if (pin2 != null) {
+                    return pin2;
                 }
             }
             return null;

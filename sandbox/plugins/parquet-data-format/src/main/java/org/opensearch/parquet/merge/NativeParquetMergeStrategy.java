@@ -24,6 +24,7 @@ import org.opensearch.parquet.bridge.MergeFilesResult;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Implements merging of Parquet files.
@@ -43,17 +45,20 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private final String indexName;
     private final ShardPath shardPath;
     private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
+    private final ParquetShardStatsTracker stats;
 
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
         String indexName,
         ShardPath shardPath,
-        TriConsumer<FileMetadata, Long, Long> checksumUpdater
+        TriConsumer<FileMetadata, Long, Long> checksumUpdater,
+        ParquetShardStatsTracker stats
     ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
         this.shardPath = shardPath;
         this.checksumUpdater = checksumUpdater;
+        this.stats = stats;
     }
 
     @Override
@@ -78,6 +83,7 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
+        long startNanos = System.nanoTime();
         try {
             // Merge files in Rust
             MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
@@ -107,9 +113,22 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             );
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.incMergeTotal();
+            stats.addMergeTimeMillis(elapsed);
+            stats.addMergeInputFilesTotal(filePaths.size());
+            stats.addMergeOutputRowsTotal(mergeMetadata.numRows());
+            // Per-shard merge metrics forwarded from native: chunk count + time + row_id max.
+            stats.addFlushAndSortChunkTotal(merged.flushAndSortChunkCount());
+            stats.addFlushAndSortChunkTimeMillis(merged.flushAndSortChunkTimeMs());
+            stats.updateRowIdMappingMax(merged.rowIdMappingMax());
+
             return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
 
         } catch (Exception exception) {
+            stats.incMergeFailures();
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.addMergeTimeMillis(elapsed);
             logger.error(() -> new ParameterizedMessage("Merge failed while creating merged file [{}]", mergedFilePath), exception);
             try {
                 Files.deleteIfExists(mergedFilePath);

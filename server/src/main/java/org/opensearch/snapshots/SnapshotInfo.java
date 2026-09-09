@@ -31,6 +31,8 @@
 
 package org.opensearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -38,6 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -69,6 +72,8 @@ import java.util.stream.Collectors;
  */
 @PublicApi(since = "1.0.0")
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
+
+    private static final Logger logger = LogManager.getLogger(SnapshotInfo.class);
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
@@ -201,7 +206,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             }
 
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
-            Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
+            final Version version;
+            if (this.version == -1) {
+                version = Version.CURRENT;
+            } else {
+                version = resolveSnapshotVersion(this.version);
+            }
 
             int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
             int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
@@ -795,6 +805,24 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
+     * Resolves the {@link Version} a snapshot was created with from its stored {@code version_id},
+     * returning {@code null} for unsupported (e.g. legacy Elasticsearch) versions so that read-only
+     * operations such as listing snapshots do not fail for the whole repository.
+     */
+    @Nullable
+    private static Version resolveSnapshotVersion(int versionId) {
+        try {
+            return Version.fromId(versionId);
+        } catch (Version.UnsupportedVersionException e) {
+            if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_STRICT_VERSION_PARSING_SETTING)) {
+                throw e;
+            }
+            logger.debug("Encountered unsupported snapshot version_id [{}]; reporting version as unknown", versionId);
+            return null;
+        }
+    }
+
+    /**
      * This method creates a SnapshotInfo from internal x-content.  It does not
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.
@@ -848,7 +876,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                         } else if (SUCCESSFUL_SHARDS.equals(currentFieldName)) {
                             successfulShards = parser.intValue();
                         } else if (VERSION_ID.equals(currentFieldName)) {
-                            version = Version.fromId(parser.intValue());
+                            version = resolveSnapshotVersion(parser.intValue());
                         } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
                             includeGlobalState = parser.booleanValue();
                         } else if (REMOTE_STORE_INDEX_SHALLOW_COPY.equals(currentFieldName)) {

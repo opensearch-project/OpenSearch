@@ -69,7 +69,18 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     // TODO: have CapabilityRegistry intersect declared FilterCapability against the
     // backend's serializer keyset at startup so this list can't drift again. The TODO in
     // OpenSearchFilterRule.resolveViableBackends references the same constraint.
-    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(ScalarFunction.EQUALS);
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.LIKE,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.SARG_PREDICATE
+    );
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
         ScalarFunction.MATCH,
@@ -83,6 +94,8 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.WILDCARD,
         ScalarFunction.REGEXP,
         ScalarFunction.WILDCARD_QUERY,
+        ScalarFunction.PREFIX_QUERY,
+        ScalarFunction.WILDCARD_QUERY_DSL,
         ScalarFunction.QUERY,
         ScalarFunction.MATCHALL
     );
@@ -104,11 +117,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         FULL_TEXT_TYPES.addAll(FieldType.text());
     }
 
+    private static final Set<FieldType> KEYWORD_ONLY = Set.of(FieldType.KEYWORD);
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (ScalarFunction op : STANDARD_OPS) {
-            caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
+            if (op == ScalarFunction.LIKE) {
+                caps.add(new FilterCapability.Standard(op, KEYWORD_ONLY, LUCENE_FORMATS));
+            } else {
+                caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
+            }
         }
         for (ScalarFunction op : FULL_TEXT_OPS) {
             for (FieldType type : FULL_TEXT_TYPES) {

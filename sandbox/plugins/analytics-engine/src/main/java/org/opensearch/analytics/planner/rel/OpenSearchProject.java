@@ -41,9 +41,19 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchProject extends Project implements OpenSearchRelNode {
+public class OpenSearchProject extends Project implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
+
+    /**
+     * When true, this Project must stay ABOVE the ExchangeReducer (in the coordinator fragment) —
+     * {@link #computeSelfCost} returns infinite cost unless its input is already gathered
+     * (SINGLETON/ANY), forcing Volcano to place an ER below it. Used to keep an aggregate's literal
+     * config arg (e.g. percentile's {@code 50}) adjacent to the aggregate while a duplicate,
+     * unpinned, physical-only Project pushes below the gather for projection-pushdown. Mirrors the
+     * RexOver gate, which has the same coordinator-side requirement.
+     */
+    private final boolean pinAboveExchange;
 
     public OpenSearchProject(
         RelOptCluster cluster,
@@ -53,13 +63,31 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         RelDataType rowType,
         List<String> viableBackends
     ) {
+        this(cluster, traitSet, input, projects, rowType, viableBackends, false);
+    }
+
+    public OpenSearchProject(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        List<? extends RexNode> projects,
+        RelDataType rowType,
+        List<String> viableBackends,
+        boolean pinAboveExchange
+    ) {
         super(cluster, traitSet, List.of(), input, projects, rowType);
         this.viableBackends = viableBackends;
+        this.pinAboveExchange = pinAboveExchange;
     }
 
     @Override
     public List<String> getViableBackends() {
         return viableBackends;
+    }
+
+    /** See {@link #pinAboveExchange}. */
+    public boolean isPinAboveExchange() {
+        return pinAboveExchange;
     }
 
     @Override
@@ -86,19 +114,21 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     @Override
     public Project copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects, RelDataType rowType) {
-        return new OpenSearchProject(getCluster(), traitSet, input, projects, rowType, viableBackends);
+        return new OpenSearchProject(getCluster(), traitSet, input, projects, rowType, viableBackends, pinAboveExchange);
     }
 
     /**
      * Projects containing {@code RexOver} (window functions) need fully-gathered input so the
-     * window's global frame semantics are correct — infinite cost unless input is SINGLETON.
-     * Volcano picks the plan where an ER sits under this project.
+     * window's global frame semantics are correct. Projects flagged {@link #pinAboveExchange} must
+     * likewise stay in the coordinator fragment (they carry an aggregate's literal config arg). Both
+     * return infinite cost unless input is SINGLETON/ANY — Volcano then picks the plan where an ER
+     * sits under this project.
      *
-     * <p>Plain projects (no RexOver) have no ordering requirement — tiny cost unconditionally.
+     * <p>Plain projects (neither) have no ordering requirement — tiny cost unconditionally.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (!containsOver()) {
+        if (!containsOver() && !pinAboveExchange) {
             return planner.getCostFactory().makeTinyCost();
         }
         // containsOver() is Calcite's own — inherited from Project.
@@ -113,6 +143,52 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
             }
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * A row-wise project imposes no partitioning requirement on its input (it neither needs nor breaks a
+     * distribution) — returns {@code null} so the input keeps whatever distribution it derived. A
+     * window-bearing project ({@code RexOver}) or a {@code pinAboveExchange} project needs fully-gathered
+     * input (global window frame / coordinator-pinned literal), so it requires {@code COORDINATOR+SINGLETON}.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        if (inputIndex != 0) {
+            return null;
+        }
+        if (!containsOver() && !pinAboveExchange) {
+            return null;
+        }
+        return traitDef.coordSingleton();
+    }
+
+    /**
+     * A plain project passes the child's distribution through, REMAPPED to output columns: a hash key at
+     * input column {@code k} moves to wherever the projection places {@code k} (and degrades to ANY if the
+     * projection drops it) — exactly {@link OpenSearchDistribution#apply} over the project's
+     * {@code getPartialMapping}. A window/pinned project gathered its input to SINGLETON, so its output is
+     * SINGLETON. Returns {@code null} when the child distribution is unknown.
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        if (childDistributions.size() != 1 || childDistributions.get(0) == null) {
+            return null;
+        }
+        OpenSearchDistribution childDist = childDistributions.get(0);
+        if (containsOver() || pinAboveExchange) {
+            return traitDef.coordSingleton();
+        }
+        org.apache.calcite.util.mapping.Mappings.TargetMapping mapping = Project.getPartialMapping(
+            getInput().getRowType().getFieldCount(),
+            getProjects()
+        );
+        org.apache.calcite.rel.RelDistribution remapped = childDist.apply(mapping);
+        return remapped instanceof OpenSearchDistribution osDist ? osDist : null;
     }
 
     @Override
@@ -143,7 +219,15 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 resolvedExprs.add(expr);
             }
         }
-        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(), resolvedExprs, getRowType(), List.of(backend));
+        return new OpenSearchProject(
+            getCluster(),
+            getTraitSet(),
+            children.getFirst(),
+            resolvedExprs,
+            getRowType(),
+            List.of(backend),
+            pinAboveExchange
+        );
     }
 
     @Override

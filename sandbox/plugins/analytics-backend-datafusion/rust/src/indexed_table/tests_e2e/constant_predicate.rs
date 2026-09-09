@@ -11,6 +11,7 @@
 //! `no index_filter(...) in plan`. Asserts constant-true keeps every row and
 //! constant-false drops every row (the residual is evaluated, not ignored).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, Int32Array, StringArray};
@@ -72,7 +73,10 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
+        sort_min: None,
+        sort_max: None,
     };
 
     // FilterClass::None: no pruning predicate (column-less), constant applied
@@ -80,16 +84,24 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
     let factory: EvaluatorFactory = {
         let schema = schema.clone();
         let residual = Arc::clone(&residual);
-        Arc::new(move |segment: &SegmentFileInfo, _chunk, stream_metrics| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
-                pruner,
-                None,
-                Some(Arc::clone(&residual)),
-                Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
-            ));
-            Ok(eval)
-        })
+        Arc::new(
+            move |segment: &SegmentFileInfo, _chunk, stream_metrics, _stats_prune_tree| {
+                let pruner = Arc::new(PagePruner::new(
+                    &schema,
+                    Arc::clone(&segment.metadata),
+                    schema.clone(),
+                ));
+                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
+                    pruner,
+                    None,
+                    Some(Arc::clone(&residual)),
+                    Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                    None,
+                    HashMap::new(),
+                ));
+                Ok(eval)
+            },
+        )
     };
 
     let store: Arc<dyn object_store::ObjectStore> =
@@ -98,7 +110,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -110,6 +122,10 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

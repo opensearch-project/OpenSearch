@@ -49,6 +49,7 @@ use crate::indexed_table::eval::single_collector::{
 };
 use crate::indexed_table::eval::RowGroupBitsetSource;
 use crate::indexed_table::ffm_callbacks::ProviderHandle;
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::table_provider::{
@@ -140,10 +141,7 @@ fn gen_binary_predicate_expr(
     Arc::new(BinaryExpr::new(col_expr, op, lit_expr))
 }
 
-fn pick_literal_for(
-    rng: &mut StdRng,
-    dt: &datafusion::arrow::datatypes::DataType,
-) -> ScalarValue {
+fn pick_literal_for(rng: &mut StdRng, dt: &datafusion::arrow::datatypes::DataType) -> ScalarValue {
     use datafusion::arrow::datatypes::{DataType, TimeUnit};
     let strategy = rng.gen_range(0..100u32);
     match dt {
@@ -215,7 +213,11 @@ struct StaticBitsetCollector {
 }
 
 impl RowGroupDocsCollector for StaticBitsetCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -224,7 +226,7 @@ impl RowGroupDocsCollector for StaticBitsetCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -246,11 +248,12 @@ impl DelegatedBackendCollectorFactory for MockDelegatedBackendCollectorFactory {
         _doc_min: i32,
         _doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
-        let matching = self
-            .match_sets
-            .get(&provider_key)
-            .cloned()
-            .ok_or_else(|| format!("MockDelegatedBackend: no match-set for provider_key={}", provider_key))?;
+        let matching = self.match_sets.get(&provider_key).cloned().ok_or_else(|| {
+            format!(
+                "MockDelegatedBackend: no match-set for provider_key={}",
+                provider_key
+            )
+        })?;
         Ok(Arc::new(StaticBitsetCollector { matching }) as Arc<dyn RowGroupDocsCollector>)
     }
 }
@@ -261,17 +264,14 @@ impl DelegatedBackendCollectorFactory for MockDelegatedBackendCollectorFactory {
 /// emits — all `original_expr`s in delegation trees pass through that fn.
 fn rows_matching_predicate(corpus: &Corpus, expr: &Arc<dyn PhysicalExpr>) -> Vec<i32> {
     let bin = expr
-        .as_any()
         .downcast_ref::<BinaryExpr>()
         .expect("delegation fuzz: original_expr must be BinaryExpr");
     let col = bin
         .left()
-        .as_any()
         .downcast_ref::<Column>()
         .expect("delegation fuzz: BinaryExpr lhs must be Column");
     let lit = bin
         .right()
-        .as_any()
         .downcast_ref::<Literal>()
         .expect("delegation fuzz: BinaryExpr rhs must be Literal");
     let col_idx = *corpus
@@ -301,9 +301,15 @@ fn compare_cell_lit_true(cell: &CellValue, op: Operator, lit: &ScalarValue) -> b
         };
     }
     let ord: Option<Ordering> = match (cell, lit) {
-        (CellValue::Utf8(c), ScalarValue::Utf8(l)) => Some(bail_unknown!(c).as_str().cmp(bail_unknown!(l).as_str())),
-        (CellValue::Int32(c), ScalarValue::Int32(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
-        (CellValue::Int64(c), ScalarValue::Int64(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
+        (CellValue::Utf8(c), ScalarValue::Utf8(l)) => {
+            Some(bail_unknown!(c).as_str().cmp(bail_unknown!(l).as_str()))
+        }
+        (CellValue::Int32(c), ScalarValue::Int32(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
+        (CellValue::Int64(c), ScalarValue::Int64(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
         (CellValue::Float64(c), ScalarValue::Float64(l)) => {
             let c = bail_unknown!(c);
             let l = bail_unknown!(l);
@@ -315,7 +321,9 @@ fn compare_cell_lit_true(cell: &CellValue, op: Operator, lit: &ScalarValue) -> b
         (CellValue::Boolean(c), ScalarValue::Boolean(l)) => {
             Some((*bail_unknown!(c) as i32).cmp(&(*bail_unknown!(l) as i32)))
         }
-        (CellValue::Date32(c), ScalarValue::Date32(l)) => Some(bail_unknown!(c).cmp(bail_unknown!(l))),
+        (CellValue::Date32(c), ScalarValue::Date32(l)) => {
+            Some(bail_unknown!(c).cmp(bail_unknown!(l)))
+        }
         (CellValue::TimestampNanos(c), ScalarValue::TimestampNanosecond(l, _)) => {
             Some(bail_unknown!(c).cmp(bail_unknown!(l)))
         }
@@ -408,8 +416,12 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         let factory = Arc::clone(&factory);
         let provider_locks = Arc::clone(&provider_locks);
         let schema = loaded.schema.clone();
-        Arc::new(move |segment, _chunk, stream_metrics| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+        Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&correctness)),
                 pruner,
@@ -423,6 +435,8 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 Arc::clone(&factory),
                 0,
                 None,
+                None,
+                HashMap::new(),
             ));
             Ok(eval)
         })
@@ -443,7 +457,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
     // arithmetic were wrong we'd silently corrupt results on any segment after the first.
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(corpus.config.target_partitions.max(1))
-        .force_pushdown(Some(true))
+        .indexed_pushdown_filters(true)
         .batch_size(1024)
         .build();
 
@@ -451,9 +465,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         use datafusion::common::tree_node::TreeNode;
         let mut indices = std::collections::BTreeSet::new();
         let _ = residual_physical.apply(|node| {
-            if let Some(col) = node
-                .as_any()
-                .downcast_ref::<datafusion::physical_expr::expressions::Column>()
+            if let Some(col) = node.downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
             }
@@ -472,6 +484,10 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
         emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();

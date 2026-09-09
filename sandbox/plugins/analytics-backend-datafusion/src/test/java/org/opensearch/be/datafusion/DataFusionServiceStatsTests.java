@@ -8,7 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.stats.SpillStats;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.nio.file.Path;
 
 /**
  * Unit tests for {@link DataFusionService#getStats()}.
@@ -33,5 +36,38 @@ public class DataFusionServiceStatsTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, service::getStats);
         assertEquals("DataFusionService has not been started", ex.getMessage());
+    }
+
+    public void testGetSpillDirectoryReflectsBuilderValue() {
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64L * 1024L * 1024L)
+            .spillMemoryLimit(32L * 1024L * 1024L)
+            .spillDirectory("/var/lib/opensearch/spill")
+            .build();
+
+        assertEquals("/var/lib/opensearch/spill", service.getSpillDirectory());
+        assertEquals(32L * 1024L * 1024L, service.getSpillMemoryLimit());
+    }
+
+    public void testBuildSpillStatsWithDisabledSpillReturnsEmptyDirectory() {
+        DataFusionService service = DataFusionService.builder().memoryPoolLimit(1L).spillMemoryLimit(2L).spillDirectory("").build();
+        SpillStats spill = service.buildSpillStats();
+        assertEquals("", spill.getDirectory());
+        assertEquals(0L, spill.getDiskTotalBytes());
+        assertEquals(0L, spill.getDiskReservedBytes());
+    }
+
+    public void testBuildSpillStatsReadsConfiguredDirectory() {
+        Path realSpillDir = createTempDir();
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(1L)
+            .spillMemoryLimit(2L)
+            .spillDirectory(realSpillDir.toString())
+            .build();
+
+        SpillStats spill = service.buildSpillStats();
+        assertEquals(realSpillDir.toString(), spill.getDirectory());
+        assertEquals(2L, spill.getDiskReservedBytes());
+        assertTrue(spill.getDiskTotalBytes() > 0L);
     }
 }

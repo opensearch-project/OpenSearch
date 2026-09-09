@@ -1,0 +1,1 @@
+source=%INDEX% | stats stddev_samp(price) by span(amount, 5)

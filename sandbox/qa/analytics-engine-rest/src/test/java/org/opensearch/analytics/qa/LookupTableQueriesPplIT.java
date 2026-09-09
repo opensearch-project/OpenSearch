@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
-
 /**
  * Lookup Table Queries PPL integration test (multi-index). Runs PPL queries with lookup operations.
  */
@@ -20,8 +18,18 @@ public class LookupTableQueriesPplIT extends BasePplIT {
         return LookupTableQueriesTestHelper.DATASET;
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testLookupTableQueriesPplQueries() throws Exception {
         runPplQueries();
+    }
+
+    /**
+     * q1 (grok extract -> stats) now runs on the analytics route. q7 stays skipped:
+     * its failure is unrelated to grok — the q7.ppl body is multi-line so the test
+     * harness cannot serialize it into the {@code _ppl} request JSON ("Unterminated
+     * string"), and it also exercises eventstats / dedup / percentile.
+     */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(7);
     }
 }

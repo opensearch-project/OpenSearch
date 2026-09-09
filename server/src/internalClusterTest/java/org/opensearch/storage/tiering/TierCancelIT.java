@@ -306,6 +306,90 @@ public class TierCancelIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    /**
+     * End-to-end: a hot-to-warm migration that is mid-flight (HOT_TO_WARM) must remain cancellable
+     * after the active cluster-manager dies. The new cluster-manager loses the in-memory tiering set,
+     * but rebuilds it from the persisted INDEX_TIERING_STATE (reconstructInProgressTieringRequests on
+     * election) — and, as a safety net, getTieringServiceForIndex falls back to the persisted state.
+     * Either way, cancel must succeed and the index must roll back cleanly to the hot tier.
+     */
+    public void testCancelHotToWarmMigrationSucceedsAfterClusterManagerFailover() throws Exception {
+        logger.info("--> Testing hot-to-warm cancel after cluster-manager failover");
+
+        // Need >1 dedicated cluster-manager node so a new one can be elected after the active one is killed.
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "10b")
+            .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "10b")
+            .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "0b")
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5.0);
+
+        internalCluster().startClusterManagerOnlyNodes(3, settingsBuilder.build());
+        internalCluster().startDataOnlyNodes(2, settingsBuilder.build());
+        internalCluster().startWarmOnlyNodes(2, settingsBuilder.build());
+        interceptCheckpointUpdates();
+
+        createTestIndex(INDEX_NAME, 1, 1);
+        Map<String, Long> indexStats = indexData(1, false, INDEX_NAME);
+        Long expectedDocCount = indexStats.get(TOTAL_OPERATIONS);
+        refresh(INDEX_NAME);
+
+        try {
+            // Disable allocation so the migration gets stuck in HOT_TO_WARM (shards can't relocate to warm).
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(buildDisabledAllocationSettings()).get();
+
+            startMigrationToWarm(INDEX_NAME);
+
+            // Confirm it is stuck mid-migration in HOT_TO_WARM before we kill the cluster-manager.
+            assertBusy(() -> {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                Settings idxSettings = state.metadata().index(INDEX_NAME).getSettings();
+                assertEquals("Index should have warm setting", "true", idxSettings.get(IS_WARM_INDEX_SETTING.getKey()));
+                assertEquals(
+                    "Index should be in HOT_TO_WARM state",
+                    IndexModule.TieringState.HOT_TO_WARM.toString(),
+                    idxSettings.get(INDEX_TIERING_STATE.getKey())
+                );
+            }, 10, TimeUnit.SECONDS);
+
+            // Kill the active cluster-manager — this wipes its in-memory tieringIndices set.
+            final String oldClusterManager = internalCluster().getClusterManagerName();
+            internalCluster().stopCurrentClusterManagerNode();
+
+            // A new cluster-manager must take over (started 7 nodes, killed 1 → 6 remain).
+            ensureStableCluster(6);
+            final String newClusterManager = internalCluster().getClusterManagerName();
+            assertNotEquals("A new cluster-manager must be elected", oldClusterManager, newClusterManager);
+
+            // The index is still persisted as HOT_TO_WARM in cluster state after failover.
+            assertBusy(() -> {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                assertEquals(
+                    "Index should still be HOT_TO_WARM after failover",
+                    IndexModule.TieringState.HOT_TO_WARM.toString(),
+                    state.metadata().index(INDEX_NAME).getSettings().get(INDEX_TIERING_STATE.getKey())
+                );
+            }, 10, TimeUnit.SECONDS);
+
+            // Cancel must succeed on the new cluster-manager despite the in-memory set having been lost.
+            cancelTiering(INDEX_NAME);
+
+            // Re-enable allocation and confirm the index rolls back cleanly to the hot tier.
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(buildEnabledAllocationSettings(2)).get();
+            verifyIndexInHotTier(INDEX_NAME);
+
+            // Data must be intact.
+            refresh(INDEX_NAME);
+            assertEquals(
+                "Document count should be preserved",
+                expectedDocCount.longValue(),
+                client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value()
+            );
+        } finally {
+            client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).actionGet();
+        }
+    }
+
     // Helper Methods
     protected void setupCluster(int numberOfReplicas) {
         Settings.Builder settingsBuilder = Settings.builder()

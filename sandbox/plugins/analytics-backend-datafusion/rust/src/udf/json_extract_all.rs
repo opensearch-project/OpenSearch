@@ -17,7 +17,6 @@
 //! `try { … } catch (IOException) { /* swallow */ }` flow at
 //! {@code JsonExtractAllFunctionImpl#parseJson}).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, MapBuilder, MapFieldNames, StringBuilder};
@@ -92,9 +91,6 @@ fn map_data_type() -> DataType {
 }
 
 impl ScalarUDFImpl for JsonExtractAllUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -502,7 +498,9 @@ mod tests {
 
     #[test]
     fn return_type_is_map_utf8_utf8() {
-        let dt = JsonExtractAllUdf::new().return_type(&[DataType::Utf8]).unwrap();
+        let dt = JsonExtractAllUdf::new()
+            .return_type(&[DataType::Utf8])
+            .unwrap();
         match dt {
             DataType::Map(field, sorted) => {
                 assert!(!sorted);

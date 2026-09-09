@@ -79,6 +79,7 @@ The benchmark-config.json file accepts the following schema.
       "DATA_INSTANCE_TYPE": "EC2 instance type for data node, empty defaults to r5.xlarge.",
       "DATA_NODE_STORAGE": "Data node ebs block storage size, empty value defaults to 100Gb",
       "JVM_SYS_PROPS": "A comma-separated list of key=value pairs that will be added to jvm.options as JVM system properties",
+      "INSTALL_STREAMING_PLUGINS": "Bundle arrow-base and arrow-flight-rpc into the pull request distribution, accepted values are \"true\" or \"false\"",
       "ADDITIONAL_CONFIG": "Additional space delimited opensearch.yml config parameters. e.g., `search.concurrent_segment_search.enabled:true`",
       "TEST_WORKLOAD": "The workload name from OpenSearch Benchmark Workloads. https://github.com/opensearch-project/opensearch-benchmark-workloads. Default is nyc_taxis",
       "WORKLOAD_PARAMS": "With this parameter you can inject variables into workloads, e.g.{\"number_of_replicas\":\"0\",\"number_of_shards\":\"3\"}. See https://opensearch.org/docs/latest/benchmark/reference/commands/command-flags/#workload-params",

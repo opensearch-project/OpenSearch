@@ -35,4 +35,12 @@ public interface ArrowStreamInput {
      * input's {@code close()} must not release the batch's buffers.
      */
     void claimOwnership();
+
+    /**
+     * Returns application metadata attached to this batch, or {@code null} if none. Bytes
+     * are owned by the consumer; lifetime is independent of the stream buffer.
+     */
+    default byte[] getMetadata() {
+        return null;
+    }
 }

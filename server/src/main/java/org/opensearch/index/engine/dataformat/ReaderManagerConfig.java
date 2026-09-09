@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.NativeStoreHandle;
@@ -28,10 +29,12 @@ import java.util.Optional;
  * @param dataformatAwareStoreHandles per-format native store handles for reads.
  *                                    Empty map if no native stores are available.
  *                                    Each plugin extracts its own handle via {@code handles.get(config.format())}.
+ * @param indexSettings the index settings (carries {@code IndexSortConfig} so backends can declare
+ *                      file sort order to their query optimizers).
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public record ReaderManagerConfig(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, DataFormatRegistry registry,
-    ShardPath shardPath, Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles) {
+    ShardPath shardPath, Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles, IndexSettings indexSettings) {
 }

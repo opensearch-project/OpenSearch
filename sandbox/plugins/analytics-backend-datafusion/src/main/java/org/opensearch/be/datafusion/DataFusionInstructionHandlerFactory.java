@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
 import org.opensearch.analytics.spi.FilterTreeShape;
@@ -18,6 +19,9 @@ import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
+import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
+import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,8 +43,8 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     // ── Coordinator: create instruction nodes ──
 
     @Override
-    public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
-        return Optional.of(new ShardScanInstructionNode(requestsRowIds));
+    public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName) {
+        return Optional.of(new ShardScanInstructionNode(requestsRowIds, logicalTableName));
     }
 
     @Override
@@ -56,9 +60,12 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     public Optional<InstructionNode> createShardScanWithDelegationNode(
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
-        boolean requestsRowIds
+        boolean requestsRowIds,
+        String logicalTableName
     ) {
-        return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
+        return Optional.of(
+            new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, logicalTableName)
+        );
     }
 
     @Override
@@ -69,6 +76,39 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     @Override
     public Optional<InstructionNode> createFinalAggregateNode() {
         return Optional.of(new FinalAggregateInstructionNode());
+    }
+
+    @Override
+    public Optional<InstructionNode> createBroadcastInjectionNode(String namedInputId, int buildSideIndex, byte[] broadcastData) {
+        return Optional.of(new BroadcastInjectionInstructionNode(namedInputId, buildSideIndex, broadcastData));
+    }
+
+    @Override
+    public Optional<InstructionNode> createShuffleScanNode(
+        String namedInputId,
+        int shufflePartitionIndex,
+        int expectedSenders,
+        String queryId,
+        int targetStageId,
+        String side
+    ) {
+        return Optional.of(
+            new ShuffleScanInstructionNode(namedInputId, shufflePartitionIndex, expectedSenders, queryId, targetStageId, side)
+        );
+    }
+
+    @Override
+    public Optional<InstructionNode> createShuffleProducerNode(
+        List<Integer> hashKeyChannels,
+        int partitionCount,
+        List<String> targetWorkerNodeIds,
+        String queryId,
+        int targetStageId,
+        String side
+    ) {
+        return Optional.of(
+            new ShuffleProducerInstructionNode(hashKeyChannels, partitionCount, targetWorkerNodeIds, queryId, targetStageId, side)
+        );
     }
 
     // ── Data node: create handlers ──
@@ -89,6 +129,19 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
             DataFusionService svc = plugin.getDataFusionService();
             return new FinalAggregateInstructionHandler(svc.getNativeRuntime());
         }
+        if (node instanceof BroadcastInjectionInstructionNode) {
+            return new BroadcastInjectionHandler();
+        }
+        if (node instanceof ShuffleScanInstructionNode) {
+            return new ShuffleScanHandler();
+        }
+        if (node instanceof ShuffleProducerInstructionNode) {
+            return new ShuffleProducerHandler();
+        }
+        if (node instanceof ShuffleWorkerSetupInstructionNode) {
+            return new ShuffleWorkerSetupHandler(plugin);
+        }
+        // TODO: FilterDelegationInstructionHandler, PartialAggregateInstructionHandler
         throw new UnsupportedOperationException("No handler for instruction type: " + node.type());
     }
 }

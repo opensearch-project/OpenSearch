@@ -21,16 +21,17 @@ import java.io.IOException;
  * directly to the indexing layer.</p>
  */
 @ExperimentalApi()
-public sealed interface ExtraFieldValue permits FloatArrayValue, BytesValue {
-
+public sealed interface ExtraFieldValue permits BytesValue, FloatArrayValue, DoubleArrayValue, IntArrayValue, LongArrayValue {
     /**
      * Supported extra field value types.
      */
     @ExperimentalApi
     enum Type {
         BYTES((byte) 0, BytesValue::readBodyFrom),
-        FLOAT_ARRAY((byte) 1, FloatArrayValue::readBodyFrom);
-        // TODO add double, int and long
+        FLOAT_ARRAY((byte) 1, FloatArrayValue::readBodyFrom),
+        DOUBLE_ARRAY((byte) 2, DoubleArrayValue::readBodyFrom),
+        INT_ARRAY((byte) 3, IntArrayValue::readBodyFrom),
+        LONG_ARRAY((byte) 4, LongArrayValue::readBodyFrom);
 
         private final byte id;
         private final Reader reader;

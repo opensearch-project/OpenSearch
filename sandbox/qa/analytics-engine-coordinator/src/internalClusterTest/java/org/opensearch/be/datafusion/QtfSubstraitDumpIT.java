@@ -32,6 +32,7 @@ import org.apache.calcite.sql2rel.StandardConvertletTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -42,7 +43,6 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
-import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -104,8 +104,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
 
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
@@ -140,7 +140,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);
 
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         LOGGER.info("[QTF-DUMP] QueryDAG (post-conversion, with backend-resolved fragments):\n{}", dag);
 
         // Walk every stage and dump its substrait Plan(s).
@@ -192,8 +192,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
 
@@ -213,7 +213,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return dag;
     }
 
@@ -288,7 +288,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                         .put("index.composite.primary_data_format", primaryDataFormat)
-                        .putList("index.composite.secondary_data_formats", "lucene")
+                        .putList("index.composite.secondary_data_formats")
                 )
                 .numberOfShards(shardCount)
                 .numberOfReplicas(0)
@@ -328,7 +328,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

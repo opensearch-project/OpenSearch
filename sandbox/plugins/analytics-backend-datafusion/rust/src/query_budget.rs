@@ -67,16 +67,38 @@
 //! memory allows, reduced parallelism under pressure, rejection only at
 //! extreme saturation.
 
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
-use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
+use datafusion::execution::memory_pool::{
+    MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation,
+};
+use once_cell::sync::Lazy;
 use parquet::file::metadata::ParquetMetaData;
 
-/// Configurable minimum target_partitions floor. Updated from Java when the
-/// cluster setting `datafusion.min_target_partitions` changes.
+/// Cumulative counters for budget fallbacks and rejections.
+pub struct AdaptiveBudgetStats {
+    pub fallbacks: AtomicU64,
+    pub rejections: AtomicU64,
+}
+
+static ADAPTIVE_BUDGET: Lazy<AdaptiveBudgetStats> = Lazy::new(|| AdaptiveBudgetStats {
+    fallbacks: AtomicU64::new(0),
+    rejections: AtomicU64::new(0),
+});
+
+/// Returns a reference to the global budget stats counters.
+pub fn adaptive_budget() -> &'static AdaptiveBudgetStats {
+    &ADAPTIVE_BUDGET
+}
+
+/// Configurable minimum target_partitions floor for adaptive reduction.
+/// Updated from Java when the cluster setting `datafusion.min_target_partitions`
+/// changes. The floor is clamped per-call to the configured target_partitions,
+/// so it cannot raise the starting value above what the caller requested
+/// (e.g. derived from `search.concurrent.max_slice_count`).
 static MIN_TARGET_PARTITIONS_SETTING: AtomicUsize = AtomicUsize::new(1);
 
 /// Set the minimum target partitions floor at runtime. Called from Java when
@@ -89,7 +111,6 @@ pub fn set_min_target_partitions(value: usize) {
 pub fn get_min_target_partitions() -> usize {
     MIN_TARGET_PARTITIONS_SETTING.load(Ordering::Acquire)
 }
-
 
 /// How many batch-sized buffers exist per partition in the pipeline.
 ///
@@ -145,7 +166,13 @@ pub fn acquire_budget(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
-    acquire_budget_with_projection(pool, schema, configured_target_partitions, configured_batch_size, None)
+    acquire_budget_with_projection(
+        pool,
+        schema,
+        configured_target_partitions,
+        configured_batch_size,
+        None,
+    )
 }
 
 /// Acquire budget using measured row bytes from parquet metadata.
@@ -165,7 +192,13 @@ pub fn acquire_budget_from_metadata(
     let avg_row_bytes = estimate_row_bytes_from_metadata(schema, metadata)
         .unwrap_or_else(|| estimate_avg_row_bytes(schema));
     let num_columns = schema.fields().len();
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        configured_batch_size,
+    )
 }
 
 /// Same as [`acquire_budget`] but accepts an optional projection.
@@ -184,7 +217,13 @@ pub fn acquire_budget_with_projection(
         Some(indices) => indices.len(),
         None => schema.fields().len(),
     };
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        configured_batch_size,
+    )
 }
 
 /// Core budget acquisition logic. All public entry points delegate here.
@@ -205,8 +244,12 @@ fn acquire_budget_inner(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
-    let min_partitions = get_min_target_partitions();
-    let mut target_partitions = configured_target_partitions.max(min_partitions);
+    // The setting acts purely as a floor for adaptive reduction. It must never
+    // raise target_partitions above what the caller already configured (e.g.
+    // derived from `search.concurrent.max_slice_count`). Clamp so a configured
+    // value below the setting is left untouched.
+    let min_partitions = get_min_target_partitions().min(configured_target_partitions.max(1));
+    let mut target_partitions = configured_target_partitions.max(1);
     let mut batch_size = configured_batch_size.max(MIN_BATCH_SIZE);
 
     // Proactive admission guard: only consult jemalloc RSS when the pool's own
@@ -228,15 +271,22 @@ fn acquire_budget_inner(
                         "Admission REJECTED: pool reserved={}B, RSS={}B >= spill threshold ({:.0}% of {}B). Node under memory pressure.",
                         reserved, resident, thresholds.admission_reject * 100.0, limit
                     );
+                    ADAPTIVE_BUDGET.rejections.fetch_add(1, Ordering::Relaxed);
                     return Err(crate::native_error::admission_rejected_error(
-                        compute_untracked_bytes_with_columns(min_partitions, MIN_BATCH_SIZE, avg_row_bytes, num_columns),
+                        compute_untracked_bytes_with_columns(
+                            min_partitions,
+                            MIN_BATCH_SIZE,
+                            avg_row_bytes,
+                            num_columns,
+                        ),
                         min_partitions,
                         MIN_BATCH_SIZE,
                         avg_row_bytes,
                     ));
                 }
                 // RSS between admission (70%) and operator (85%) — reduce partitions
-                let admission_threshold_bytes = (limit as f64 * thresholds.admission_throttle) as i64;
+                let admission_threshold_bytes =
+                    (limit as f64 * thresholds.admission_throttle) as i64;
                 if resident >= admission_threshold_bytes {
                     native_bridge_common::log_info!(
                         "Admission: pool reserved={}B, RSS={}B >= admission threshold ({:.0}%) — reducing to min partitions={}",
@@ -250,7 +300,10 @@ fn acquire_budget_inner(
 
     loop {
         let phantom_bytes = compute_untracked_bytes_with_columns(
-            target_partitions, batch_size, avg_row_bytes, num_columns,
+            target_partitions,
+            batch_size,
+            avg_row_bytes,
+            num_columns,
         );
 
         let consumer = MemoryConsumer::new(format!(
@@ -299,6 +352,7 @@ fn acquire_budget_inner(
                 if target_partitions > min_partitions {
                     let prev = target_partitions;
                     target_partitions = (target_partitions / 2).max(min_partitions);
+                    ADAPTIVE_BUDGET.fallbacks.fetch_add(1, Ordering::Relaxed);
                     native_bridge_common::log_info!(
                         "Memory pressure: reducing target_partitions {} -> {} (phantom {} bytes failed, floor={})",
                         prev, target_partitions, phantom_bytes, min_partitions
@@ -306,11 +360,13 @@ fn acquire_budget_inner(
                 } else if batch_size > MIN_BATCH_SIZE {
                     let prev = batch_size;
                     batch_size = (batch_size / 2).max(MIN_BATCH_SIZE);
+                    ADAPTIVE_BUDGET.fallbacks.fetch_add(1, Ordering::Relaxed);
                     native_bridge_common::log_info!(
                         "Memory pressure: reducing batch_size {} -> {} at target_partitions={} (phantom {} bytes failed)",
                         prev, batch_size, target_partitions, phantom_bytes
                     );
                 } else {
+                    ADAPTIVE_BUDGET.rejections.fetch_add(1, Ordering::Relaxed);
                     return Err(crate::native_error::admission_rejected_error(
                         compute_untracked_bytes(min_partitions, MIN_BATCH_SIZE, avg_row_bytes),
                         min_partitions,
@@ -322,7 +378,6 @@ fn acquire_budget_inner(
         }
     }
 }
-
 
 /// Attempt to acquire or grow the coordinator-reduce session's phantom
 /// reservation based on a child input's schema. Compares the estimated
@@ -342,13 +397,22 @@ pub fn try_grow_reduce_budget(
     let avg_row_bytes = estimate_avg_row_bytes(schema);
     let num_columns = schema.fields().len();
     let needed = compute_untracked_bytes_with_columns(
-        configured_target_partitions, batch_size, avg_row_bytes, num_columns,
+        configured_target_partitions,
+        batch_size,
+        avg_row_bytes,
+        num_columns,
     );
     if needed <= prior_partition_reservation_bytes {
         return Ok(None);
     }
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, batch_size)
-        .map(Some)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        batch_size,
+    )
+    .map(Some)
 }
 
 /// Compute the untracked byte envelope for given parameters.
@@ -368,8 +432,8 @@ fn compute_untracked_bytes_with_columns(
     num_columns: usize,
 ) -> usize {
     let batch_bytes = batch_size * avg_row_bytes;
-    let decode_overhead = PAGE_DECODE_BASE_OVERHEAD_BYTES
-        + num_columns * PER_COLUMN_DECODE_OVERHEAD_BYTES;
+    let decode_overhead =
+        PAGE_DECODE_BASE_OVERHEAD_BYTES + num_columns * PER_COLUMN_DECODE_OVERHEAD_BYTES;
 
     if target_partitions == 1 {
         // No CoalescePartitionsExec, no merge channel. Pipeline is:
@@ -505,7 +569,10 @@ fn estimate_field_bytes(dt: &DataType) -> usize {
             4 * estimate_field_bytes(inner.data_type())
         }
         DataType::FixedSizeList(inner, n) => *n as usize * estimate_field_bytes(inner.data_type()),
-        DataType::Struct(fields) => fields.iter().map(|f| estimate_field_bytes(f.data_type())).sum(),
+        DataType::Struct(fields) => fields
+            .iter()
+            .map(|f| estimate_field_bytes(f.data_type()))
+            .sum(),
         DataType::Map(entry, _) => estimate_field_bytes(entry.data_type()) * 4,
         _ => 32,
     }
@@ -521,7 +588,10 @@ fn pool_limit(pool: &Arc<dyn MemoryPool>) -> Option<usize> {
 
 /// Delegates to the common memory guard for admission-level override check.
 fn jemalloc_says_headroom_available(pool_limit_bytes: usize) -> bool {
-    crate::memory_guard::should_override(pool_limit_bytes, crate::memory_guard::OverrideContext::Admission)
+    crate::memory_guard::should_override(
+        pool_limit_bytes,
+        crate::memory_guard::OverrideContext::Admission,
+    )
 }
 
 #[cfg(test)]
@@ -529,6 +599,10 @@ mod tests {
     use super::*;
     use datafusion::arrow::datatypes::{Field, Schema};
     use std::num::NonZeroUsize;
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate the process-global MIN_TARGET_PARTITIONS_SETTING.
+    static MIN_PARTITIONS_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn schema_of(fields: Vec<(&str, DataType)>) -> SchemaRef {
         Arc::new(Schema::new(
@@ -702,7 +776,12 @@ mod tests {
     fn try_grow_reduce_budget_skips_when_existing_covers() {
         let pool = test_pool(1_000_000_000);
         let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
-        let needed = compute_untracked_bytes_with_columns(4, 8192, estimate_avg_row_bytes(&schema), schema.fields().len());
+        let needed = compute_untracked_bytes_with_columns(
+            4,
+            8192,
+            estimate_avg_row_bytes(&schema),
+            schema.fields().len(),
+        );
 
         // Existing reservation is larger — should return Ok(None)
         let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, needed + 1).unwrap();
@@ -735,7 +814,49 @@ mod tests {
         let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0).unwrap();
         assert!(result.is_some());
         let budget = result.unwrap();
-        assert!(budget.target_partitions < 4, "expected partitions < 4, got {}", budget.target_partitions);
+        assert!(
+            budget.target_partitions < 4,
+            "expected partitions < 4, got {}",
+            budget.target_partitions
+        );
+    }
+
+    #[test]
+    fn min_target_partitions_setting_does_not_raise_configured_value() {
+        // Reproduces the bug where `datafusion.min_target_partitions=8` would
+        // override a lower configured target_partitions (derived from
+        // search.concurrent.max_slice_count). The setting is a floor for
+        // adaptive reduction, so it must be a no-op when configured ≤ floor.
+        let _guard = MIN_PARTITIONS_TEST_LOCK.lock().unwrap();
+        let prev = get_min_target_partitions();
+        set_min_target_partitions(8);
+
+        let pool = test_pool(1_000_000_000);
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+
+        // Caller asks for 2 partitions; setting is 8. Result must stay at 2.
+        let budget = acquire_budget(&pool, &schema, 2, 8192).unwrap();
+        assert_eq!(budget.target_partitions, 2);
+
+        set_min_target_partitions(prev);
+    }
+
+    #[test]
+    fn min_target_partitions_setting_still_acts_as_reduction_floor() {
+        // When the configured target is above the floor and memory pressure
+        // forces reduction, target_partitions must not drop below the floor.
+        let _guard = MIN_PARTITIONS_TEST_LOCK.lock().unwrap();
+        let prev = get_min_target_partitions();
+        set_min_target_partitions(2);
+
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+        let pool = test_pool(2_000_000);
+
+        let budget = acquire_budget(&pool, &schema, 8, 8192).unwrap();
+        assert!(budget.target_partitions < 8);
+        assert!(budget.target_partitions >= 2);
+
+        set_min_target_partitions(prev);
     }
 
     #[test]
@@ -746,5 +867,29 @@ mod tests {
 
         let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0);
         assert!(result.is_err(), "expected Err when pool is exhausted");
+    }
+
+    #[test]
+    fn adaptive_budget_counters_increment() {
+        let stats = adaptive_budget();
+        let fallbacks_before = stats.fallbacks.load(Ordering::Relaxed);
+        let rejections_before = stats.rejections.load(Ordering::Relaxed);
+
+        // Successful acquire — should not increment fallbacks/rejections
+        let pool = test_pool(1_000_000_000);
+        let schema = schema_of(vec![("a", DataType::Int64)]);
+        let _ = acquire_budget(&pool, &schema, 4, 8192).unwrap();
+
+        // Acquire with tiny pool that forces fallback
+        let small_pool = test_pool(2_000_000);
+        let wide_schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+        let _ = acquire_budget(&small_pool, &wide_schema, 8, 8192).unwrap();
+        assert!(stats.fallbacks.load(Ordering::Relaxed) > fallbacks_before);
+
+        // Acquire with exhausted pool — should increment rejections
+        let tiny_pool = test_pool(1000);
+        let result = acquire_budget(&tiny_pool, &schema, 4, 8192);
+        assert!(result.is_err());
+        assert!(stats.rejections.load(Ordering::Relaxed) > rejections_before);
     }
 }

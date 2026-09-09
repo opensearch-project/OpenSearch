@@ -40,7 +40,7 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
             long allocatedBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
 
-            AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, 0);
 
             // Render to JSON string via Strings.toString (wraps fragment in root object).
             String json = Strings.toString(MediaTypeRegistry.JSON, stats);
@@ -50,11 +50,11 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
             assertTrue("Expected 'analytics_backend' on iteration " + i + ", got: " + root.keySet(), root.containsKey("analytics_backend"));
             assertEquals("Expected exactly one top-level key on iteration " + i, 1, root.size());
 
-            // analytics_backend must contain exactly the two byte fields.
+            // analytics_backend must contain exactly the three fields.
             @SuppressWarnings("unchecked")
             Map<String, Object> analyticsBackend = (Map<String, Object>) root.get("analytics_backend");
             assertNotNull("analytics_backend should not be null on iteration " + i, analyticsBackend);
-            assertEquals("Expected exactly 2 fields on iteration " + i, 2, analyticsBackend.size());
+            assertEquals("Expected exactly 3 fields on iteration " + i, 3, analyticsBackend.size());
             assertEquals(
                 "allocated_bytes mismatch on iteration " + i + " for value: " + allocatedBytes,
                 allocatedBytes,
@@ -65,6 +65,7 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
                 residentBytes,
                 ((Number) analyticsBackend.get("resident_bytes")).longValue()
             );
+            assertEquals("purge_count mismatch on iteration " + i, 0L, ((Number) analyticsBackend.get("purge_count")).longValue());
 
             // Sanity: the parent-level fields are NOT emitted by this class.
             assertFalse("native_memory wrapper should be opened by NodeStats, not this class", root.containsKey("native_memory"));
@@ -77,7 +78,7 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
 
     /** Error sentinel (-1, -1) renders verbatim. */
     public void testXContentRenderingWithErrorState() throws Exception {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
@@ -91,7 +92,7 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
 
     /** Zero values render as 0, not omitted. */
     public void testXContentRenderingWithZeroValues() throws Exception {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0L, 0L);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0L, 0L, 0);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);

@@ -194,18 +194,6 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
         context.doc().add(new BinaryDocValuesField(fieldType().name(), sketchBytes));
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        byte[] value = parseHllValue(context);
-        if (value == null) {
-            return;
-        }
-
-        BytesRef sketchBytes = new BytesRef(value);
-        validateSketchData(sketchBytes);
-        context.documentInput().addField(fieldType(), value);
-    }
-
     private byte[] parseHllValue(ParseContext context) throws IOException {
         byte[] value = context.parseExternalValue(byte[].class);
         if (value == null) {

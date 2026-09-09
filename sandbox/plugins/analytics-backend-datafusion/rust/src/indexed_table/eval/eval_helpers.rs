@@ -109,10 +109,9 @@ pub fn remap_expr_to_batch(
     expr.clone()
         .transform(|node| {
             use datafusion::common::tree_node::Transformed;
-            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+            if let Some(col) = node.downcast_ref::<Column>() {
                 if let Ok(idx) = batch_schema.index_of(col.name()) {
-                    let new_col: Arc<dyn PhysicalExpr> =
-                        Arc::new(Column::new(col.name(), idx));
+                    let new_col: Arc<dyn PhysicalExpr> = Arc::new(Column::new(col.name(), idx));
                     return Ok(Transformed::yes(new_col));
                 }
             }

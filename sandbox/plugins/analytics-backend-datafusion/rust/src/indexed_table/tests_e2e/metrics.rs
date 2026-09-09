@@ -49,7 +49,7 @@ fn aggregate_metrics(plan: &Arc<dyn ExecutionPlan>) -> MetricsSet {
 /// `DataSourceExec` which counts pre-mask rows).
 fn get_counter(set: &MetricsSet, name: &str) -> usize {
     use datafusion::physical_plan::metrics::MetricType;
-    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
         .map(|v| v.as_usize())
         .unwrap_or(0)
 }

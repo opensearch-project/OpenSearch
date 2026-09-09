@@ -22,8 +22,12 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
 import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.DateOnlyType;
 import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.ScaledFloatType;
+import org.opensearch.analytics.schema.TimeOnlyType;
+import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -382,6 +386,137 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
     }
 
+    /** date with date-only format produces a DateOnlyType marker (TIMESTAMP-backed). */
+    public void testDateFieldWithDateOnlyFormatProducesDateUDT() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("date_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertNotNull(field);
+        assertTrue("Expected DateOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof DateOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with time-only format produces a TimeOnlyType marker. */
+    public void testDateFieldWithTimeOnlyFormatProducesTimeUDT() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("time_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("t", true, false);
+        assertNotNull(field);
+        assertTrue("Expected TimeOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with mixed format defaults to plain TIMESTAMP. */
+    public void testDateFieldWithMixedFormatStaysTimestamp() throws Exception {
+        String mapping = "{\"properties\":{\"x\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd HH:mm:ss\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("mixed_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("mixed_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("x", true, false);
+        assertNotNull(field);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof DateOnlyType);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date without an explicit format keeps default TIMESTAMP behavior. */
+    public void testDateFieldWithoutFormatStaysTimestamp() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("plain_date_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertFalse(field.getType() instanceof DateOnlyType);
+        assertFalse(field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Plain {@code date} with no format → {@code TIMESTAMP(3)} (millis). Pins the precision
+     * contract added by #22049 so the date-only / time-only UDT paths can mirror it.
+     */
+    public void testDateFieldWithoutFormatHasMillisPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("plain_date_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /** Plain {@code date_nanos} with no format → {@code TIMESTAMP(9)} (nanos). */
+    public void testDateNanosFieldWithoutFormatHasNanosPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("nanos_idx", java.util.Map.of("d", "date_nanos")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("nanos_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date} with date-only format produces a {@link DateOnlyType} that still carries
+     * millis precision. Without this, the parquet-read path's Timestamp(Millisecond) clashes
+     * with the schema's precision-0 default at coordinator reduce.
+     */
+    public void testDateFieldWithDateOnlyFormatHasMillisPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ms_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ms_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with date-only format produces a {@link DateOnlyType} that carries
+     * nanos precision. This is the regression #22049 fixed for the plain-TIMESTAMP path; the
+     * UDT path must mirror it or multi-shard sort fails with
+     * {@code Timestamp(ms) got Timestamp(ns)} in the coordinator RowConverter.
+     */
+    public void testDateNanosFieldWithDateOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date_nanos\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ns_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with time-only format produces a {@link TimeOnlyType} that carries
+     * nanos precision — same parquet-read constraint as {@link DateOnlyType}.
+     */
+    public void testDateNanosFieldWithTimeOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date_nanos\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("time_only_ns_idx").getRowType(nanosTypeFactory()).getField("t", true, false);
+        assertTrue("Expected TimeOnlyType marker", field.getType() instanceof TimeOnlyType);
+        assertEquals("TimeOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * Type factory whose {@code getMaxPrecision(TIMESTAMP)} is 9 — so a precision request from
+     * {@code buildLeafType} for {@code date_nanos} is observable rather than silently clamped to
+     * Calcite's default of 3. The production type factory mirrors this; the default
+     * {@code JavaTypeFactoryImpl} doesn't.
+     */
+    private static org.apache.calcite.jdbc.JavaTypeFactoryImpl nanosTypeFactory() {
+        return new org.apache.calcite.jdbc.JavaTypeFactoryImpl(new org.apache.calcite.rel.type.RelDataTypeSystemImpl() {
+            @Override
+            public int getMaxPrecision(SqlTypeName typeName) {
+                if (typeName == SqlTypeName.TIMESTAMP || typeName == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+                    return 9;
+                }
+                return super.getMaxPrecision(typeName);
+            }
+        });
+    }
+
     /**
      * IP and binary fields are wrapped in dedicated {@link IpType} / {@link BinaryType} markers
      * so the SQL plugin can disambiguate them at the response boundary. Operator dispatch is
@@ -420,6 +555,114 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         RelDataType c = BinaryType.nullable();
         assertNotSame(a, c);
         assertNotEquals(a, c);
+    }
+
+    // --- scaled_float tests ---
+
+    /** scaled_float with valid factor produces a ScaledFloatType marker (BIGINT-backed). */
+    public void testScaledFloatFieldWithFactorProducesScaledFloatType() throws Exception {
+        String mapping = "{\"properties\":{\"price\":{\"type\":\"scaled_float\",\"scaling_factor\":10}}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("price", true, false);
+        assertNotNull(field);
+        assertTrue("Expected ScaledFloatType marker, got " + field.getType().getClass(), field.getType() instanceof ScaledFloatType);
+        assertEquals(SqlTypeName.BIGINT, field.getType().getSqlTypeName());
+        assertEquals(10.0, ((ScaledFloatType) field.getType()).getScalingFactor(), 0.0);
+    }
+
+    /** Factor-10 and factor-100 ScaledFloatType instances are digest-distinct (canonicalization trap). */
+    public void testScaledFloatDigestDistinctness() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"price10\":{\"type\":\"scaled_float\",\"scaling_factor\":10},"
+            + "\"price100\":{\"type\":\"scaled_float\",\"scaling_factor\":100}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_digest_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_digest_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType type10 = rowType.getField("price10", true, false).getType();
+        RelDataType type100 = rowType.getField("price100", true, false).getType();
+        assertNotEquals("factor-10 and factor-100 must be distinct type objects", type10, type100);
+    }
+
+    /** Missing scaling_factor excludes the field from schema (does not throw). */
+    public void testScaledFloatMissingFactorExcludesField() throws Exception {
+        String mapping = "{\"properties\":{\"price\":{\"type\":\"scaled_float\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_no_factor_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_no_factor_idx");
+        assertNotNull(table);
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertNull("Field without scaling_factor must be excluded", rowType.getField("price", true, false));
+    }
+
+    /** Zero scaling_factor excludes the field from schema. */
+    public void testScaledFloatZeroFactorExcludesField() throws Exception {
+        String mapping = "{\"properties\":{\"price\":{\"type\":\"scaled_float\",\"scaling_factor\":0}}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_zero_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_zero_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertNull("Field with zero scaling_factor must be excluded", rowType.getField("price", true, false));
+    }
+
+    /** Negative scaling_factor excludes the field from schema. */
+    public void testScaledFloatNegativeFactorExcludesField() throws Exception {
+        String mapping = "{\"properties\":{\"price\":{\"type\":\"scaled_float\",\"scaling_factor\":-5}}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_neg_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_neg_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertNull("Field with negative scaling_factor must be excluded", rowType.getField("price", true, false));
+    }
+
+    /** String-valued scaling_factor (e.g. "10") is accepted and parsed. */
+    public void testScaledFloatStringFactorAccepted() throws Exception {
+        String mapping = "{\"properties\":{\"price\":{\"type\":\"scaled_float\",\"scaling_factor\":\"10\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("sf_str_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("sf_str_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("price", true, false);
+        assertNotNull("String factor '10' must be accepted", field);
+        assertTrue(field.getType() instanceof ScaledFloatType);
+        assertEquals(10.0, ((ScaledFloatType) field.getType()).getScalingFactor(), 0.0);
+    }
+
+    // --- unsigned_long tests ---
+
+    /** unsigned_long field produces an UnsignedLongType marker (BIGINT-backed). */
+    public void testUnsignedLongFieldProducesUnsignedLongType() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("ul_idx", Map.of("counter", "unsigned_long")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("ul_idx");
+        assertNotNull(table);
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("counter", true, false);
+        assertNotNull(field);
+        assertTrue("Expected UnsignedLongType marker, got " + field.getType().getClass(), field.getType() instanceof UnsignedLongType);
+        assertEquals(SqlTypeName.BIGINT, field.getType().getSqlTypeName());
+    }
+
+    /** UnsignedLongType digest is UNSIGNED_LONG, distinct from plain BIGINT. */
+    public void testUnsignedLongDigestDistinctFromPlainBigint() throws Exception {
+        ClusterState clusterState = buildClusterState(
+            Map.of("mixed_long_idx", Map.of("signed_val", "long", "unsigned_val", "unsigned_long"))
+        );
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("mixed_long_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType signedType = rowType.getField("signed_val", true, false).getType();
+        RelDataType unsignedType = rowType.getField("unsigned_val", true, false).getType();
+        // Both report BIGINT
+        assertEquals(SqlTypeName.BIGINT, signedType.getSqlTypeName());
+        assertEquals(SqlTypeName.BIGINT, unsignedType.getSqlTypeName());
+        // But they are distinguishable via instanceof
+        assertFalse("plain long must NOT be UnsignedLongType", signedType instanceof UnsignedLongType);
+        assertTrue("unsigned_long must be UnsignedLongType", unsignedType instanceof UnsignedLongType);
     }
 
     // --- helpers ---

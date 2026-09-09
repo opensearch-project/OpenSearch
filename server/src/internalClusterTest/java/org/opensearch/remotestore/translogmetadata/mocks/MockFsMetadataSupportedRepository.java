@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 
 public class MockFsMetadataSupportedRepository extends ReloadableFsRepository {
@@ -34,7 +35,18 @@ public class MockFsMetadataSupportedRepository extends ReloadableFsRepository {
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+        this(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, null);
+    }
+
+    public MockFsMetadataSupportedRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings,
+        NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
+        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, nativeStoreProvider);
         triggerDataIntegrityFailure = TRIGGER_DATA_INTEGRITY_FAILURE.get(metadata.settings());
     }
 

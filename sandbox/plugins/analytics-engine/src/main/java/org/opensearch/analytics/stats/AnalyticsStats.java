@@ -9,11 +9,15 @@
 package org.opensearch.analytics.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Snapshot of node-local analytics-engine counters and timers. Built by
@@ -33,7 +37,7 @@ import java.util.Map;
  * change in subsequent revisions.
  */
 @ExperimentalApi
-public final class AnalyticsStats implements ToXContentFragment {
+public final class AnalyticsStats implements ToXContentFragment, Writeable {
 
     private final Queries queries;
     private final Map<String, StageBucket> stagesByType;
@@ -43,6 +47,30 @@ public final class AnalyticsStats implements ToXContentFragment {
         this.queries = queries;
         this.stagesByType = stagesByType;
         this.fragments = fragments;
+    }
+
+    public AnalyticsStats(StreamInput in) throws IOException {
+        this.queries = new Queries(in);
+        int size = in.readVInt();
+        // TreeMap preserves the deterministic alphabetical ordering used by snapshot().
+        Map<String, StageBucket> map = new TreeMap<>();
+        for (int i = 0; i < size; i++) {
+            String key = in.readString();
+            map.put(key, new StageBucket(in));
+        }
+        this.stagesByType = map;
+        this.fragments = new Fragments(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        queries.writeTo(out);
+        out.writeVInt(stagesByType.size());
+        for (Map.Entry<String, StageBucket> e : stagesByType.entrySet()) {
+            out.writeString(e.getKey());
+            e.getValue().writeTo(out);
+        }
+        fragments.writeTo(out);
     }
 
     public Queries queries() {
@@ -76,9 +104,19 @@ public final class AnalyticsStats implements ToXContentFragment {
      * Cumulative latency totals: {@code count} of recordings and {@code sum_ms}
      * of their elapsed times. Both monotonically increasing since node start.
      */
-    public record LatencyStats(long count, long sumMs) implements ToXContentFragment {
+    public record LatencyStats(long count, long sumMs) implements ToXContentFragment, Writeable {
 
         public static final LatencyStats EMPTY = new LatencyStats(0, 0);
+
+        public LatencyStats(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(count);
+            out.writeVLong(sumMs);
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -98,7 +136,18 @@ public final class AnalyticsStats implements ToXContentFragment {
      * totals that don't have a home in core node stats: end-to-end query
      * elapsed and Calcite planning time.
      */
-    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs) implements ToXContentFragment {
+    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs) implements ToXContentFragment, Writeable {
+
+        public Queries(StreamInput in) throws IOException {
+            this(new LatencyStats(in), new LatencyStats(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            elapsedMs.writeTo(out);
+            planningMs.writeTo(out);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("queries");
@@ -114,7 +163,23 @@ public final class AnalyticsStats implements ToXContentFragment {
     /** Per-stage-type rollup, keyed by {@link org.opensearch.analytics.planner.dag.StageExecutionType} name. */
     public record StageBucket(long started, long succeeded, long failed, long cancelled, long rowsProcessedTotal, LatencyStats elapsedMs)
         implements
-            ToXContentFragment {
+            ToXContentFragment,
+            Writeable {
+
+        public StageBucket(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), new LatencyStats(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(started);
+            out.writeVLong(succeeded);
+            out.writeVLong(failed);
+            out.writeVLong(cancelled);
+            out.writeVLong(rowsProcessedTotal);
+            elapsedMs.writeTo(out);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -131,7 +196,20 @@ public final class AnalyticsStats implements ToXContentFragment {
     }
 
     /** Per-fragment (task) rollup. */
-    public record Fragments(long total, long succeeded, long failed, LatencyStats elapsedMs) implements ToXContentFragment {
+    public record Fragments(long total, long succeeded, long failed, LatencyStats elapsedMs) implements ToXContentFragment, Writeable {
+
+        public Fragments(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVLong(), new LatencyStats(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(total);
+            out.writeVLong(succeeded);
+            out.writeVLong(failed);
+            elapsedMs.writeTo(out);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("fragments");

@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -33,6 +35,14 @@ public abstract class StageTask {
     private final AtomicReference<StageTaskState> state = new AtomicReference<>(StageTaskState.CREATED);
     private volatile long startedAtMs;
     private volatile long finishedAtMs;
+    private volatile byte[] dataNodeMetrics;
+
+    // Per-shard metrics for stages that fan out to multiple shards from a single task
+    // (e.g. LATE_MATERIALIZATION, which dispatches one fetch per shard but is modelled as a
+    // single coordinator-side task). Keyed by a "node/shard[n]" label so the profile can emit
+    // one TaskProfile per shard rather than losing all but the last with a single blob.
+    // Lazily populated — empty for the common single-blob case (SHARD_FRAGMENT, COORDINATOR_REDUCE).
+    private final Map<String, byte[]> shardMetrics = new ConcurrentHashMap<>();
 
     protected StageTask(StageTaskId id) {
         this.id = id;
@@ -44,6 +54,32 @@ public abstract class StageTask {
 
     public StageTaskState state() {
         return state.get();
+    }
+
+    /** Raw JSON metrics bytes received from the data node, or null if not profiled. */
+    public byte[] dataNodeMetrics() {
+        return dataNodeMetrics;
+    }
+
+    /** Set by the coordinator when metrics arrive from the data node. */
+    public void setDataNodeMetrics(byte[] metrics) {
+        this.dataNodeMetrics = metrics;
+    }
+
+    /**
+     * Records metrics from one shard's fetch for a multi-shard task. Thread-safe: called
+     * concurrently by per-shard response listeners. {@code label} identifies the shard
+     * (e.g. "nodeId/shard[0]") so the profile can attribute metrics to the right shard.
+     */
+    public void addShardMetrics(String label, byte[] metrics) {
+        if (metrics != null) {
+            shardMetrics.put(label, metrics);
+        }
+    }
+
+    /** Per-shard metrics keyed by "node/shard[n]" label; empty for single-blob stages. */
+    public Map<String, byte[]> shardMetrics() {
+        return shardMetrics;
     }
 
     /** Wall-clock millis stamped on the first successful transition to {@link StageTaskState#RUNNING}, or 0 if never dispatched. */

@@ -20,6 +20,7 @@ import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.UnsupportedFunctionException;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -91,7 +92,11 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
+            List<String> funcNames = annotatedExprs.stream()
+                .filter(e -> e instanceof RexCall)
+                .map(e -> ((RexCall) e).getOperator().getName())
+                .toList();
+            throw new UnsupportedFunctionException(funcNames.toString(), "in combination in this query");
         }
 
         call.transformTo(
@@ -131,7 +136,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             if (isOpaqueOperation(funcName)) {
                 List<String> exprViable = resolveOpaqueViableBackends(funcName, childViableBackends);
                 if (exprViable.isEmpty()) {
-                    throw new IllegalStateException("No backend can evaluate [" + funcName + "] and no delegation path exists");
+                    throw new UnsupportedFunctionException(funcName, null);
                 }
                 return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable, context.nextAnnotationId());
             }
@@ -142,7 +147,7 @@ public class OpenSearchProjectRule extends RelOptRule {
         if (scalarViable.isEmpty()) {
             ScalarFunction resolved = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
             String label = resolved != null ? resolved.name() : rexCall.getOperator().getName();
-            throw new IllegalStateException("No backend supports scalar function [" + label + "] among " + childViableBackends);
+            throw new UnsupportedFunctionException(label, "as a scalar function");
         }
 
         // Recurse into operands
@@ -291,7 +296,7 @@ public class OpenSearchProjectRule extends RelOptRule {
                 public RexNode visitOver(RexOver over) {
                     WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
                     if (fn == null) {
-                        throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
+                        throw new UnsupportedFunctionException(over.getAggOperator().getName(), "as a window function");
                     }
                     fns.add(fn);
                     return super.visitOver(over);
@@ -316,7 +321,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             if (covers) out.add(backend);
         }
         if (out.isEmpty()) {
-            throw new IllegalStateException("No backend supports window functions " + required + " among " + candidates);
+            throw new UnsupportedFunctionException(required.toString(), "as window functions");
         }
         return out;
     }

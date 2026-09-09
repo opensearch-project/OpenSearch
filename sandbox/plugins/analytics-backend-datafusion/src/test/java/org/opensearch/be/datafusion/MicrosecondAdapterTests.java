@@ -92,7 +92,11 @@ public class MicrosecondAdapterTests extends OpenSearchTestCase {
         RexNode partLiteral = datePart.getOperands().get(0);
         assertTrue("date_part's first arg must be a literal", partLiteral instanceof RexLiteral);
         assertEquals("microsecond", ((RexLiteral) partLiteral).getValueAs(String.class));
-        assertSame("date_part's second arg must be the original timestamp arg", arg, datePart.getOperands().get(1));
+        // TIMESTAMP operands are coerced to TIMESTAMP(6) so date_part keeps the µs fraction.
+        RexNode datePartArg = datePart.getOperands().get(1);
+        assertTrue("date_part's second arg must wrap original in CAST", datePartArg instanceof RexCall);
+        assertEquals(SqlKind.CAST, ((RexCall) datePartArg).getKind());
+        assertSame("CAST's child must be the original timestamp arg", arg, ((RexCall) datePartArg).getOperands().get(0));
 
         RexNode modRight = modCall.getOperands().get(1);
         assertTrue("MOD's right operand must be a literal", modRight instanceof RexLiteral);

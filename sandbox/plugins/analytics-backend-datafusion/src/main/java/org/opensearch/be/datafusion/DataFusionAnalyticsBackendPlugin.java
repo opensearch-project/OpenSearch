@@ -10,19 +10,23 @@ package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.analytics.planner.CalciteToArrowSchema;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
@@ -44,7 +48,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
-import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.ShuffleSender;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.analytics.spi.WindowFunctionAdapter;
@@ -55,8 +59,10 @@ import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAda
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -102,6 +108,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LESS_THAN_OR_EQUAL,
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.IS_TRUE,
+        ScalarFunction.IS_FALSE,
+        ScalarFunction.IS_NOT_TRUE,
+        ScalarFunction.IS_NOT_FALSE,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
@@ -113,7 +123,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
         ScalarFunction.LATEST,
-        ScalarFunction.CIDRMATCH
+        ScalarFunction.CIDRMATCH,
+        // json_valid returns BOOLEAN, so it is a valid filter predicate (e.g. `where
+        // json_valid(col)` / `where not json_valid(col)`). DataFusion evaluates the json_valid Rust
+        // UDF natively; same shape as CIDRMATCH.
+        ScalarFunction.JSON_VALID
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -135,6 +149,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CEIL,
         ScalarFunction.CAST,
         ScalarFunction.CONCAT,
+        ScalarFunction.CONCAT_FUNCTION,
         ScalarFunction.SAFE_CAST,
         // CASE — Calcite emits CASE WHEN ... THEN ... END for conditional expressions, including
         // PPL `count(eval(predicate))` (lowered to COUNT(CASE WHEN predicate THEN ... ELSE NULL END))
@@ -147,6 +162,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.NULLIF,
+        ScalarFunction.IS_TRUE,
+        ScalarFunction.IS_FALSE,
+        ScalarFunction.IS_NOT_TRUE,
+        ScalarFunction.IS_NOT_FALSE,
         // ABS / SUBSTRING — PPL sort-pushdown moves these into the project tree; DataFusion has
         // both natively and isthmus's default catalog binds them, so no adapter needed.
         ScalarFunction.ABS,
@@ -166,6 +185,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LESS_THAN_OR_EQUAL,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
+        ScalarFunction.REGEXP,
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
@@ -268,6 +288,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DATE_FORMAT,
         ScalarFunction.TIME_FORMAT,
         ScalarFunction.STR_TO_DATE,
+        // UTC_* are pure aliases onto DF `now` / `current_date` / `current_time`
+        // (DataFusion runs in UTC by default; PPL UTC_* just force UTC semantics).
+        ScalarFunction.UTC_DATE,
+        ScalarFunction.UTC_TIME,
+        ScalarFunction.UTC_TIMESTAMP,
+        // DAYNAME / MONTHNAME rewrite to date_format(x, '%W') / ('%M') — %W / %M
+        // render full weekday / month names via the same mysql_format tokens the
+        // date_format UDF already uses.
+        ScalarFunction.DAYNAME,
+        ScalarFunction.MONTHNAME,
+        // MINUTE_OF_DAY decomposes to date_part('hour',x)*60 + date_part('minute',x).
+        ScalarFunction.MINUTE_OF_DAY,
         ScalarFunction.ASCII,
         ScalarFunction.CONCAT_WS,
         ScalarFunction.LEFT,
@@ -300,7 +332,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MSTIME,
         ScalarFunction.CTIME,
         ScalarFunction.MKTIME,
+        ScalarFunction.JSON,
         ScalarFunction.JSON_APPEND,
+        ScalarFunction.JSON_ARRAY,
         ScalarFunction.JSON_ARRAY_LENGTH,
         ScalarFunction.JSON_DELETE,
         ScalarFunction.JSON_EXTEND,
@@ -309,7 +343,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // is registered separately via {@link #MAP_RETURNING_PROJECT_OPS} (keyed on
         // FieldType.MAP rather than SUPPORTED_FIELD_TYPES, mirroring the ARRAY-return split).
         ScalarFunction.JSON_KEYS,
+        ScalarFunction.JSON_OBJECT,
         ScalarFunction.JSON_SET,
+        ScalarFunction.JSON_VALID,
         // Array functions whose RETURN type is element-typed (not ARRAY itself), so the
         // capability lookup at OpenSearchProjectRule resolves the call's return type to a
         // standard scalar FieldType and matches against SUPPORTED_FIELD_TYPES.
@@ -356,7 +392,35 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
         // default catalog, so adapters rewrite to DF-native interval arithmetic.
         ScalarFunction.TIMESTAMPDIFF,
-        ScalarFunction.TIMESTAMPADD
+        ScalarFunction.TIMESTAMPADD,
+        ScalarFunction.DATE_ADD,
+        ScalarFunction.DATE_SUB,
+        // PPL `ADDDATE(base, N|INTERVAL)` / `SUBDATE(...)` — share the DATE_ADD/DATE_SUB adapter;
+        // the integer-days form is normalized to INTERVAL N DAY. DATE / TIMESTAMP bases only.
+        ScalarFunction.ADDDATE,
+        ScalarFunction.SUBDATE,
+        // PPL `DATEDIFF(a, b)` — calendar-day delta, lowered to a day-index subtraction.
+        ScalarFunction.DATEDIFF,
+        // PPL epoch-arithmetic datetime scalars — lower to to_unixtime/from_unixtime + integer math.
+        ScalarFunction.TO_DAYS,
+        ScalarFunction.TO_SECONDS,
+        ScalarFunction.FROM_DAYS,
+        ScalarFunction.TIME_TO_SEC,
+        ScalarFunction.SEC_TO_TIME,
+        // PPL WEEKDAY — date_part('dow') remapped to MySQL Mon=0..Sun=6.
+        ScalarFunction.WEEKDAY,
+        // PPL PERIOD_ADD / PERIOD_DIFF — pure integer YYYYMM arithmetic.
+        ScalarFunction.PERIOD_ADD,
+        ScalarFunction.PERIOD_DIFF,
+        // PPL GET_FORMAT(type, region) — plan-time fold to a constant format string.
+        ScalarFunction.GET_FORMAT,
+        // PPL ADDTIME / SUBTIME / TIMEDIFF — time-of-day arithmetic via to_unixtime + maketime.
+        ScalarFunction.ADDTIME,
+        ScalarFunction.SUBTIME,
+        ScalarFunction.TIME_DIFF,
+        // PPL LAST_DAY — date_trunc('month') + 1 month - 1 day. YEARWEEK — os_yearweek Rust UDF.
+        ScalarFunction.LAST_DAY,
+        ScalarFunction.YEARWEEK
     );
 
     /**
@@ -398,6 +462,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
         ScalarFunction.JSON_EXTRACT_ALL,
         ScalarFunction.PARSE,
+        ScalarFunction.GROK,
         ScalarFunction.ITEM,
         ScalarFunction.SAFE_CAST,
         ScalarFunction.PATTERN_PARSER
@@ -436,6 +501,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public String name() {
         return plugin.name();
+    }
+
+    @Override
+    public boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return ParquetRangeEvaluator.evaluate(shard, filterBytes, plugin);
+    }
+
+    @Override
+    public CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        return ParquetRangeEvaluator.evaluateWithBounds(shard, filterBytes, sortColumn, plugin);
     }
 
     @Override
@@ -481,6 +556,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.ARG_MAX,
                             WindowFunction.DISTINCT_COUNT_APPROX,
                             WindowFunction.ROW_NUMBER,
+                            WindowFunction.RANK,
+                            WindowFunction.DENSE_RANK,
                             WindowFunction.NTH_VALUE,
                             WindowFunction.PATTERN
                         ),
@@ -497,7 +574,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     WindowFunction.ARG_MAX,
                     WindowFunctionAdapters.argMax(),
                     WindowFunction.DISTINCT_COUNT_APPROX,
-                    WindowFunctionAdapters.distinctCountApprox()
+                    WindowFunctionAdapters.distinctCountApprox(),
+                    // COUNT(DISTINCT x) OVER(...) → os_count_distinct(x) OVER(...). Non-distinct
+                    // COUNT(x) passes through unchanged.
+                    WindowFunction.COUNT,
+                    WindowFunctionAdapters.countDistinctExact()
                 );
             }
 
@@ -581,6 +662,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<DataTransferCapability> dataTransferCapabilities() {
+                // Format string is backend-specific. "arrow-ipc-partitioned" means the producer
+                // serializes each hash bucket as Arrow IPC bytes, and the consumer deserializes
+                // back to Arrow record batches before feeding them to the worker plan via
+                // StreamingTableExec + PartitionStream (the ShuffleScanHandler's job).
+                return Set.of(
+                    new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"),
+                    new DataTransferCapability(DataTransferCapability.Kind.CONSUMER, "arrow-ipc-partitioned")
+                );
+            }
+
+            @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
                 // Map entries are alphabetical (Map.ofEntries past 5 pairs, else spotless inlines).
                 // Alias pairs share an adapter instance but need separate enum entries because
@@ -590,14 +683,26 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters dayOfYear = DatePartAdapters.dayOfYear();
                 DatePartAdapters hour = DatePartAdapters.hour();
                 DatePartAdapters minute = DatePartAdapters.minute();
-                DatePartAdapters week = DatePartAdapters.week();
-                DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
+                // WEEK/WEEK_OF_YEAR follow MySQL mode 0 (Sunday-first), not ISO; date_part('week') is ISO-only
+                RustUdfDateTimeAdapters.OsWeekAdapter week = new RustUdfDateTimeAdapters.OsWeekAdapter();
+                // NowFspAdapter (not the plain NowAdapter) so the optional fractional-seconds
+                // precision arg — now(fsp) / current_timestamp(fsp) — is dropped before Substrait
+                // conversion; DataFusion now() is niladic and fsp is intentionally ignored
+                // (matches the SQL-plugin reference). Covers NOW, CURRENT_TIMESTAMP, SYSDATE.
+                ScalarFunctionAdapter now = new NowFspAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
                 SecondAdapter second = new SecondAdapter();
                 // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
                 IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
+                // Stateless adapter shared across the six comparison operators. Wrapped by
+                // IpComparisonNormalizationAdapter so PPL IP-comparison UDFs (EQUALS_IP etc.) over
+                // VARBINARY ip/binary fields are rewritten to native comparators before temporal
+                // coercion (and before Substrait conversion, which has no EQUALS_IP binding).
+                ScalarFunctionAdapter comparisonTemporalCoercion = new IpComparisonNormalizationAdapter(
+                    new ComparisonTemporalCoercionAdapter()
+                );
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -616,6 +721,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
                     Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
                     Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
+                    // RAND(): maps to DataFusion's niladic random() (the SqlStdOperatorTable.RAND ->
+                    // "random" sig). RAND(seed): rejected with a clear error — dropping the seed would
+                    // silently turn deterministic seeded output into non-deterministic random().
+                    Map.entry(ScalarFunction.RAND, new RandSeedAdapter()),
                     Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CAST, ipBinaryCast),
@@ -623,6 +732,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
+                    Map.entry(ScalarFunction.CONCAT_FUNCTION, new ConcatVariadicAdapter()),
                     Map.entry(ScalarFunction.CONVERT, new ConvAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COS, new NumericToDoubleAdapter(SqlStdOperatorTable.COS)),
@@ -635,14 +745,34 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CURTIME, currentTime),
                     Map.entry(ScalarFunction.DATE, new DateTimeAdapters.DateAdapter()),
                     Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
+                    Map.entry(ScalarFunction.DATE_ADD, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.ADDDATE, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.SUBDATE, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.DATEDIFF, new DateDiffAdapter()),
+                    Map.entry(ScalarFunction.TO_DAYS, new EpochArithmeticAdapters.ToDaysAdapter()),
+                    Map.entry(ScalarFunction.TO_SECONDS, new EpochArithmeticAdapters.ToSecondsAdapter()),
+                    Map.entry(ScalarFunction.FROM_DAYS, new EpochArithmeticAdapters.FromDaysAdapter()),
+                    Map.entry(ScalarFunction.TIME_TO_SEC, new EpochArithmeticAdapters.TimeToSecAdapter()),
+                    Map.entry(ScalarFunction.SEC_TO_TIME, new SecToTimeAdapter()),
+                    Map.entry(ScalarFunction.WEEKDAY, new WeekdayAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_ADD, new PeriodArithmeticAdapters.PeriodAddAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_DIFF, new PeriodArithmeticAdapters.PeriodDiffAdapter()),
+                    Map.entry(ScalarFunction.GET_FORMAT, new GetFormatAdapter()),
+                    Map.entry(ScalarFunction.ADDTIME, new AddSubTimeAdapter(true)),
+                    Map.entry(ScalarFunction.SUBTIME, new AddSubTimeAdapter(false)),
+                    Map.entry(ScalarFunction.TIME_DIFF, new TimeDiffAdapter()),
+                    Map.entry(ScalarFunction.LAST_DAY, new LastDayAdapter()),
+                    Map.entry(ScalarFunction.YEARWEEK, new RustUdfDateTimeAdapters.OsYearweekAdapter()),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
+                    Map.entry(ScalarFunction.DAYNAME, new RustUdfDateTimeAdapters.DaynameAdapter()),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
                     Map.entry(ScalarFunction.DAYOFWEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
                     Map.entry(ScalarFunction.DAY_OF_WEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
-                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.DIVIDE, new DivideAdapter()),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
                     Map.entry(ScalarFunction.EARLIEST, new EarliestLatestAdapter.EarliestAdapter()),
                     // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
@@ -656,14 +786,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.FROM_UNIXTIME, new RustUdfDateTimeAdapters.FromUnixtimeAdapter()),
                     Map.entry(ScalarFunction.HOUR, hour),
                     Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
+                    Map.entry(ScalarFunction.JSON, new JsonFunctionAdapters.JsonAdapter()),
                     Map.entry(ScalarFunction.JSON_APPEND, new JsonFunctionAdapters.JsonAppendAdapter()),
+                    Map.entry(ScalarFunction.JSON_ARRAY, new JsonFunctionAdapters.JsonArrayAdapter()),
                     Map.entry(ScalarFunction.JSON_ARRAY_LENGTH, new JsonFunctionAdapters.JsonArrayLengthAdapter()),
                     Map.entry(ScalarFunction.JSON_DELETE, new JsonFunctionAdapters.JsonDeleteAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTEND, new JsonFunctionAdapters.JsonExtendAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT, new JsonFunctionAdapters.JsonExtractAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT_ALL, new JsonFunctionAdapters.JsonExtractAllAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
+                    Map.entry(ScalarFunction.JSON_OBJECT, new JsonFunctionAdapters.JsonObjectAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
+                    Map.entry(ScalarFunction.JSON_VALID, new JsonFunctionAdapters.JsonValidAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
                     Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
@@ -677,18 +811,23 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MICROSECOND, new MicrosecondAdapter()),
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
+                    Map.entry(ScalarFunction.MINUTE_OF_DAY, new MinuteOfDayAdapter()),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MINUS, new MinusAdapter()),
-                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.MOD, new ModAdapter()),
                     Map.entry(ScalarFunction.MONTH, month),
+                    Map.entry(ScalarFunction.MONTHNAME, new RustUdfDateTimeAdapters.MonthnameAdapter()),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.PARSE, new ParseAdapter()),
+                    Map.entry(ScalarFunction.GROK, new GrokAdapter()),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
+                    Map.entry(ScalarFunction.ROUND, new IntegerRoundingCastAdapter(SqlStdOperatorTable.ROUND)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.RANGE_BUCKET, new RangeBucketAdapter()),
+                    Map.entry(ScalarFunction.REGEXP, nameMapping(SqlLibraryOperators.REGEXP_LIKE)),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
@@ -715,14 +854,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
-                    // constant-folds to a numeric literal when both unit strings are fixed-length
-                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
-                    // aggregations produce; folding eliminates both PPL UDF references in one
-                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
-                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
-                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    // TIMESTAMPDIFF / TIMESTAMPADD have no substrait bindings; adapters rewrite to
+                    // DATETIME_PLUS + INTERVAL / to_unixtime arithmetic. Peephole folds the timechart
+                    // per_* shape TIMESTAMPDIFF(out, t, TIMESTAMPADD(in, n, t)) to a literal.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.TRUNCATE, new IntegerRoundingCastAdapter(SqlStdOperatorTable.TRUNCATE)),
@@ -736,10 +872,22 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.CTIME)),
                     Map.entry(ScalarFunction.MKTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.MKTIME)),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
+                    Map.entry(ScalarFunction.UTC_DATE, currentDate),
+                    Map.entry(ScalarFunction.UTC_TIME, currentTime),
+                    Map.entry(ScalarFunction.UTC_TIMESTAMP, now),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
                     Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),
-                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
+                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year()),
+                    // Coerce a bare character operand to TIMESTAMP when compared against a temporal
+                    // operand — recovers the coercion lost when RelDecorrelator folds the PPL
+                    // TIMESTAMP UDF wrapper to a string inside a subquery (see adapter javadoc).
+                    Map.entry(ScalarFunction.EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.NOT_EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, comparisonTemporalCoercion)
                 );
             }
         };
@@ -751,7 +899,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * base cannot be instantiated directly.
      */
     private static AbstractNameMappingAdapter nameMapping(SqlOperator target) {
-        return new AbstractNameMappingAdapter(target, java.util.List.of(), java.util.List.of()) {
+        return new AbstractNameMappingAdapter(target, List.of(), List.of()) {
         };
     }
 
@@ -778,12 +926,26 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         break;
                     }
                 }
+                if (dfReader == null) {
+                    throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+                }
             }
-
-            if (dfReader == null) {
-                throw new IllegalStateException("No DatafusionReader available in the acquired reader");
-            }
-            DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            // dfReader may be null for hash-shuffle worker fragments — those have no shard scan
+            // and read only from named-input streams registered on the SessionContextHandle by
+            // the prior ShuffleScanHandler chain. The searcher's vanilla path is unreachable in
+            // that case (no reader handle); the searchWithSessionContext path is the only one
+            // that fires. So upstream's unconditional "dfReader == null" fail-fast is NOT applied
+            // here — the shard-scan case is already covered by the throw inside the
+            // ctx.getReader() != null block above, and DatafusionContext tolerates a null reader.
+            //
+            // The AnalyticsShardTask cast is upstream's: the context id and cancellation wiring
+            // both hang off AnalyticsShardTask#getNativeTaskId(), so a non-analytics task must
+            // fail fast rather than silently lose cancellation.
+            DatafusionContext context = new DatafusionContext(
+                (AnalyticsShardTask) ctx.getTask(),
+                dfReader,
+                dataFusionService.getNativeRuntime()
+            );
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
                 context.setSessionContextHandle(sessionState.sessionContextHandle());
@@ -803,34 +965,80 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     public ExchangeSinkProvider getExchangeSinkProvider() {
         return new ExchangeSinkProvider() {
             @Override
+            public ExchangeSink createBroadcastCaptureSink(
+                BufferAllocator allocator,
+                org.apache.calcite.rel.type.RelDataType buildRowType,
+                long maxBytes
+            ) {
+                Schema fallback = buildRowType == null ? null : CalciteToArrowSchema.convert(buildRowType);
+                return new BroadcastCaptureSink(allocator, fallback, maxBytes);
+            }
+
+            @Override
             public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
-                DataFusionService svc = plugin.getDataFusionService();
-                if (svc == null) {
-                    throw new IllegalStateException("DataFusionService not initialized");
-                }
-                // When the FinalAggregateInstructionHandler has already prepared a plan on the
-                // coordinator, it hands over a DataFusionReduceState carrying the session +
-                // registered senders. The sink drives executeLocalPreparedPlan against that
-                // state instead of re-decoding the fragment bytes.
-                DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
-                String mode = plugin.getClusterService() != null
-                    ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
-                    : "streaming";
-                // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-                // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-                // need per-child input partitions, which only the streaming sink implements via
-                // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-                // don't have to flip the cluster setting per query. Also fall back when a
-                // prepared state is supplied (memtable sink does not yet support the
-                // prepared-plan path).
-                // TODO: lift this fallback once the memtable sink registers one MemTable per
-                // child stage (see DatafusionMemtableReduceSink class javadoc).
-                if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
-                    return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
-                }
-                return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+                return buildReduceSink(ctx, backendContext);
+            }
+
+            @Override
+            public ExchangeSink createPartitionedSink(
+                List<Integer> hashKeyChannels,
+                int partitionCount,
+                List<String> targetWorkerNodeIds,
+                ShuffleSender sender,
+                ExchangeSinkContext context
+            ) {
+                // queryId+stageId+side are stamped onto the framework-provided sender; the sink
+                // only needs an opaque tag for log messages so producers from different stages
+                // are distinguishable in mixed traces.
+                String logTag = context.queryId() + "/stage=" + context.stageId();
+                // Resolve the shuffle-IPC compression policy live from the cluster settings (default OFF).
+                ShuffleCompression.Config compression = plugin.getClusterService() != null
+                    ? ShuffleCompression.Config.from(plugin.getClusterService().getClusterSettings())
+                    : ShuffleCompression.Config.DISABLED;
+                return new DatafusionPartitionedSink(
+                    context.allocator(),
+                    hashKeyChannels,
+                    partitionCount,
+                    targetWorkerNodeIds,
+                    sender,
+                    logTag,
+                    compression
+                );
             }
         };
+    }
+
+    private ExchangeSink buildReduceSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
+        DataFusionService svc = plugin.getDataFusionService();
+        if (svc == null) {
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+        // When the FinalAggregateInstructionHandler has already prepared a plan on the
+        // coordinator, it hands over a DataFusionReduceState carrying the session +
+        // registered senders. The sink drives executeLocalPreparedPlan against that
+        // state instead of re-decoding the fragment bytes.
+        DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
+        String mode = plugin.getClusterService() != null
+            ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+            : "streaming";
+        int inputCount = ctx.childInputs().size();
+        // Multi-input coordinator operators (Join, Union) use the buffered memtable sink. The
+        // streaming sink registers each input as a bounded-mpsc StreamingTable and drains the plan
+        // concurrently with feeds; for a multi-input operator that can deadlock (a HashJoinExec
+        // collects its build side fully before the probe, so a build-side producer back-pressuring
+        // on a bounded input channel the join isn't yet draining blocks forever — observed on
+        // TPC-H q15). The memtable sink buffers each input fully in Java first, so no bounded native
+        // channel sits in the input path. Falls back to streaming only when a prepared state is
+        // supplied (the memtable sink doesn't support the prepared-plan path; that path is
+        // single-input final-aggregate so it's never a multi-input deadlock).
+        if (inputCount > 1 && preparedState == null) {
+            return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+        }
+        // Single-input: honor the mode setting (memtable buffers; streaming default streams).
+        if ("memtable".equals(mode) && inputCount == 1 && preparedState == null) {
+            return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+        }
+        return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
     }
 
     /**
@@ -846,14 +1054,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BackendExecutionContext backendContext
     ) {
         FilterTreeCallbacks.register(contextId, handle, tracker);
-        return () -> {
-            FilterTreeCallbacks.unregister(contextId);
-            try {
-                handle.close();
-            } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
-            }
-        };
+        // requestClose owns handle.close(): late release upcalls from partially-consumed
+        // native streams must still find the binding, so closing here would race them.
+        return () -> FilterTreeCallbacks.requestClose(contextId);
     }
 
     @Override
@@ -865,7 +1068,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+    public EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId,
+        BufferAllocator importStagingAllocator
+    ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionService not initialized");
@@ -893,16 +1103,40 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 bufAddr,
                 count,
                 columns,
-                dataFusionService.getNativeRuntime().get()
+                dataFusionService.getNativeRuntime().get(),
+                contextId
             );
         } else {
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
-        return new DatafusionResultStream(streamHandle, allocator);
+        return new DatafusionResultStream(streamHandle, allocator, importStagingAllocator);
+    }
+
+    @Override
+    public void cancelByContext(long contextId) {
+        // Fire the per-context cancellation token so the fetch stream's cross_rt task breaks
+        // cooperatively. No-op for an unknown contextId.
+        if (contextId != 0) {
+            NativeBridge.cancelQuery(contextId);
+        }
     }
 
     public Exception convertException(Exception original) {
         return NativeErrorConverter.convert(original);
+    }
+
+    /**
+     * DataFusion participates in MPP hash-shuffle: default the partition count to the number of
+     * data nodes in the cluster. The advisor uses this when {@code analytics.mpp.shuffle.partitions}
+     * isn't pinned by the operator. One partition per data node maximizes parallelism without
+     * over-subscribing — additional partitions on the same node would queue on the same
+     * DataFusion threadpool. Returns {@code 1} if the cluster has no data nodes (gates the
+     * shuffle rule out and falls back to coordinator-centric).
+     */
+    @Override
+    public int defaultShuffleParallelism(org.opensearch.cluster.ClusterState state) {
+        int dataNodeCount = state.nodes().getDataNodes().size();
+        return Math.max(dataNodeCount, 1);
     }
 }

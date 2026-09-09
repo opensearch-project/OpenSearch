@@ -35,7 +35,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -163,7 +163,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -226,7 +226,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue("create must be acknowledged", response.isAcknowledged());
         ensureGreen(indexName);
-        client().prepareIndex(indexName).setId("0").setSource("value", VALUE).get();
+        client().prepareIndex(indexName).setSource("value", VALUE).get();
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
     }
@@ -254,7 +254,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         assertTrue("create must be acknowledged", response.isAcknowledged());
         ensureGreen(INDEX_3);
         for (int i = 0; i < 9; i++) {
-            client().prepareIndex(INDEX_3).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX_3).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX_3).get();
         client().admin().indices().prepareFlush(INDEX_3).get();

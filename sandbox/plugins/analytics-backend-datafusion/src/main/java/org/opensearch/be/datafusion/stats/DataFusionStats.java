@@ -20,8 +20,7 @@ import java.util.Objects;
 /**
  * Top-level stats container for the DataFusion backend.
  *
- * <p>Implements {@link Writeable} for transport serialization,
- * {@link Writeable} for transport serialization, and {@link ToXContentFragment}
+ * <p>Implements {@link Writeable} for transport serialization and {@link ToXContentFragment}
  * for JSON rendering.
  *
  * <p>Composes {@link NativeExecutorsStats} rather than duplicating its fields,
@@ -32,24 +31,45 @@ import java.util.Objects;
 public class DataFusionStats implements Writeable, ToXContentFragment {
 
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
-    private final PartitionGateStats datanodeGateStats; // nullable
-    private final PartitionGateStats coordinatorGateStats; // nullable
+    private final PartitionGateStats fragmentExecutorGateStats; // nullable
+    private final AdaptiveBudgetStats adaptiveBudget; // nullable
+    private final SpillStats spillStats; // nullable
+    private final CacheStats cacheStats; // nullable
+    private final SearchStats searchStats; // nullable
 
     /**
-     * Construct from components.
+     * Construct from all components.
      *
-     * @param nativeExecutorsStats  the native executor metrics (nullable)
-     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
-     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param nativeExecutorsStats       the native executor metrics (nullable)
+     * @param fragmentExecutorGateStats  the fragment executor partition gate metrics (nullable)
+     * @param adaptiveBudget             the adaptive budget metrics (nullable)
+     * @param spillStats                 the spill directory stats (nullable)
+     * @param cacheStats                 the parquet metadata + statistics cache metrics (nullable)
+     * @param searchStats                the search execution metrics (nullable)
      */
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
-        PartitionGateStats datanodeGateStats,
-        PartitionGateStats coordinatorGateStats
+        PartitionGateStats fragmentExecutorGateStats,
+        AdaptiveBudgetStats adaptiveBudget,
+        SpillStats spillStats,
+        CacheStats cacheStats,
+        SearchStats searchStats
     ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
-        this.datanodeGateStats = datanodeGateStats;
-        this.coordinatorGateStats = coordinatorGateStats;
+        this.fragmentExecutorGateStats = fragmentExecutorGateStats;
+        this.adaptiveBudget = adaptiveBudget;
+        this.spillStats = spillStats;
+        this.cacheStats = cacheStats;
+        this.searchStats = searchStats;
+    }
+
+    public DataFusionStats(
+        NativeExecutorsStats nativeExecutorsStats,
+        PartitionGateStats fragmentExecutorGateStats,
+        AdaptiveBudgetStats adaptiveBudget,
+        SpillStats spillStats
+    ) {
+        this(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, null, null);
     }
 
     /**
@@ -60,15 +80,21 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
      */
     public DataFusionStats(StreamInput in) throws IOException {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
-        this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
-        this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.fragmentExecutorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.adaptiveBudget = in.readOptionalWriteable(AdaptiveBudgetStats::new);
+        this.spillStats = in.readOptionalWriteable(SpillStats::new);
+        this.cacheStats = in.readOptionalWriteable(CacheStats::new);
+        this.searchStats = in.readOptionalWriteable(SearchStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(nativeExecutorsStats);
-        out.writeOptionalWriteable(datanodeGateStats);
-        out.writeOptionalWriteable(coordinatorGateStats);
+        out.writeOptionalWriteable(fragmentExecutorGateStats);
+        out.writeOptionalWriteable(adaptiveBudget);
+        out.writeOptionalWriteable(spillStats);
+        out.writeOptionalWriteable(cacheStats);
+        out.writeOptionalWriteable(searchStats);
     }
 
     @Override
@@ -76,11 +102,20 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         if (nativeExecutorsStats != null) {
             nativeExecutorsStats.toXContent(builder, params);
         }
-        if (datanodeGateStats != null) {
-            datanodeGateStats.toXContent(builder, params);
+        if (fragmentExecutorGateStats != null) {
+            fragmentExecutorGateStats.toXContent(builder, params);
         }
-        if (coordinatorGateStats != null) {
-            coordinatorGateStats.toXContent(builder, params);
+        if (adaptiveBudget != null) {
+            adaptiveBudget.toXContent(builder, params);
+        }
+        if (spillStats != null) {
+            spillStats.toXContent(builder, params);
+        }
+        if (cacheStats != null) {
+            cacheStats.toXContent(builder, params);
+        }
+        if (searchStats != null) {
+            searchStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -93,17 +128,38 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns the datanode partition gate metrics, or {@code null} if absent.
+     * Returns the fragment executor partition gate metrics, or {@code null} if absent.
      */
-    public PartitionGateStats getDatanodeGateStats() {
-        return datanodeGateStats;
+    public PartitionGateStats getFragmentExecutorGateStats() {
+        return fragmentExecutorGateStats;
     }
 
     /**
-     * Returns the coordinator partition gate metrics, or {@code null} if absent.
+     * Returns the adaptive budget metrics, or {@code null} if absent.
      */
-    public PartitionGateStats getCoordinatorGateStats() {
-        return coordinatorGateStats;
+    public AdaptiveBudgetStats getAdaptiveBudgetStats() {
+        return adaptiveBudget;
+    }
+
+    /**
+     * Returns the spill directory metrics, or {@code null} if absent.
+     */
+    public SpillStats getSpillStats() {
+        return spillStats;
+    }
+
+    /**
+     * Returns the parquet cache metrics, or {@code null} if absent.
+     */
+    public CacheStats getCacheStats() {
+        return cacheStats;
+    }
+
+    /**
+     * Returns the search execution metrics, or {@code null} if absent.
+     */
+    public SearchStats getSearchStats() {
+        return searchStats;
     }
 
     @Override
@@ -112,12 +168,15 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         if (o == null || getClass() != o.getClass()) return false;
         DataFusionStats that = (DataFusionStats) o;
         return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
-            && Objects.equals(datanodeGateStats, that.datanodeGateStats)
-            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
+            && Objects.equals(fragmentExecutorGateStats, that.fragmentExecutorGateStats)
+            && Objects.equals(adaptiveBudget, that.adaptiveBudget)
+            && Objects.equals(spillStats, that.spillStats)
+            && Objects.equals(cacheStats, that.cacheStats)
+            && Objects.equals(searchStats, that.searchStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
+        return Objects.hash(nativeExecutorsStats, fragmentExecutorGateStats, adaptiveBudget, spillStats, cacheStats, searchStats);
     }
 }

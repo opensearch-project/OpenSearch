@@ -81,7 +81,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 
@@ -92,7 +92,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
     /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
     protected boolean hasLuceneSecondary() {
-        return false;
+        return true;
     }
 
     /**
@@ -127,7 +127,6 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
         // refresh/flush at the end gives deterministic replication rounds.
         for (int i = 0; i < count; i++) {
             client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
                 .setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE)
                 .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", (long) i)
                 .get();

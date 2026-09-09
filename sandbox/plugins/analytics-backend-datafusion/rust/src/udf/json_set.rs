@@ -13,7 +13,6 @@
 //! malformed-path → NULL. Values always store as JSON strings, matching the
 //! legacy fixture `"b":"3"` (not `"b":3`).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -26,7 +25,9 @@ use datafusion::logical_expr::{
 };
 use serde_json::Value;
 
-use super::json_common::{parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView};
+use super::json_common::{
+    parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView,
+};
 use super::{coerce_slot, CoerceMode};
 
 const NAME: &str = "json_set";
@@ -55,9 +56,6 @@ impl Default for JsonSetUdf {
 }
 
 impl ScalarUDFImpl for JsonSetUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -100,8 +98,10 @@ impl ScalarUDFImpl for JsonSetUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut rest: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);

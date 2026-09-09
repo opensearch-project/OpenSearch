@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
+import org.opensearch.be.lucene.stats.LuceneStatsProvider;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
@@ -25,6 +27,8 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.store.Store;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -32,6 +36,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 
 /**
@@ -49,12 +54,15 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final DataFormat dataFormat;
     private final IndexWriter parentWriter;
     private final ConcurrentMap<String, Long> idToGen;
+    private final Store store;
 
     public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
         this.idToGen = new ConcurrentHashMap<>();
         this.dataFormat = dataFormat;
-        this.parentWriter = ((LuceneCommitter) committer).getIndexWriter();
+        LuceneCommitter luceneCommitter = (LuceneCommitter) committer;
+        this.parentWriter = luceneCommitter.getIndexWriter();
+        this.store = luceneCommitter.getStore();
     }
 
     @Override
@@ -76,27 +84,41 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
-        Deleter currentDeleter = generationToDeleterMap.get(deleteInput.generation());
-        assert currentDeleter != null && currentDeleter.isActive()
-            : "current-gen deleter must exist and be active while caller holds the writer lock; gen=" + deleteInput.generation();
+        long start = System.nanoTime();
+        try {
+            Deleter currentDeleter = generationToDeleterMap.get(deleteInput.generation());
+            assert currentDeleter != null && currentDeleter.isActive()
+                : "current-gen deleter must exist and be active while caller holds the writer lock; gen=" + deleteInput.generation();
 
-        // TODO: If not present then record buffered deletes.
-        currentDeleter.recordBufferedDeletes(deleteInput.id());
-        Long previousGen = lookupGen(deleteInput.id());
-        if (previousGen != null) {
-            Closeable previousWriterLock = writerByGenSupplier.apply(previousGen);
-            if (previousWriterLock != null) {
-                // It means previous writer is active here.
-                try {
-                    Deleter deleter = generationToDeleterMap.get(previousGen);
-                    return deleter.deleteDoc(deleteInput);
-                } finally {
-                    previousWriterLock.close();
+            // TODO: If not present then record buffered deletes.
+            currentDeleter.recordBufferedDeletes(deleteInput.id());
+            Long previousGen = lookupGen(deleteInput.id());
+            if (previousGen != null) {
+                Closeable previousWriterLock = writerByGenSupplier.apply(previousGen);
+                if (previousWriterLock != null) {
+                    // It means previous writer is active here.
+                    try {
+                        Deleter deleter = generationToDeleterMap.get(previousGen);
+                        return deleter.deleteDoc(deleteInput);
+                    } finally {
+                        previousWriterLock.close();
+                    }
+                }
+            }
+
+            return new DeleteResult.Success(1L, 1L, 1L);
+        } finally {
+            LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
+                LuceneStatsProvider.FORMAT_NAME
+            );
+            if (provider != null) {
+                LuceneShardStatsTracker tracker = provider.getTracker(store.shardId());
+                if (tracker != null) {
+                    tracker.incDeleteTotal();
+                    tracker.addDeleteTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
                 }
             }
         }
-
-        return new DeleteResult.Success(1L, 1L, 1L);
     }
 
     @Override

@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseVariableWidthViewVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -74,5 +76,35 @@ public final class VectorUtils {
         combined.addAll(input.getFieldVectors());
         combined.add(constantVector);
         return new VectorSchemaRoot(combined);
+    }
+
+    /**
+     * Zeroes the view of every null slot in a hand-built batch's view columns (Utf8View /
+     * BinaryView), making the batch safe to export across the Arrow C Data Interface.
+     *
+     * <p>When a producer fills a view vector via {@code copyFromSafe}/{@code setNull}, Arrow unsets
+     * the validity bit but leaves the slot's 16-byte view as uninitialized buffer memory. Arrow-Java
+     * honors the validity bit, but a raw consumer reading the layout (DataFusion's interleave) reads
+     * the view length prefix unconditionally — a garbage length &gt; 12 dereferences a variadic data
+     * buffer that does not exist on an all-null column, panicking. Zeroing makes each null slot a
+     * valid length-0 inline view; validity bits are untouched, so cells stay null. Mutates in place,
+     * so a downstream zero-copy export still hands the same buffers to native.
+     *
+     * <p>Only needed for batches built in Java (e.g. the QTF stitch output); batches imported from
+     * native are already spec-valid.
+     *
+     * @param root batch to sanitize in place; not closed by this method
+     */
+    public static void sanitizeNullViewSlots(VectorSchemaRoot root) {
+        int rows = root.getRowCount();
+        for (FieldVector vec : root.getFieldVectors()) {
+            if (!(vec instanceof BaseVariableWidthViewVector view) || view.getNullCount() == 0) continue;
+            ArrowBuf viewBuffer = view.getDataBuffer();
+            for (int row = 0; row < rows; row++) {
+                if (view.isNull(row)) {
+                    viewBuffer.setZero((long) row * BaseVariableWidthViewVector.ELEMENT_SIZE, BaseVariableWidthViewVector.ELEMENT_SIZE);
+                }
+            }
+        }
     }
 }

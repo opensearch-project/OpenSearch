@@ -11,14 +11,19 @@ package org.opensearch.parquet.benchmark;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -45,6 +50,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -77,9 +83,10 @@ public class VSRRotationBenchmark {
     @Param({ "20" })
     private int fieldCount;
 
+    private static final DataFormat PARQUET_FORMAT = new ParquetDataFormat();
     private ThreadPool threadPool;
     private ArrowBufferPool bufferPool;
-    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
+    private ArrowNativeAllocator nativeAllocator;
     private Schema schema;
     private List<MappedFieldType> fieldTypes;
     private VSRManager vsrManager;
@@ -117,6 +124,11 @@ public class VSRRotationBenchmark {
                     ft = new KeywordFieldMapper.KeywordFieldType("keyword_field_" + i);
                     break;
             }
+            PARQUET_FORMAT.supportedFields()
+                .stream()
+                .filter(ftc -> ftc.fieldType().equals(ft.typeName()))
+                .findFirst()
+                .ifPresent(ftc -> ft.setCapabilityMap(Map.of(PARQUET_FORMAT, ftc.capabilities())));
             fieldTypes.add(ft);
             ParquetField pf = ArrowFieldRegistry.getParquetField(ft.typeName());
             arrowFields.add(new Field(ft.name(), pf.getFieldType(), null));
@@ -126,8 +138,8 @@ public class VSRRotationBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, PoolGroup.INDEXING);
         bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         filePath = Path.of(System.getProperty("java.io.tmpdir"), "benchmark_vsr_" + System.nanoTime() + ".parquet").toString();
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();

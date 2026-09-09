@@ -18,6 +18,7 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -102,15 +103,15 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 1
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                           OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             dag
@@ -124,14 +125,14 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                             OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -149,18 +150,18 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
-                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                         OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                         OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
                   Stage 1 exchange=SINGLETON
-                    OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                    OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             dag
@@ -174,14 +175,14 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                             OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
@@ -201,13 +202,16 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 1
-                  OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                    OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                        OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
+                    OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                            OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             dag
         );
@@ -221,9 +225,12 @@ public class DAGShapeTests extends BasePlannerRulesTests {
         assertDagShape("""
             QueryDAG(queryId=<random>)
             Stage 0
-              OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+              OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
+                OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
             """, dag);
     }
 
@@ -267,12 +274,17 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt"
         );
+        // Consume left.size ($1) and right.size ($3) so neither join arm is trimmed below
+        // [status, size] — keeps the arm Projects and the join condition at =($0, $2).
+        RelDataType intType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        AggregateCall sumLeft = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(1), -1, join, intType, "sum_left_size");
+        AggregateCall sumRight = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(3), -1, join, intType, "sum_right_size");
         return org.apache.calcite.rel.logical.LogicalAggregate.create(
             join,
             List.of(),
             org.apache.calcite.util.ImmutableBitSet.of(),
             null,
-            List.of(countCall)
+            List.of(countCall, sumLeft, sumRight)
         );
     }
 

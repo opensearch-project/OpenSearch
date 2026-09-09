@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -622,6 +623,28 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 } else {
                     assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
                 }
+
+                ActionConcurrencyLimiterStats limiterStats = nodeStats.getConcurrencyLimiterStats();
+                ActionConcurrencyLimiterStats deserializedLimiterStats = deserializedNodeStats.getConcurrencyLimiterStats();
+                if (limiterStats == null) {
+                    assertNull(deserializedLimiterStats);
+                } else {
+                    assertNotNull(deserializedLimiterStats);
+                    assertEquals(limiterStats.getSnapshots().size(), deserializedLimiterStats.getSnapshots().size());
+                    for (int i = 0; i < limiterStats.getSnapshots().size(); i++) {
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot orig = limiterStats.getSnapshots().get(i);
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot deser = deserializedLimiterStats.getSnapshots().get(i);
+                        assertEquals(orig.getAlias(), deser.getAlias());
+                        assertEquals(orig.getActionName(), deser.getActionName());
+                        assertEquals(orig.getMode(), deser.getMode());
+                        assertEquals(orig.getAlgorithm(), deser.getAlgorithm());
+                        assertEquals(orig.getCurrentLimit(), deser.getCurrentLimit());
+                        assertEquals(orig.getInFlight(), deser.getInFlight());
+                        assertEquals(orig.getTotalRejected(), deser.getTotalRejected());
+                        assertEquals(orig.getLastRttMillis(), deser.getLastRttMillis());
+                        assertEquals(orig.getRttNoLoadMillis(), deser.getRttNoLoadMillis());
+                    }
+                }
             }
         }
     }
@@ -1056,9 +1079,30 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats,
             remoteStoreNodeStats,
             null,
-            null,
+            frequently() ? randomConcurrencyLimiterStats() : null,
             -1L
         );
+    }
+
+    private static ActionConcurrencyLimiterStats randomConcurrencyLimiterStats() {
+        int count = randomIntBetween(1, 3);
+        List<ActionConcurrencyLimiterStats.ActionLimiterSnapshot> snapshots = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            snapshots.add(
+                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(10),
+                    randomFrom("enforced", "monitor_only", "disabled"),
+                    randomFrom("vegas", "gradient2", "aimd"),
+                    randomIntBetween(1, 200),
+                    randomIntBetween(0, 50),
+                    randomNonNegativeLong(),
+                    randomBoolean() ? randomNonNegativeLong() : -1L,
+                    randomBoolean() ? randomNonNegativeLong() : -1L
+                )
+            );
+        }
+        return new ActionConcurrencyLimiterStats(snapshots);
     }
 
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
@@ -1524,7 +1568,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1554,7 +1597,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(
                 new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L),
                 new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 400L, 4096L),
@@ -1572,9 +1614,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 NodeStats roundtripped = new NodeStats(in);
                 NativeAllocatorPoolStats decoded = roundtripped.getNativeAllocatorStats();
                 assertNotNull("native allocator stats must round-trip on current wire version", decoded);
-                assertEquals(1024L, decoded.getRootAllocatedBytes());
-                assertEquals(2048L, decoded.getRootPeakBytes());
-                assertEquals(8192L, decoded.getRootLimitBytes());
+                assertEquals(1024L, decoded.getNativeAllocatedBytes());
+                assertEquals(2048L, decoded.getNativeResidentBytes());
                 assertEquals(3, decoded.getPools().size());
                 assertEquals("flight", decoded.getPools().get(0).getName());
                 assertEquals(100L, decoded.getPools().get(0).getAllocatedBytes());
@@ -1586,15 +1627,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     /**
      * Renders {@code NodeStats.toXContent} when {@code nativeAllocatorStats} is non-null and
-     * asserts the JSON shape: a top-level {@code native_memory.native_allocator} block with
-     * the SPI's inner {@code root}/{@code pools.<name>} structure. Covers the conditional
-     * branch in {@code NodeStats.toXContent} that opens the {@code native_allocator} wrapper.
+     * asserts the JSON shape: a top-level {@code native_memory} block with
+     * {@code runtime.allocated_bytes}/{@code runtime.resident_bytes} and grouped {@code memory_pools}.
      */
     public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1608,20 +1647,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
         assertNotNull("native_memory wrapper must be opened when allocator stats are present", nativeMemory);
+
+        // Runtime stats are nested under "runtime"
         @SuppressWarnings("unchecked")
-        Map<String, Object> nativeAllocator = (Map<String, Object>) nativeMemory.get("native_allocator");
-        assertNotNull("native_allocator block must be present", nativeAllocator);
+        Map<String, Object> runtime = (Map<String, Object>) nativeMemory.get("runtime");
+        assertNotNull("runtime block must be present", runtime);
+        assertEquals(1024L, ((Number) runtime.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) runtime.get("resident_bytes")).longValue());
+
+        // Pools are grouped under "memory_pools"
         @SuppressWarnings("unchecked")
-        Map<String, Object> rootBlock = (Map<String, Object>) nativeAllocator.get("root");
-        assertEquals(1024L, ((Number) rootBlock.get("allocated_bytes")).longValue());
-        assertEquals(2048L, ((Number) rootBlock.get("peak_bytes")).longValue());
-        assertEquals(8192L, ((Number) rootBlock.get("limit_bytes")).longValue());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> pools = (Map<String, Object>) nativeAllocator.get("pools");
+        Map<String, Object> pools = (Map<String, Object>) nativeMemory.get("memory_pools");
+        assertNotNull("memory_pools block must be present", pools);
         @SuppressWarnings("unchecked")
         Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
+        assertNotNull("flight pool must be present in memory_pools", flight);
         assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
-        assertEquals(200L, ((Number) flight.get("peak_bytes")).longValue());
         assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
     }
 
@@ -1704,7 +1745,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null, // nodeCacheStats
             null,
             nativeAllocatorStats,
-            null,
+            null, // concurrencyLimiterStats
             totalEstimatedNativeBytes
         );
     }
@@ -1739,6 +1780,40 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 NodeStats deserialized = new NodeStats(in);
                 assertNull(deserialized.getFileCacheOnlyStats());
                 assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+    }
+
+    public void testConcurrencyLimiterStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_8_0: concurrencyLimiterStats round-trips (may be null or non-null)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_9_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_9_0);
+                NodeStats deserialized = new NodeStats(in);
+                if (nodeStats.getConcurrencyLimiterStats() == null) {
+                    assertNull(deserialized.getConcurrencyLimiterStats());
+                } else {
+                    assertNotNull(deserialized.getConcurrencyLimiterStats());
+                    assertEquals(
+                        nodeStats.getConcurrencyLimiterStats().getSnapshots().size(),
+                        deserialized.getConcurrencyLimiterStats().getSnapshots().size()
+                    );
+                }
+            }
+        }
+
+        // V_3_7_0: concurrencyLimiterStats is not on the wire; deserialization must not throw
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull("V_3_7_0 must not include concurrencyLimiterStats", deserialized.getConcurrencyLimiterStats());
             }
         }
     }

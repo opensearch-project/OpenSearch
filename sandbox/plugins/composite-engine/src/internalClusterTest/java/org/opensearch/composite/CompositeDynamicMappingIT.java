@@ -20,9 +20,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
@@ -99,114 +97,6 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Tests that documents with dynamically added fields are indexed successfully
-     * into a composite parquet index. The flow is:
-     * 1. Create index with initial mapping (field_keyword, field_number)
-     * 2. Index documents matching the initial schema
-     * 3. Index documents with NEW fields not in the original mapping (dynamic mapping)
-     * 4. Refresh + flush
-     * 5. Verify all documents indexed, parquet files generated with correct segments
-     */
-    public void testDynamicMappingWithParquet() throws Exception {
-        Settings indexSettings = parquetOnlySettings();
-
-        // Create index with initial mapping
-        CreateIndexResponse createResponse = client().admin()
-            .indices()
-            .prepareCreate(INDEX_NAME)
-            .setSettings(indexSettings)
-            .setMapping("field_keyword", "type=keyword", "field_number", "type=integer")
-            .get();
-        assertTrue("Index creation should be acknowledged", createResponse.isAcknowledged());
-        ensureGreen(INDEX_NAME);
-
-        // Index documents with initial schema
-        for (int i = 0; i < 5; i++) {
-            IndexResponse response = client().prepareIndex()
-                .setIndex(INDEX_NAME)
-                .setSource("field_keyword", "value_" + i, "field_number", i)
-                .get();
-            assertEquals(RestStatus.CREATED, response.status());
-        }
-
-        // Verify dynamic fields are NOT yet in the mapping
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-        Map<String, Object> mappingSource = mappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
-        assertTrue("Mapping should contain initial field 'field_keyword'", properties.containsKey("field_keyword"));
-        assertTrue("Mapping should contain initial field 'field_number'", properties.containsKey("field_number"));
-        assertFalse("Mapping should NOT contain 'dynamic_text' yet", properties.containsKey("dynamic_text"));
-        assertFalse("Mapping should NOT contain 'dynamic_long' yet", properties.containsKey("dynamic_long"));
-
-        // Index documents with NEW dynamic fields
-        indexDocsWithDynamicFields(INDEX_NAME, 5, 10);
-
-        // Verify dynamic fields are now present in the mapping.
-        // Note: The cluster-manager applies its own cluster state after publication completes,
-        // so there's a brief window where GetMappings on the cluster-manager may return stale data.
-        assertMappingsContain(INDEX_NAME, "dynamic_text", "dynamic_long");
-
-        // Refresh and flush to produce parquet files
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(INDEX_NAME).get();
-        assertEquals(RestStatus.OK, refreshResponse.getStatus());
-        FlushResponse flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).get();
-        assertEquals(RestStatus.OK, flushResponse.getStatus());
-
-        // Verify parquet files on disk
-        IndexShard shard = getIndexShard(INDEX_NAME);
-        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
-
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-            assertFalse("Should have at least one parquet file", parquetFiles.isEmpty());
-
-            // Verify row count from parquet file metadata
-            long totalRows = getParquetRowCount(parquetFiles);
-            assertEquals("Total rows across parquet files should equal 10", 10, totalRows);
-
-            // Verify content via readAsJson
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(10, allRows.size());
-            // Verify dynamic fields are present in the rows that should have them
-            assertDynamicFieldCount(allRows, "dynamic_text", 5);
-        }
-
-        // After flush, the writer is now immutable. Index more docs with another new dynamic field
-        // to verify schema evolution across writer generations (new writer created with fresh schema).
-        for (int i = 10; i < 15; i++) {
-            IndexResponse response = client().prepareIndex()
-                .setIndex(INDEX_NAME)
-                .setSource("field_keyword", "value_" + i, "field_number", i, "dynamic_extra", "extra_" + i)
-                .get();
-            assertEquals(RestStatus.CREATED, response.status());
-        }
-
-        // Verify new dynamic field in mapping
-        assertMappingsContain(INDEX_NAME, "dynamic_extra");
-
-        // Refresh + flush again
-        client().admin().indices().prepareRefresh(INDEX_NAME).get();
-        client().admin().indices().prepareFlush(INDEX_NAME).get();
-
-        // Verify all 15 rows on disk
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-            long totalRows = getParquetRowCount(parquetFiles);
-            assertEquals("Total rows across parquet files should equal 15", 15, totalRows);
-
-            // Verify content
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(15, allRows.size());
-            assertDynamicFieldCount(allRows, "dynamic_extra", 5);
-        }
-
-        ensureGreen(INDEX_NAME);
-        ensureNoActiveMerges(INDEX_NAME);
-    }
-
-    /**
      * Tests dynamic mapping with parquet primary + lucene secondary.
      * Verifies that dynamically added fields appear in both formats.
      * <p>
@@ -263,23 +153,27 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertEquals("All 10 Lucene docs should have __row_id__", 10, rowsWithRowId);
 
         // Verify that the lucene index has the expected indexed fields (inverted index)
-        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text", "dynamic_text.keyword"));
+        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text"));
         ensureNoActiveMerges(indexName);
     }
 
     public void testConflictingDynamicMappings() {
         String indexName = "test-conflict";
 
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .get();
         assertTrue(createResponse.isAcknowledged());
         ensureGreen(indexName);
 
         // First doc: foo inferred as long
-        client().prepareIndex(indexName).setId("1").setSource("foo", 3).get();
+        client().prepareIndex(indexName).setSource("foo", 3).get();
 
         // Second doc: foo as text — should fail
         try {
-            client().prepareIndex(indexName).setId("2").setSource("foo", "bar").get();
+            client().prepareIndex(indexName).setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (Exception e) {
             assertTrue(
@@ -288,34 +182,6 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
                     || e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [text]")
             );
         }
-    }
-
-    public void testConcurrentDynamicUpdates() throws Throwable {
-        String indexName = "test-concurrent";
-
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
-        assertTrue(createResponse.isAcknowledged());
-        ensureGreen(indexName);
-
-        final int numThreads = 32;
-        runConcurrentIndexing(indexName, numThreads);
-
-        // Verify all 64 fields in mapping
-        assertConcurrentMappings(indexName, numThreads);
-
-        // Verify parquet content
-        IndexShard shard = getIndexShard(indexName);
-        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
-            List<Path> parquetFiles = parquetFilesRef.get();
-
-            assertEquals("Total rows should equal 64", 64, getParquetRowCount(parquetFiles));
-
-            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-            assertEquals(64, allRows.size());
-            assertConcurrentFieldValues(allRows, numThreads);
-        }
-        ensureNoActiveMerges(indexName);
     }
 
     /**
@@ -367,6 +233,228 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         }
         assertLuceneIndexedFieldsPresent(luceneDir, expectedFields);
         ensureNoActiveMerges(indexName);
+    }
+
+    /**
+     * Verifies the complete AUTO promotion path: the first scalar row is committed with a scalar
+     * schema, a later array publishes {@code multi_value: true} into IndexMetadata, and the same
+     * indexing request is retried and persisted as a LIST row.
+     */
+    public void testAdaptiveKeywordPromotionUpdatesClusterStateAndRetriesDocument() throws Exception {
+        String indexName = "test-adaptive-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        Map<String, Object> initialFieldMapping = clusterStateFieldMapping(indexName, "tags");
+        assertFalse(initialFieldMapping.containsKey("multi_value"));
+        long initialMappingVersion = getClusterState().metadata().index(indexName).getMappingVersion();
+
+        IndexResponse scalarResponse = client().prepareIndex(indexName).setSource("tags", "solo").get();
+        assertEquals(RestStatus.CREATED, scalarResponse.status());
+        refreshAndFlush(indexName);
+
+        IndexResponse listResponse = client().prepareIndex(indexName).setSource("tags", List.of("prod", "error", "prod")).get();
+        assertEquals(RestStatus.CREATED, listResponse.status());
+
+        assertBusy(() -> {
+            assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+            assertTrue(getClusterState().metadata().index(indexName).getMappingVersion() > initialMappingVersion);
+        });
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
+        assertTrue(rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+    }
+
+    /**
+     * Verifies that promotion retires a scalar writer that still holds buffered rows. No refresh or
+     * flush occurs between the scalar and LIST documents, so the second write must reconcile the
+     * active writer, preserve its scalar row, and retry against a new LIST writer.
+     */
+    public void testAdaptiveKeywordPromotionRetiresActiveScalarWriterWithoutRefresh() throws Exception {
+        String indexName = "test-adaptive-active-writer";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(Settings.builder().put(parquetPrimaryLuceneSecondarySettings()).put("index.refresh_interval", "-1"))
+            .setMapping("tags", "type=keyword")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", "solo").get().status());
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(indexName).setSource("tags", List.of("prod", "error", "prod")).get().status()
+        );
+
+        assertBusy(() -> assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value")));
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue("the buffered scalar row must survive writer retirement", rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
+        assertTrue(
+            "the retried array document must use LIST storage",
+            rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags")))
+        );
+    }
+
+    /**
+     * Verifies concurrent AUTO promotion across independent indices. Every request has a unique ID,
+     * and each index receives a deterministic mix of scalar and LIST values while mapping updates
+     * and writer rotations race with other writes.
+     */
+    public void testConcurrentAutoPromotionAcrossIndices() throws Throwable {
+        final int indexCount = 3;
+        final int threadCount = 8;
+        final int operationsPerThread = 24;
+        final int expectedDocumentsPerIndex = threadCount * operationsPerThread / indexCount;
+        final List<String> indexNames = new ArrayList<>(indexCount);
+        Settings settings = Settings.builder().put(parquetPrimaryLuceneSecondarySettings()).put("index.refresh_interval", "-1").build();
+
+        for (int i = 0; i < indexCount; i++) {
+            String indexName = "test-auto-concurrent-" + i;
+            CreateIndexResponse createResponse = client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(settings)
+                .setMapping("tags", "type=keyword")
+                .get();
+            assertTrue(createResponse.isAcknowledged());
+            ensureGreen(indexName);
+            indexNames.add(indexName);
+        }
+
+        CountDownLatch startLatch = new CountDownLatch(1);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            final int threadId = i;
+            threads[i] = new Thread(() -> {
+                try {
+                    startLatch.await();
+                    for (int operation = 0; operation < operationsPerThread; operation++) {
+                        int indexOrdinal = (threadId + operation) % indexCount;
+                        String value = "tag-" + threadId + "-" + operation;
+                        Object tags = ((threadId * 31 + operation * 17) & 3) == 0 ? List.of(value, "shared") : value;
+                        IndexResponse response = client().prepareIndex(indexNames.get(indexOrdinal)).setSource("tags", tags).get();
+                        if (response.status() != RestStatus.CREATED) {
+                            throw new AssertionError("concurrent index request failed with " + response.status());
+                        }
+                    }
+                } catch (Throwable t) {
+                    error.compareAndSet(null, t);
+                }
+            }, "auto-promotion-" + i);
+            threads[i].start();
+        }
+
+        startLatch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        if (error.get() != null) {
+            throw error.get();
+        }
+
+        for (String indexName : indexNames) {
+            assertBusy(() -> assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value")));
+            List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+            assertEquals("every successful request must be persisted", expectedDocumentsPerIndex, rows.size());
+            assertTrue("each index must contain LIST-backed rows", rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+        }
+    }
+
+    /** Verifies that explicit SCALAR state rejects an array without publishing a mapping update. */
+    public void testExplicitScalarKeywordRejectsArrayWithoutUpdatingClusterState() throws Exception {
+        String indexName = "test-scalar-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword,multi_value=false")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(Boolean.FALSE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+        long mappingVersion = getClusterState().metadata().index(indexName).getMappingVersion();
+
+        IndexResponse scalarResponse = client().prepareIndex(indexName).setSource("tags", "solo").get();
+        assertEquals(RestStatus.CREATED, scalarResponse.status());
+
+        Exception error = expectThrows(
+            Exception.class,
+            () -> client().prepareIndex(indexName).setSource("tags", List.of("one", "two")).get()
+        );
+        assertThat(
+            org.opensearch.ExceptionsHelper.stackTrace(error),
+            org.hamcrest.Matchers.containsString("locked scalar by [multi_value: false]")
+        );
+        assertEquals(mappingVersion, getClusterState().metadata().index(indexName).getMappingVersion());
+        assertEquals(Boolean.FALSE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(1, rows.size());
+        assertEquals("solo", rows.get(0).get("tags"));
+    }
+
+    /** Verifies that explicit LIST state writes scalar input as a singleton list and arrays unchanged. */
+    public void testExplicitListKeywordPersistsListShapeForEveryDocument() throws Exception {
+        String indexName = "test-list-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword,multi_value=true")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", "solo").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", List.of("one", "two", "one")).get().status());
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().allMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+    }
+
+    /**
+     * RustBridge's test-only JSON renderer decodes primitive columns and emits this marker for
+     * nested columns. Matching it verifies that the physical Parquet column is LIST; element-value
+     * preservation is covered by the lower-level VSR and ParquetDocumentInput tests.
+     */
+    private boolean isListColumnPlaceholder(Object value) {
+        return value instanceof String text && text.startsWith("<unsupported:List(");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> clusterStateFieldMapping(String indexName, String fieldName) {
+        Map<String, Object> mappingSource = getClusterState().metadata().index(indexName).mapping().sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+        return (Map<String, Object>) properties.get(fieldName);
+    }
+
+    private void refreshAndFlush(String indexName) {
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+    }
+
+    private List<Map<String, Object>> refreshFlushAndReadParquetRows(String indexName) throws IOException {
+        refreshAndFlush(indexName);
+        IndexShard shard = getIndexShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            return readAllParquetRows(parquetFilesRef.get());
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -428,16 +516,10 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             indexThreads[i] = new Thread(() -> {
                 try {
                     startLatch.await();
-                    IndexResponse respA = client().prepareIndex(indexName)
-                        .setId("a_" + threadId)
-                        .setSource("fieldA_" + threadId, "valueA_" + threadId)
-                        .get();
+                    IndexResponse respA = client().prepareIndex(indexName).setSource("fieldA_" + threadId, "valueA_" + threadId).get();
                     assert respA.status() == RestStatus.CREATED : "index a_" + threadId + " failed: " + respA.status();
                     Thread.sleep(1000);
-                    IndexResponse respB = client().prepareIndex(indexName)
-                        .setId("b_" + threadId)
-                        .setSource("fieldB_" + threadId, "valueB_" + threadId)
-                        .get();
+                    IndexResponse respB = client().prepareIndex(indexName).setSource("fieldB_" + threadId, "valueB_" + threadId).get();
                     assert respB.status() == RestStatus.CREATED : "index b_" + threadId + " failed: " + respB.status();
                     Thread.sleep(1000);
                     client().admin().indices().prepareRefresh(indexName).get();

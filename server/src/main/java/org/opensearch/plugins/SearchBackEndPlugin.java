@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -103,6 +104,44 @@ public interface SearchBackEndPlugin<R> {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Extended variant that also receives the unified native memory allocator.
+     * Plugins that need to register virtual pools (e.g., DataFusion) override this method.
+     * The default delegates to the original method for backwards compatibility.
+     *
+     * @param nativeAllocator the unified native allocator, or null if arrow-base is not installed
+     */
+    default Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        DataFormatRegistry dataFormatRegistry,
+        @Nullable NativeAllocator nativeAllocator
+    ) {
+        return createComponents(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            indexNameExpressionResolver,
+            repositoriesServiceSupplier,
+            dataFormatRegistry
+        );
     }
 
     /**

@@ -15,7 +15,6 @@
 //! buffer-reinterpreted as Latin-1 by DataFusion's built-in `cast(binary,
 //! utf8)` kernel.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -25,7 +24,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 
 pub fn register_all(ctx: &SessionContext) {
@@ -69,10 +69,6 @@ impl Hash for BinaryToBase64Udf {
 }
 
 impl ScalarUDFImpl for BinaryToBase64Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "binary_to_base64"
     }
@@ -87,25 +83,33 @@ impl ScalarUDFImpl for BinaryToBase64Udf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 1 {
-            return exec_err!("binary_to_base64 expects exactly 1 argument, got {}", args.args.len());
+            return exec_err!(
+                "binary_to_base64 expects exactly 1 argument, got {}",
+                args.args.len()
+            );
         }
         match &args.args[0] {
             ColumnarValue::Scalar(ScalarValue::Binary(opt)) => Ok(ColumnarValue::Scalar(
                 ScalarValue::Utf8(opt.as_ref().map(|b| STANDARD.encode(b))),
             )),
-            ColumnarValue::Scalar(other) => exec_err!("binary_to_base64: expected Binary input, got {other:?}"),
+            ColumnarValue::Scalar(other) => {
+                exec_err!("binary_to_base64: expected Binary input, got {other:?}")
+            }
             ColumnarValue::Array(arr) => {
-                let bin = arr
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .ok_or_else(|| {
-                        datafusion::common::DataFusionError::Execution(format!(
-                            "binary_to_base64: expected BinaryArray, got {:?}",
-                            arr.data_type()
-                        ))
-                    })?;
+                let bin = arr.as_any().downcast_ref::<BinaryArray>().ok_or_else(|| {
+                    datafusion::common::DataFusionError::Execution(format!(
+                        "binary_to_base64: expected BinaryArray, got {:?}",
+                        arr.data_type()
+                    ))
+                })?;
                 let out: StringArray = (0..bin.len())
-                    .map(|i| if bin.is_null(i) { None } else { Some(STANDARD.encode(bin.value(i))) })
+                    .map(|i| {
+                        if bin.is_null(i) {
+                            None
+                        } else {
+                            Some(STANDARD.encode(bin.value(i)))
+                        }
+                    })
                     .collect();
                 Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
             }

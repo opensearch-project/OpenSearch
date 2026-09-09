@@ -40,7 +40,11 @@ public class ArrowBufferPool implements Closeable {
      *                        {@code ParquetDataFormatPlugin#createComponents}
      */
     public ArrowBufferPool(Settings settings, ArrowNativeAllocator nativeAllocator) {
-        this.poolAllocator = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+        BufferAllocator ingestPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+        // Create a child allocator so that getTotalAllocatedBytes() reports only this instance's
+        // usage rather than the pool-wide total. Long.MAX_VALUE means this child imposes no limit
+        // of its own; the parent pool's dynamic limit is the only enforced constraint.
+        this.poolAllocator = ingestPool.newChildAllocator("ArrowBufferPool", 0, Long.MAX_VALUE);
         logger.debug("ArrowBufferPool: poolLimit={}", poolAllocator.getLimit());
     }
 
@@ -63,8 +67,6 @@ public class ArrowBufferPool implements Closeable {
 
     @Override
     public void close() {
-        // The framework owns the ingest pool's BufferAllocator; nothing to free here.
-        // Child allocators created via createChildAllocator are owned by their callers
-        // (VSRPool / ManagedVSR) and closed when those resources release.
+        poolAllocator.close();
     }
 }

@@ -40,6 +40,23 @@ public class NativeMemoryFetcher {
     private NativeMemoryFetcher() {}
 
     /**
+     * Returns current jemalloc resident bytes, or -1 on error.
+     */
+    public static long fetchResidentBytes() {
+        try {
+            long resident = (long) RESIDENT.invokeExact();
+            if (resident < 0) {
+                logger.warn("jemalloc resident_bytes returned negative value: {}", resident);
+                return -1;
+            }
+            return resident;
+        } catch (Throwable t) {
+            logger.warn("Error reading jemalloc resident bytes", t);
+            return -1;
+        }
+    }
+
+    /**
      * Performs FFM downcalls and returns a fresh AnalyticsBackendNativeMemoryStats snapshot.
      * Returns AnalyticsBackendNativeMemoryStats(-1, -1) on error or negative values.
      */
@@ -49,12 +66,12 @@ public class NativeMemoryFetcher {
             long resident = (long) RESIDENT.invokeExact();
             if (allocated < 0 || resident < 0) {
                 logger.warn("Native memory stats returned error: allocated={}, resident={}", allocated, resident);
-                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             }
-            return new AnalyticsBackendNativeMemoryStats(allocated, resident);
+            return new AnalyticsBackendNativeMemoryStats(allocated, resident, NativeArenaPurger.getPurgeCount());
         } catch (Throwable t) {
             logger.warn("Error fetching native memory stats", t);
-            return new AnalyticsBackendNativeMemoryStats(-1, -1);
+            return new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
         }
     }
 }

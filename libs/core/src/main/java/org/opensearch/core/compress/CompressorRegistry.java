@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 /**
  * A registry that wraps a static Map singleton which holds a mapping of unique String names (typically the
- * compressor header as a string) to registerd {@link Compressor} implementations.
+ * compressor header as a string) to registered {@link Compressor} implementations.
  * <p>
  * This enables plugins, modules, extensions to register their own compression implementations through SPI
  *

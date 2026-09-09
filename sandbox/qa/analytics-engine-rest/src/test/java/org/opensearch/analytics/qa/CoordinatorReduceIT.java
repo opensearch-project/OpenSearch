@@ -142,7 +142,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         String body = "{\"settings\": {"
             + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
             + "}, \"mappings\": {\"properties\": {\"value\": {\"type\": \"integer\"}}}}";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(body);
@@ -157,7 +157,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         int total = 800;
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"o").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append((i % distinct) + 1).append("}\n");
         }
         bulkAndRefresh(index, bulk.toString());
@@ -193,7 +193,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         String body = "{\"settings\": {"
             + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
             + "}, \"mappings\": {\"properties\": {\"label\": {\"type\": \"keyword\"}}}}";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(body);
@@ -208,7 +208,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         int total = 800;
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"k").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"label\": \"lbl").append(i % distinct).append("\"}\n");
         }
         bulkAndRefresh(index, bulk.toString());
@@ -417,7 +417,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= DOCS_PER_SHARD; i++) {
@@ -456,7 +456,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= totalDocs; i++) {
@@ -494,7 +494,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 5; i++) {
@@ -532,7 +532,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 10; i++) {
@@ -647,7 +647,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -674,7 +674,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"w").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"category\": \"\", \"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(STRING_GROUP_INDEX, bulk.toString());
@@ -720,7 +720,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -745,7 +745,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(VALUE).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -769,7 +769,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -797,7 +797,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     private void indexSequentialValueDocsSingleShard(String indexName) throws Exception {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < DOCS_PER_SHARD; i++) {
-            bulk.append("{\"index\": {\"_id\": \"s").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -812,7 +812,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"v").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -826,7 +826,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     private void indexDuplicateValueDocsSingleShard(String indexName) throws Exception {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < DOCS_PER_SHARD; i++) {
-            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append((i % 5) + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -842,7 +842,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append((i % 10) + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());

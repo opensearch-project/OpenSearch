@@ -810,15 +810,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        final BytesRef binaryValue = parseCollationKey(context);
-        if (binaryValue == null) {
-            return;
-        }
-        context.documentInput().addField(fieldType(), binaryValue);
-    }
-
     private BytesRef parseCollationKey(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {

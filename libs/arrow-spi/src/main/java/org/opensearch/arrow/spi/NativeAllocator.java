@@ -9,36 +9,35 @@
 package org.opensearch.arrow.spi;
 
 import java.io.Closeable;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
- * Arrow-agnostic interface for a hierarchical native memory allocator.
+ * Unified native memory allocator interface.
  *
- * <p>The implementation (backed by Arrow's {@code RootAllocator}) is provided by
- * a plugin. The SPI allows other subsystems to interact with the allocator
- * without depending on Arrow classes.
- *
- * <p>Plugins that need Arrow allocators obtain the implementation via
- * service lookup or plugin extension and call {@link #getOrCreatePool} to
- * register their pool.
+ * <p>Manages memory pools under a shared budget. Each pool has a minimum
+ * guaranteed allocation and a maximum burst limit. Implementations may
+ * redistribute unused capacity across pools.
  *
  * @opensearch.api
  */
 public interface NativeAllocator extends Closeable {
 
     /**
-     * Returns the named pool, creating it on first access with the given limit.
-     * Subsequent calls with the same name return the same pool (first-call limit wins).
+     * Returns the named pool, creating it on first access.
+     * Subsequent calls with the same name return the existing pool (first-call config wins).
      *
-     * @param poolName logical pool name (e.g., "query", "flight")
-     * @param limit maximum bytes this pool can allocate in aggregate
+     * @param poolName logical pool name
+     * @param min minimum guaranteed bytes
+     * @param max maximum bytes this pool can allocate
+     * @param group the group this pool belongs to for aggregated stats, or null
      * @return an opaque pool handle
      */
-    PoolHandle getOrCreatePool(String poolName, long limit);
+    PoolHandle getOrCreatePool(String poolName, long min, long max, PoolGroup group);
 
     /**
-     * Updates the limit of an existing pool. Children of the pool allocator
-     * inherit the change automatically via Arrow's parent-cap check at
-     * allocation time — no notification SPI is needed.
+     * Updates the effective limit of an existing pool.
      *
      * @param poolName logical pool name
      * @param newLimit new maximum bytes for the pool
@@ -46,15 +45,78 @@ public interface NativeAllocator extends Closeable {
     void setPoolLimit(String poolName, long newLimit);
 
     /**
-     * Sets the root-level memory limit for the entire allocator.
+     * Registers a virtual pool with initial min/max and a callback
+     * invoked when the pool's limit changes.
      *
-     * @param limit new maximum bytes for the root allocator
+     * @param poolName logical pool name
+     * @param min minimum guaranteed bytes
+     * @param max initial maximum bytes (the pool's starting limit)
+     * @param group the group this pool belongs to for aggregated stats
+     * @param limitSetter callback invoked when the pool limit changes
+     * @return a handle to update stats from the native layer
      */
-    void setRootLimit(long limit);
+    VirtualPoolHandle registerVirtualPool(String poolName, long min, long max, PoolGroup group, Consumer<Long> limitSetter);
 
     /**
-     * Opaque handle to a memory pool. Plugins downcast to the concrete type
-     * (e.g., Arrow's {@code BufferAllocator}) in the implementation layer.
+     * Updates the minimum guaranteed bytes for a pool.
+     *
+     * @param poolName logical pool name
+     * @param newMin new minimum bytes
+     */
+    void setPoolMin(String poolName, long newMin);
+
+    /**
+     * Returns all registered pool names.
+     */
+    Set<String> getAllPoolNames();
+
+    /**
+     * Adds a callback invoked before stats collection to refresh pool usage data.
+     *
+     * @param refresher runnable that updates pool stats
+     */
+    void addStatsRefresher(Runnable refresher);
+
+    /**
+     * Sets the supplier for process-wide native memory stats.
+     *
+     * @param supplier returns [allocatedBytes, residentBytes]
+     */
+    void setNativeMemoryStatsSupplier(Supplier<long[]> supplier);
+
+    /**
+     * Registers a listener invoked when the effective limit of a pool group changes.
+     * The consumer receives the new total effective limit (sum of all pools in the group).
+     *
+     * @param group the pool group to listen on
+     * @param listener consumer that receives the new grouped limit in bytes
+     */
+    void addPoolGroupLimitListener(PoolGroup group, Consumer<Long> listener);
+
+    /**
+     * Handle for a virtual pool. Plugins update stats via this handle.
+     */
+    interface VirtualPoolHandle {
+        /**
+         * Update the current usage stats.
+         *
+         * @param allocatedBytes current allocated bytes
+         * @param peakBytes peak allocated bytes
+         */
+        void updateStats(long allocatedBytes, long peakBytes);
+
+        /** Returns current allocated bytes. */
+        long allocatedBytes();
+
+        /** Returns peak allocated bytes. */
+        long peakBytes();
+
+        /** Returns current limit. */
+        long limit();
+    }
+
+    /**
+     * Opaque handle to a memory pool.
      */
     interface PoolHandle {
 
@@ -63,28 +125,20 @@ public interface NativeAllocator extends Closeable {
          *
          * @param childName name for debugging
          * @param childLimit maximum bytes for the child
-         * @return an opaque child handle (downcast to BufferAllocator in Arrow impl)
+         * @return a child handle
          */
         PoolHandle newChild(String childName, long childLimit);
 
-        /**
-         * Returns the current allocated bytes for this pool/child.
-         */
+        /** Returns the current allocated bytes. */
         long allocatedBytes();
 
-        /**
-         * Returns the peak memory allocation.
-         */
+        /** Returns the peak memory allocation. */
         long peakBytes();
 
-        /**
-         * Returns the configured limit.
-         */
+        /** Returns the configured limit. */
         long limit();
 
-        /**
-         * Releases this allocation handle.
-         */
+        /** Releases this allocation handle. */
         void close();
     }
 }

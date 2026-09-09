@@ -63,6 +63,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -119,7 +120,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> skiplist = new Parameter<>(
@@ -141,6 +142,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name, NumberType type, Settings settings) {
             this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
@@ -1972,6 +1974,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.name;
         }
 
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
         public NumberType numberType() {
             return type;
         }
@@ -2123,7 +2130,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean coerceByDefault;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

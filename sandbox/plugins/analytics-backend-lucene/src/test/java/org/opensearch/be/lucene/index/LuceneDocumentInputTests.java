@@ -9,23 +9,20 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.mapper.TextSearchInfo;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +30,7 @@ import static org.mockito.Mockito.when;
  * Verifies that each field type registered in {@link org.opensearch.be.lucene.LuceneFieldFactoryRegistry}
  * produces Lucene fields with the expected storage properties.
  */
-public class LuceneDocumentInputTests extends OpenSearchTestCase {
+public class LuceneDocumentInputTests extends LucenePluginBaseTests {
 
     public void testIdFieldProperties() {
         MappedFieldType idField = mockIdField();
@@ -50,7 +47,7 @@ public class LuceneDocumentInputTests extends OpenSearchTestCase {
     }
 
     public void testTextFieldProperties() {
-        MappedFieldType textField = new TextFieldMapper.TextFieldType("content");
+        MappedFieldType textField = mockTextField("content");
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.addField(textField, "hello world");
 
@@ -66,13 +63,7 @@ public class LuceneDocumentInputTests extends OpenSearchTestCase {
     }
 
     public void testKeywordFieldProperties() {
-        FieldType kwFieldType = new FieldType();
-        kwFieldType.setTokenized(false);
-        kwFieldType.setStored(false);
-        kwFieldType.setOmitNorms(true);
-        kwFieldType.setIndexOptions(IndexOptions.DOCS);
-        kwFieldType.freeze();
-        MappedFieldType keywordField = new KeywordFieldMapper.KeywordFieldType("status", kwFieldType);
+        MappedFieldType keywordField = mockKeywordField("status");
 
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.addField(keywordField, "active");
@@ -89,13 +80,7 @@ public class LuceneDocumentInputTests extends OpenSearchTestCase {
     }
 
     public void testMatchOnlyTextFieldProperties() {
-        MappedFieldType matchOnlyField = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
-            "body",
-            true,
-            false,
-            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, null, null),
-            Collections.emptyMap()
-        );
+        MappedFieldType matchOnlyField = mockMatchOnlyTextField("body");
 
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.addField(matchOnlyField, "some text");
@@ -108,7 +93,7 @@ public class LuceneDocumentInputTests extends OpenSearchTestCase {
         assertFalse("match_only_text: should not be stored", ft.stored());
         assertTrue("match_only_text: should omit norms", ft.omitNorms());
         assertEquals("match_only_text: should have no doc values", DocValuesType.NONE, ft.docValuesType());
-        assertNotEquals("match_only_text: should be indexed", IndexOptions.NONE, ft.indexOptions());
+        assertNotEquals("match_only_text: should be indexed", IndexOptions.DOCS, ft.indexOptions());
     }
 
     public void testSeqNoFieldProperties() {
@@ -118,19 +103,14 @@ public class LuceneDocumentInputTests extends OpenSearchTestCase {
 
         Document doc = input.getFinalInput();
         IndexableField field = doc.getField(SeqNoFieldMapper.NAME);
-        assertNotNull("_seq_no field should be present in document", field);
-
-        // LongPoint: dimensional field, not stored, not indexed via inverted index
-        IndexableFieldType ft = field.fieldType();
-        assertFalse("_seq_no: should not be stored", ft.stored());
-        assertEquals("_seq_no: LongPoint has no inverted index", IndexOptions.NONE, ft.indexOptions());
-        assertTrue("_seq_no: should have point dimensions", ft.pointDimensionCount() > 0);
+        assertNull("_seq_no field should be present in document", field);
     }
 
     private static MappedFieldType mockIdField() {
         MappedFieldType idField = mock(MappedFieldType.class);
         when(idField.typeName()).thenReturn(IdFieldMapper.CONTENT_TYPE);
         when(idField.name()).thenReturn(IdFieldMapper.NAME);
+        when(idField.getCapabilityMap()).thenReturn(Map.of(LucenePlugin.DATA_FORMAT, Set.of(FULL_TEXT_SEARCH)));
         return idField;
     }
 

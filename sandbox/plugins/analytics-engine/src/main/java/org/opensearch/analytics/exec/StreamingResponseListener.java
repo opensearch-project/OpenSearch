@@ -40,6 +40,13 @@ public interface StreamingResponseListener<Resp extends ActionResponse> {
     boolean onStreamResponse(Resp response, boolean isLast);
 
     /**
+     * Called after the stream is exhausted with any trailing metadata sent by the data node.
+     *
+     * @param trailingMetadata application metadata bytes, or {@code null} if none sent
+     */
+    default void onStreamComplete(byte[] trailingMetadata) {}
+
+    /**
      * Called when the request fails. Terminal failure event.
      *
      * @param e the exception that caused the failure

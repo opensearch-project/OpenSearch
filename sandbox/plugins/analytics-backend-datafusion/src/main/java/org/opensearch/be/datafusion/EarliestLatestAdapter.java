@@ -20,6 +20,7 @@ import org.apache.calcite.sql.SqlIntervalQualifier;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeUtil;
 import org.apache.calcite.util.TimestampString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -148,11 +149,22 @@ public final class EarliestLatestAdapter {
             tsAligned = rexBuilder.makeCast(plainTs, tsArg);
         }
 
-        return rexBuilder.makeCall(
+        RexNode comparison = rexBuilder.makeCall(
             isEarliest ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN_OR_EQUAL,
             tsAligned,
             rhs
         );
+
+        // Pin to the call's declared type for the enclosing Filter/Project, but skip the
+        // pin-back CAST when only nullability differs — `Filter.isValid` rejects such casts.
+        if (comparison.getType().equals(call.getType())) {
+            return comparison;
+        }
+        RelDataTypeFactory tf = rexBuilder.getTypeFactory();
+        if (SqlTypeUtil.equalSansNullability(tf, comparison.getType(), call.getType())) {
+            return comparison;
+        }
+        return rexBuilder.makeCast(call.getType(), comparison, true);
     }
 
     /** Builds the right-hand side of the comparison (a TIMESTAMP-typed expression). */

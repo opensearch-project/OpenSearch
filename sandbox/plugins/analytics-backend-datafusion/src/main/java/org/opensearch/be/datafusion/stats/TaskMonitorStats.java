@@ -17,7 +17,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * 3 duration fields per operation type from {@code tokio_metrics::TaskMonitor::cumulative()}.
+ * 5 fields per operation type from {@code tokio_metrics::TaskMonitor::cumulative()}.
+ * Three duration fields plus instrumented/dropped counts that enable computing alive task count client-side.
  */
 public class TaskMonitorStats implements Writeable {
     /** Total time spent polling instrumented futures, in milliseconds. */
@@ -26,6 +27,10 @@ public class TaskMonitorStats implements Writeable {
     public final long totalScheduledDurationMs;
     /** Total time tasks spent idle between polls, in milliseconds. */
     public final long totalIdleDurationMs;
+    /** Cumulative number of tasks instrumented by this monitor. */
+    public final long instrumentedCount;
+    /** Cumulative number of instrumented tasks that have been dropped (completed). */
+    public final long droppedCount;
 
     /**
      * Construct from explicit field values.
@@ -33,11 +38,21 @@ public class TaskMonitorStats implements Writeable {
      * @param totalPollDurationMs      total poll duration in milliseconds
      * @param totalScheduledDurationMs total scheduled duration in milliseconds
      * @param totalIdleDurationMs      total idle duration in milliseconds
+     * @param instrumentedCount        cumulative instrumented task count
+     * @param droppedCount             cumulative dropped (completed) task count
      */
-    public TaskMonitorStats(long totalPollDurationMs, long totalScheduledDurationMs, long totalIdleDurationMs) {
+    public TaskMonitorStats(
+        long totalPollDurationMs,
+        long totalScheduledDurationMs,
+        long totalIdleDurationMs,
+        long instrumentedCount,
+        long droppedCount
+    ) {
         this.totalPollDurationMs = totalPollDurationMs;
         this.totalScheduledDurationMs = totalScheduledDurationMs;
         this.totalIdleDurationMs = totalIdleDurationMs;
+        this.instrumentedCount = instrumentedCount;
+        this.droppedCount = droppedCount;
     }
 
     /**
@@ -50,6 +65,8 @@ public class TaskMonitorStats implements Writeable {
         this.totalPollDurationMs = in.readVLong();
         this.totalScheduledDurationMs = in.readVLong();
         this.totalIdleDurationMs = in.readVLong();
+        this.instrumentedCount = in.readVLong();
+        this.droppedCount = in.readVLong();
     }
 
     @Override
@@ -57,10 +74,12 @@ public class TaskMonitorStats implements Writeable {
         out.writeVLong(totalPollDurationMs);
         out.writeVLong(totalScheduledDurationMs);
         out.writeVLong(totalIdleDurationMs);
+        out.writeVLong(instrumentedCount);
+        out.writeVLong(droppedCount);
     }
 
     /**
-     * Render all 3 fields as snake_case JSON fields.
+     * Render all 5 fields as snake_case JSON fields.
      *
      * @param builder the XContent builder to write to
      * @throws IOException if writing fails
@@ -69,6 +88,8 @@ public class TaskMonitorStats implements Writeable {
         builder.field("total_poll_duration_ms", totalPollDurationMs);
         builder.field("total_scheduled_duration_ms", totalScheduledDurationMs);
         builder.field("total_idle_duration_ms", totalIdleDurationMs);
+        builder.field("instrumented_count", instrumentedCount);
+        builder.field("dropped_count", droppedCount);
     }
 
     @Override
@@ -78,11 +99,13 @@ public class TaskMonitorStats implements Writeable {
         TaskMonitorStats that = (TaskMonitorStats) o;
         return totalPollDurationMs == that.totalPollDurationMs
             && totalScheduledDurationMs == that.totalScheduledDurationMs
-            && totalIdleDurationMs == that.totalIdleDurationMs;
+            && totalIdleDurationMs == that.totalIdleDurationMs
+            && instrumentedCount == that.instrumentedCount
+            && droppedCount == that.droppedCount;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs);
+        return Objects.hash(totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs, instrumentedCount, droppedCount);
     }
 }

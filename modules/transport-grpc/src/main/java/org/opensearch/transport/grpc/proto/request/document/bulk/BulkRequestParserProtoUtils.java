@@ -23,6 +23,7 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
@@ -96,7 +97,7 @@ public class BulkRequestParserProtoUtils {
      * @param byteString The protobuf ByteString to convert
      * @return A BytesReference wrapping the ByteString data
      */
-    private static BytesReference byteStringToBytesReference(ByteString byteString) {
+    static BytesReference byteStringToBytesReference(ByteString byteString) {
         if (byteString == null || byteString.isEmpty()) {
             return BytesArray.EMPTY;
         }
@@ -162,12 +163,14 @@ public class BulkRequestParserProtoUtils {
             String pipeline = valueOrDefault(defaultPipeline, request.getPipeline());
             Boolean requireAlias = valueOrDefault(defaultRequireAlias, request.getRequireAlias());
 
+            ExtraFieldValues extraFieldValues = ExtraFieldValuesProtoUtils.fromProto(bulkRequestBodyEntry);
             OperationContainer operationContainer = bulkRequestBodyEntry.getOperationContainer();
             switch (operationContainer.getOperationContainerCase()) {
                 case CREATE:
                     docWriteRequest = buildCreateRequest(
                         operationContainer.getCreate(),
                         bulkRequestBodyEntry.getObject(),
+                        extraFieldValues,
                         index,
                         id,
                         routing,
@@ -183,6 +186,7 @@ public class BulkRequestParserProtoUtils {
                     docWriteRequest = buildIndexRequest(
                         operationContainer.getIndex(),
                         bulkRequestBodyEntry.getObject(),
+                        extraFieldValues,
                         opType,
                         index,
                         id,
@@ -209,6 +213,7 @@ public class BulkRequestParserProtoUtils {
                     docWriteRequest = buildUpdateRequest(
                         operationContainer.getUpdate(),
                         updateDocBytes,
+                        extraFieldValues,
                         bulkRequestBodyEntry,
                         index,
                         id,
@@ -222,6 +227,9 @@ public class BulkRequestParserProtoUtils {
                     );
                     break;
                 case DELETE:
+                    if (extraFieldValues.isEmpty() == false) {
+                        throw new IllegalArgumentException("extra_field_values are not supported for delete operations");
+                    }
                     docWriteRequest = buildDeleteRequest(
                         operationContainer.getDelete(),
                         index,
@@ -250,6 +258,7 @@ public class BulkRequestParserProtoUtils {
      *
      * @param createOperation The create operation protobuf message
      * @param documentBytes The document content as ByteString (zero-copy reference)
+     * @param extraFieldValues The extra field values to index outside {@code _source}
      * @param index The default index name
      * @param id The default document ID
      * @param routing The default routing value
@@ -264,6 +273,7 @@ public class BulkRequestParserProtoUtils {
     public static IndexRequest buildCreateRequest(
         WriteOperation createOperation,
         ByteString documentBytes,
+        ExtraFieldValues extraFieldValues,
         String index,
         String id,
         String routing,
@@ -294,6 +304,7 @@ public class BulkRequestParserProtoUtils {
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm)
             .source(documentRef, mediaType)
+            .extraFieldValues(extraFieldValues)
             .setRequireAlias(requireAlias);
         return indexRequest;
     }
@@ -303,6 +314,7 @@ public class BulkRequestParserProtoUtils {
      *
      * @param indexOperation The index operation protobuf message
      * @param documentBytes The document content as ByteString (zero-copy reference)
+     * @param extraFieldValues The extra field values to index outside {@code _source}
      * @param opType The default operation type
      * @param index The default index name
      * @param id The default document ID
@@ -318,6 +330,7 @@ public class BulkRequestParserProtoUtils {
     public static IndexRequest buildIndexRequest(
         IndexOperation indexOperation,
         ByteString documentBytes,
+        ExtraFieldValues extraFieldValues,
         OpType opType,
         String index,
         String id,
@@ -358,6 +371,7 @@ public class BulkRequestParserProtoUtils {
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
                 .source(documentRef, mediaType)
+                .extraFieldValues(extraFieldValues)
                 .setRequireAlias(requireAlias);
         } else {
             indexRequest = new IndexRequest(index).id(id)
@@ -369,6 +383,7 @@ public class BulkRequestParserProtoUtils {
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
                 .source(documentRef, mediaType)
+                .extraFieldValues(extraFieldValues)
                 .setRequireAlias(requireAlias);
         }
         return indexRequest;
@@ -379,6 +394,7 @@ public class BulkRequestParserProtoUtils {
      *
      * @param updateOperation The update operation protobuf message
      * @param documentBytes The document content as ByteString (zero-copy reference)
+     * @param extraFieldValues The extra field values to apply to update doc/upsert sources
      * @param bulkRequestBody The bulk request body containing additional update options
      * @param index The default index name
      * @param id The default document ID
@@ -394,6 +410,7 @@ public class BulkRequestParserProtoUtils {
     public static UpdateRequest buildUpdateRequest(
         UpdateOperation updateOperation,
         ByteString documentBytes,
+        ExtraFieldValues extraFieldValues,
         BulkRequestBody bulkRequestBody,
         String index,
         String id,
@@ -428,6 +445,7 @@ public class BulkRequestParserProtoUtils {
 
         // Populate all document-level fields
         updateRequest = fromProto(updateRequest, documentBytes, bulkRequestBody, ifSeqNo, ifPrimaryTerm);
+        applyUpdateExtraFieldValues(updateRequest, extraFieldValues);
 
         // Apply fetchSourceContext default
         if (fetchSourceContext != null) {
@@ -441,6 +459,27 @@ public class BulkRequestParserProtoUtils {
         }
 
         return updateRequest;
+    }
+
+    private static void applyUpdateExtraFieldValues(UpdateRequest updateRequest, ExtraFieldValues extraFieldValues) {
+        if (extraFieldValues == null || extraFieldValues.isEmpty()) {
+            return;
+        }
+
+        // Bulk gRPC has one extra_field_values map for the update item, so it applies to every concrete indexing path
+        // represented in the UpdateRequest. UpdateHelper later executes only the doc path or the upsert path.
+        boolean applied = false;
+        if (updateRequest.doc() != null) {
+            updateRequest.docExtraFieldValues(extraFieldValues);
+            applied = true;
+        }
+        if (updateRequest.upsertRequest() != null) {
+            updateRequest.upsertExtraFieldValues(extraFieldValues);
+            applied = true;
+        }
+        if (applied == false) {
+            throw new IllegalArgumentException("extra_field_values require an update doc or upsert document");
+        }
     }
 
     /**

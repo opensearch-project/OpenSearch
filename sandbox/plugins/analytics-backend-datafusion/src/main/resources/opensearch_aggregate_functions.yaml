@@ -13,10 +13,10 @@ aggregate_functions:
         return: i64
   - name: min
     description: >-
-      Min of a set of string values. Standard substrait functions_arithmetic.yaml
-      only defines min for i8..fp64; this overload extends it to strings so PPL
-      `stats min(varchar_field)` can bind a Substrait call and dispatch to
-      DataFusion's native min UDF, which supports Utf8 natively.
+      Min over string or boolean values. Substrait's stdlib functions_arithmetic.yaml
+      only defines min for i8..fp64; these overloads extend the binding so PPL
+      `stats min(varchar|bool)` resolves and dispatches to DataFusion's native
+      min UDF, which already supports Utf8 and Boolean.
     impls:
       - args:
           - name: x
@@ -25,9 +25,16 @@ aggregate_functions:
         decomposable: MANY
         intermediate: "string?"
         return: "string?"
+      - args:
+          - name: x
+            value: "boolean"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "boolean?"
+        return: "boolean?"
   - name: max
     description: >-
-      Max of a set of string values. See min above.
+      Max over string or boolean values. See min above.
     impls:
       - args:
           - name: x
@@ -36,6 +43,13 @@ aggregate_functions:
         decomposable: MANY
         intermediate: "string?"
         return: "string?"
+      - args:
+          - name: x
+            value: "boolean"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "boolean?"
+        return: "boolean?"
   - name: take
     description: >-
       PPL `take(field, N)` — bounded, arrival-order array. Custom Rust UDAF in
@@ -103,6 +117,19 @@ aggregate_functions:
           - name: percentile
             value: any2
         return: any1
+  - name: os_count_distinct
+    description: >-
+      Exact distinct count for use in a window context. PPL
+      `count(distinct x) OVER(...)` would normally lower to substrait `count`
+      with `AggregationInvocation::DISTINCT`, but DataFusion 54.x's substrait
+      consumer drops that bit on window functions. Routing through this named
+      UDAF encodes DISTINCT in the operator name, sidestepping the bug.
+      Custom Rust UDAF in `rust/src/udaf/os_count_distinct.rs`.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: i64
   - name: internal_pattern
     description: >-
       PPL `patterns ... method=BRAIN` (aggregation mode). Custom Rust UDAF in

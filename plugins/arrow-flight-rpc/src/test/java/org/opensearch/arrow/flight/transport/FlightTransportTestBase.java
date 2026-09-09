@@ -91,8 +91,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
 
         // FlightTransport sources its allocator from the framework's FLIGHT pool. Construct one
         // here so the test has a usable allocator; tearDown closes it.
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE, null);
 
         flightTransport = new FlightTransport(
             settings,

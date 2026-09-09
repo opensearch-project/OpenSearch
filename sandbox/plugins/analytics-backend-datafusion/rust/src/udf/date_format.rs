@@ -7,15 +7,16 @@
  */
 
 //! `date_format(datetime, format)` — render a timestamp via MySQL-style tokens
-//! ([`mysql_format`](super::mysql_format)). Returns Utf8; null input → null.
+//! ([`os_strftime`](super::os_strftime)). Returns Utf8; null input → null.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
 
 use chrono::{TimeZone, Utc};
-use datafusion::arrow::array::{Array, ArrayRef, AsArray, StringBuilder, TimestampMicrosecondArray};
+use datafusion::arrow::array::{
+    Array, ArrayRef, AsArray, StringBuilder, TimestampMicrosecondArray,
+};
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
@@ -23,7 +24,7 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::mysql_format::{format_datetime, FormatMode};
+use super::os_strftime::{format_datetime, FormatMode};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(DateFormatUdf::new()));
@@ -45,9 +46,6 @@ impl DateFormatUdf {
 udf_identity!(DateFormatUdf, "date_format");
 
 impl ScalarUDFImpl for DateFormatUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "date_format"
     }
@@ -71,7 +69,11 @@ impl ScalarUDFImpl for DateFormatUdf {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
                 DataType::Timestamp(TimeUnit::Microsecond, None)
             }
-            other => return plan_err!("date_format: arg 0 expected timestamp/date/string, got {other:?}"),
+            other => {
+                return plan_err!(
+                    "date_format: arg 0 expected timestamp/date/string, got {other:?}"
+                )
+            }
         };
         let fmt = match &arg_types[1] {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
@@ -131,11 +133,19 @@ pub(crate) fn format_dispatch(
         let fmt_opt = match f_arr.data_type() {
             DataType::Utf8 => {
                 let a = f_arr.as_string::<i32>();
-                if a.is_null(i) { None } else { Some(a.value(i).to_string()) }
+                if a.is_null(i) {
+                    None
+                } else {
+                    Some(a.value(i).to_string())
+                }
             }
             DataType::LargeUtf8 => {
                 let a = f_arr.as_string::<i64>();
-                if a.is_null(i) { None } else { Some(a.value(i).to_string()) }
+                if a.is_null(i) {
+                    None
+                } else {
+                    Some(a.value(i).to_string())
+                }
             }
             other => return exec_err!("{udf}: format array has unexpected type {other:?}"),
         };
@@ -159,7 +169,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn render_scalar_matches_mysql_format() {
+    fn render_scalar_matches_os_strftime() {
         let out = render_at(1_584_268_245_123_456, "%Y-%m-%d %H:%i:%S", FormatMode::Date).unwrap();
         assert_eq!(out, "2020-03-15 10:30:45");
     }

@@ -76,7 +76,7 @@ public class NativeMemoryService {
         }
         if ((System.currentTimeMillis() - lastRefreshTimestamp) > refreshInterval.millis()) {
             AnalyticsBackendNativeMemoryStats fresh = statsSupplier.get();
-            cachedStats = fresh != null ? fresh : new AnalyticsBackendNativeMemoryStats(-1, -1);
+            cachedStats = fresh != null ? fresh : new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
             lastRefreshTimestamp = System.currentTimeMillis();
         }
         return cachedStats;

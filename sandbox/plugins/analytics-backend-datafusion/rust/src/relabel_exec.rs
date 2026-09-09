@@ -24,7 +24,6 @@
 //! Non-bit-compatible mismatches (e.g. cross-family) error at construction; those need
 //! a proper `Cast` at the LogicalPlan level rather than a relabel.
 
-use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -87,10 +86,6 @@ impl ExecutionPlan for RelabelExec {
         "RelabelExec"
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.target_schema)
     }
@@ -118,7 +113,11 @@ impl ExecutionPlan for RelabelExec {
         Ok(Self::try_new(new_input, target_schema)? as Arc<dyn ExecutionPlan>)
     }
 
-    fn execute(&self, partition: usize, context: Arc<TaskContext>) -> Result<SendableRecordBatchStream> {
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
         let input_stream = self.input.execute(partition, context)?;
         let target_schema = Arc::clone(&self.target_schema);
         let target_schema_for_stream = Arc::clone(&target_schema);
@@ -126,7 +125,10 @@ impl ExecutionPlan for RelabelExec {
             let target = Arc::clone(&target_schema);
             async move { relabel_batch(&batch, &target) }
         });
-        Ok(Box::pin(RecordBatchStreamAdapter::new(target_schema_for_stream, mapped)))
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            target_schema_for_stream,
+            mapped,
+        )))
     }
 }
 
@@ -159,7 +161,9 @@ fn validate_bit_compatible(src_schema: &SchemaRef, target_schema: &SchemaRef) ->
         .zip(target_schema.fields().iter())
         .enumerate()
     {
-        if src_f.data_type() != dst_f.data_type() && !is_bit_compatible(src_f.data_type(), dst_f.data_type()) {
+        if src_f.data_type() != dst_f.data_type()
+            && !is_bit_compatible(src_f.data_type(), dst_f.data_type())
+        {
             return Err(DataFusionError::Internal(format!(
                 "RelabelExec column {} ('{}') has non-bit-compatible types: {:?} → {:?} \
                  (use a LogicalPlan-level Cast for this conversion)",
@@ -230,7 +234,8 @@ mod tests {
     #[test]
     fn relabel_uint64_to_int64_shares_buffer() {
         let src: ArrayRef = Arc::new(UInt64Array::from(vec![1u64, 2, 3]));
-        let target_schema: SchemaRef = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, true)]));
+        let target_schema: SchemaRef =
+            Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, true)]));
         let batch = RecordBatch::try_new(
             Arc::new(Schema::new(vec![Field::new("x", DataType::UInt64, true)])),
             vec![src],
@@ -246,7 +251,8 @@ mod tests {
     #[test]
     fn relabel_skips_no_op_when_schemas_match() {
         let src: ArrayRef = Arc::new(Int64Array::from(vec![10i64, 20]));
-        let same_schema: SchemaRef = Arc::new(Schema::new(vec![Field::new("y", DataType::Int64, false)]));
+        let same_schema: SchemaRef =
+            Arc::new(Schema::new(vec![Field::new("y", DataType::Int64, false)]));
         let batch = RecordBatch::try_new(Arc::clone(&same_schema), vec![Arc::clone(&src)]).unwrap();
         let out = relabel_batch(&batch, &same_schema).unwrap();
         // Same Arc — the no-op branch in relabel_batch is the test target.

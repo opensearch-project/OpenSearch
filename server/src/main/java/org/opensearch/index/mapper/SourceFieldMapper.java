@@ -184,7 +184,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false) && !enabled.getValue()) {
+            if ((context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                || context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false))
+                && !enabled.getValue()) {
                 throw new MapperParsingException(
                     "_source can't be disabled with " + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey() + " enabled index setting"
                 );

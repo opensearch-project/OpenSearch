@@ -9,7 +9,6 @@
 //! `from_unixtime(seconds)` — UNIX seconds (fractional ok) → `Timestamp(us)`. Negative / ≥ MySQL
 //! upper bound / non-finite → NULL. 2-arg `(seconds, format)` overload deferred to date_format.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -47,10 +46,6 @@ impl FromUnixtimeUdf {
 udf_identity!(FromUnixtimeUdf, "from_unixtime");
 
 impl ScalarUDFImpl for FromUnixtimeUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "from_unixtime"
     }
@@ -72,10 +67,7 @@ impl ScalarUDFImpl for FromUnixtimeUdf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 1 {
-            return exec_err!(
-                "from_unixtime expects 1 argument, got {}",
-                args.args.len()
-            );
+            return exec_err!("from_unixtime expects 1 argument, got {}", args.args.len());
         }
         let n = args.number_rows;
 
@@ -117,7 +109,13 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_and_non_finite() {
-        for v in [-0.1, MAX_UNIX_SECONDS_EXCLUSIVE, MAX_UNIX_SECONDS_EXCLUSIVE + 1.0, f64::NAN, f64::INFINITY] {
+        for v in [
+            -0.1,
+            MAX_UNIX_SECONDS_EXCLUSIVE,
+            MAX_UNIX_SECONDS_EXCLUSIVE + 1.0,
+            f64::NAN,
+            f64::INFINITY,
+        ] {
             assert_eq!(to_micros(v), None, "v={v}");
         }
     }

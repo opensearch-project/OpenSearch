@@ -10,7 +10,6 @@
 //! string (parity with legacy `JsonKeysFunctionImpl` → Calcite
 //! `JsonFunctions.jsonKeys`). Non-object / malformed / NULL input → NULL.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -39,7 +38,9 @@ pub struct JsonKeysUdf {
 
 impl JsonKeysUdf {
     pub fn new() -> Self {
-        Self { signature: Signature::user_defined(Volatility::Immutable) }
+        Self {
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
     }
 }
 
@@ -50,9 +51,6 @@ impl Default for JsonKeysUdf {
 }
 
 impl ScalarUDFImpl for JsonKeysUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -72,9 +70,9 @@ impl ScalarUDFImpl for JsonKeysUdf {
 
         if let ColumnarValue::Scalar(sv) = &args.args[0] {
             let keys = match sv {
-                ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => {
-                    json_keys(s)
-                }
+                ScalarValue::Utf8(Some(s))
+                | ScalarValue::LargeUtf8(Some(s))
+                | ScalarValue::Utf8View(Some(s)) => json_keys(s),
                 _ => None,
             };
             return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(keys)));
@@ -138,7 +136,10 @@ mod tests {
 
     #[test]
     fn return_type_is_utf8() {
-        assert_eq!(JsonKeysUdf::new().return_type(&[DataType::Utf8]).unwrap(), DataType::Utf8);
+        assert_eq!(
+            JsonKeysUdf::new().return_type(&[DataType::Utf8]).unwrap(),
+            DataType::Utf8
+        );
     }
 
     #[test]

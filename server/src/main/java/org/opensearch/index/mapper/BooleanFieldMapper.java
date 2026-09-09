@@ -45,8 +45,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -111,7 +113,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Boolean> nullValue = new Parameter<>(
@@ -126,7 +128,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
+            this(name, Settings.EMPTY);
+        }
+
+        public Builder(String name, Settings settings) {
             super(name);
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         @Override
@@ -149,7 +156,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
     /**
      * Field type for boolean field mapper
@@ -342,6 +349,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             }
 
         }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
     }
 
     private final Boolean nullValue;
@@ -356,7 +368,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();

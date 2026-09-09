@@ -183,8 +183,8 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
             oracleWhere(d -> d.userID.equals("u_a") && tokenizedContains(d.message, "alpha"))
         );
 
-        // OR mixing keyword EQUALS with MATCH — the combiner's OR/NOT carve-out behavior
-        // depends on the fuse_dual_viable setting; both modes must produce the same count.
+        // OR mixing keyword EQUALS with MATCH — the dual-viable EQUALS fuses with the MATCH
+        // correctness sibling into one Lucene shipment under OR; the count is unaffected.
         assertCount(
             "where userID = 'u_b' OR match(message, 'gamma') | stats count() as cnt",
             oracleWhere(d -> d.userID.equals("u_b") || tokenizedContains(d.message, "gamma"))

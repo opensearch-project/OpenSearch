@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -76,6 +77,13 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         AggregateFunction.AVG
     );
 
+    // STATE_EXPANDING aggregates carrying a literal config arg — exercised by the literal-arg
+    // Project-split plan-shape tests. Registered via the stateExpanding factory (not simple()).
+    private static final Set<AggregateFunction> STATE_EXPANDING_AGG_FUNCTIONS = Set.of(
+        AggregateFunction.PERCENTILE_APPROX,
+        AggregateFunction.TAKE
+    );
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
@@ -90,6 +98,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
             caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
+        }
+        for (AggregateFunction func : STATE_EXPANDING_AGG_FUNCTIONS) {
+            caps.add(AggregateCapability.stateExpanding(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }
@@ -153,7 +164,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
                     WindowFunction.ARG_MIN,
                     WindowFunction.ARG_MAX,
                     WindowFunction.DISTINCT_COUNT_APPROX,
-                    WindowFunction.ROW_NUMBER
+                    WindowFunction.ROW_NUMBER,
+                    WindowFunction.RANK,
+                    WindowFunction.DENSE_RANK
                 ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
@@ -218,6 +231,17 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     protected Set<AggregateCapability> aggregateCapabilities() {
         return AGG_CAPS;
+    }
+
+    @Override
+    protected Set<DataTransferCapability> dataTransferCapabilities() {
+        // Mirror the real DataFusion backend: it can both produce and consume hash-shuffle
+        // partitions. Required so OpenSearchDistributionTraitDef / HashShuffleDispatch admit this
+        // backend as a shuffle producer (filterByShuffleProducerCapability).
+        return Set.of(
+            new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"),
+            new DataTransferCapability(DataTransferCapability.Kind.CONSUMER, "arrow-ipc-partitioned")
+        );
     }
 
     // ---- SearchBackEndPlugin (storage) ----

@@ -25,7 +25,7 @@ public class NativeAllocatorPoolStatsTests extends OpenSearchTestCase {
             new NativeAllocatorPoolStats.PoolStats("flight", 1000, 2000, 3000),
             new NativeAllocatorPoolStats.PoolStats("query", 4000, 5000, 6000)
         );
-        NativeAllocatorPoolStats original = new NativeAllocatorPoolStats(10000, 20000, 30000, pools);
+        NativeAllocatorPoolStats original = new NativeAllocatorPoolStats(10000, 20000, pools);
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -33,9 +33,8 @@ public class NativeAllocatorPoolStatsTests extends OpenSearchTestCase {
         StreamInput in = out.bytes().streamInput();
         NativeAllocatorPoolStats deserialized = new NativeAllocatorPoolStats(in);
 
-        assertEquals(original.getRootAllocatedBytes(), deserialized.getRootAllocatedBytes());
-        assertEquals(original.getRootPeakBytes(), deserialized.getRootPeakBytes());
-        assertEquals(original.getRootLimitBytes(), deserialized.getRootLimitBytes());
+        assertEquals(original.getNativeAllocatedBytes(), deserialized.getNativeAllocatedBytes());
+        assertEquals(original.getNativeResidentBytes(), deserialized.getNativeResidentBytes());
         assertEquals(original.getPools().size(), deserialized.getPools().size());
 
         for (int i = 0; i < pools.size(); i++) {
@@ -49,7 +48,7 @@ public class NativeAllocatorPoolStatsTests extends OpenSearchTestCase {
     }
 
     public void testEmptyPoolsSerialization() throws IOException {
-        NativeAllocatorPoolStats original = new NativeAllocatorPoolStats(0, 0, 16000000000L, List.of());
+        NativeAllocatorPoolStats original = new NativeAllocatorPoolStats(-1, -1, List.of());
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -57,23 +56,16 @@ public class NativeAllocatorPoolStatsTests extends OpenSearchTestCase {
         StreamInput in = out.bytes().streamInput();
         NativeAllocatorPoolStats deserialized = new NativeAllocatorPoolStats(in);
 
-        assertEquals(0, deserialized.getRootAllocatedBytes());
-        assertEquals(0, deserialized.getRootPeakBytes());
-        assertEquals(16000000000L, deserialized.getRootLimitBytes());
+        assertEquals(-1, deserialized.getNativeAllocatedBytes());
+        assertEquals(-1, deserialized.getNativeResidentBytes());
         assertTrue(deserialized.getPools().isEmpty());
     }
 
-    /**
-     * Asserts the JSON shape: {@code root}/{@code pools.<name>} blocks expose
-     * {@code allocated_bytes}, {@code peak_bytes}, and {@code limit_bytes}. Caller is
-     * responsible for the outer {@code native_allocator} wrapper, so this test does
-     * not expect it.
-     */
     public void testToXContent() throws IOException {
         List<NativeAllocatorPoolStats.PoolStats> pools = List.of(
             new NativeAllocatorPoolStats.PoolStats("flight", 1024, 1048576, 2147483648L)
         );
-        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(4096, 8192, 17179869184L, pools);
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(4096, 8192, pools);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -81,17 +73,12 @@ public class NativeAllocatorPoolStatsTests extends OpenSearchTestCase {
         builder.endObject();
         String json = builder.toString();
 
-        assertTrue(json.contains("\"root\""));
+        assertTrue(json.contains("\"allocated_bytes\""));
+        assertTrue(json.contains("\"resident_bytes\""));
         assertTrue(json.contains("\"pools\""));
         assertTrue(json.contains("\"flight\""));
-        assertTrue(json.contains("\"allocated_bytes\""));
-        assertTrue(json.contains("\"peak_bytes\""));
         assertTrue(json.contains("\"limit_bytes\""));
-
-        // Removed fields must NOT appear in the JSON.
-        assertFalse("child_count was dropped from the stats shape", json.contains("\"child_count\""));
-        assertFalse("human-readable byte string was dropped", json.contains("\"allocated\":"));
-        assertFalse("human-readable byte string was dropped", json.contains("\"limit\":"));
+        assertFalse("root object should not exist", json.contains("\"root\""));
     }
 
     public void testPoolStatsSerializationRoundTrip() throws IOException {

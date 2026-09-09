@@ -22,8 +22,6 @@
 //! resulting {@code array_element(map_extract(...), 1)} chain to one of the
 //! per-field scalar UDFs.
 
-use std::any::Any;
-
 use datafusion::arrow::array::{ArrayRef, AsArray, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::Result;
@@ -75,9 +73,6 @@ impl std::hash::Hash for InternalPatternWindowUdf {
 }
 
 impl WindowUDFImpl for InternalPatternWindowUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -127,7 +122,10 @@ impl PartitionEvaluator for InternalPatternEvaluator {
 
     fn evaluate_all(&mut self, values: &[ArrayRef], num_rows: usize) -> Result<ArrayRef> {
         if values.is_empty() {
-            return Ok(std::sync::Arc::new(StringArray::from(vec![None::<&str>; num_rows])));
+            return Ok(std::sync::Arc::new(StringArray::from(vec![
+                None::<&str>;
+                num_rows
+            ])));
         }
         let cfg = WindowConfig::from_args(values);
 
@@ -139,10 +137,8 @@ impl PartitionEvaluator for InternalPatternEvaluator {
         }
 
         // Run BRAIN over the corpus once.
-        let mut parser = BrainLogParser::with_thresholds(
-            cfg.variable_count_threshold,
-            cfg.threshold_percentage,
-        );
+        let mut parser =
+            BrainLogParser::with_thresholds(cfg.variable_count_threshold, cfg.threshold_percentage);
         let stats = parser.parse_all_log_patterns(&messages, cfg.max_sample_count);
         let candidates: Vec<AggCandidate> = stats
             .values()
@@ -229,10 +225,16 @@ fn read_string_at(arr: &ArrayRef, i: usize) -> Option<String> {
     if let Some(s) = arr.as_any().downcast_ref::<StringArray>() {
         return Some(s.value(i).to_string());
     }
-    if let Some(s) = arr.as_any().downcast_ref::<datafusion::arrow::array::LargeStringArray>() {
+    if let Some(s) = arr
+        .as_any()
+        .downcast_ref::<datafusion::arrow::array::LargeStringArray>()
+    {
         return Some(s.value(i).to_string());
     }
-    if let Some(s) = arr.as_any().downcast_ref::<datafusion::arrow::array::StringViewArray>() {
+    if let Some(s) = arr
+        .as_any()
+        .downcast_ref::<datafusion::arrow::array::StringViewArray>()
+    {
         return Some(s.value(i).to_string());
     }
     None
@@ -245,10 +247,22 @@ fn read_i64_at(arr: &ArrayRef, i: usize) -> Option<i64> {
     }
     let dt = arr.data_type();
     match dt {
-        DataType::Int64 => arr.as_any().downcast_ref::<Int64Array>().map(|a| a.value(i)),
-        DataType::Int32 => arr.as_any().downcast_ref::<Int32Array>().map(|a| a.value(i) as i64),
-        DataType::Int16 => arr.as_any().downcast_ref::<Int16Array>().map(|a| a.value(i) as i64),
-        DataType::Int8 => arr.as_any().downcast_ref::<Int8Array>().map(|a| a.value(i) as i64),
+        DataType::Int64 => arr
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .map(|a| a.value(i)),
+        DataType::Int32 => arr
+            .as_any()
+            .downcast_ref::<Int32Array>()
+            .map(|a| a.value(i) as i64),
+        DataType::Int16 => arr
+            .as_any()
+            .downcast_ref::<Int16Array>()
+            .map(|a| a.value(i) as i64),
+        DataType::Int8 => arr
+            .as_any()
+            .downcast_ref::<Int8Array>()
+            .map(|a| a.value(i) as i64),
         _ => None,
     }
 }
@@ -260,8 +274,14 @@ fn read_f64_at(arr: &ArrayRef, i: usize) -> Option<f64> {
     }
     let dt = arr.data_type();
     match dt {
-        DataType::Float64 => arr.as_any().downcast_ref::<Float64Array>().map(|a| a.value(i)),
-        DataType::Float32 => arr.as_any().downcast_ref::<Float32Array>().map(|a| a.value(i) as f64),
+        DataType::Float64 => arr
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .map(|a| a.value(i)),
+        DataType::Float32 => arr
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .map(|a| a.value(i) as f64),
         _ => None,
     }
 }

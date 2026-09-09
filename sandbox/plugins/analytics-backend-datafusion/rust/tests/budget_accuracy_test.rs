@@ -23,11 +23,13 @@ use std::sync::Arc;
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_array::{Float64Array, Int64Array, RecordBatch, StringArray};
 use datafusion::common::DataFusionError;
-use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
 use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::listing::{
+    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+};
+use datafusion::execution::context::SessionContext;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
-use datafusion::execution::context::SessionContext;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::{execute_stream_partitioned, ExecutionPlan};
 use datafusion::prelude::*;
@@ -39,7 +41,9 @@ use prost::Message;
 use substrait::proto::Plan;
 use tempfile::TempDir;
 
-use opensearch_datafusion::query_budget::{estimate_avg_row_bytes, acquire_budget, acquire_budget_from_metadata};
+use opensearch_datafusion::query_budget::{
+    acquire_budget, acquire_budget_from_metadata, estimate_avg_row_bytes,
+};
 
 /// Create parquet test data with a known schema.
 fn create_parquet_data(dir: &std::path::Path, num_rows: usize, num_files: usize) -> Arc<Schema> {
@@ -166,7 +170,15 @@ async fn validate_budget_accuracy_relaxed(
     batch_size: usize,
     max_over_estimate_ratio: f64,
 ) {
-    validate_budget_accuracy_inner(dir, schema, sql, target_partitions, batch_size, max_over_estimate_ratio).await;
+    validate_budget_accuracy_inner(
+        dir,
+        schema,
+        sql,
+        target_partitions,
+        batch_size,
+        max_over_estimate_ratio,
+    )
+    .await;
 }
 
 /// Core validation: run a query, measure actual memory per batch, compare to formula.
@@ -224,7 +236,10 @@ async fn validate_budget_accuracy_inner(
     let dataframe = ctx.execute_logical_plan(logical_plan).await.unwrap();
     let physical_plan = dataframe.create_physical_plan().await.unwrap();
 
-    let actual_partitions = physical_plan.properties().output_partitioning().partition_count();
+    let actual_partitions = physical_plan
+        .properties()
+        .output_partitioning()
+        .partition_count();
     let (actual_total_bytes, actual_rows, actual_batches) =
         measure_actual_bytes(physical_plan, ctx.task_ctx()).await;
 
@@ -242,7 +257,8 @@ async fn validate_budget_accuracy_inner(
 
     // Formula prediction
     let predicted_avg_row_bytes = estimate_avg_row_bytes(schema);
-    let pool = Arc::new(GreedyMemoryPool::new(1_000_000_000)) as Arc<dyn datafusion::execution::memory_pool::MemoryPool>;
+    let pool = Arc::new(GreedyMemoryPool::new(1_000_000_000))
+        as Arc<dyn datafusion::execution::memory_pool::MemoryPool>;
     let budget = acquire_budget(&pool, schema, target_partitions, batch_size).unwrap();
 
     // The formula's "untracked per batch" = batch_size × predicted_avg_row_bytes
@@ -250,25 +266,77 @@ async fn validate_budget_accuracy_inner(
 
     println!("┌─────────────────────────────────────────────────────────────────┐");
     println!("│ Query: {:<56} │", sql);
-    println!("│ target_partitions={}, batch_size={:<30} │", target_partitions, batch_size);
+    println!(
+        "│ target_partitions={}, batch_size={:<30} │",
+        target_partitions, batch_size
+    );
     println!("├────────────────── ACTUAL (measured) ────────────────────────────┤");
-    println!("│ Total bytes emitted:     {:<38} │", format!("{} ({:.1} MB)", actual_total_bytes, actual_total_bytes as f64 / 1048576.0));
+    println!(
+        "│ Total bytes emitted:     {:<38} │",
+        format!(
+            "{} ({:.1} MB)",
+            actual_total_bytes,
+            actual_total_bytes as f64 / 1048576.0
+        )
+    );
     println!("│ Total rows:              {:<38} │", actual_rows);
     println!("│ Total batches:           {:<38} │", actual_batches);
     println!("│ Actual partitions used:  {:<38} │", actual_partitions);
-    println!("│ Avg batch bytes:         {:<38} │", format!("{} ({:.1} KB)", avg_batch_bytes, avg_batch_bytes as f64 / 1024.0));
+    println!(
+        "│ Avg batch bytes:         {:<38} │",
+        format!(
+            "{} ({:.1} KB)",
+            avg_batch_bytes,
+            avg_batch_bytes as f64 / 1024.0
+        )
+    );
     println!("│ Actual avg row bytes:    {:<38} │", actual_avg_row_bytes);
     println!("├────────────────── PREDICTED (formula) ──────────────────────────┤");
-    println!("│ Predicted avg row bytes: {:<38} │", predicted_avg_row_bytes);
-    println!("│ Predicted batch bytes:   {:<38} │", format!("{} ({:.1} KB)", predicted_batch_bytes, predicted_batch_bytes as f64 / 1024.0));
-    println!("│ Phantom reservation:     {:<38} │", format!("{} ({:.1} MB)", budget.phantom_bytes, budget.phantom_bytes as f64 / 1048576.0));
+    println!(
+        "│ Predicted avg row bytes: {:<38} │",
+        predicted_avg_row_bytes
+    );
+    println!(
+        "│ Predicted batch bytes:   {:<38} │",
+        format!(
+            "{} ({:.1} KB)",
+            predicted_batch_bytes,
+            predicted_batch_bytes as f64 / 1024.0
+        )
+    );
+    println!(
+        "│ Phantom reservation:     {:<38} │",
+        format!(
+            "{} ({:.1} MB)",
+            budget.phantom_bytes,
+            budget.phantom_bytes as f64 / 1048576.0
+        )
+    );
     println!("├────────────────── VALIDATION ───────────────────────────────────┤");
     let row_bytes_ratio = predicted_avg_row_bytes as f64 / actual_avg_row_bytes.max(1) as f64;
     let is_conservative = predicted_avg_row_bytes >= actual_avg_row_bytes;
     let within_threshold = row_bytes_ratio <= max_over_estimate_ratio;
-    println!("│ Row bytes ratio:         {:<38} │", format!("{:.2}x (predicted/actual)", row_bytes_ratio));
-    println!("│ Conservative (pred≥act): {:<38} │", if is_conservative { "YES ✓" } else { "NO ✗ — UNDER-ESTIMATE" });
-    println!("│ Within {:.0}x (not wasteful):{:<37} │", max_over_estimate_ratio, if within_threshold { "YES ✓" } else { "NO ✗ — OVER-ESTIMATE" });
+    println!(
+        "│ Row bytes ratio:         {:<38} │",
+        format!("{:.2}x (predicted/actual)", row_bytes_ratio)
+    );
+    println!(
+        "│ Conservative (pred≥act): {:<38} │",
+        if is_conservative {
+            "YES ✓"
+        } else {
+            "NO ✗ — UNDER-ESTIMATE"
+        }
+    );
+    println!(
+        "│ Within {:.0}x (not wasteful):{:<37} │",
+        max_over_estimate_ratio,
+        if within_threshold {
+            "YES ✓"
+        } else {
+            "NO ✗ — OVER-ESTIMATE"
+        }
+    );
     println!("└─────────────────────────────────────────────────────────────────┘");
     println!();
 
@@ -287,7 +355,9 @@ async fn validate_budget_accuracy_inner(
             within_threshold || actual_avg_row_bytes == 0,
             "Budget OVER-estimated by more than {:.0}x: predicted={}, actual={}. \
              This wastes pool capacity and forces unnecessary spilling.",
-            max_over_estimate_ratio, predicted_avg_row_bytes, actual_avg_row_bytes
+            max_over_estimate_ratio,
+            predicted_avg_row_bytes,
+            actual_avg_row_bytes
         );
     }
 
@@ -314,7 +384,8 @@ async fn budget_accuracy_narrow_schema_projection() {
     // is still conservative (≥ actual) even for narrow projections — it just
     // over-estimates. We relax the 3x threshold for projections since the formula
     // intentionally budgets for scan-level buffers at full schema width.
-    validate_budget_accuracy_relaxed(&dir, &schema, "SELECT id, metric FROM t", 4, 8192, 15.0).await;
+    validate_budget_accuracy_relaxed(&dir, &schema, "SELECT id, metric FROM t", 4, 8192, 15.0)
+        .await;
 }
 
 #[tokio::test]
@@ -387,7 +458,8 @@ async fn budget_accuracy_metadata_based_is_tighter() {
         .filter_map(|e| e.ok())
         .find(|e| e.path().extension().map_or(false, |ext| ext == "parquet"))
         .unwrap();
-    let reader = SerializedFileReader::new(std::fs::File::open(first_file.path()).unwrap()).unwrap();
+    let reader =
+        SerializedFileReader::new(std::fs::File::open(first_file.path()).unwrap()).unwrap();
     let metadata = reader.metadata().clone();
 
     let pool = Arc::new(GreedyMemoryPool::new(1_000_000_000))
@@ -399,8 +471,7 @@ async fn budget_accuracy_metadata_based_is_tighter() {
     drop(static_budget);
 
     // Metadata-based estimate (measured from parquet column sizes)
-    let meta_budget =
-        acquire_budget_from_metadata(&pool, &schema, &metadata, 4, 8192).unwrap();
+    let meta_budget = acquire_budget_from_metadata(&pool, &schema, &metadata, 4, 8192).unwrap();
     let meta_phantom = meta_budget.phantom_bytes;
     drop(meta_budget);
 
@@ -409,11 +480,19 @@ async fn budget_accuracy_metadata_based_is_tighter() {
     println!("├─────────────────────────────────────────────────────────────────┤");
     println!(
         "│ Static phantom:   {:<44} │",
-        format!("{} ({:.1} MB)", static_phantom, static_phantom as f64 / 1048576.0)
+        format!(
+            "{} ({:.1} MB)",
+            static_phantom,
+            static_phantom as f64 / 1048576.0
+        )
     );
     println!(
         "│ Metadata phantom: {:<44} │",
-        format!("{} ({:.1} MB)", meta_phantom, meta_phantom as f64 / 1048576.0)
+        format!(
+            "{} ({:.1} MB)",
+            meta_phantom,
+            meta_phantom as f64 / 1048576.0
+        )
     );
     let reduction_pct = (1.0 - meta_phantom as f64 / static_phantom as f64) * 100.0;
     println!(

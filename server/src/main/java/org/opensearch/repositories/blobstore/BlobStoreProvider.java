@@ -15,7 +15,10 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.RepositoryException;
+
+import java.util.Objects;
 
 /**
  * Provide for the BlobStore class
@@ -75,12 +78,31 @@ public class BlobStoreProvider {
         if (lifecycle.started() == false) {
             throw new RepositoryException(metadata.name(), "repository is not in started state" + lifecycle.state());
         }
+        final long startTimeNanos = System.nanoTime();
         try {
             return repository.createBlobStore();
         } catch (RepositoryException e) {
             throw e;
         } catch (Exception e) {
             throw new RepositoryException(metadata.name(), "cannot create blob store", e);
+        } finally {
+            logger.info(
+                "initialized blob store for repository [{}][{}] in [{}]",
+                metadata.type(),
+                metadata.name(),
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+            );
+        }
+    }
+
+    public void reloadBlobStore(RepositoryMetadata metadata) {
+        if (serverSideEncryptedBlobStore.get() != null) {
+            logger.info("Reloading repository metadata for SSE blob store");
+            Objects.requireNonNull(serverSideEncryptedBlobStore.get()).reload(metadata);
+        }
+        if (blobStore.get() != null) {
+            logger.info("Reloading repository metadata for non SSE blob store");
+            Objects.requireNonNull(blobStore.get()).reload(metadata);
         }
     }
 

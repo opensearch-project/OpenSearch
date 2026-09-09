@@ -72,23 +72,51 @@ public final class FoyerBlockCacheSettings {
     /**
      * Block size for the Foyer disk tier.
      *
-     * <p>Must be &ge; the largest entry ever put into the cache. DataFusion reads
-     * Parquet row groups of up to 64&nbsp;MB; Lucene blocks are also up to 64&nbsp;MB.
-     * A block size smaller than an entry causes a silent drop — the put succeeds but
-     * the entry is not stored, resulting in a cache miss on the next read.
+     * <p>Must be &ge; the largest entry ever put into the cache. Parquet row groups
+     * can be up to 128&nbsp;MB. A block size smaller than an entry causes a silent
+     * drop — the put succeeds but the entry is not stored, resulting in a cache miss.
      *
-     * <p>Default: 64&nbsp;MB. Range: [1&nbsp;MB, 256&nbsp;MB].
-     *
-     * <p>Configure in {@code opensearch.yml}:
-     * <pre>{@code
-     * block_cache.foyer.block_size: 64mb
-     * }</pre>
+     * <p>Default: 128&nbsp;MB. Range: [1&nbsp;MB, 512&nbsp;MB].
      */
     public static final Setting<ByteSizeValue> BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
         "block_cache.foyer.block_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
         new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Total buffer pool size for the Foyer flusher.
+     *
+     * <p>The flusher stages entries in this buffer before writing to disk. Must be
+     * &ge; {@code block_size} so the flusher can accumulate a full block. Entries
+     * larger than this buffer are silently dropped.
+     *
+     * <p>Default: 128&nbsp;MB. Range: [16&nbsp;MB, 512&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> BUFFER_POOL_SIZE_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.buffer_pool_size",
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Submit queue size threshold for the Foyer block engine.
+     *
+     * <p>Maximum total bytes allowed to be pending in the flusher queue. When
+     * exceeded, new entries are silently dropped instead of being written to disk.
+     * Should be &ge; 2&times; {@code buffer_pool_size} to absorb write bursts.
+     *
+     * <p>Default: 256&nbsp;MB. Range: [16&nbsp;MB, 1024&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.submit_queue_size_threshold",
         new ByteSizeValue(256, ByteSizeUnit.MB),
+        new ByteSizeValue(16, ByteSizeUnit.MB),
+        new ByteSizeValue(1024, ByteSizeUnit.MB),
         Setting.Property.NodeScope
     );
 
@@ -96,21 +124,22 @@ public final class FoyerBlockCacheSettings {
      * I/O engine for the Foyer disk tier.
      *
      * <ul>
-     *   <li>{@code auto} (default) — selects io_uring on Linux &ge;&nbsp;5.1,
-     *       falls back to psync otherwise.</li>
+     *   <li>{@code psync} (default) — synchronous pread/pwrite. Portable across
+     *       all kernels and container sandboxes, and gives predictable
+     *       syscall-level behaviour.</li>
+     *   <li>{@code auto} — selects io_uring on Linux &ge;&nbsp;5.1, falls back to
+     *       psync otherwise.</li>
      *   <li>{@code io_uring} — force io_uring regardless of kernel detection.
      *       Fails at startup if io_uring is unavailable (e.g. blocked by seccomp
      *       or AppArmor in locked-down container environments).</li>
-     *   <li>{@code psync} — force synchronous pread/pwrite. Use when io_uring is
-     *       restricted or when predictable syscall-level profiling is needed.</li>
      * </ul>
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.io_engine: auto
+     * block_cache.foyer.io_engine: psync
      * }</pre>
      */
-    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.foyer.io_engine", "auto", value -> {
+    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.foyer.io_engine", "psync", value -> {
         if (!Set.of("auto", "io_uring", "psync").contains(value)) {
             throw new IllegalArgumentException("[block_cache.foyer.io_engine] must be one of: auto, io_uring, psync; got: " + value);
         }
@@ -188,6 +217,58 @@ public final class FoyerBlockCacheSettings {
         3600L, // max: 1 hour
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * Fraction of the total Foyer disk budget allocated to the metadata cache.
+     *
+     * <p>The remaining {@code (1 - ratio)} goes to the data cache. Applied against the
+     * total Foyer disk bytes computed from {@code block_cache.foyer.size}.
+     *
+     * <p>Example: 400&nbsp;GB Foyer budget, {@code metadata_cache_ratio=5%} →
+     * metadata cache gets 20&nbsp;GB, data cache gets 380&nbsp;GB.
+     *
+     * <p>Default: {@code 5%}. Set to {@code 0%} to disable tiered caching (single
+     * data-only cache). Accepts a percentage (e.g. {@code 5%}) or a ratio (e.g. {@code 0.05}).
+     *
+     * <p>Range: [0%, 50%). Values &ge; 50% are rejected — metadata should never consume
+     * more than half the SSD budget.
+     */
+    public static final Setting<String> METADATA_CACHE_RATIO_SETTING = new Setting<>(
+        "block_cache.foyer.metadata_cache_ratio",
+        "5%",
+        value -> {
+            try {
+                RatioValue ratio = RatioValue.parseRatioValue(value);
+                if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 0.5) {
+                    throw new IllegalArgumentException("[block_cache.foyer.metadata_cache_ratio] must be in [0%, 50%); got: " + value);
+                }
+                return value;
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    "[block_cache.foyer.metadata_cache_ratio] must be a percentage (e.g. 5%) or ratio (e.g. 0.05); got: " + value,
+                    e
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Block size for the metadata cache's Foyer disk tier.
+     *
+     * <p>Metadata entries (page indexes, offset indexes) are typically small (KB–MB range).
+     * A smaller block size than the data cache avoids wasting SSD space on internal
+     * fragmentation for these small entries.
+     *
+     * <p>Default: 8&nbsp;MB. Range: [1&nbsp;MB, 128&nbsp;MB].
+     */
+    public static final Setting<ByteSizeValue> METADATA_BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
+        "block_cache.foyer.metadata_block_size",
+        new ByteSizeValue(8, ByteSizeUnit.MB),
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
     );
 
     private FoyerBlockCacheSettings() {}

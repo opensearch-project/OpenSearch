@@ -28,6 +28,9 @@ class SargAdapter implements ScalarFunctionAdapter {
             return original;
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
-        return RexUtil.expandSearch(rexBuilder, null, original);
+        RexNode expanded = RexUtil.expandSearch(rexBuilder, null, original);
+        // Flatten the right-leaning AND chain that expandSearch produces (e.g.
+        // multi-point exclusions): Filter.<init> asserts RexUtil.isFlat on the condition.
+        return RexUtil.flatten(rexBuilder, expanded);
     }
 }

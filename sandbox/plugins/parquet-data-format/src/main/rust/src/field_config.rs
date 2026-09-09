@@ -60,7 +60,10 @@ mod tests {
             encoding_type: Some("DELTA_BINARY_PACKED".to_string()),
             ..Default::default()
         };
-        assert_eq!(config.encoding_type, Some("DELTA_BINARY_PACKED".to_string()));
+        assert_eq!(
+            config.encoding_type,
+            Some("DELTA_BINARY_PACKED".to_string())
+        );
         assert!(!config.is_empty());
     }
 }

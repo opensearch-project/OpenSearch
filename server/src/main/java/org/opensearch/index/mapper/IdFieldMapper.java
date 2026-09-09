@@ -47,6 +47,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -144,6 +145,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         @Override

@@ -63,7 +63,11 @@ import java.util.Optional;
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
  * creating the underlying {@link HttpAsyncClient}. Also allows to provide an externally created
  * {@link HttpAsyncClient} in case additional customization is needed.
+ *
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
+@Deprecated
 public final class RestClientBuilder {
     /**
      * The default connection timeout in milliseconds.

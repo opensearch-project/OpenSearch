@@ -145,7 +145,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(
             pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject())
+            mapping(b -> b.startObject("field").field("type", "binary").field("store", true).endObject())
         );
         CapturingDocumentInput docInput = new CapturingDocumentInput();
         byte[] testValue = new byte[] { 1, 2, 3 };
@@ -161,7 +161,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(
             pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject())
+            mapping(b -> b.startObject("field").field("type", "binary").field("store", true).endObject())
         );
         CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.nullField("field")), docInput);
@@ -179,7 +179,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         String base64Value = java.util.Base64.getEncoder().encodeToString(testValue);
         assertBinaryLuceneAndPluggablePathsEquivalent(
             pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject()),
+            mapping(b -> b.startObject("field").field("type", "binary").field("store", true).endObject()),
             b -> b.field("field", base64Value),
             "field",
             true
@@ -188,7 +188,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         // Scenario 2: null value — no field produced
         assertBinaryLuceneAndPluggablePathsEquivalent(
             pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject()),
+            mapping(b -> b.startObject("field").field("type", "binary").field("store", true).endObject()),
             b -> b.nullField("field"),
             "field",
             false

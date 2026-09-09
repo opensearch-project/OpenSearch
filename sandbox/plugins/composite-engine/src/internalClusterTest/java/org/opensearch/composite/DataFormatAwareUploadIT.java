@@ -71,7 +71,7 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 
@@ -86,7 +86,6 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
     protected void indexDocs(int count) {
         for (int i = 0; i < count; i++) {
             client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
                 .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", (long) i)
                 .get();
         }

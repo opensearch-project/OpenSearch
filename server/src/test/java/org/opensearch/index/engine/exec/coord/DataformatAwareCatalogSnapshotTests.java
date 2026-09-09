@@ -406,6 +406,47 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         assertEquals(5L, cloned.getVersion());
     }
 
+    // --- findFileSet ---
+
+    public void testFindFileSet_matchesGeneration() {
+        WriterFileSet pset = new WriterFileSet("/tmp/pq", 5L, Set.of("f.parquet"), 100, 0L);
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(
+            1L,
+            1L,
+            1L,
+            List.of(new Segment(5L, Map.of("parquet", pset))),
+            0L,
+            Map.of()
+        );
+        assertEquals(pset, snapshot.findFileSet("parquet", 5L));
+    }
+
+    public void testFindFileSet_noMatchingGeneration_returnsNull() {
+        WriterFileSet pset = new WriterFileSet("/tmp/pq", 5L, Set.of("f.parquet"), 100, 0L);
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(
+            1L,
+            1L,
+            1L,
+            List.of(new Segment(5L, Map.of("parquet", pset))),
+            0L,
+            Map.of()
+        );
+        assertNull(snapshot.findFileSet("parquet", 99L));
+    }
+
+    public void testFindFileSet_skipsEmptyFiles_returnsNull() {
+        WriterFileSet empty = new WriterFileSet("/tmp/pq", 5L, Set.of(), 0, 0L);
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(
+            1L,
+            1L,
+            1L,
+            List.of(new Segment(5L, Map.of("parquet", empty))),
+            0L,
+            Map.of()
+        );
+        assertNull(snapshot.findFileSet("parquet", 5L));
+    }
+
     // --- helpers ---
 
     private WriterFileSet randomWriterFileSet(String format) {

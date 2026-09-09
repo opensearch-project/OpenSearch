@@ -205,8 +205,8 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         indexAndFlush();
 
         assertCompression(getColumnInfo(INDEX_NAME, "value"), "ZSTD");
-        // "name" (utf8) should still use global default LZ4_RAW
-        assertCompression(getColumnInfo(INDEX_NAME, "name"), "LZ4_RAW");
+        // "name" (utf8) uses ZSTD as the default for utf8/binary types
+        assertCompression(getColumnInfo(INDEX_NAME, "name"), "ZSTD");
     }
 
     /**
@@ -382,7 +382,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .put(extraIndexSettings);
 
         client().admin()
@@ -407,7 +407,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .put(extraIndexSettings);
 
         client().admin()
@@ -416,7 +416,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .setSettings(builder)
             .setMapping(
                 "col_utf8",
-                "type=keyword",
+                "type=keyword,index=false",
                 "col_int32",
                 "type=integer",
                 "col_int64",
@@ -426,9 +426,9 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
                 "col_float64",
                 "type=double",
                 "col_boolean",
-                "type=boolean",
+                "type=boolean,index=false",
                 "col_binary",
-                "type=binary",
+                "type=binary,store=true",
                 "col_timestamp",
                 "type=date"
             )
@@ -440,7 +440,6 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         for (int i = 0; i < 5; i++) {
             client().prepareIndex()
                 .setIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
                 .setSource(
                     "col_utf8",
                     "val_" + i,

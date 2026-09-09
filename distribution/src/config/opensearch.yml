@@ -121,3 +121,12 @@ ${path.logs}
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
+#
+# Path to the spill directory used by the analytics-backend-datafusion plugin. When
+# unset (default), spill is disabled and queries that exceed
+# datafusion.memory_pool_limit_bytes will fail with a "DiskManager is disabled" error.
+# Set this to a directory on a dedicated filesystem to enable spill — the directory
+# should not contend with the data path. NodeScope, Final — DataFusion's DiskManager
+# is built once at runtime startup.
+#
+#datafusion.spill_directory:

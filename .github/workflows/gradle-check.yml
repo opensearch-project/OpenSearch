@@ -19,7 +19,7 @@ jobs:
   check-files:
     runs-on: ubuntu-latest
     outputs:
-      RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
+      RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_modified }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
     - name: Get changed files
@@ -32,7 +32,7 @@ jobs:
           *.md
 
   Code-Diff-Analyzer:
-    uses: opensearch-project/opensearch-build/.github/workflows/code-diff-analyzer.yml@c2498b758c08fb7bc48476509a5fc1b8dd5f7493 # main
+    uses: opensearch-project/opensearch-build/.github/workflows/code-diff-analyzer.yml@main
     if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       id-token: write  # github oidc to assume aws roles
@@ -45,7 +45,7 @@ jobs:
       hard_fail_level: 2 # issues with medium severity or above will hard fail the check
 
   Code-Diff-Reviewer:
-    uses: opensearch-project/opensearch-build/.github/workflows/code-diff-reviewer.yml@c2498b758c08fb7bc48476509a5fc1b8dd5f7493 # main
+    uses: opensearch-project/opensearch-build/.github/workflows/code-diff-reviewer.yml@main
     needs: Code-Diff-Analyzer
     if: github.repository == 'opensearch-project/OpenSearch'
     permissions:

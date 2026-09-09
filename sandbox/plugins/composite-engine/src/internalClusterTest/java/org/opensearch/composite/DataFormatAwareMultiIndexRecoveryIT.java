@@ -136,7 +136,7 @@ public class DataFormatAwareMultiIndexRecoveryIT extends DataFormatAwareReplicat
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
 
         client().admin().indices().prepareCreate(INDEX_NAME).setSettings(multiShardSettings).get();
@@ -160,10 +160,7 @@ public class DataFormatAwareMultiIndexRecoveryIT extends DataFormatAwareReplicat
 
     private void indexDocsToIndex(String indexName, int count) {
         for (int i = 0; i < count; i++) {
-            client().prepareIndex(indexName)
-                .setId(String.valueOf(i))
-                .setSource("field_text", randomAlphaOfLength(10), "field_number", (long) i)
-                .get();
+            client().prepareIndex(indexName).setSource("field_text", randomAlphaOfLength(10), "field_number", (long) i).get();
         }
     }
 }

@@ -125,6 +125,18 @@ public abstract class AnalyticsRestTestCase extends OpenSearchRestTestCase {
     }
 
     /**
+     * Execute a SQL query against the real opensearch-sql plugin at {@code /_plugins/_sql},
+     * asserting HTTP 200 and returning the parsed JSON body. Same {@code @Before} provisioning
+     * hook flow as {@link #executePpl(String)} — subclasses don't need to ensure datasets here.
+     */
+    protected Map<String, Object> executeSql(String sql) throws IOException {
+        Request request = new Request("POST", "/_plugins/_sql");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(sql) + "\"}");
+        Response response = client().performRequest(request);
+        return assertOkAndParse(response, "SQL: " + sql);
+    }
+
+    /**
      * Execute a PPL query against the {@code test-ppl-frontend} shim at {@code /_analytics/ppl}.
      * Use this for tests that exercise <em>engine-internal</em> behavior (e.g. perf-delegation
      * marker placement, explain output shape) where the opensearch-sql plugin's user-facing PPL

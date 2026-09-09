@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
@@ -19,13 +20,22 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -247,6 +257,87 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             "StageInputScan must be emitted as a ReadRel with the per-child stage-input id",
             List.of("input-" + childStageId),
             inner.getRead().getNamedTable().getNamesList()
+        );
+    }
+
+    /**
+     * RC-A regression: no-group {@code LIST(<scalar>)} at the reduce stage. The scalar→VARCHAR cast
+     * (PPL list/values is {@code ARRAY<VARCHAR>}) must ride the substrait measure arg, not a lifted
+     * Project — else the reduce-stage stitch ({@code replaceInput}) drops it and the arg dangles past
+     * the inner width, panicking native DataFusion. Asserts the arg is a Cast over original field 0.
+     */
+    public void testAttachFragmentOnTop_NoGroupListOverScalar_MeasureArgIsVarcharCastOverOriginalField() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner fragment: Project that outputs a single INTEGER column (the gathered reduce input).
+        OpenSearchStageInputScan innerStage = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            rowType("c0", "c1", "c2", "c3", "c4"),
+            List.of("datafusion"),
+            List.of()
+        );
+        org.apache.calcite.rel.logical.LogicalProject innerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            innerStage,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(innerStage, 4)),
+            List.of("picked"),
+            java.util.Set.of()
+        );
+        byte[] innerBytes = convertor.convertFragment(innerProject);
+
+        // Wrapper: LIST(picked) with NO group-by, over a 1-column placeholder (the inner's output shape).
+        OpenSearchStageInputScan aggLeaf = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            -1,
+            innerProject.getRowType(),
+            List.of("datafusion"),
+            List.of()
+        );
+        SqlAggFunction listOp = new SqlAggFunction(
+            "LIST",
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        RelDataType nullableInt = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelDataType arrayType = typeFactory.createTypeWithNullability(typeFactory.createArrayType(nullableInt, -1), true);
+        AggregateCall listCall = AggregateCall.create(
+            listOp,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(0),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            0,
+            aggLeaf,
+            arrayType,
+            "l"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(aggLeaf, List.of(), ImmutableBitSet.of(), null, List.of(listCall));
+
+        byte[] bytes = convertor.attachFragmentOnTop(agg, innerBytes);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+        assertTrue("root must be an AggregateRel", root.hasAggregate());
+        Expression arg = root.getAggregate().getMeasures(0).getMeasure().getArguments(0).getValue();
+        assertTrue("LIST(scalar) measure arg must be a Cast (to VARCHAR), not a bare selection", arg.hasCast());
+        assertEquals(
+            "the cast must wrap the ORIGINAL input field (index 0), not a lifted/appended column",
+            0,
+            arg.getCast().getInput().getSelection().getDirectReference().getStructField().getField()
         );
     }
 
@@ -678,6 +769,26 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * Substrait's stdlib only defines min/max for i8..fp64; opensearch_aggregate_functions.yaml
+     * adds str and bool overloads so PPL `stats min/max` over varchar / boolean fields binds.
+     */
+    public void testMinMaxYamlDeclaresStringAndBooleanOverloads() {
+        assertAggregateImplKeys("min", "min:str", "min:bool");
+        assertAggregateImplKeys("max", "max:str", "max:bool");
+    }
+
+    private void assertAggregateImplKeys(String name, String... expectedKeys) {
+        java.util.Set<String> actual = extensions.aggregateFunctions()
+            .stream()
+            .filter(v -> name.equals(v.name()))
+            .map(SimpleExtension.Function::key)
+            .collect(java.util.stream.Collectors.toSet());
+        for (String key : expectedKeys) {
+            assertTrue(name + " yaml must declare impl with key " + key + " (got " + actual + ")", actual.contains(key));
+        }
+    }
+
+    /**
      * Regression: a lifted-window Project wrapper, shaped {@code Project_outer(Project_lower(input))}
      * with the outer's RexInputRefs pointing into the lower's appended window column, used
      * to lose its lower layer when re-wired. The next attach-on-top then crashed deserialising
@@ -741,4 +852,36 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
+    // VirtualTable inline Values CHAR to Str normalization
+    /**
+     * A precision-unspecified VARCHAR Values converts straight through isthmus to a VirtualTable whose
+     * char column and every row cell are Str while the integer column stays i32. This is the generic
+     * path that {@code OpenSearchValuesCharNormalizeRule} feeds after normalising a raw CHAR Values.
+     */
+    public void testVirtualTable_VarcharValues_ConvertsToStrGenerically() throws Exception {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", varchar).add("age", intType).build();
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Alice"),
+                (RexLiteral) rexBuilder.makeLiteral(30, intType, false)
+            ),
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Bob"),
+                (RexLiteral) rexBuilder.makeLiteral(25, intType, false)
+            )
+        );
+        LogicalValues values = (LogicalValues) LogicalValues.create(cluster, rowType, tuples);
+        ReadRel read = rootRel(decodeSubstrait(newConvertor().convertFragment(values))).getRead();
+        assertTrue("must be a VirtualTable", read.hasVirtualTable());
+        assertTrue("varchar column -> Str schema", read.getBaseSchema().getStruct().getTypes(0).hasString());
+        assertTrue("int column stays numeric (i32)", read.getBaseSchema().getStruct().getTypes(1).hasI32());
+        assertEquals("two rows", 2, read.getVirtualTable().getExpressionsCount());
+        for (int r = 0; r < 2; r++) {
+            Expression.Nested.Struct row = read.getVirtualTable().getExpressions(r);
+            assertTrue("row " + r + " char cell must be a string literal", row.getFields(0).getLiteral().hasString());
+        }
+        assertEquals("int cell stays i32", 30, read.getVirtualTable().getExpressions(0).getFields(1).getLiteral().getI32());
+    }
 }

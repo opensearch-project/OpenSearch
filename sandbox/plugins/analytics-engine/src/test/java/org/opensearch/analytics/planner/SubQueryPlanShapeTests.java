@@ -65,6 +65,34 @@ public class SubQueryPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    /**
+     * Correlated EXISTS whose subquery carries a {@code LIMIT N} (N &gt; 1) — the shape the PPL
+     * frontend produces by injecting a {@code SUBSEARCH_MAXOUT} {@code Sort} inside the subsearch.
+     * {@link org.apache.calcite.sql2rel.RelDecorrelator} bails on a correlated {@code Sort(fetch &gt;
+     * 1)}, leaving a {@code LogicalCorrelate} that marking rejects. {@code stripExistsSubqueryLimits}
+     * removes the existence-irrelevant limit so the EXISTS still fully decorrelates.
+     */
+    public void testCorrelatedExistsWithSubqueryLimitIsLowered() {
+        ClusterState parserState = SqlPlannerTestFixture.clusterStateWith("test_index", intFields());
+        RelNode parsed = SqlPlannerTestFixture.parseSql(
+            "SELECT * FROM test_index t WHERE EXISTS" + " (SELECT 1 FROM test_index s WHERE s.status = t.status LIMIT 10)",
+            parserState
+        );
+        assertContainsSubQuery("Pre-condition: parsed plan must carry the EXISTS RexSubQuery", parsed);
+
+        RelNode result = runPlanner(parsed, singleShardContext());
+
+        assertNoSubQuery(
+            "correlated EXISTS with a subquery LIMIT must still fully lower (no leftover" + " RexSubQuery / LogicalCorrelate).",
+            result
+        );
+        assertNoCorrelate(
+            "RelDecorrelator cannot decorrelate a correlated Sort(fetch>1); the EXISTS subsearch"
+                + " limit must be stripped so no LogicalCorrelate survives into marking.",
+            result
+        );
+    }
+
     /** Uncorrelated IN-list: lowered through {@code FILTER_SUB_QUERY_TO_CORRELATE} too. */
     public void testInSubqueryIsLowered() {
         ClusterState parserState = SqlPlannerTestFixture.clusterStateWith("test_index", intFields());
@@ -93,6 +121,24 @@ public class SubQueryPlanShapeTests extends PlanShapeTestBase {
 
     private static void assertNoSubQuery(String message, RelNode plan) {
         if (findSubQuery(plan)) {
+            throw new AssertionError(message + "\nPost-optimize plan:\n" + RelOptUtil.toString(plan));
+        }
+    }
+
+    private static void assertNoCorrelate(String message, RelNode plan) {
+        boolean[] found = { false };
+        RelShuttle walker = new RelHomogeneousShuttle() {
+            @Override
+            public RelNode visit(RelNode node) {
+                if (node instanceof org.apache.calcite.rel.core.Correlate) {
+                    found[0] = true;
+                    return node;
+                }
+                return super.visit(node);
+            }
+        };
+        plan.accept(walker);
+        if (found[0]) {
             throw new AssertionError(message + "\nPost-optimize plan:\n" + RelOptUtil.toString(plan));
         }
     }

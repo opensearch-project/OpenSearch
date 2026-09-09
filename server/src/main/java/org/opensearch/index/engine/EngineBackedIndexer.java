@@ -32,6 +32,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -249,6 +250,21 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        return engine.prepareDelete(id, routing, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         return engine.acquireSafeIndexCommit();
     }
@@ -321,6 +337,16 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public MergeStats getMergeStats() {
         return engine.getMergeStats();
+    }
+
+    @Override
+    public boolean hasPendingMerges() {
+        return engine.hasPendingMerges();
+    }
+
+    @Override
+    public int getActiveMergeCount() {
+        return engine.getActiveMergeCount();
     }
 
     @Override
@@ -457,5 +483,12 @@ public class EngineBackedIndexer implements Indexer {
 
     public Engine getEngine() {
         return engine;
+    }
+
+    /** Engine-backed get-by-id: delegates to {@link Engine#get(Engine.Get, BiFunction)} with {@code searcherFactory}. */
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        return engine.get(get, searcherFactory);
     }
 }

@@ -15,6 +15,12 @@ repositories {
       excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
     }
   }
+  maven {
+    url = uri("https://ci.opensearch.org/m2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
   mavenCentral {
     content {
       excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"

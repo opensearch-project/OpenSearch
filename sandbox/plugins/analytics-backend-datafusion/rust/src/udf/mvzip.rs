@@ -25,7 +25,6 @@
 //! `opensearch_array_functions.yaml` declaration to type the call before
 //! substrait emission.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -67,10 +66,6 @@ impl Default for MvzipUdf {
 }
 
 impl ScalarUDFImpl for MvzipUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "mvzip"
     }
@@ -95,7 +90,10 @@ impl ScalarUDFImpl for MvzipUdf {
             return plan_err!("mvzip expects 2 or 3 arguments, got {}", arg_types.len());
         }
         for (i, t) in arg_types.iter().take(2).enumerate() {
-            if !matches!(t, DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _)) {
+            if !matches!(
+                t,
+                DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _)
+            ) {
                 return plan_err!("mvzip: arg {i} expected list type, got {t:?}");
             }
         }
@@ -105,7 +103,9 @@ impl ScalarUDFImpl for MvzipUdf {
                 DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
                     coerced.push(DataType::Utf8)
                 }
-                other => return plan_err!("mvzip: arg 2 (separator) expected string, got {other:?}"),
+                other => {
+                    return plan_err!("mvzip: arg 2 (separator) expected string, got {other:?}")
+                }
             }
         }
         Ok(coerced)
@@ -152,8 +152,7 @@ impl ScalarUDFImpl for MvzipUdf {
             for j in 0..take {
                 let l = left_strs[j].as_deref().unwrap_or("");
                 let r = right_strs[j].as_deref().unwrap_or("");
-                let mut joined =
-                    String::with_capacity(l.len() + separator.len() + r.len());
+                let mut joined = String::with_capacity(l.len() + separator.len() + r.len());
                 joined.push_str(l);
                 joined.push_str(&separator);
                 joined.push_str(r);
@@ -181,12 +180,14 @@ fn scalar_string(cv: &ColumnarValue) -> Option<&str> {
 }
 
 fn downcast_list<'a>(arr: &'a ArrayRef, slot: &str) -> Result<&'a ListArray> {
-    arr.as_any().downcast_ref::<GenericListArray<i32>>().ok_or_else(|| {
-        DataFusionError::Internal(format!(
-            "mvzip: {slot} expected ListArray, got {:?}",
-            arr.data_type()
-        ))
-    })
+    arr.as_any()
+        .downcast_ref::<GenericListArray<i32>>()
+        .ok_or_else(|| {
+            DataFusionError::Internal(format!(
+                "mvzip: {slot} expected ListArray, got {:?}",
+                arr.data_type()
+            ))
+        })
 }
 
 /// Convert each element of an Arrow array of any supported scalar type to its
@@ -278,9 +279,14 @@ mod tests {
     use datafusion::arrow::array::StringBuilder as ArrowStringBuilder;
 
     fn run(left: ArrayRef, right: ArrayRef, sep: Option<&str>) -> ArrayRef {
-        let mut args = vec![ColumnarValue::Array(left.clone()), ColumnarValue::Array(right.clone())];
+        let mut args = vec![
+            ColumnarValue::Array(left.clone()),
+            ColumnarValue::Array(right.clone()),
+        ];
         if let Some(s) = sep {
-            args.push(ColumnarValue::Scalar(ScalarValue::Utf8(Some(s.to_string()))));
+            args.push(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                s.to_string(),
+            ))));
         }
         let n = left.len();
         let return_field = Arc::new(Field::new(

@@ -49,6 +49,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeValidationException;
@@ -163,7 +164,10 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
-                if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
+                // Advisory checks are always ignored
+                if (check instanceof BootstrapCheck.AdvisoryOnly) {
+                    ignoredErrors.add(result.getMessage());
+                } else if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
                     ignoredErrors.add(result.getMessage());
                 } else {
                     errors.add(result.getMessage());
@@ -234,7 +238,29 @@ final class BootstrapChecks {
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         checks.add(new MultipleDataPathCheck());
+        checks.add(new ProbesCheck());
         return Collections.unmodifiableList(checks);
+    }
+
+    static class ProbesCheck extends BootstrapCheck.AdvisoryOnly {
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (getSystemCpuPercent() == -1) {
+                return BootstrapCheckResult.failure(String.format(Locale.ROOT, "The recent CPU usage is not available"));
+            }
+            if (getProcessCpuPercent() == -1) {
+                return BootstrapCheckResult.failure(String.format(Locale.ROOT, "The recent process CPU usage is not available"));
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        short getSystemCpuPercent() {
+            return OsProbe.getInstance().getSystemCpuPercent();
+        }
+
+        short getProcessCpuPercent() {
+            return ProcessProbe.getInstance().getProcessCpuPercent();
+        }
     }
 
     static class JavaVersionCheck implements BootstrapCheck {

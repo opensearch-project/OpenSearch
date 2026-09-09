@@ -61,7 +61,13 @@ public class ExtraFieldValuesTests extends OpenSearchTestCase {
                 "field_bytes",
                 new BytesValue(new BytesArray(new byte[] { 9, 8, 7 })),
                 "field_vec",
-                new PrimitiveFloatArray(new float[] { 1.25f, -3.75f })
+                FloatArrayValue.fromFloatArray(new float[] { 1.25f, -3.75f }),
+                "field_ints",
+                IntArrayValue.fromIntArray(new int[] { 10, -20 }),
+                "field_longs",
+                LongArrayValue.fromLongArray(new long[] { 100L, -200L }),
+                "field_doubles",
+                DoubleArrayValue.fromDoubleArray(new double[] { 2.5d, -4.5d })
             )
         );
 
@@ -72,7 +78,7 @@ public class ExtraFieldValuesTests extends OpenSearchTestCase {
         ExtraFieldValues read = new ExtraFieldValues(in);
 
         assertThat(read.isEmpty(), is(false));
-        assertThat(read.values().keySet(), containsInAnyOrder("field_bytes", "field_vec"));
+        assertThat(read.values().keySet(), containsInAnyOrder("field_bytes", "field_vec", "field_ints", "field_longs", "field_doubles"));
 
         ExtraFieldValue v1 = read.get("field_bytes");
         assertThat(v1, instanceOf(BytesValue.class));
@@ -86,5 +92,29 @@ public class ExtraFieldValuesTests extends OpenSearchTestCase {
         assertThat(fav.dimension(), is(2));
         assertEquals(1.25f, fav.get(0), 0.0f);
         assertEquals(-3.75f, fav.get(1), 0.0f);
+
+        ExtraFieldValue v3 = read.get("field_ints");
+        assertThat(v3, instanceOf(IntArrayValue.class));
+        IntArrayValue iav = (IntArrayValue) v3;
+        assertThat(iav.type(), is(ExtraFieldValue.Type.INT_ARRAY));
+        assertThat(iav.dimension(), is(2));
+        assertThat(iav.get(0), is(10));
+        assertThat(iav.get(1), is(-20));
+
+        ExtraFieldValue v4 = read.get("field_longs");
+        assertThat(v4, instanceOf(LongArrayValue.class));
+        LongArrayValue lav = (LongArrayValue) v4;
+        assertThat(lav.type(), is(ExtraFieldValue.Type.LONG_ARRAY));
+        assertThat(lav.dimension(), is(2));
+        assertThat(lav.get(0), is(100L));
+        assertThat(lav.get(1), is(-200L));
+
+        ExtraFieldValue v5 = read.get("field_doubles");
+        assertThat(v5, instanceOf(DoubleArrayValue.class));
+        DoubleArrayValue dav = (DoubleArrayValue) v5;
+        assertThat(dav.type(), is(ExtraFieldValue.Type.DOUBLE_ARRAY));
+        assertThat(dav.dimension(), is(2));
+        assertEquals(2.5d, dav.get(0), 0.0d);
+        assertEquals(-4.5d, dav.get(1), 0.0d);
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Objects;
@@ -43,6 +44,17 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public interface BootstrapCheck {
+    /**
+     * The advisory only check hints the bootstrap checker that this particular instance of the {@link BootstrapCheck}
+     * is advisory and will never be enforced.
+     */
+    @ExperimentalApi
+    abstract class AdvisoryOnly implements BootstrapCheck {
+        @Override
+        public final boolean alwaysEnforce() {
+            return false;
+        }
+    }
 
     /**
      * Encapsulate the result of a bootstrap check.

@@ -46,9 +46,7 @@ import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -460,46 +458,5 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     private Settings pluggableSettings() {
         return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatLongRange() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            pluggableSettings(),
-            mapping(b -> b.startObject("field").field("type", "long_range").endObject())
-        );
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.startObject("field").field("gte", 5).field("lte", 10).endObject()), docInput);
-
-        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
-        boolean found = captured.stream().anyMatch(e -> e.getKey().name().equals("field"));
-        assertTrue("Expected range field captured", found);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatNullValueSkipped() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            pluggableSettings(),
-            mapping(b -> b.startObject("field").field("type", "long_range").endObject())
-        );
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.nullField("field")), docInput);
-
-        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
-        assertFalse("Expected no captured field for null value", hasField);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatIpRange() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            pluggableSettings(),
-            mapping(b -> b.startObject("field").field("type", "ip_range").endObject())
-        );
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.field("field", "192.168.1.0/24")), docInput);
-
-        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
-        boolean found = captured.stream().anyMatch(e -> e.getKey().name().equals("field"));
-        assertTrue("Expected ip_range field captured from CIDR", found);
     }
 }

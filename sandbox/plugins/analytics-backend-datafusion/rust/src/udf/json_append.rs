@@ -14,7 +14,6 @@
 //! Values always push as `Value::String` — nested `json_object` / `json_array`
 //! results arrive already stringified and append as strings, matching legacy.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -27,7 +26,9 @@ use datafusion::logical_expr::{
 };
 use serde_json::Value;
 
-use super::json_common::{parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView};
+use super::json_common::{
+    parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView,
+};
 use super::{coerce_slot, CoerceMode};
 
 const NAME: &str = "json_append";
@@ -56,9 +57,6 @@ impl Default for JsonAppendUdf {
 }
 
 impl ScalarUDFImpl for JsonAppendUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }
@@ -101,8 +99,10 @@ impl ScalarUDFImpl for JsonAppendUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut rest: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);

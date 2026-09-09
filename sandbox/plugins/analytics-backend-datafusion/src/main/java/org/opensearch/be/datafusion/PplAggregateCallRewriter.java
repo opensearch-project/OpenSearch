@@ -74,12 +74,8 @@ final class PplAggregateCallRewriter {
         boolean changed = false;
         for (AggregateCall call : oldCalls) {
             AggregateCall rewritten = rewriteCall(agg, call);
-            if (rewritten == call) {
-                newCalls.add(call);
-            } else {
-                newCalls.add(rewritten);
-                changed = true;
-            }
+            newCalls.add(rewritten);
+            changed |= rewritten != call;
         }
         if (!changed) {
             return agg;
@@ -176,7 +172,13 @@ final class PplAggregateCallRewriter {
                 } else {
                     targetOp = DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP;
                     targetDistinct = isValues;
-                    explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+                    // PPL list/values is ARRAY<VARCHAR>; the operand is cast to VARCHAR on the
+                    // substrait arg (LOCAL_ARRAY_AGG_OP#rewriteDataArg). Nullable array matches the
+                    // op's inferred type (a NOT NULL array trips Calcite's typeMatchesInferred).
+                    RelDataTypeFactory typeFactory = agg.getCluster().getTypeFactory();
+                    RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+                    RelDataType arrayType = typeFactory.createArrayType(varchar, -1);
+                    explicitReturnType = typeFactory.createTypeWithNullability(arrayType, true);
                 }
             }
             case "PATTERN" -> {

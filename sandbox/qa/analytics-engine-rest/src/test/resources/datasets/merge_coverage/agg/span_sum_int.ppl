@@ -1,0 +1,1 @@
+source=%INDEX% | stats sum(amount) by span(amount, 5)

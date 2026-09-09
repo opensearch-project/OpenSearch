@@ -149,16 +149,16 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         capturedRequest.set(null);
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
-            params.put("stat", "io_runtime,cpu_runtime,datanode_gate");
+            params.put("stat", "io_runtime,cpu_runtime,fragment_executor_gate");
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
-                "/_plugins/_analytics_backend_datafusion/stats/io_runtime,cpu_runtime,datanode_gate"
+                "/_plugins/_analytics_backend_datafusion/stats/io_runtime,cpu_runtime,fragment_executor_gate"
             ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
 
             assertNotNull(capturedRequest.get());
-            assertEquals(Set.of("io_runtime", "cpu_runtime", "datanode_gate"), capturedRequest.get().getStatsToRetrieve());
+            assertEquals(Set.of("io_runtime", "cpu_runtime", "fragment_executor_gate"), capturedRequest.get().getStatsToRetrieve());
         }
     }
 
@@ -188,8 +188,7 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
             assertThat(responseBody, containsString("query_execution"));
             assertThat(responseBody, containsString("stream_next"));
             assertThat(responseBody, containsString("plan_setup"));
-            assertThat(responseBody, containsString("datanode_gate"));
-            assertThat(responseBody, containsString("coordinator_gate"));
+            assertThat(responseBody, containsString("fragment_executor_gate"));
         }
     }
 
@@ -258,6 +257,14 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
 
     public void testGetName() {
         assertEquals("datafusion_stats_action", action.getName());
+    }
+
+    public void testSpillIsAcceptedAsValidStatName() {
+        // The REST handler exposes VALID_STATS for error messages; assert "disk_spill" is now in it.
+        assertTrue(
+            "VALID_STATS should include 'disk_spill' but was: " + RestDataFusionStatsAction.VALID_STATS,
+            RestDataFusionStatsAction.VALID_STATS.contains("disk_spill")
+        );
     }
 
     // ---- Helper: build a NodeClient that captures the DataFusionStatsNodesRequest ----
