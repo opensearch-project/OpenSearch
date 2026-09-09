@@ -255,7 +255,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public int advance(int target) throws IOException {
-            queryCancellation.checkCancelled();
+            checkAndThrowWithSampling();
             return super.advance(target);
         }
     }

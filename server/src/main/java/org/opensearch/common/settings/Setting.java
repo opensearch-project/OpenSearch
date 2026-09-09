@@ -2109,6 +2109,16 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
     }
 
+    public static Setting<ByteSizeValue> byteSizeSetting(
+        String key,
+        Setting<ByteSizeValue> fallbackSetting,
+        ByteSizeValue minValue,
+        ByteSizeValue maxValue,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(minValue, maxValue, key), properties);
+    }
+
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
         return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
     }

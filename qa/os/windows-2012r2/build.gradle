@@ -11,7 +11,7 @@
 
 import org.opensearch.gradle.test.GradleDistroTestTask
 
-String boxId = project.properties.get('vagrant.windows-2012r2.id')
+String boxId = project.findProperty('vagrant.windows-2012r2.id')
 if (boxId != null) {
   vagrant {
     hostEnv 'VAGRANT_WINDOWS_2012R2_BOX', boxId

@@ -37,7 +37,9 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.engine.DefaultPrimaryOperationPolicy;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -130,6 +132,22 @@ public interface EnginePlugin {
      */
     @ExperimentalApi
     default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings to determine
+     * whether the index's writable primary should use a non-default indexing/sequence-number policy, for example a replication follower
+     * whose sequence numbers are assigned by an upstream leader rather than generated locally. A plugin that does not override the policy
+     * should return {@link Optional#empty()}, in which case {@link DefaultPrimaryOperationPolicy} is used.
+     * <p>
+     * Only one of the installed engine plugins can override this, otherwise {@link IllegalStateException} will be thrown.
+     *
+     * @param indexSettings the settings of the index being created, so a plugin can key off its own marker setting
+     * @return an optional PrimaryOperationPolicy
+     */
+    @ExperimentalApi
+    default Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings indexSettings) {
         return Optional.empty();
     }
 }

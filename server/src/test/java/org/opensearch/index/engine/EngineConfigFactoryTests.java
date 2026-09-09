@@ -219,6 +219,101 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         assertFalse(enginePluginThatDoesNotImplementsGetEngineFactory.getEngineFactory(null).isPresent());
     }
 
+    public void testGetPrimaryOperationPolicyIsEmptyByDefault() {
+        EnginePlugin plugin = new EnginePlugin() {
+        };
+        assertFalse(plugin.getPrimaryOperationPolicy(null).isPresent());
+    }
+
+    public void testPrimaryOperationPolicyDefaultsWhenNoPluginSuppliesOne() {
+        IndexSettings indexSettings = newIndexSettings();
+        EngineConfigFactory factory = new EngineConfigFactory(Collections.singletonList(new FooEnginePlugin()), indexSettings);
+        EngineConfig config = newEngineConfig(factory, indexSettings);
+        assertThat(config.getPrimaryOperationPolicy(), is(DefaultPrimaryOperationPolicy.INSTANCE));
+        assertSame(DefaultPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+    }
+
+    public void testPrimaryOperationPolicyFromPlugin() {
+        IndexSettings indexSettings = newIndexSettings();
+        EngineConfigFactory factory = new EngineConfigFactory(
+            Collections.singletonList(new PrimaryOperationPolicyEnginePlugin(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE)),
+            indexSettings
+        );
+        EngineConfig config = newEngineConfig(factory, indexSettings);
+        assertThat(config.getPrimaryOperationPolicy(), is(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE));
+        assertNotSame(DefaultPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+    }
+
+    public void testMultiplePrimaryOperationPoliciesIllegalStateException() {
+        IndexSettings indexSettings = newIndexSettings();
+        List<EnginePlugin> plugins = Arrays.asList(
+            new PrimaryOperationPolicyEnginePlugin(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE),
+            new PrimaryOperationPolicyEnginePlugin(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE)
+        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
+        assertTrue(e.getMessage(), e.getMessage().contains("PrimaryOperationPolicy is already overridden"));
+    }
+
+    private static IndexSettings newIndexSettings() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        return IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+    }
+
+    private static EngineConfig newEngineConfig(EngineConfigFactory factory, IndexSettings indexSettings) {
+        return factory.newEngineConfig(
+            null,
+            null,
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TimeValue.timeValueMinutes(5),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> new RetentionLeases(0, 0, Collections.emptyList()),
+            null,
+            null,
+            false,
+            () -> Boolean.TRUE,
+            new InternalTranslogFactory(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    private static class PrimaryOperationPolicyEnginePlugin extends Plugin implements EnginePlugin {
+        private final PrimaryOperationPolicy provider;
+
+        PrimaryOperationPolicyEnginePlugin(PrimaryOperationPolicy provider) {
+            this.provider = provider;
+        }
+
+        @Override
+        public Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings indexSettings) {
+            return Optional.of(provider);
+        }
+    }
+
     private static class FooEnginePlugin extends Plugin implements EnginePlugin {
         @Override
         public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
