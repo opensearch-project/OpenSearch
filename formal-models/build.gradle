@@ -154,6 +154,11 @@ registerTlcTask('tlcFenceHandoff', fenceSpecDir, 'FenceHandoff.tla',
 registerTlcTask('tlcFenceSegmentFlow', fenceSpecDir, 'FenceSegmentFlow.tla',
   'Segment flow and GC: seal before reading either flow, and gate publication and collection on ownership')
 
+// The zero-replica auto-restore trigger: on node-left, re-point the lost primary at a remote-store
+// recovery source instead of parking it RED; safe only because the fence gates the departed writer.
+registerTlcTask('tlcFenceAutoRestore', fenceSpecDir, 'FenceAutoRestore.tla',
+  'Auto-restore trigger: no acked write loss across the trigger, single lineage, RED always resolves')
+
 /*
  * Opt-in entry point. NOT hooked to `check`: see the header. A maintainer who has vetted and
  * mirrored tla2tools can wire this into a dedicated CI job that supplies the jar.
@@ -161,5 +166,5 @@ registerTlcTask('tlcFenceSegmentFlow', fenceSpecDir, 'FenceSegmentFlow.tla',
 tasks.register('modelCheck') {
   group = 'verification'
   description = 'Model-checks every TLA+ spec here. Requires -PtlaToolsJar or TLA_TOOLS_JAR.'
-  dependsOn 'tlcRemoteStoreFence', 'tlcFenceTakeover', 'tlcFenceHandoff', 'tlcFenceSegmentFlow'
+  dependsOn 'tlcRemoteStoreFence', 'tlcFenceTakeover', 'tlcFenceHandoff', 'tlcFenceSegmentFlow', 'tlcFenceAutoRestore'
 }

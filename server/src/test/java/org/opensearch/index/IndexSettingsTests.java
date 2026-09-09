@@ -950,6 +950,30 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * index.remote_store.auto_restore.enabled requires fencing: the trigger fires on the cluster manager's view of
+     * node membership while the departed primary may still be alive, and only the fence stops it acknowledging
+     * writes the restored copy will never see.
+     */
+    public void testRemoteStoreAutoRestoreRequiresFencing() {
+        Settings withoutFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withoutFencing, true)
+        );
+        assertTrue(iae.getMessage(), iae.getMessage().contains("can only be enabled when"));
+
+        Settings withFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withFencing, true); // must not throw
+    }
+
     public void testRemoteTranslogRepoDefaultSetting() {
         IndexMetadata metadata = newIndexMeta(
             "index",
