@@ -749,24 +749,21 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         // Verify doc was indexed
         assertDocCount(indexName, 1);
 
-        // Attempt to update mapping with an unsupported field type (geo_point).
-        // The cluster-manager accepts the mapping update, but the data node fails
-        // when trying to apply it (capability assignment fails for geo_point).
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
-            .setSource("{\"properties\":{\"unsupported_geo\":{\"type\":\"geo_point\"}}}", MediaTypeRegistry.JSON)
-            .get();
+        // A mapping update adding an unsupported field type (geo_point) is now rejected up front
+        // by the cluster-manager during capability validation, so the mapping is never published
+        // and the shard is not left in an unrecoverable state.
+        expectThrows(
+            MapperParsingException.class,
+            () -> client().admin()
+                .indices()
+                .preparePutMapping(indexName)
+                .setSource("{\"properties\":{\"unsupported_geo\":{\"type\":\"geo_point\"}}}", MediaTypeRegistry.JSON)
+                .get()
+        );
 
-        // The shard should become unhealthy as the mapping update fails on the data node.
-        // Wait for the cluster to detect the failure.
-        assertBusy(() -> {
-            String health = client().admin().cluster().prepareHealth(indexName).get().getStatus().name();
-            assertTrue(
-                "Index should be RED or YELLOW after unsupported mapping update, got: " + health,
-                health.equals("RED") || health.equals("YELLOW")
-            );
-        });
+        // The index remains healthy and the original data is intact.
+        ensureGreen(indexName);
+        assertDocCount(indexName, 1);
     }
 
     /**

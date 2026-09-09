@@ -81,22 +81,22 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
         startCluster();
         String indexName = "test-randomized-field-config";
 
-        // Randomly decide index=true/false for keyword and numeric fields
+        // Randomly decide index=true/false for keyword fields — keyword keeps FULL_TEXT_SEARCH,
+        // so it can be indexed on a pluggable data format index.
         boolean kw1Indexed = randomBoolean();
         boolean kw2Indexed = randomBoolean();
         boolean kw3Indexed = randomBoolean();
-        boolean longIndexed = randomBoolean();
-        boolean doubleIndexed = randomBoolean();
 
-        // Text fields always need index=true
+        // Numeric fields cannot request POINT_RANGE on a pluggable data format index — neither the
+        // parquet primary nor the lucene secondary backs it — so index=true is rejected. They are
+        // therefore always index=false (columnar/doc-values only). Text fields always need index=true.
         logger.info(
             "Random config: f_keyword_1.index={}, f_keyword_2.index={}, f_keyword_3.index={}, "
-                + "f_long.index={}, f_double.index={}, f_text_1.index=true, f_text_2.index=true, f_match_only_text.index=true",
+                + "f_long.index=false, f_double.index=false, f_text_1.index=true, f_text_2.index=true, "
+                + "f_match_only_text.index=true",
             kw1Indexed,
             kw2Indexed,
-            kw3Indexed,
-            longIndexed,
-            doubleIndexed
+            kw3Indexed
         );
 
         String mapping = "{\n"
@@ -113,12 +113,8 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
             + "    \"f_text_1\": { \"type\": \"text\" },\n"
             + "    \"f_text_2\": { \"type\": \"text\" },\n"
             + "    \"f_match_only_text\": { \"type\": \"match_only_text\" },\n"
-            + "    \"f_long\": { \"type\": \"long\", \"index\": "
-            + longIndexed
-            + ", \"doc_values\": true },\n"
-            + "    \"f_double\": { \"type\": \"double\", \"index\": "
-            + doubleIndexed
-            + ", \"doc_values\": true }\n"
+            + "    \"f_long\": { \"type\": \"long\", \"index\": false, \"doc_values\": true },\n"
+            + "    \"f_double\": { \"type\": \"double\", \"index\": false, \"doc_values\": true }\n"
             + "  }\n"
             + "}";
 
@@ -202,13 +198,9 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
         assertFieldInLucene(luceneFields, "f_keyword_2", kw2Indexed);
         assertFieldInLucene(luceneFields, "f_keyword_3", kw3Indexed);
 
-        // Numeric fields with index=false should NOT appear in lucene FieldInfos
-        if (!longIndexed) {
-            assertFalse("f_long with index=false should NOT be in lucene", luceneFields.contains("f_long"));
-        }
-        if (!doubleIndexed) {
-            assertFalse("f_double with index=false should NOT be in lucene", luceneFields.contains("f_double"));
-        }
+        // Numeric fields are index=false, so they must NOT appear in lucene FieldInfos
+        assertFalse("f_long with index=false should NOT be in lucene", luceneFields.contains("f_long"));
+        assertFalse("f_double with index=false should NOT be in lucene", luceneFields.contains("f_double"));
     }
 
     /**

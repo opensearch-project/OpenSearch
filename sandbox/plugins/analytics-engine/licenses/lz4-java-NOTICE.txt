@@ -1,0 +1,8 @@
+lz4-java
+Copyright 2020 Adrien Grand and the lz4-java contributors
+
+This product includes software developed by
+Adrien Grand and the lz4-java contributors (https://github.com/lz4/lz4-java).
+
+This product bundles native LZ4 and xxHash libraries, which are
+licensed under the BSD 2-Clause License (https://github.com/lz4/lz4).

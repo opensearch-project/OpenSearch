@@ -31,6 +31,7 @@ use std::sync::Arc;
 use datafusion::physical_expr::PhysicalExpr;
 
 use super::index::RowGroupDocsCollector;
+use crate::indexed_table::index::CollectDocsResult;
 
 /// A node in the boolean query tree (unresolved).
 #[derive(Debug, Clone)]
@@ -463,6 +464,7 @@ pub fn residual_bool_to_physical_expr(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::common::ScalarValue;
@@ -473,8 +475,8 @@ mod tests {
     #[derive(Debug)]
     struct StubCollector(u8);
     impl RowGroupDocsCollector for StubCollector {
-        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-            Ok(vec![self.0 as u64])
+        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<CollectDocsResult, String> {
+            Ok(vec![self.0 as u64].into())
         }
     }
 

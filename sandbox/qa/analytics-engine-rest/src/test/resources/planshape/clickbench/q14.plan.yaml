@@ -10,29 +10,29 @@ plans:
         OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchProject(SearchPhrase=[$0], u=[$1], viableBackends=[[datafusion]])
                   OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
                     OpenSearchProject(SearchPhrase=[$0], u=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[datafusion]])
                       OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
-                        OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
-                          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+                        OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
                             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchProject(SearchPhrase=[$0], u=[$1], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$2], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
           OpenSearchProject(SearchPhrase=[$0], u=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
-              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, approx_distinct(<scrubbed>.UserID)@1 as u]
@@ -42,9 +42,8 @@ plans:
               AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
                 RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
                   AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                    FilterExec: SearchPhrase@0 != 
-                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                        DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, approx_distinct(<scrubbed>.UserID)@1 as u]
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
@@ -53,26 +52,25 @@ plans:
               AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
                 RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
                   AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                    FilterExec: SearchPhrase@0 != 
-                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                        DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                      QueryShardExec: partitions=2, segments=2, ordering=unsorted
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
-              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(u=[$1], SearchPhrase=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], u=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
-              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
@@ -83,9 +81,8 @@ plans:
                 AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                      FilterExec: SearchPhrase@0 != 
-                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                          DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, SearchPhrase@1 as SearchPhrase]
@@ -95,6 +92,5 @@ plans:
                 AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[approx_distinct(<scrubbed>.UserID)]
-                      FilterExec: SearchPhrase@0 != 
-                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                          DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, UserID], file_type=parquet, predicate=SearchPhrase@63 != , pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        QueryShardExec: partitions=2, segments=2, ordering=unsorted

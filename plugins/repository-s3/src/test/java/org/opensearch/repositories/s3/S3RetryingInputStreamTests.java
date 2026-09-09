@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -51,6 +53,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ThreadLeakFilters(filters = ResponseInputStreamTimeoutThreadFilter.class)
 public class S3RetryingInputStreamTests extends OpenSearchTestCase {
 
     public void testInputStreamFullyConsumed() throws IOException {

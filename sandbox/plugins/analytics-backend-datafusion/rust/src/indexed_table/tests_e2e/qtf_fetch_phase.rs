@@ -90,9 +90,9 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,

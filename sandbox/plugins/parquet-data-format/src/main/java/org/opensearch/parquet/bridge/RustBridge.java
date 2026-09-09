@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -40,6 +41,7 @@ public class RustBridge {
 
     private static final MethodHandle CREATE_WRITER;
     private static final MethodHandle WRITE;
+    private static final MethodHandle CLEANUP_WRITER;
     private static final MethodHandle FINALIZE_WRITER;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_COLUMN_METADATA;
@@ -88,6 +90,10 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
+        );
+        CLEANUP_WRITER = linker.downcallHandle(
+            lib.find("parquet_cleanup_writer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
         FINALIZE_WRITER = linker.downcallHandle(
             lib.find("parquet_finalize_writer").orElseThrow(),
@@ -327,6 +333,18 @@ public class RustBridge {
     }
 
     /**
+     * Removes the native writer registry entry for {@code file} without finalizing it (idempotent).
+     * Used by the shard close / going-red flow so a writer stranded by a failed operation does not
+     * survive as a stale entry and block recovery's re-create for the same file.
+     */
+    static void cleanupWriter(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            call.invokeIO(CLEANUP_WRITER, f.segment(), f.len());
+        }
+    }
+
+    /**
      * Result of finalizing a writer: metadata + optional row ID mapping.
      */
     record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {
@@ -450,7 +468,19 @@ public class RustBridge {
             var typeEncodings = toNativeArrays(call, nativeSettings.getTypeEncodings());
             var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
 
-            var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
+            // Explicit fieldBloomFilterEnabled entries take precedence; low_cardinality fields get implicit bloom=true.
+            Map<String, Boolean> effectiveFieldBfEnabled;
+            Set<String> lcFields = nativeSettings.getLowCardinalityEnabledFields();
+            if (lcFields.isEmpty()) {
+                effectiveFieldBfEnabled = nativeSettings.getFieldBloomFilterEnabled();
+            } else {
+                effectiveFieldBfEnabled = new HashMap<>(nativeSettings.getFieldBloomFilterEnabled());
+                for (String field : lcFields) {
+                    effectiveFieldBfEnabled.putIfAbsent(field, Boolean.TRUE);
+                }
+            }
+
+            var bfEnabled = toBoolMapArrays(call, effectiveFieldBfEnabled);
 
             var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
             var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());

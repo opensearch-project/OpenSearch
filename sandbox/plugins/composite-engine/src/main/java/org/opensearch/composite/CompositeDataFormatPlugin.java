@@ -47,6 +47,7 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -480,6 +481,59 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(strategies);
+    }
+
+    /**
+     * Aggregates the mapping parameters contributed by every participating sub-format plugin
+     * (primary + secondary), for the given content type. Mirrors {@link #getStoreStrategies}:
+     * each participating format is resolved through the registry, which delegates to the
+     * sub-plugin without re-entering this composite.
+     *
+     * @throws IllegalArgumentException if two participating formats contribute a parameter with the same name
+     */
+    @Override
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<ParametrizedFieldMapper.Parameter<?>> result = new ArrayList<>();
+        Set<String> seenNames = new HashSet<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, primaryFormatName);
+        }
+        for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName != null && secondaryName.isEmpty() == false) {
+                collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, secondaryName);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void collectParameters(
+        List<ParametrizedFieldMapper.Parameter<?>> result,
+        Set<String> seenNames,
+        DataFormatRegistry dataFormatRegistry,
+        String contentType,
+        IndexSettings indexSettings,
+        String formatName
+    ) {
+        for (ParametrizedFieldMapper.Parameter<?> param : dataFormatRegistry.getPluginMappingParameters(
+            contentType,
+            indexSettings,
+            dataFormatRegistry.format(formatName)
+        )) {
+            if (seenNames.add(param.name) == false) {
+                throw new IllegalArgumentException(
+                    "Duplicate plugin mapping parameter [" + param.name + "] for content type [" + contentType + "]"
+                );
+            }
+            result.add(param);
+        }
     }
 
     @Override
