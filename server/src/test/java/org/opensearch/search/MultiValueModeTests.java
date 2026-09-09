@@ -38,6 +38,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -65,6 +66,274 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiValueModeTests extends OpenSearchTestCase {
+
+    // GITHUB#17140 / #21537: the nested select(...parentDocs, childDocs...) returned an
+    // AbstractNumericDocValues that overrode only advanceExact, not advance(int). The point-based
+    // sort optimization makes NumericComparator's competitive iterator call advance() during early
+    // termination (track_total_hits:false), which hit the base UnsupportedOperationException. This
+    // test exercises advance() on the nested long/date select; it throws UOE without the fix.
+    public void testNestedSelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final long[] array = new long[] { 10, 20, 30, 40 };
+        final SortedNumericDocValues values = DocValues.singleton(new AbstractNumericDocValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return docId;
+            }
+
+            @Override
+            public long longValue() {
+                return array[docId];
+            }
+        });
+        // parents at doc 1 and 3; children at doc 0 and 2.
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDocValues selected = MultiValueMode.MIN.select(
+            values,
+            0L,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        // The competitive iterator calls advance(int). Before the fix this threw
+        // UnsupportedOperationException from the base AbstractNumericDocValues. Per the contract here,
+        // every doc has a value (advanceExact always returns true), so advance(target) returns target
+        // and docID() reflects it; past the last doc it returns NO_MORE_DOCS.
+        assertEquals(1, selected.advance(1));
+        assertEquals(1, selected.docID());
+        assertEquals(3, selected.advance(3));
+        assertEquals(3, selected.docID());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    // GITHUB#17140 / #21537: the same advance() gap existed on the nested unsigned-long, binary, and
+    // sorted (keyword) selects. The unsigned-long select mirrors the numeric one (dense: every parent
+    // doc has a value). Verifies advance() no longer throws and positions correctly.
+    public void testNestedUnsignedLongSelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final long[] array = new long[] { 10, 20, 30, 40 };
+        final SortedNumericUnsignedLongValues values = new SortedNumericUnsignedLongValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public long nextValue() {
+                return array[docId];
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public int docID() {
+                return docId;
+            }
+        };
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDocValues selected = MultiValueMode.MIN.select(
+            values,
+            0L,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        assertEquals(1, selected.advance(1));
+        assertEquals(3, selected.advance(3));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    // GITHUB#17140: the nested double select advances by parent doc (like the other nested selects),
+    // not by advancing the child values iterator. Verifies advance() positions on the target parent doc.
+    public void testNestedDoubleSelectAdvanceIsAligned() throws Exception {
+        final int numDocs = 4;
+        final double[] array = new double[] { 10.0, 20.0, 30.0, 40.0 };
+        final SortedNumericDoubleValues values = new SortedNumericDoubleValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public double nextValue() {
+                return array[docId];
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDoubleValues selected = MultiValueMode.MIN.select(
+            values,
+            0.0,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        assertEquals(1, selected.advance(1));
+        assertEquals(3, selected.advance(3));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    public void testNestedSortedSetSelectAdvanceSkipsParentsWithoutOrds() throws Exception {
+        final int numDocs = 8;
+        // Parents at 1, 3, 5, 7; their children are 0, 2, 4, 6. Only children 0 and 4 carry an ord, so
+        // advanceExact() returns false for parents 3 and 7 and advance() has to scan past them.
+        final long[][] array = new long[numDocs][];
+        for (int i = 0; i < numDocs; ++i) {
+            array[i] = new long[0];
+        }
+        array[0] = new long[] { 0 };
+        array[4] = new long[] { 1 };
+
+        final SortedSetDocValues values = new AbstractSortedSetDocValues() {
+            int doc;
+            int i;
+
+            @Override
+            public long nextOrd() {
+                if (i < array[doc].length) {
+                    return array[doc][i++];
+                }
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public boolean advanceExact(int docID) {
+                this.doc = docID;
+                i = 0;
+                return array[doc].length > 0;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                return new BytesRef(Long.toString(ord));
+            }
+
+            @Override
+            public long getValueCount() {
+                return 2;
+            }
+
+            @Override
+            public int docValueCount() {
+                return array[doc].length;
+            }
+        };
+
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        rootDocs.set(5);
+        rootDocs.set(7);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+        innerDocs.set(4);
+        innerDocs.set(6);
+
+        final SortedDocValues selected = MultiValueMode.MIN.select(values, rootDocs, new BitSetIterator(innerDocs, 0L), Integer.MAX_VALUE);
+        // Ordinals have no missing-value fallback, so the values are sparse.
+        // Parent 1 has an ord: advance() lands directly on the target.
+        assertEquals(1, selected.advance(0));
+        assertEquals(1, selected.docID());
+        // Parent 3 has none: advance() must skip it and land on parent 5.
+        assertEquals(5, selected.advance(2));
+        assertEquals(5, selected.docID());
+        // Parent 7 is the last parent and has no ord: the scan must terminate, not read past the bitset.
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(6));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.docID());
+        // And a target beyond the bitset returns NO_MORE_DOCS without touching nextSetBit at all.
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    public void testNestedBinarySelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final BytesRef[] array = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
+        final SortedBinaryDocValues values = FieldData.singleton(new AbstractBinaryDocValues() {
+            int docID;
+
+            @Override
+            public boolean advanceExact(int target) {
+                docID = target;
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return array[docID];
+            }
+        });
+
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final BinaryDocValues selected = MultiValueMode.MIN.select(
+            values,
+            new BytesRef("_missing_"),
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        // A missing value is emitted when no child matches, so every parent has a value and
+        // advance(target) lands on target.
+        assertEquals(1, selected.advance(1));
+        assertEquals(1, selected.docID());
+        assertEquals(new BytesRef("a"), selected.binaryValue());
+        assertEquals(3, selected.advance(3));
+        assertEquals(3, selected.docID());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
 
     @FunctionalInterface
     private interface Supplier<T> {
