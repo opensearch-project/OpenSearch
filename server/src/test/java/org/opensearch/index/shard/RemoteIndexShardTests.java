@@ -23,6 +23,7 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -585,7 +587,19 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 listener.onResponse(snapshotStatus.generation());
                 return null;
             }).when(repository)
-                .snapshotRemoteStoreIndexShard(any(), any(), any(), any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+                .snapshotRemoteStoreIndexShard(
+                    any(),
+                    any(),
+                    any(),
+                    nullable(CatalogSnapshot.class),
+                    any(),
+                    any(),
+                    anyLong(),
+                    anyLong(),
+                    anyLong(),
+                    any(),
+                    any()
+                );
 
             final SnapshotShardsService shardsService = getSnapshotShardsService(
                 primaryShard,
