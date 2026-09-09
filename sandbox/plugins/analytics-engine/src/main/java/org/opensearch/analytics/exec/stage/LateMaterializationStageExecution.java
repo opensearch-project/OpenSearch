@@ -11,7 +11,11 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.WriteChannel;
+import org.apache.arrow.vector.ipc.message.MessageSerializer;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,6 +43,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.channels.Channels;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -348,6 +355,14 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         }
     }
 
+    private static byte[] serializeArrowSchema(Schema schema) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (WriteChannel channel = new WriteChannel(Channels.newChannel(output))) {
+            MessageSerializer.serialize(channel, schema);
+        }
+        return output.toByteArray();
+    }
+
     /**
      * Phase C + D combined. Builds a {@link Stitcher} sized to {@link #drainedRowCount},
      * fires one async {@link FetchByRowIdsRequest} per shard via
@@ -380,6 +395,11 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         for (int i = 0; i < aboveFields.size(); i++) {
             columns[i + 1] = aboveFields.get(i).getName();
         }
+
+        List<Field> fetchFields = new ArrayList<>(outputFields.size() + 1);
+        fetchFields.add(Field.nullable(OpenSearchLateMaterialization.ROW_ID_FIELD, new ArrowType.Int(64, true)));
+        fetchFields.addAll(outputFields);
+        byte[] expectedSchemaIpc = serializeArrowSchema(new Schema(fetchFields));
 
         Map<Integer, ShardExecutionTarget> targetsByUgsi = config.getResolvedTargets(shardStageId);
         if (targetsByUgsi == null) {
@@ -435,6 +455,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 fetchBackendId,
                 plan.rowIds(),
                 columns,
+                expectedSchemaIpc,
                 config.profile()
             );
             // Per-node PendingExecutions: mirrors ShardTaskRunner — keeps a slow node from

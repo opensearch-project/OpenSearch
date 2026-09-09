@@ -38,10 +38,11 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
     private final String backendId;
     private final long[] rowIds;
     private final String[] columns;
+    private final byte[] expectedSchemaIpc;
     private final boolean profile;
 
     public FetchByRowIdsRequest(String queryId, int stageId, ShardId shardId, String backendId, long[] rowIds, String[] columns) {
-        this(queryId, stageId, shardId, backendId, rowIds, columns, false);
+        this(queryId, stageId, shardId, backendId, rowIds, columns, new byte[0], false);
     }
 
     public FetchByRowIdsRequest(
@@ -51,6 +52,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         String backendId,
         long[] rowIds,
         String[] columns,
+        byte[] expectedSchemaIpc,
         boolean profile
     ) {
         this.queryId = queryId;
@@ -59,6 +61,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         this.backendId = backendId;
         this.rowIds = rowIds;
         this.columns = columns;
+        this.expectedSchemaIpc = expectedSchemaIpc;
         this.profile = profile;
     }
 
@@ -70,6 +73,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         this.backendId = in.readString();
         this.rowIds = in.readLongArray();
         this.columns = in.readStringArray();
+        this.expectedSchemaIpc = in.readByteArray();
         this.profile = in.readBoolean();
     }
 
@@ -82,6 +86,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         out.writeString(backendId);
         out.writeLongArray(rowIds);
         out.writeStringArray(columns);
+        out.writeByteArray(expectedSchemaIpc);
         out.writeBoolean(profile);
     }
 
@@ -110,6 +115,10 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
 
     public String[] getColumns() {
         return columns;
+    }
+
+    public byte[] getExpectedSchemaIpc() {
+        return expectedSchemaIpc;
     }
 
     public boolean profile() {

@@ -219,6 +219,7 @@ public interface AnalyticsSearchBackendPlugin {
      * @param reader the index reader for the target shard
      * @param rowIdVector Arrow BigIntVector containing global row IDs
      * @param columns column names to read
+     * @param expectedSchemaIpc expected Arrow schema encoded as schema-only IPC bytes
      * @param allocator Arrow buffer allocator for result import
      * @param importStagingAllocator node-scoped allocator to stage Arrow C Data imports on; see
      *        {@link org.opensearch.analytics.backend.ShardScanExecutionContext#getImportStagingAllocator()}
@@ -228,6 +229,7 @@ public interface AnalyticsSearchBackendPlugin {
         Reader reader,
         BigIntVector rowIdVector,
         String[] columns,
+        byte[] expectedSchemaIpc,
         BufferAllocator allocator,
         long contextId,
         BufferAllocator importStagingAllocator

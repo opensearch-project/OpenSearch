@@ -403,6 +403,8 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
     col_names_ptr: *const *const u8,
     col_names_len_ptr: *const i64,
     col_names_count: i64,
+    expected_schema_ptr: *const u8,
+    expected_schema_len: i64,
     runtime_ptr: i64,
     context_id: i64,
 ) -> i64 {
@@ -423,6 +425,11 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
         "df_fetch_by_row_ids: negative col_names_count {}",
         col_names_count
     );
+    assert!(
+        expected_schema_len >= 0,
+        "df_fetch_by_row_ids: negative expected_schema_len {}",
+        expected_schema_len
+    );
     if row_ids_count > 0 {
         assert!(
             row_ids_ptr != 0,
@@ -440,6 +447,13 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
             !col_names_len_ptr.is_null(),
             "df_fetch_by_row_ids: col_names_len_ptr is null but count={}",
             col_names_count
+        );
+    }
+    if expected_schema_len > 0 {
+        assert!(
+            !expected_schema_ptr.is_null(),
+            "df_fetch_by_row_ids: expected_schema_ptr is null but len={}",
+            expected_schema_len
         );
     }
 
@@ -461,9 +475,22 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
         columns.push(name.to_string());
     }
 
+    let expected_schema = if expected_schema_len == 0 {
+        None
+    } else {
+        let bytes = slice::from_raw_parts(expected_schema_ptr, expected_schema_len as usize);
+        Some(crate::api::schema_from_ipc_bytes(bytes).map_err(|e| e.to_string())?)
+    };
+
     mgr.io_runtime
         .block_on(crate::api::fetch_by_row_ids(
-            shard_view, runtime, &mgr, row_ids, columns, context_id,
+            shard_view,
+            runtime,
+            &mgr,
+            row_ids,
+            columns,
+            expected_schema,
+            context_id,
         ))
         .map_err(|e| e.to_string())
 }

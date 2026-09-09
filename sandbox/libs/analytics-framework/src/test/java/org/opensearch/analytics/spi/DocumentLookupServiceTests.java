@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.mockito.ArgumentCaptor;
 
@@ -140,6 +141,20 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         // non-mapper columns excluded via the constant guards (the regression this protects against)
         assertFalse("_primary_term excluded via constant: " + source, source.contains("_primary_term"));
         assertFalse("__row_id__ excluded via constant: " + source, source.contains("__row_id__"));
+    }
+
+    public void testGetById_normalizesMappingDeclaredMultiValueScalar() throws Exception {
+        service = new DocumentLookupService(resolver, executor, Set.of("tags", "colors"));
+        when(resolver.resolveMetadata(reader, "doc1")).thenReturn(metadata("doc1", 0L, 7L));
+        WriterFileSet fs = fileSet(7L, "0.parquet");
+        when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
+        when(executor.executeSingleRow(0L, fs)).thenReturn(row("tags", "prod", "colors", List.of("red", "blue"), "name", "alice"));
+
+        String source = service.getById("doc1", reader, INDEX).source().utf8ToString();
+
+        assertTrue(source, source.contains("\"tags\":[\"prod\"]"));
+        assertTrue(source, source.contains("\"colors\":[\"red\",\"blue\"]"));
+        assertTrue(source, source.contains("\"name\":\"alice\""));
     }
 
     public void testGetById_nonMetadataUnderscoreFieldRetained() throws Exception {

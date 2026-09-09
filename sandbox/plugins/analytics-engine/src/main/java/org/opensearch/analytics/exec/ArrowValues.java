@@ -152,11 +152,17 @@ public final class ArrowValues {
             }
             return map;
         }
-        Object value = vector.getObject(index);
-        if (vector instanceof ListVector lv && value instanceof List<?> raw) {
-            // child Arrow type drives temporal element formatting
-            return normalizeList(raw, lv.getDataVector().getField());
+        if (vector instanceof ListVector listVector && vector instanceof MapVector == false) {
+            FieldVector data = listVector.getDataVector();
+            int start = listVector.getOffsetBuffer().getInt((long) index * ListVector.OFFSET_WIDTH);
+            int end = listVector.getOffsetBuffer().getInt((long) (index + 1) * ListVector.OFFSET_WIDTH);
+            List<Object> values = new ArrayList<>(Math.max(0, end - start));
+            for (int childIndex = start; childIndex < end; childIndex++) {
+                values.add(toJavaValue(data, childIndex));
+            }
+            return values;
         }
+        Object value = vector.getObject(index);
         Object temporal = formatTemporal(vector.getField().getType(), value);
         if (temporal != null) {
             return temporal;

@@ -36,6 +36,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -63,7 +64,11 @@ public class GetService implements Closeable {
 
     /** Returns a core-layer DocumentLookupService wired with this backend's executor and the supplied document resolver. */
     public DocumentLookupService documentLookupService(DocumentMetadataResolver resolver) {
-        return new DocumentLookupService(resolver, executor);
+        return documentLookupService(resolver, Set.of());
+    }
+
+    public DocumentLookupService documentLookupService(DocumentMetadataResolver resolver, Set<String> multiValueFields) {
+        return new DocumentLookupService(resolver, executor, multiValueFields);
     }
 
     @Override

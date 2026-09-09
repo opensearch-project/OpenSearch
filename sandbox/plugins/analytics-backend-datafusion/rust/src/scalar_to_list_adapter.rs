@@ -10,11 +10,11 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use datafusion::arrow::array::{ListArray, RecordBatch};
+use datafusion::arrow::array::{Array, ListArray, RecordBatch};
 use datafusion::arrow::buffer::OffsetBuffer;
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Schema, SchemaRef};
 use datafusion::common::tree_node::{Transformed, TransformedResult, TreeNode};
-use datafusion::common::Result;
+use datafusion::common::{exec_err, Result};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::expressions::Column;
 use datafusion::physical_expr::PhysicalExpr;
@@ -34,7 +34,9 @@ impl PhysicalExprAdapterFactory for ScalarToListExprAdapterFactory {
         // Let DataFusion's default adapter resolve names, physical indices, missing columns, and
         // ordinary casts. For promoted columns only, temporarily present the physical scalar field
         // as the logical field so the default adapter does not reject the intentional T -> List<T>
-        // evolution before our second pass wraps that resolved scalar expression.
+        // evolution before our second pass wraps that resolved scalar expression. Do the same for
+        // compatible LIST child-field differences so the default nested cast cannot corrupt LIST
+        // buffers; the second pass normalizes those arrays explicitly.
         let default_logical_schema = scalar_compatible_logical_schema(
             logical_file_schema.as_ref(),
             physical_file_schema.as_ref(),
@@ -75,6 +77,22 @@ impl PhysicalExprAdapter for ScalarToListExprAdapter {
                 let DataType::List(child) = logical_field.data_type() else {
                     return Ok(Transformed::no(expr));
                 };
+
+                if let DataType::List(physical_child) = physical_field.data_type() {
+                    if physical_field != logical_field
+                        && compatible_scalar_type(physical_child.data_type(), child.data_type())
+                    {
+                        return Ok(Transformed::yes(Arc::new(NormalizeListExpr {
+                            name: column.name().to_string(),
+                            input: Arc::clone(&expr),
+                            child: Arc::clone(child),
+                            nullable: logical_field.is_nullable(),
+                        })
+                            as Arc<dyn PhysicalExpr>));
+                    }
+                    return Ok(Transformed::no(expr));
+                }
+
                 if !can_promote_scalar_to_list(physical_field.data_type(), child.data_type()) {
                     return Ok(Transformed::no(expr));
                 }
@@ -87,6 +105,99 @@ impl PhysicalExprAdapter for ScalarToListExprAdapter {
                     as Arc<dyn PhysicalExpr>))
             })
             .data()
+    }
+}
+
+#[derive(Debug)]
+struct NormalizeListExpr {
+    name: String,
+    input: Arc<dyn PhysicalExpr>,
+    child: FieldRef,
+    nullable: bool,
+}
+
+impl PartialEq for NormalizeListExpr {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.input.eq(&other.input)
+            && self.child == other.child
+            && self.nullable == other.nullable
+    }
+}
+
+impl Eq for NormalizeListExpr {}
+
+impl Hash for NormalizeListExpr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.input.hash(state);
+        self.child.hash(state);
+        self.nullable.hash(state);
+    }
+}
+
+impl Display for NormalizeListExpr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "normalize_list({})", self.name)
+    }
+}
+
+impl PhysicalExpr for NormalizeListExpr {
+    fn data_type(&self, _input_schema: &Schema) -> Result<DataType> {
+        Ok(DataType::List(Arc::clone(&self.child)))
+    }
+
+    fn nullable(&self, _input_schema: &Schema) -> Result<bool> {
+        Ok(self.nullable)
+    }
+
+    fn return_field(&self, _input_schema: &Schema) -> Result<FieldRef> {
+        Ok(Arc::new(Field::new(
+            &self.name,
+            DataType::List(Arc::clone(&self.child)),
+            self.nullable,
+        )))
+    }
+
+    fn evaluate(&self, batch: &RecordBatch) -> Result<ColumnarValue> {
+        let array = self.input.evaluate(batch)?.into_array(batch.num_rows())?;
+        let Some(lists) = array.as_any().downcast_ref::<ListArray>() else {
+            return exec_err!(
+                "expected LIST input while normalizing column '{}'",
+                self.name
+            );
+        };
+        let values = if lists.values().data_type() == self.child.data_type() {
+            Arc::clone(lists.values())
+        } else {
+            datafusion::arrow::compute::cast(lists.values().as_ref(), self.child.data_type())?
+        };
+        Ok(ColumnarValue::Array(Arc::new(ListArray::new(
+            Arc::clone(&self.child),
+            lists.offsets().clone(),
+            values,
+            lists.nulls().cloned(),
+        ))))
+    }
+
+    fn children(&self) -> Vec<&Arc<dyn PhysicalExpr>> {
+        vec![&self.input]
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn PhysicalExpr>>,
+    ) -> Result<Arc<dyn PhysicalExpr>> {
+        Ok(Arc::new(Self {
+            name: self.name.clone(),
+            input: Arc::clone(&children[0]),
+            child: Arc::clone(&self.child),
+            nullable: self.nullable,
+        }))
+    }
+
+    fn fmt_sql(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }
 
@@ -190,7 +301,14 @@ fn scalar_compatible_logical_schema(logical: &Schema, physical: &Schema) -> Sche
             let DataType::List(child) = logical_field.data_type() else {
                 return Arc::clone(logical_field);
             };
-            if can_promote_scalar_to_list(physical_field.data_type(), child.data_type()) {
+            let compatible_list = matches!(
+                physical_field.data_type(),
+                DataType::List(physical_child)
+                    if compatible_scalar_type(physical_child.data_type(), child.data_type())
+            );
+            if can_promote_scalar_to_list(physical_field.data_type(), child.data_type())
+                || compatible_list
+            {
                 Arc::new(physical_field.clone())
             } else {
                 Arc::clone(logical_field)
@@ -204,9 +322,13 @@ fn scalar_compatible_logical_schema(logical: &Schema, physical: &Schema) -> Sche
 }
 
 fn can_promote_scalar_to_list(physical: &DataType, logical_child: &DataType) -> bool {
-    physical == logical_child
+    !matches!(physical, DataType::List(_)) && compatible_scalar_type(physical, logical_child)
+}
+
+fn compatible_scalar_type(physical: &DataType, logical: &DataType) -> bool {
+    physical == logical
         || matches!(
-            (physical, logical_child),
+            (physical, logical),
             (DataType::Utf8 | DataType::LargeUtf8, DataType::Utf8View)
                 | (
                     DataType::Binary | DataType::LargeBinary,
@@ -277,5 +399,39 @@ mod tests {
         let first = first.as_any().downcast_ref::<StringViewArray>().unwrap();
         assert_eq!(first.value(0), "prod");
         assert!(lists.is_null(1));
+    }
+
+    #[test]
+    fn normalizes_list_child_field_without_rewriting_offsets() {
+        let logical_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let logical = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::clone(&logical_child)),
+            true,
+        )]));
+        let physical_child = Arc::new(Field::new("item", DataType::Utf8View, false));
+        let physical = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::clone(&physical_child)),
+            false,
+        )]));
+        let values = Arc::new(StringViewArray::from(vec!["prod", "error"]));
+        let offsets = OffsetBuffer::new(vec![0_i32, 1, 2].into());
+        let lists = Arc::new(ListArray::new(physical_child, offsets, values, None));
+        let batch = RecordBatch::try_new(Arc::clone(&physical), vec![lists]).unwrap();
+        let adapter = ScalarToListExprAdapterFactory
+            .create(Arc::clone(&logical), physical)
+            .unwrap();
+        let expr = adapter.rewrite(Arc::new(Column::new("tags", 0))).unwrap();
+
+        let ColumnarValue::Array(array) = expr.evaluate(&batch).unwrap() else {
+            panic!("expected array result");
+        };
+        assert_eq!(array.data_type(), logical.field(0).data_type());
+        let lists = array.as_any().downcast_ref::<ListArray>().unwrap();
+        assert_eq!(lists.value_offsets(), &[0, 1, 2]);
+        let second = lists.value(1);
+        let second = second.as_any().downcast_ref::<StringViewArray>().unwrap();
+        assert_eq!(second.value(0), "error");
     }
 }

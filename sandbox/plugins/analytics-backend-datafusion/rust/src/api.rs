@@ -1019,6 +1019,7 @@ pub async unsafe fn fetch_by_row_ids(
     manager: &crate::runtime_manager::RuntimeManager,
     row_ids: Vec<i64>,
     columns: Vec<String>,
+    expected_schema: Option<SchemaRef>,
     context_id: i64,
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
@@ -1067,6 +1068,15 @@ pub async unsafe fn fetch_by_row_ids(
     )
     .await
     .map_err(DataFusionError::Execution)?;
+    let resolved_schema = expected_schema
+        .as_ref()
+        .and_then(|expected| {
+            crate::schema_coerce::reconcile_with_expected(
+                resolved_schema.as_ref(),
+                expected.as_ref(),
+            )
+        })
+        .unwrap_or(resolved_schema);
 
     // Distribute global row_ids to per-file local positions.
     // Note: Java validates non-empty + ascending row_ids before the FFM call; we don't repeat that here.
@@ -1736,7 +1746,7 @@ fn derive_schema_from_partial_plan(
 /// Decodes an Arrow IPC stream-format header into a [`SchemaRef`]. The Java side
 /// (specifically `BroadcastInjectionHandler`) ships the build-side memtable
 /// schema as a standalone IPC blob produced by `ArrowSchemaIpc.toBytes(...)`.
-fn schema_from_ipc_bytes(bytes: &[u8]) -> Result<SchemaRef, DataFusionError> {
+pub(crate) fn schema_from_ipc_bytes(bytes: &[u8]) -> Result<SchemaRef, DataFusionError> {
     use arrow::ipc::reader::StreamReader;
     use std::io::Cursor;
     let reader = StreamReader::try_new(Cursor::new(bytes), None)

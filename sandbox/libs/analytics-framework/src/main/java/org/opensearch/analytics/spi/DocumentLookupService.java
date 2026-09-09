@@ -50,10 +50,16 @@ public class DocumentLookupService {
 
     private final DocumentMetadataResolver documentResolver;
     private final DocumentRowReader executor;
+    private final Set<String> multiValueFields;
 
     public DocumentLookupService(DocumentMetadataResolver documentResolver, DocumentRowReader executor) {
+        this(documentResolver, executor, Set.of());
+    }
+
+    public DocumentLookupService(DocumentMetadataResolver documentResolver, DocumentRowReader executor, Set<String> multiValueFields) {
         this.documentResolver = documentResolver;
         this.executor = executor;
+        this.multiValueFields = Set.copyOf(multiValueFields);
     }
 
     public DocumentLookupResult getById(String id, IndexReaderProvider.Reader reader, Index index) throws IOException {
@@ -129,7 +135,7 @@ public class DocumentLookupService {
     }
 
     /** Builds a DocumentLookupResult from a raw row, filtering metadata/internal fields out of {@code _source}. */
-    private static DocumentLookupResult buildResultFromRow(String id, Map<String, Object> row) throws IOException {
+    private DocumentLookupResult buildResultFromRow(String id, Map<String, Object> row) throws IOException {
         long seqNo = extractLong(row, "_seq_no", SequenceNumbers.UNASSIGNED_SEQ_NO);
         long primaryTerm = extractLong(row, "_primary_term", SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         long version = extractLong(row, "_version", Versions.NOT_FOUND);
@@ -144,7 +150,11 @@ public class DocumentLookupService {
                 || DocumentInput.ROW_ID_FIELD.equals(name)) {
                 continue;
             }
-            filtered.put(name, e.getValue());
+            Object value = e.getValue();
+            if (multiValueFields.contains(name) && value != null && value instanceof List<?> == false) {
+                value = List.of(value);
+            }
+            filtered.put(name, value);
         }
 
         BytesReference source;
