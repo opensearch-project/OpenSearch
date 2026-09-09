@@ -31,6 +31,7 @@ use std::sync::Arc;
 use datafusion::physical_expr::PhysicalExpr;
 
 use super::index::RowGroupDocsCollector;
+use crate::indexed_table::index::CollectDocsResult;
 
 /// A node in the boolean query tree (unresolved).
 #[derive(Debug, Clone)]
@@ -109,9 +110,10 @@ impl BoolNode {
     /// yet (Phase 7 fast-follow).
     pub fn delegation_possible_leaf_count(&self) -> usize {
         match self {
-            BoolNode::And(children) | BoolNode::Or(children) => {
-                children.iter().map(|c| c.delegation_possible_leaf_count()).sum()
-            }
+            BoolNode::And(children) | BoolNode::Or(children) => children
+                .iter()
+                .map(|c| c.delegation_possible_leaf_count())
+                .sum(),
             BoolNode::Not(child) => child.delegation_possible_leaf_count(),
             BoolNode::DelegationPossible { .. } => 1,
             BoolNode::Collector { .. } => 0,
@@ -195,14 +197,22 @@ impl BoolNode {
     /// the Tree-path evaluator.
     pub fn demote_delegation_possible(self) -> BoolNode {
         match self {
-            BoolNode::And(children) => {
-                BoolNode::And(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
-            }
-            BoolNode::Or(children) => {
-                BoolNode::Or(children.into_iter().map(|c| c.demote_delegation_possible()).collect())
-            }
+            BoolNode::And(children) => BoolNode::And(
+                children
+                    .into_iter()
+                    .map(|c| c.demote_delegation_possible())
+                    .collect(),
+            ),
+            BoolNode::Or(children) => BoolNode::Or(
+                children
+                    .into_iter()
+                    .map(|c| c.demote_delegation_possible())
+                    .collect(),
+            ),
             BoolNode::Not(child) => BoolNode::Not(Box::new(child.demote_delegation_possible())),
-            BoolNode::DelegationPossible { original_expr, .. } => BoolNode::Predicate(original_expr),
+            BoolNode::DelegationPossible { original_expr, .. } => {
+                BoolNode::Predicate(original_expr)
+            }
             leaf @ (BoolNode::Collector { .. } | BoolNode::Predicate(_)) => leaf,
         }
     }
@@ -454,6 +464,7 @@ pub fn residual_bool_to_physical_expr(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::common::ScalarValue;
@@ -464,15 +475,13 @@ mod tests {
     #[derive(Debug)]
     struct StubCollector(u8);
     impl RowGroupDocsCollector for StubCollector {
-        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-            Ok(vec![self.0 as u64])
+        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<CollectDocsResult, String> {
+            Ok(vec![self.0 as u64].into())
         }
     }
 
     fn collector(id: i32) -> BoolNode {
-        BoolNode::Collector {
-            annotation_id: id,
-        }
+        BoolNode::Collector { annotation_id: id }
     }
 
     fn predicate(col: &str, op: Operator, v: i32) -> BoolNode {
@@ -519,10 +528,7 @@ mod tests {
 
     #[test]
     fn de_morgan_not_and_to_or() {
-        let tree = BoolNode::Not(Box::new(BoolNode::And(vec![
-            collector(0),
-            collector(1),
-        ])));
+        let tree = BoolNode::Not(Box::new(BoolNode::And(vec![collector(0), collector(1)])));
         match tree.push_not_down() {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 2);
@@ -772,7 +778,11 @@ mod tests {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 2);
                 for c in &children {
-                    assert!(matches!(c, BoolNode::Predicate(_)), "expected Predicate, got {:?}", c);
+                    assert!(
+                        matches!(c, BoolNode::Predicate(_)),
+                        "expected Predicate, got {:?}",
+                        c
+                    );
                 }
             }
             other => panic!("expected Or with two Predicates, got {:?}", other),
@@ -807,7 +817,10 @@ mod tests {
         match demoted {
             BoolNode::Or(children) => {
                 assert_eq!(children.len(), 3);
-                assert!(matches!(&children[0], BoolNode::Collector { annotation_id: 7 }));
+                assert!(matches!(
+                    &children[0],
+                    BoolNode::Collector { annotation_id: 7 }
+                ));
                 assert!(matches!(&children[1], BoolNode::Predicate(_)));
                 assert!(matches!(&children[2], BoolNode::Predicate(_)));
             }

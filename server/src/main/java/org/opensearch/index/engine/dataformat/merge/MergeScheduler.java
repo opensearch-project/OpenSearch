@@ -154,12 +154,22 @@ public class MergeScheduler {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.FORCE_MERGE)
             : "forceMerge must be called on FORCE_MERGE thread but was: " + Thread.currentThread().getName();
         forceMergeLock.acquireUninterruptibly();
+        activeMerges.incrementAndGet();
         try {
+            if (isShutdown.get()) {
+                logger.debug("MergeScheduler is shutdown, skipping force merge");
+                return;
+            }
             Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
             for (OneMerge oneMerge : oneMerges) {
+                if (isShutdown.get()) {
+                    logger.debug("MergeScheduler shutdown during force merge, aborting remaining merges");
+                    break;
+                }
                 runMerge(oneMerge);
             }
         } finally {
+            decrementAndFireDrainListeners();
             forceMergeLock.release();
         }
     }
@@ -334,19 +344,7 @@ public class MergeScheduler {
                 // runMerge already invoked onMergeFailureCleanup; swallow to prevent
                 // uncaught exception on the merge thread pool.
             } finally {
-                activeMerges.decrementAndGet();
-                // Fire all drain listeners if all merges completed and none pending
-                if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
-                    List<Runnable> listeners = List.copyOf(onDrainedListeners);
-                    onDrainedListeners.clear();
-                    for (Runnable listener : listeners) {
-                        try {
-                            listener.run();
-                        } catch (Exception ex) {
-                            logger.warn("Exception in onDrained listener", ex);
-                        }
-                    }
-                }
+                decrementAndFireDrainListeners();
                 // A completed merge may free up capacity for new merges, so check again.
                 executeMerge();
             }
@@ -384,6 +382,26 @@ public class MergeScheduler {
             throw e instanceof IOException ? (IOException) e : new IOException(e);
         } finally {
             mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
+        }
+    }
+
+    /**
+     * Decrements the active merge count and fires all registered drain listeners if the scheduler
+     * is frozen and no merges (active or pending) remain. Called from both the background merge
+     * ({@link #submitMergeTask}) and force merge ({@link #forceMerge}) completion paths.
+     */
+    private void decrementAndFireDrainListeners() {
+        activeMerges.decrementAndGet();
+        if (isFrozen() && activeMerges.get() == 0 && !mergeHandler.hasPendingMerges() && !onDrainedListeners.isEmpty()) {
+            List<Runnable> listeners = List.copyOf(onDrainedListeners);
+            onDrainedListeners.clear();
+            for (Runnable listener : listeners) {
+                try {
+                    listener.run();
+                } catch (Exception ex) {
+                    logger.warn("Exception in onDrained listener", ex);
+                }
+            }
         }
     }
 }

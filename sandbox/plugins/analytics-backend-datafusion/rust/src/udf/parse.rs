@@ -34,7 +34,9 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, MapBuilder, MapFieldNames, StringArray, StringBuilder};
+use datafusion::arrow::array::{
+    Array, ArrayRef, MapBuilder, MapFieldNames, StringArray, StringBuilder,
+};
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -118,14 +120,12 @@ impl ScalarUDFImpl for ParseUdf {
         // The Java adapter validates that pattern + method are non-null string
         // literals at plan time. Re-check defensively so a misuse from an
         // unknown caller produces an actionable plan error instead of a panic.
-        let pattern = scalar_str(&args.args[1])
-            .ok_or_else(|| DataFusionError::Plan(
-                "parse: pattern must be a non-null string literal".into(),
-            ))?;
-        let method = scalar_str(&args.args[2])
-            .ok_or_else(|| DataFusionError::Plan(
-                "parse: method must be a non-null string literal".into(),
-            ))?;
+        let pattern = scalar_str(&args.args[1]).ok_or_else(|| {
+            DataFusionError::Plan("parse: pattern must be a non-null string literal".into())
+        })?;
+        let method = scalar_str(&args.args[2]).ok_or_else(|| {
+            DataFusionError::Plan("parse: method must be a non-null string literal".into())
+        })?;
 
         if method != "regex" {
             return Err(DataFusionError::Plan(format!(
@@ -139,9 +139,8 @@ impl ScalarUDFImpl for ParseUdf {
         // group is safe — it does not perturb the named-group indexing the
         // caller relies on.
         let anchored = format!("^(?:{pattern})$");
-        let regex = Regex::new(&anchored).map_err(|e| {
-            DataFusionError::Plan(format!("parse: invalid regex [{pattern}]: {e}"))
-        })?;
+        let regex = Regex::new(&anchored)
+            .map_err(|e| DataFusionError::Plan(format!("parse: invalid regex [{pattern}]: {e}")))?;
 
         // Collect named groups in pattern definition order so the resulting
         // map's key order matches what users see in legacy PPL output.
@@ -160,10 +159,12 @@ impl ScalarUDFImpl for ParseUdf {
         let input = input_arr
             .as_any()
             .downcast_ref::<StringArray>()
-            .ok_or_else(|| DataFusionError::Internal(format!(
-                "parse: expected Utf8 input, got {:?}",
-                input_arr.data_type(),
-            )))?;
+            .ok_or_else(|| {
+                DataFusionError::Internal(format!(
+                    "parse: expected Utf8 input, got {:?}",
+                    input_arr.data_type(),
+                ))
+            })?;
 
         let mut builder = MapBuilder::new(
             Some(MapFieldNames {
@@ -226,11 +227,7 @@ mod tests {
     use datafusion::arrow::array::MapArray;
     use datafusion::arrow::datatypes::TimeUnit;
 
-    fn run_parse(
-        input: Vec<Option<&str>>,
-        pattern: &str,
-        method: &str,
-    ) -> Result<MapArray> {
+    fn run_parse(input: Vec<Option<&str>>, pattern: &str, method: &str) -> Result<MapArray> {
         let udf = ParseUdf::new();
         let n = input.len();
         let input_arr = StringArray::from(input);
@@ -317,8 +314,14 @@ mod tests {
         )
         .unwrap();
         assert!(!map.is_null(0)); // row 0 cell is present
-        assert_eq!(entries_of(&map, 0), vec![("name".to_string(), "".to_string())]);
-        assert_eq!(entries_of(&map, 1), vec![("name".to_string(), "alice".to_string())]);
+        assert_eq!(
+            entries_of(&map, 0),
+            vec![("name".to_string(), "".to_string())]
+        );
+        assert_eq!(
+            entries_of(&map, 1),
+            vec![("name".to_string(), "alice".to_string())]
+        );
     }
 
     #[test]
@@ -359,10 +362,7 @@ mod tests {
         let out = udf
             .coerce_types(&[DataType::LargeUtf8, DataType::Utf8View, DataType::Utf8])
             .unwrap();
-        assert_eq!(
-            out,
-            vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]
-        );
+        assert_eq!(out, vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]);
     }
 
     #[test]

@@ -32,8 +32,11 @@
 
 package org.opensearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+
+import java.io.ObjectInputFilter;
 
 /**
  * Settings used for bootstrapping OpenSearch
@@ -60,5 +63,21 @@ public final class BootstrapSettings {
     public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 
     public static final Setting<Boolean> SERIAL_FILTER_SETTING = Setting.boolSetting("bootstrap.serial_filter", false, Property.NodeScope);
+
+    static final ObjectInputFilter REJECT_ALL_FILTER = filterInfo -> filterInfo.serialClass() == null
+        ? ObjectInputFilter.Status.UNDECIDED
+        : ObjectInputFilter.Status.REJECTED;
+
+    /**
+     * Installs a process-wide ObjectInputFilter that rejects all Java deserialization by default.
+     * Code that needs deserialization can opt in by calling setObjectInputFilter on their stream.
+     */
+    public static void initializeSerialFilter() {
+        try {
+            ObjectInputFilter.Config.setSerialFilter(REJECT_ALL_FILTER);
+        } catch (IllegalStateException e) {
+            LogManager.getLogger(BootstrapSettings.class).debug("Serial filter already initialized", e);
+        }
+    }
 
 }

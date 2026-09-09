@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -38,8 +39,10 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -126,18 +129,14 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
         ensureGreen(indexName);
     }
 
-    protected void indexDocs(String indexName, int count, int startId) {
+    protected List<String> indexDocs(String indexName, int count, int startId) {
+        List<String> ids = new ArrayList<>();
         for (int i = startId; i < startId + count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex()
-                    .setIndex(indexName)
-                    .setId(String.valueOf(i))
-                    .setSource("name", "doc_" + i, "value", i)
-                    .get()
-                    .status()
-            );
+            IndexResponse indexResponse = client().prepareIndex().setIndex(indexName).setSource("name", "doc_" + i, "value", i).get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+            ids.add(indexResponse.getId());
         }
+        return ids;
     }
 
     protected void refreshIndex(String indexName) {

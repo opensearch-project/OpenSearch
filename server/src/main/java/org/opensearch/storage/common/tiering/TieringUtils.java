@@ -143,6 +143,17 @@ public class TieringUtils {
         Setting.Property.NodeScope
     );
 
+    public static final String REPLICA_SYNC_TIMEOUT_KEY = "tiering.prepare.replica_sync_timeout";
+    /** Setting for how long to wait for replicas to sync during tiering preparation. Dynamically updatable. */
+    public static final Setting<TimeValue> REPLICA_SYNC_TIMEOUT_SETTING = Setting.timeSetting(
+        REPLICA_SYNC_TIMEOUT_KEY,
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * List of index name prefixes that should be allowed to be migrated.
      * This takes precedence over the 'block-listed' index prefixes.

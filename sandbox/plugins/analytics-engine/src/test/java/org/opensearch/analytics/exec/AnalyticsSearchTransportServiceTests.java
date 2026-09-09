@@ -19,18 +19,18 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.util.List;
@@ -40,9 +40,11 @@ import org.mockito.ArgumentCaptor;
 import static java.util.Collections.singletonList;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,12 +59,20 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
     public void testFragmentHandlerRegisteredWithSameExecutor() {
         StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
         TaskResourceTrackingService taskResourceTrackingService = mock(TaskResourceTrackingService.class);
 
-        new AnalyticsSearchTransportService(transportService, clusterService, searchService, indicesService, taskResourceTrackingService);
+        new AnalyticsSearchTransportService(
+            transportService,
+            regularTransportService,
+            clusterService,
+            searchService,
+            indicesService,
+            taskResourceTrackingService
+        );
 
         verify(transportService).registerRequestHandler(
             eq(FragmentExecutionAction.NAME),
@@ -111,7 +121,11 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
             if (!isClosed(lastRoot)) {
                 lastRoot.close();
             }
-            verify(stream).close();
+            // Consumer threw mid-stream → abnormal exit → cancel() (not plain close()) so the data-node
+            // producer is notified and tears down its FlightServerChannel; close() alone would strand
+            // the producer's streamRoot in the allocator ledger.
+            verify(stream).cancel(anyString(), any());
+            verify(stream, never()).close();
         }
     }
 
@@ -120,22 +134,15 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
         StreamingResponseListener<FragmentExecutionArrowResponse> listener
     ) {
         StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
         TaskResourceTrackingService taskResourceTrackingService = mock(TaskResourceTrackingService.class);
 
-        // getConnection(null, nodeId) -> clusterService.state().nodes().get(nodeId) -> getConnection(node)
-        DiscoveryNode node = mock(DiscoveryNode.class);
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.nodes()).thenReturn(nodes);
-        when(nodes.get(any())).thenReturn(node);
-        when(transportService.getConnection(node)).thenReturn(mock(Transport.Connection.class));
-
         AnalyticsSearchTransportService service = new AnalyticsSearchTransportService(
             transportService,
+            regularTransportService,
             clusterService,
             searchService,
             indicesService,
@@ -157,19 +164,58 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
                 handlerCaptor.capture()
             );
 
+        // dispatch looks up the connection directly from the passed DiscoveryNode (no cluster-state re-resolution).
         DiscoveryNode target = mock(DiscoveryNode.class);
         when(target.getId()).thenReturn("node-1");
+        when(transportService.getConnection(target)).thenReturn(mock(Transport.Connection.class));
         service.dispatchFragmentStreaming(
             mock(FragmentExecutionRequest.class),
             target,
             listener,
             mock(Task.class),
-            new PendingExecutions(1)
+            new PendingExecutions(1),
+            null
         );
 
         List<TransportResponseHandler<FragmentExecutionArrowResponse>> handlers = handlerCaptor.getAllValues();
         assertFalse("handler must have been dispatched to sendChildRequest", handlers.isEmpty());
         return handlers.get(handlers.size() - 1);
+    }
+
+    /**
+     * Node churn: the target node has left the cluster by the time we dispatch (a null
+     * {@link DiscoveryNode}). The connection lookup must surface a clean {@link ConnectTransportException}
+     * — NOT a NullPointerException ("Cannot invoke Object.hashCode() because key is null") that escapes
+     * from the connection manager. Guards the production NPE seen under node churn.
+     */
+    public void testGetConnectionWithNullNodeThrowsConnectExceptionNotNpe() {
+        StreamTransportService transportService = mock(StreamTransportService.class);
+        TransportService regularTransportService = mock(TransportService.class);
+        AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
+        IndicesService indicesService = mock(IndicesService.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        TaskResourceTrackingService taskResourceTrackingService = mock(TaskResourceTrackingService.class);
+
+        AnalyticsSearchTransportService service = new AnalyticsSearchTransportService(
+            transportService,
+            regularTransportService,
+            clusterService,
+            searchService,
+            indicesService,
+            taskResourceTrackingService
+        );
+
+        Exception thrown = expectThrows(ConnectTransportException.class, () -> service.getConnection(null));
+        assertFalse(
+            "must not be a NullPointerException (got " + thrown + ")",
+            thrown instanceof NullPointerException || thrown.getCause() instanceof NullPointerException
+        );
+
+        // And a present node is looked up directly via the stream transport (no cluster-state re-resolution).
+        DiscoveryNode node = mock(DiscoveryNode.class);
+        Transport.Connection conn = mock(Transport.Connection.class);
+        when(transportService.getConnection(node)).thenReturn(conn);
+        assertSame(conn, service.getConnection(node));
     }
 
     private static VectorSchemaRoot newIntRoot(BufferAllocator allocator, String name, int value) {

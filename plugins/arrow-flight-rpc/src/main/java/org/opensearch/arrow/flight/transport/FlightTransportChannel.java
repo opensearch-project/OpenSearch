@@ -85,6 +85,11 @@ class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightC
 
     @Override
     public void sendResponseBatch(TransportResponse response) {
+        sendResponseBatch(response, false);
+    }
+
+    @Override
+    public void sendResponseBatch(TransportResponse response, boolean sync) {
         if (!streamOpen.get()) {
             throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed for requestId [" + requestId + "]");
         }
@@ -101,7 +106,8 @@ class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightC
                 action,
                 response,
                 compressResponse,
-                isHandshake
+                isHandshake,
+                sync
             );
         } catch (StreamException e) {
             // Cancelled: consumer is gone, release ends the call cleanly. For other
@@ -154,5 +160,10 @@ class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightC
     @Override
     public BufferAllocator getAllocator() {
         return ((FlightServerChannel) getChannel()).getAllocator();
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return getChannel() instanceof FlightServerChannel fsc && fsc.isCancelled();
     }
 }

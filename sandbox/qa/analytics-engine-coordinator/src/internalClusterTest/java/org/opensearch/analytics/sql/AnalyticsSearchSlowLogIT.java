@@ -238,7 +238,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("val", i + 1).get();
+            client().prepareIndex(INDEX).setSource("val", i + 1).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();

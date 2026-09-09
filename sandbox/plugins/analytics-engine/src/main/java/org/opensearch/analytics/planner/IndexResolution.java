@@ -195,7 +195,7 @@ public final class IndexResolution {
         for (IndexMetadata index : open) {
             AliasMetadata aliasMd = index.getAliases().get(aliasName);
             if (aliasMd != null && aliasMd.filteringRequired()) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "Alias ["
                         + aliasName
                         + "] declares a filter on index ["
@@ -252,7 +252,7 @@ public final class IndexResolution {
                     OpenSearchSchemaBuilder.mapFieldType(previous.type),
                     OpenSearchSchemaBuilder.mapFieldType(type)
                 )) {
-                    throw new IllegalStateException(
+                    throw new IllegalArgumentException(
                         "Alias ["
                             + aliasName
                             + "] resolves to indices with incompatible field types: ["

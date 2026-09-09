@@ -14,6 +14,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.composite.merge.CompositeMerger;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
+import org.opensearch.composite.stats.CompositeStatsProvider;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -37,6 +40,7 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,6 +83,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final Committer committer;
     private final IndexSettings indexSettings;
     private final CompositeMerger merger;
+    private final CompositeShardStatsTracker statsTracker = new CompositeShardStatsTracker();
+    private final ShardId shardId;
     private volatile Map<String, Collection<String>> pendingDeletes = new ConcurrentHashMap<>();
 
     /**
@@ -151,6 +157,27 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.committer = committer;
         this.indexSettings = indexSettings;
         this.merger = new CompositeMerger(this, compositeDataFormat);
+        this.shardId = store != null ? store.shardId() : null;
+
+        // Register the per-shard tracker so REST endpoints can read live counters; unregistered
+        // in close(). Rolls back the registration if anything below throws, to avoid leaking it.
+        CompositeStatsProvider provider = CompositeStatsProvider.getInstance();
+        boolean registered = false;
+        try {
+            if (provider != null && shardId != null) {
+                provider.register(shardId, statsTracker);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered) {
+                try {
+                    provider.unregister(shardId);
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister composite stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
+        }
     }
 
     /**
@@ -231,6 +258,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        // recordTimeMillis owns the whole-refresh timing; incRefreshTotal counts every refresh.
+        statsTracker.incRefreshTotal();
+        return StatsRecorder.recordTimeMillis(() -> doRefresh(refreshInput), statsTracker::addRefreshTimeMillis);
+    }
+
+    private RefreshResult doRefresh(RefreshInput refreshInput) throws IOException {
         tryDeletePendingFiles();
 
         // All per-format engines refresh normally (primary passes through, secondary does addIndexes)
@@ -269,8 +302,14 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             if (onlyNew.size() > 1) {
                 try {
                     final long mergeStartNanos = System.nanoTime();
-                    MergeResult mergeResult = merger.merge(
-                        MergeInput.builder().segments(onlyNew).newWriterGeneration(refreshInput.nextAvailableGeneration()).build()
+                    // Counts merge-on-refresh attempts; a subset overlay of merge_total (also
+                    // incremented inside CompositeMerger.merge()).
+                    statsTracker.incRefreshMergeTotal();
+                    MergeResult mergeResult = StatsRecorder.recordTimeMillis(
+                        () -> merger.merge(
+                            MergeInput.builder().segments(onlyNew).newWriterGeneration(refreshInput.nextAvailableGeneration()).build()
+                        ),
+                        statsTracker::addRefreshMergeTimeMillis
                     );
 
                     if (mergeResult != null) {
@@ -316,6 +355,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 } catch (Exception e) {
                     // Merge-on-refresh is best-effort. On failure, fall back to normal per-writer
                     // segments. Background merge will consolidate them later.
+                    statsTracker.incRefreshMergeFailures();
                     logger.warn("merge-on-refresh failed, falling back to per-writer segments", e);
                 }
             }
@@ -478,9 +518,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public void close() throws IOException {
+        CompositeStatsProvider provider = CompositeStatsProvider.getInstance();
+        if (provider != null && shardId != null) {
+            provider.unregister(shardId);
+        }
         IOUtils.closeWhileHandlingException(primaryEngine);
         secondaryEngines.forEach(IOUtils::closeWhileHandlingException);
         IOUtils.closeWhileHandlingException(committer);
+    }
+
+    /** Returns this shard's composite stats tracker, used by the writer and merger to count. */
+    public CompositeShardStatsTracker statsTracker() {
+        return statsTracker;
     }
 
     /**

@@ -32,9 +32,12 @@
 
 package org.opensearch.repositories;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
+import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -80,6 +83,7 @@ import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -93,6 +97,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -137,6 +142,10 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
             TestRepository::new,
+            ReloadableTestRepository.TYPE,
+            ReloadableTestRepository::new,
+            FailingOnStartTestRepository.TYPE,
+            FailingOnStartTestRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -186,6 +195,188 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         repositoriesService.unregisterInternalRepository(repoName);
         expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
         assertTrue(((TestRepository) repository).isClosed);
+    }
+
+    public void testCreateRepositoryLogsTimeTaken() throws Exception {
+        String repoName = "name";
+        ClusterState clusterStateWithRepo = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository creation timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "created repository [" + TestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepo, emptyState()));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testCloseRepositoryLogsTimeTaken() throws Exception {
+        String repoName = "name";
+        ClusterState clusterStateWithRepo = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepo, emptyState()));
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository close timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "closed repository [" + TestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            repositoriesService.applyClusterState(new ClusterChangedEvent("removed repo", emptyState(), clusterStateWithRepo));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testCreateRepositoryLogsTimeTakenOnFailure() throws Exception {
+        String repoName = "name";
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository creation timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "created repository [" + FailingOnStartTestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            expectThrows(
+                RepositoryException.class,
+                () -> repositoriesService.createRepository(
+                    new RepositoryMetadata(repoName, FailingOnStartTestRepository.TYPE, Settings.EMPTY)
+                )
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testCloseRepositoryLogsTimeTakenOnFailure() throws Exception {
+        String repoName = "name";
+        Repository repository = new TestRepository(new RepositoryMetadata(repoName, TestRepository.TYPE, Settings.EMPTY)) {
+            @Override
+            public void close() {
+                super.close();
+                throw new RuntimeException("close failed");
+            }
+        };
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository close timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "closed repository [" + TestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            RuntimeException e = expectThrows(RuntimeException.class, () -> repositoriesService.closeRepository(repository));
+            assertEquals("close failed", e.getMessage());
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testReloadRepositoryLogsTimeTaken() throws Exception {
+        String repoName = "name";
+        ClusterState clusterStateWithRepo = createClusterStateWithRepo(repoName, ReloadableTestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepo, emptyState()));
+        ClusterState updatedClusterState = createClusterStateWithRepo(
+            repoName,
+            ReloadableTestRepository.TYPE,
+            Settings.builder().put("updated", true).build()
+        );
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository reload timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "reloaded repository [" + ReloadableTestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            repositoriesService.applyClusterState(new ClusterChangedEvent("update repo", updatedClusterState, clusterStateWithRepo));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testReloadRepositoryLogsTimeTakenOnFailure() throws Exception {
+        String repoName = "name";
+        ClusterState clusterStateWithRepo = createClusterStateWithRepo(repoName, ReloadableTestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepo, emptyState()));
+        ((ReloadableTestRepository) repositoriesService.repository(repoName)).failOnReload = true;
+        ClusterState updatedClusterState = createClusterStateWithRepo(
+            repoName,
+            ReloadableTestRepository.TYPE,
+            Settings.builder().put("updated", true).build()
+        );
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "repository reload timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "reloaded repository [" + ReloadableTestRepository.TYPE + "][" + repoName + "] in [*]"
+                )
+            );
+            // applyClusterState swallows the reload failure but trips an assert in tests
+            expectThrows(
+                AssertionError.class,
+                () -> repositoriesService.applyClusterState(
+                    new ClusterChangedEvent("update repo", updatedClusterState, clusterStateWithRepo)
+                )
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testRegisterRepositoryLogsTimeTakenOnFailure() throws Exception {
+        String repoName = "name";
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
+        request.type("unknown-type");
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> fail("expected failure"), failure::set);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "put repository timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "put/update repository [" + repoName + "] took [*]"
+                )
+            );
+            repositoriesService.registerOrUpdateRepository(request, listener);
+            appender.assertAllExpectationsMatched();
+        }
+        assertTrue(failure.get() instanceof RepositoryException);
+    }
+
+    public void testUnregisterRepositoryLogsTimeTaken() throws Exception {
+        String repoName = "name";
+        ClusterService clusterService = mock(ClusterService.class);
+        doAnswer(invocation -> {
+            AckedClusterStateUpdateTask<ClusterStateUpdateResponse> task = (AckedClusterStateUpdateTask<
+                ClusterStateUpdateResponse>) invocation.getArguments()[1];
+            task.onFailure("delete_repository [" + repoName + "]", new RepositoryMissingException(repoName));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(any(), any());
+        RepositoriesService repositoriesService = createRepositoriesServiceWithMockedClusterService(clusterService);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> fail("expected failure"), failure::set);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RepositoriesService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "delete repository timing",
+                    RepositoriesService.class.getCanonicalName(),
+                    Level.INFO,
+                    "delete repository [" + repoName + "] took [*]"
+                )
+            );
+            repositoriesService.unregisterRepository(new DeleteRepositoryRequest(repoName), listener);
+            appender.assertAllExpectationsMatched();
+        }
+        assertTrue(failure.get() instanceof RepositoryMissingException);
     }
 
     public void testRegisterWillNotUpdateIfInternalRepositoryWithNameExists() {
@@ -487,11 +678,15 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
+        return createClusterStateWithRepo(repoName, repoType, Settings.EMPTY);
+    }
+
+    private ClusterState createClusterStateWithRepo(String repoName, String repoType, Settings settings) {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(
             RepositoriesMetadata.TYPE,
-            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
+            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, settings)))
         );
         state.metadata(mdBuilder);
 
@@ -875,6 +1070,42 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         @Override
         public void close() {
             isClosed = true;
+        }
+    }
+
+    private static class ReloadableTestRepository extends TestRepository {
+
+        private static final String TYPE = "reloadable";
+        private boolean failOnReload;
+
+        private ReloadableTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
+            return true;
+        }
+
+        @Override
+        public void reload(RepositoryMetadata repositoryMetadata) {
+            if (failOnReload) {
+                throw new RuntimeException("reload failed");
+            }
+        }
+    }
+
+    private static class FailingOnStartTestRepository extends TestRepository {
+
+        private static final String TYPE = "failing-on-start";
+
+        private FailingOnStartTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public void start() {
+            throw new RuntimeException("start failed");
         }
     }
 

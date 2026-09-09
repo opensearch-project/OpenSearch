@@ -59,6 +59,7 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
   internalClusterTestImplementation project(':sandbox:libs:analytics-framework')
   internalClusterTestImplementation project(':sandbox:plugins:native-repository-fs')
   // Netty4 HTTP transport for ITs that use the low-level RestClient (e.g., DataFormatStatsIT, *DataFormatApi*IT).

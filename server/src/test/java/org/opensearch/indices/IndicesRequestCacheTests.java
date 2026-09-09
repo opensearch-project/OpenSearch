@@ -115,6 +115,7 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -410,6 +411,72 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, cache.count());
 
         IOUtils.close(secondReader);
+    }
+
+    /**
+     * Reproduces stale-entry retention in the cleanup sweep: a cache hit during the sweep relinks the
+     * accessed entry to the head of the on-heap cache's LRU list, and a live LRU iteration silently skips
+     * a not-yet-visited entry promoted behind its cursor. Because the cleanup marks are consumed before
+     * the scan, the skipped entry is never revisited and survives until size-based eviction. The hit is
+     * triggered deterministically from the entity lookup of the first swept entry, mimicking a concurrent
+     * search request. This test fails if the sweep iterates the live LRU view of the on-heap cache's keys
+     * and passes with the point-in-time snapshot.
+     */
+    public void testCleanCacheIsNotDefeatedByCacheHitPromotingEntryMidSweep() throws Exception {
+        threadPool = getThreadPool();
+        IndexShard secondShard = createIndex("second-test").getShard(0);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        AtomicReference<Runnable> onFirstLookup = new AtomicReference<>();
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            cache = new IndicesRequestCache(Settings.EMPTY, shardId -> {
+                Runnable hook = onFirstLookup.getAndSet(null);
+                if (hook != null) {
+                    hook.run();
+                }
+                return indicesService.indicesRequestCache.cacheEntityLookup.apply(shardId);
+            },
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool),
+                env
+            );
+        }
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader readerB1 = getReader(writer, secondShard.shardId());
+        DirectoryReader readerA1 = getReader(writer, indexShard.shardId());
+        DirectoryReader readerA2 = getReader(writer, indexShard.shardId());
+        DirectoryReader readerB2 = getReader(writer, secondShard.shardId());
+
+        // LRU order after insertion, head to tail: B2, A2, A1, B1
+        cache.getOrCompute(getEntity(secondShard), getLoader(readerB1), readerB1, getTermBytes());
+        cache.getOrCompute(getEntity(indexShard), getLoader(readerA1), readerA1, getTermBytes());
+        cache.getOrCompute(getEntity(indexShard), getLoader(readerA2), readerA2, getTermBytes());
+        cache.getOrCompute(getEntity(secondShard), getLoader(readerB2), readerB2, getTermBytes());
+        assertEquals(4, cache.count());
+
+        // Mark all of the second shard's entries for cleanup; the marks are consumed by the next sweep
+        cache.clear(getEntity(secondShard));
+
+        // While the sweep processes its first entry, a concurrent request hits the second shard's
+        // not-yet-visited entry, relinking it at the head of the LRU list. The loader throws so the hit
+        // cannot re-insert the entry if the sweep already removed it (snapshot order is arbitrary).
+        onFirstLookup.set(() -> {
+            try {
+                cache.getOrCompute(
+                    getEntity(secondShard),
+                    () -> { throw new IOException("no reload during sweep"); },
+                    readerB1,
+                    getTermBytes()
+                );
+            } catch (Exception ignored) {
+                // a miss means the sweep already removed the entry; nothing to promote
+            }
+        });
+        cache.cacheCleanupManager.cleanCache();
+
+        // Both second-shard entries must be removed; only the two live first-shard entries remain
+        assertEquals(2, cache.count());
+        IOUtils.close(readerB1, readerA1, readerA2, readerB2);
     }
 
     // when a cache entry that is Stale is evicted for any reason, we have to deduct the count from our staleness count

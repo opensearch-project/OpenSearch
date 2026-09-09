@@ -16,11 +16,38 @@ use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc, Weekday};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Token {
     Literal(char),
-    A, B, C, D, DLower, E, F,
-    HUpper, HLower, ILower, IUpper, J, K, L,
-    MUpper, MLower, P, PUpper, R, SUpper, SLower, T,
-    UUpper, ULower, VUpper, VLower, W, WLower,
-    XUpper, XLower, YUpper, YLower,
+    A,
+    B,
+    C,
+    D,
+    DLower,
+    E,
+    F,
+    HUpper,
+    HLower,
+    ILower,
+    IUpper,
+    J,
+    K,
+    L,
+    MUpper,
+    MLower,
+    P,
+    PUpper,
+    R,
+    SUpper,
+    SLower,
+    T,
+    UUpper,
+    ULower,
+    VUpper,
+    VLower,
+    W,
+    WLower,
+    XUpper,
+    XLower,
+    YUpper,
+    YLower,
 }
 
 fn tokenize(format: &str) -> Vec<Token> {
@@ -149,19 +176,47 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
         // DateTimeFormatterUtil maps %c -> "MM" in date mode), which differs from stock MySQL's
         // no-leading-zero %c. PPL semantics are the contract on the analytics-engine route.
         // Time mode keeps the reference's single-"0" literal (TIME_HANDLERS maps %c -> "0").
-        Token::C => Str(if time_mode { "0".into() } else { format!("{:02}", dt.month()) }),
-        Token::DLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.day()) }),
-        Token::E => Str(if time_mode { "0".into() } else { dt.day().to_string() }),
-        Token::MLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.month()) }),
-        Token::YUpper => Str(if time_mode { "0000".into() } else { format!("{:04}", dt.year()) }),
-        Token::YLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.year() % 100) }),
+        Token::C => Str(if time_mode {
+            "0".into()
+        } else {
+            format!("{:02}", dt.month())
+        }),
+        Token::DLower => Str(if time_mode {
+            "00".into()
+        } else {
+            format!("{:02}", dt.day())
+        }),
+        Token::E => Str(if time_mode {
+            "0".into()
+        } else {
+            dt.day().to_string()
+        }),
+        Token::MLower => Str(if time_mode {
+            "00".into()
+        } else {
+            format!("{:02}", dt.month())
+        }),
+        Token::YUpper => Str(if time_mode {
+            "0000".into()
+        } else {
+            format!("{:04}", dt.year())
+        }),
+        Token::YLower => Str(if time_mode {
+            "00".into()
+        } else {
+            format!("{:02}", dt.year() % 100)
+        }),
         Token::F => Str(format!("{:06}", dt.nanosecond() / 1_000)),
         Token::HUpper => Str(format!("{:02}", dt.hour())),
         Token::HLower | Token::IUpper => Str(format!("{:02}", twelve_hour(dt.hour()))),
         Token::ILower => Str(format!("{:02}", dt.minute())),
         Token::K => Str(dt.hour().to_string()),
         Token::L => Str(twelve_hour(dt.hour()).to_string()),
-        Token::P => Str(if dt.hour() < 12 { "AM".into() } else { "PM".into() }),
+        Token::P => Str(if dt.hour() < 12 {
+            "AM".into()
+        } else {
+            "PM".into()
+        }),
         // %P is non-MySQL; PPL passes the trailing letter through verbatim
         Token::PUpper => Char('P'),
         Token::R => Str(format!(
@@ -172,14 +227,23 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
             if dt.hour() < 12 { "AM" } else { "PM" }
         )),
         Token::SUpper | Token::SLower => Str(format!("{:02}", dt.second())),
-        Token::T => Str(format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())),
+        Token::T => Str(format!(
+            "{:02}:{:02}:{:02}",
+            dt.hour(),
+            dt.minute(),
+            dt.second()
+        )),
     };
     Some(r)
 }
 
 fn twelve_hour(h: u32) -> u32 {
     let h = h % 12;
-    if h == 0 { 12 } else { h }
+    if h == 0 {
+        12
+    } else {
+        h
+    }
 }
 
 fn ordinal_suffix(day: u32) -> &'static str {
@@ -196,32 +260,56 @@ fn ordinal_suffix(day: u32) -> &'static str {
 
 fn weekday_short(w: Weekday) -> &'static str {
     match w {
-        Weekday::Mon => "Mon", Weekday::Tue => "Tue", Weekday::Wed => "Wed",
-        Weekday::Thu => "Thu", Weekday::Fri => "Fri", Weekday::Sat => "Sat", Weekday::Sun => "Sun",
+        Weekday::Mon => "Mon",
+        Weekday::Tue => "Tue",
+        Weekday::Wed => "Wed",
+        Weekday::Thu => "Thu",
+        Weekday::Fri => "Fri",
+        Weekday::Sat => "Sat",
+        Weekday::Sun => "Sun",
     }
 }
 
 fn weekday_full(w: Weekday) -> &'static str {
     match w {
-        Weekday::Mon => "Monday", Weekday::Tue => "Tuesday", Weekday::Wed => "Wednesday",
-        Weekday::Thu => "Thursday", Weekday::Fri => "Friday",
-        Weekday::Sat => "Saturday", Weekday::Sun => "Sunday",
+        Weekday::Mon => "Monday",
+        Weekday::Tue => "Tuesday",
+        Weekday::Wed => "Wednesday",
+        Weekday::Thu => "Thursday",
+        Weekday::Fri => "Friday",
+        Weekday::Sat => "Saturday",
+        Weekday::Sun => "Sunday",
     }
 }
 
 fn month_short(m: u32) -> &'static str {
-    ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        .get(m as usize)
-        .copied()
-        .unwrap_or("")
+    [
+        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+    .get(m as usize)
+    .copied()
+    .unwrap_or("")
 }
 
 fn month_full(m: u32) -> &'static str {
-    ["", "January", "February", "March", "April", "May", "June",
-     "July", "August", "September", "October", "November", "December"]
-        .get(m as usize)
-        .copied()
-        .unwrap_or("")
+    [
+        "",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
+    .get(m as usize)
+    .copied()
+    .unwrap_or("")
 }
 
 fn week_number_sunday_first(dt: DateTime<Utc>) -> u32 {
@@ -292,8 +380,13 @@ fn days_until_start(from: Weekday, start: Weekday) -> u32 {
 
 fn weekday_idx(w: Weekday) -> u32 {
     match w {
-        Weekday::Mon => 0, Weekday::Tue => 1, Weekday::Wed => 2, Weekday::Thu => 3,
-        Weekday::Fri => 4, Weekday::Sat => 5, Weekday::Sun => 6,
+        Weekday::Mon => 0,
+        Weekday::Tue => 1,
+        Weekday::Wed => 2,
+        Weekday::Thu => 3,
+        Weekday::Fri => 4,
+        Weekday::Sat => 5,
+        Weekday::Sun => 6,
     }
 }
 
@@ -319,7 +412,8 @@ impl Parsed {
     pub(crate) fn to_naive(&self) -> Option<chrono::NaiveDateTime> {
         let (y, mo, d) = (self.year, self.month, self.day);
         let has_time = self.hour.is_some() || self.hour_12.is_some();
-        let has_date_parts = y.is_some() || mo.is_some() || d.is_some() || self.day_of_year.is_some();
+        let has_date_parts =
+            y.is_some() || mo.is_some() || d.is_some() || self.day_of_year.is_some();
         if !has_date_parts && !has_time {
             return None;
         }
@@ -463,7 +557,9 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
             }
             // %P consumes a single literal P (mirrors the formatter's pass-through behavior)
             Token::PUpper => {
-                if pos >= input_bytes.len() || (input_bytes[pos] != b'P' && input_bytes[pos] != b'p') {
+                if pos >= input_bytes.len()
+                    || (input_bytes[pos] != b'P' && input_bytes[pos] != b'p')
+                {
                     return None;
                 }
                 pos += 1;
@@ -541,12 +637,21 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
 /// `September` doesn't get truncated to `Sep` with `tember` left as dangling input.
 fn match_month_name(bytes: &[u8], pos: usize) -> Option<(u32, usize)> {
     const FULL: [&str; 12] = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ];
     const SHORT: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
     let tail = bytes.get(pos..)?;
     for (i, name) in FULL.iter().enumerate() {
@@ -617,7 +722,9 @@ mod tests {
 
     fn sample() -> DateTime<Utc> {
         // 2020-03-15 10:30:45.123456 UTC (Sunday)
-        Utc.timestamp_micros(1_584_268_245_123_456).single().unwrap()
+        Utc.timestamp_micros(1_584_268_245_123_456)
+            .single()
+            .unwrap()
     }
 
     fn fmt(dt: DateTime<Utc>, f: &str, m: FormatMode) -> Option<String> {
@@ -627,17 +734,34 @@ mod tests {
     #[test]
     fn date_mode_common_tokens() {
         let dt = sample();
-        assert_eq!(fmt(dt, "%Y-%m-%d %H:%i:%S", FormatMode::Date).unwrap(), "2020-03-15 10:30:45");
-        assert_eq!(fmt(dt, "%W, %M %D, %Y", FormatMode::Date).unwrap(), "Sunday, March 15th, 2020");
-        assert_eq!(fmt(dt, "%h:%i:%s %p", FormatMode::Date).unwrap(), "10:30:45 AM");
+        assert_eq!(
+            fmt(dt, "%Y-%m-%d %H:%i:%S", FormatMode::Date).unwrap(),
+            "2020-03-15 10:30:45"
+        );
+        assert_eq!(
+            fmt(dt, "%W, %M %D, %Y", FormatMode::Date).unwrap(),
+            "Sunday, March 15th, 2020"
+        );
+        assert_eq!(
+            fmt(dt, "%h:%i:%s %p", FormatMode::Date).unwrap(),
+            "10:30:45 AM"
+        );
     }
 
     #[test]
     fn ordinal_suffix_edges() {
         for (d, want) in [
-            (1, "1st"), (2, "2nd"), (3, "3rd"), (4, "4th"),
-            (11, "11th"), (12, "12th"), (13, "13th"),
-            (21, "21st"), (22, "22nd"), (23, "23rd"), (31, "31st"),
+            (1, "1st"),
+            (2, "2nd"),
+            (3, "3rd"),
+            (4, "4th"),
+            (11, "11th"),
+            (12, "12th"),
+            (13, "13th"),
+            (21, "21st"),
+            (22, "22nd"),
+            (23, "23rd"),
+            (31, "31st"),
         ] {
             let dt = Utc.with_ymd_and_hms(2020, 1, d, 0, 0, 0).unwrap();
             assert_eq!(fmt(dt, "%D", FormatMode::Date).unwrap(), want, "day={d}");
@@ -647,7 +771,10 @@ mod tests {
     #[test]
     fn time_mode_masks_date_tokens() {
         let dt = sample();
-        assert_eq!(fmt(dt, "%Y-%m-%d %H:%i:%S", FormatMode::Time).unwrap(), "0000-00-00 10:30:45");
+        assert_eq!(
+            fmt(dt, "%Y-%m-%d %H:%i:%S", FormatMode::Time).unwrap(),
+            "0000-00-00 10:30:45"
+        );
         assert!(fmt(dt, "%W", FormatMode::Time).is_none());
         assert!(fmt(dt, "%a %H:%i", FormatMode::Time).is_none());
     }
@@ -669,8 +796,10 @@ mod tests {
 
         // 1998-01-31 (Saturday): all four week tokens render `04`.
         let jan31 = Utc.with_ymd_and_hms(1998, 1, 31, 0, 0, 0).unwrap();
-        assert_eq!(fmt(jan31, "%U %u %V %v %W %w %X %x %Y %y", FormatMode::Date).unwrap(),
-                   "04 04 04 04 Saturday 6 1998 1998 1998 98");
+        assert_eq!(
+            fmt(jan31, "%U %u %V %v %W %w %X %x %Y %y", FormatMode::Date).unwrap(),
+            "04 04 04 04 Saturday 6 1998 1998 1998 98"
+        );
     }
 
     #[test]
@@ -695,13 +824,20 @@ mod tests {
     #[test]
     fn parse_roundtrip_and_defaults() {
         for (input, format, expected) in [
-            ("2020-03-15 10:30:45", "%Y-%m-%d %H:%i:%S", "2020-03-15 10:30:45"),
+            (
+                "2020-03-15 10:30:45",
+                "%Y-%m-%d %H:%i:%S",
+                "2020-03-15 10:30:45",
+            ),
             ("2020-03-15 extra", "%Y-%m-%d", "2020-03-15 00:00:00"),
             ("2020", "%Y", "2020-01-01 00:00:00"),
             // PPL uses `today`; we emit the MySQL-compatible 2000-01-01 default for determinism.
             ("10:30:45", "%H:%i:%S", "2000-01-01 10:30:45"),
         ] {
-            let ndt = parse_os_strftime(input, format).unwrap().to_naive().unwrap();
+            let ndt = parse_os_strftime(input, format)
+                .unwrap()
+                .to_naive()
+                .unwrap();
             assert_eq!(ndt.to_string(), expected, "input={input}");
         }
     }
@@ -745,7 +881,10 @@ mod tests {
     #[test]
     fn parse_fractional_seconds() {
         let p = parse_os_strftime("2020-03-15 10:30:45.123456", "%Y-%m-%d %H:%i:%S.%f").unwrap();
-        assert_eq!(p.to_naive().unwrap().and_utc().timestamp_micros(), 1_584_268_245_123_456);
+        assert_eq!(
+            p.to_naive().unwrap().and_utc().timestamp_micros(),
+            1_584_268_245_123_456
+        );
     }
 
     #[test]

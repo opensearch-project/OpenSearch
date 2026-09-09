@@ -138,4 +138,38 @@ public class PartialAggregateModeIT extends AnalyticsRestTestCase {
         req.setJsonEntity("{\"transient\":{\"analytics.shard_bucket_oversampling_factor\":" + factor + "}}");
         client().performRequest(req);
     }
+
+    /** Regression guard: TopK with high-cardinality group keys must produce valid counts. */
+    @SuppressWarnings("unchecked")
+    public void testTopK_highCardinalityGroupBy_correctness() throws Exception {
+        ensureProvisioned();
+        setConcurrentSearchMode("all", 4);
+        setOversampling(2.0);
+
+        String idx = CLICKBENCH.indexName;
+
+        Map<String, Object> total = executePpl("source=" + idx + " | stats count()");
+        long totalCount = ((Number) ((List<List<Object>>) total.get("datarows")).get(0).get(0)).longValue();
+
+        Map<String, Object> topk = executePpl(
+            "source=" + idx + " | stats count() as cnt by RegionID | sort - cnt | head 5"
+        );
+        List<List<Object>> rows = (List<List<Object>>) topk.get("datarows");
+        assertNotNull(rows);
+        assertFalse("TopK must return rows", rows.isEmpty());
+
+        long sumTopK = rows.stream().mapToLong(r -> ((Number) r.get(0)).longValue()).sum();
+        assertTrue(
+            "Sum of top-K counts (" + sumTopK + ") must not exceed total (" + totalCount + ")",
+            sumTopK <= totalCount
+        );
+
+        for (List<Object> row : rows) {
+            long cnt = ((Number) row.get(0)).longValue();
+            assertTrue("Each group count must be > 0", cnt > 0);
+        }
+
+        setConcurrentSearchMode("none", 0);
+        setOversampling(0.0);
+    }
 }

@@ -189,8 +189,10 @@ impl BrainLogParser {
             // none, the first element.
             sorted_word_combinations.sort();
 
-            let candidate = Self::find_candidate(&sorted_word_combinations, self.threshold_percentage);
-            let group_candidate_str = format!("{},{}", candidate.word_freq, candidate.same_freq_count);
+            let candidate =
+                Self::find_candidate(&sorted_word_combinations, self.threshold_percentage);
+            let group_candidate_str =
+                format!("{},{}", candidate.word_freq, candidate.same_freq_count);
 
             // tokens.last() is the synthetic logId.
             let log_id = tokens
@@ -227,7 +229,10 @@ impl BrainLogParser {
     /// list and pick the FIRST entry whose `word_freq > maxFreq * threshold%`.
     /// If none qualify, return the first entry. Mirrors `findCandidate`.
     fn find_candidate(sorted: &[WordCombination], threshold_percentage: f64) -> WordCombination {
-        assert!(!sorted.is_empty(), "Sorted word combinations must be non-empty");
+        assert!(
+            !sorted.is_empty(),
+            "Sorted word combinations must be non-empty"
+        );
         let max_freq = sorted.iter().map(|w| w.word_freq).max().unwrap_or(0);
         let threshold = (max_freq as f64) * threshold_percentage;
         for w in sorted {
@@ -416,10 +421,7 @@ mod tests {
 
     #[test]
     fn collapse_passes_through_when_no_wildcards() {
-        assert_eq!(
-            collapse_continuous_wildcards("hello world"),
-            "hello world"
-        );
+        assert_eq!(collapse_continuous_wildcards("hello world"), "hello world");
     }
 
     #[test]

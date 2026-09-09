@@ -2693,6 +2693,7 @@ dependencies = [
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
+ "tokio",
 ]
 
 [[package]]
@@ -2838,6 +2839,7 @@ dependencies = [
  "arrow-schema",
  "async-trait",
  "base64",
+ "bytes",
  "chrono",
  "chrono-tz",
  "crc32fast",
@@ -2858,6 +2860,8 @@ dependencies = [
  "num_cpus",
  "object_store",
  "once_cell",
+ "opensearch-block-cache",
+ "opensearch-tiered-storage",
  "parking_lot",
  "parquet",
  "proptest",
@@ -2952,6 +2956,7 @@ dependencies = [
  "object_store",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -2966,7 +2971,6 @@ dependencies = [
  "native-bridge-common",
  "object_store",
  "opensearch-block-cache",
- "tempfile",
  "thiserror 1.0.69",
  "tokio",
 ]

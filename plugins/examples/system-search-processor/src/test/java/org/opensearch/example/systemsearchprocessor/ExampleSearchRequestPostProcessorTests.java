@@ -58,12 +58,12 @@ public class ExampleSearchRequestPostProcessorTests extends OpenSearchTestCase {
 
         ExampleSearchRequestPostProcessor.Factory factory = new ExampleSearchRequestPostProcessor.Factory();
 
-        ProcessorGenerationContext smallContext = new ProcessorGenerationContext(smallRequest);
-        ProcessorGenerationContext largeContext = new ProcessorGenerationContext(largeRequest);
+        ProcessorGenerationContext smallContext = new ProcessorGenerationContext(smallRequest, null);
+        ProcessorGenerationContext largeContext = new ProcessorGenerationContext(largeRequest, null);
 
         assertTrue(factory.shouldGenerate(smallContext));
         assertFalse(factory.shouldGenerate(largeContext));
-        assertFalse(factory.shouldGenerate(new ProcessorGenerationContext(null)));
+        assertFalse(factory.shouldGenerate(new ProcessorGenerationContext(null, null)));
     }
 
     public void testFactoryCreate() throws Exception {

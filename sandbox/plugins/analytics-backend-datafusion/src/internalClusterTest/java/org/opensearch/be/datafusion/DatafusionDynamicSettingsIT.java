@@ -70,26 +70,20 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put("datafusion.indexed.batch_size", 16384)
-                    .put("datafusion.indexed.parquet_pushdown_filters", true)
+                    .put("datafusion.batch_size", 16384)
+                    .put("datafusion.listing_table.pushdown_filters", true)
                     .put("datafusion.indexed.min_skip_run_default", 2048)
                     .put("datafusion.indexed.min_skip_run_selectivity_threshold", 0.5)
-                    .put("datafusion.indexed.single_collector_strategy", "full_range")
-                    .put("datafusion.indexed.tree_collector_strategy", "page_range_split")
-                    .put("datafusion.indexed.max_collector_parallelism", 4)
                     .build()
             )
             .get();
         assertTrue(response.isAcknowledged());
 
         Settings transientSettings = response.getTransientSettings();
-        assertEquals("16384", transientSettings.get("datafusion.indexed.batch_size"));
-        assertEquals("true", transientSettings.get("datafusion.indexed.parquet_pushdown_filters"));
+        assertEquals("16384", transientSettings.get("datafusion.batch_size"));
+        assertEquals("true", transientSettings.get("datafusion.listing_table.pushdown_filters"));
         assertEquals("2048", transientSettings.get("datafusion.indexed.min_skip_run_default"));
         assertEquals("0.5", transientSettings.get("datafusion.indexed.min_skip_run_selectivity_threshold"));
-        assertEquals("full_range", transientSettings.get("datafusion.indexed.single_collector_strategy"));
-        assertEquals("page_range_split", transientSettings.get("datafusion.indexed.tree_collector_strategy"));
-        assertEquals("4", transientSettings.get("datafusion.indexed.max_collector_parallelism"));
     }
 
     public void testInvalidValuesAreRejected() {
@@ -98,7 +92,7 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("datafusion.indexed.batch_size", 0).build())
+                .setTransientSettings(Settings.builder().put("datafusion.batch_size", 0).build())
                 .get()
         );
 
@@ -108,15 +102,6 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("datafusion.indexed.min_skip_run_selectivity_threshold", 1.5).build())
-                .get()
-        );
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("datafusion.indexed.single_collector_strategy", "bogus").build())
                 .get()
         );
     }

@@ -10,13 +10,25 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.composite.stats.CompositeStatsProvider;
+import org.opensearch.composite.stats.transport.CompositeNodeStatsActionType;
+import org.opensearch.composite.stats.transport.CompositeNodeStatsRestAction;
+import org.opensearch.composite.stats.transport.CompositeNodeStatsTransportAction;
+import org.opensearch.composite.stats.transport.CompositeStatsActionType;
+import org.opensearch.composite.stats.transport.CompositeStatsRestAction;
+import org.opensearch.composite.stats.transport.CompositeStatsTransportAction;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -35,14 +47,18 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -96,7 +112,7 @@ import java.util.stream.Collectors;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ExtensiblePlugin, MapperPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ExtensiblePlugin, MapperPlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
@@ -214,7 +230,32 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.clusterService = clusterService;
+        // Eagerly construct the provider so the registry is populated before the engine and
+        // transport-action layers attempt lookups. The engine self-registers its per-shard
+        // tracker via CompositeStatsProvider.getInstance() on construction.
+        new CompositeStatsProvider();
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionPlugin.ActionHandler<>(CompositeStatsActionType.INSTANCE, CompositeStatsTransportAction.class),
+            new ActionPlugin.ActionHandler<>(CompositeNodeStatsActionType.INSTANCE, CompositeNodeStatsTransportAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new CompositeStatsRestAction(), new CompositeNodeStatsRestAction());
     }
 
     /**
@@ -440,6 +481,59 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(strategies);
+    }
+
+    /**
+     * Aggregates the mapping parameters contributed by every participating sub-format plugin
+     * (primary + secondary), for the given content type. Mirrors {@link #getStoreStrategies}:
+     * each participating format is resolved through the registry, which delegates to the
+     * sub-plugin without re-entering this composite.
+     *
+     * @throws IllegalArgumentException if two participating formats contribute a parameter with the same name
+     */
+    @Override
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<ParametrizedFieldMapper.Parameter<?>> result = new ArrayList<>();
+        Set<String> seenNames = new HashSet<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, primaryFormatName);
+        }
+        for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName != null && secondaryName.isEmpty() == false) {
+                collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, secondaryName);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void collectParameters(
+        List<ParametrizedFieldMapper.Parameter<?>> result,
+        Set<String> seenNames,
+        DataFormatRegistry dataFormatRegistry,
+        String contentType,
+        IndexSettings indexSettings,
+        String formatName
+    ) {
+        for (ParametrizedFieldMapper.Parameter<?> param : dataFormatRegistry.getPluginMappingParameters(
+            contentType,
+            indexSettings,
+            dataFormatRegistry.format(formatName)
+        )) {
+            if (seenNames.add(param.name) == false) {
+                throw new IllegalArgumentException(
+                    "Duplicate plugin mapping parameter [" + param.name + "] for content type [" + contentType + "]"
+                );
+            }
+            result.add(param);
+        }
     }
 
     @Override

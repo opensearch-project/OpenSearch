@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 //! * `ctime(value, format)` — UNIX epoch seconds → formatted time string. Fractional seconds are
 //!   preserved as `nanos` adjustment
 //! * `mktime(value, format)` — formatted time string → UNIX epoch seconds as double. If the
@@ -21,12 +20,17 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 
 pub fn register_all(ctx: &SessionContext) {
-    ctx.register_udf(ScalarUDF::from(TimeConversionUdf::new(TimeConversionFn::Ctime)));
-    ctx.register_udf(ScalarUDF::from(TimeConversionUdf::new(TimeConversionFn::Mktime)));
+    ctx.register_udf(ScalarUDF::from(TimeConversionUdf::new(
+        TimeConversionFn::Ctime,
+    )));
+    ctx.register_udf(ScalarUDF::from(TimeConversionUdf::new(
+        TimeConversionFn::Mktime,
+    )));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,7 +74,10 @@ pub struct TimeConversionUdf {
 
 impl TimeConversionUdf {
     fn new(kind: TimeConversionFn) -> Self {
-        Self { kind, signature: signature() }
+        Self {
+            kind,
+            signature: signature(),
+        }
     }
 }
 
@@ -220,9 +227,9 @@ fn extract_scalar_string(column: &ColumnarValue, ctx: &str) -> Result<Option<Str
         ColumnarValue::Scalar(ScalarValue::Utf8(opt))
         | ColumnarValue::Scalar(ScalarValue::LargeUtf8(opt)) => Ok(opt.clone()),
         ColumnarValue::Scalar(other) => exec_err!("{ctx}: expected Utf8 scalar, got {other:?}"),
-        ColumnarValue::Array(_) => exec_err!(
-            "{ctx}: format must be a scalar literal, got an array"
-        ),
+        ColumnarValue::Array(_) => {
+            exec_err!("{ctx}: format must be a scalar literal, got an array")
+        }
     }
 }
 
@@ -253,19 +260,13 @@ mod tests {
             ctime_default("1066507633"),
             Some("10/18/2003 20:07:13".to_string())
         );
-        assert_eq!(
-            ctime_default("0"),
-            Some("01/01/1970 00:00:00".to_string())
-        );
+        assert_eq!(ctime_default("0"), Some("01/01/1970 00:00:00".to_string()));
     }
 
     #[test]
     fn ctime_formats_epoch_with_default_format() {
         // 1_700_000_000 = 2023-11-14 22:13:20 UTC.
-        let out = format_ctime(
-            "1700000000",
-            &Some("%m/%d/%Y %H:%M:%S".to_string()),
-        );
+        let out = format_ctime("1700000000", &Some("%m/%d/%Y %H:%M:%S".to_string()));
         assert_eq!(out, Some("11/14/2023 22:13:20".to_string()));
     }
 
@@ -313,14 +314,8 @@ mod tests {
 
     #[test]
     fn mktime_default_format_matches() {
-        assert_eq!(
-            mktime_default("10/18/2003 20:07:13"),
-            Some(1_066_507_633.0)
-        );
-        assert_eq!(
-            mktime_default("01/01/2000 00:00:00"),
-            Some(946_684_800.0)
-        );
+        assert_eq!(mktime_default("10/18/2003 20:07:13"), Some(1_066_507_633.0));
+        assert_eq!(mktime_default("01/01/2000 00:00:00"), Some(946_684_800.0));
         assert_eq!(mktime_default("1066473433"), Some(1_066_473_433.0));
     }
 
@@ -348,10 +343,7 @@ mod tests {
             Some(946_684_800.0)
         );
         assert_eq!(
-            parse_mktime(
-                "2003-10-18 20:07:13",
-                &Some("invalid format".to_string())
-            ),
+            parse_mktime("2003-10-18 20:07:13", &Some("invalid format".to_string())),
             None
         );
         assert_eq!(
@@ -371,7 +363,10 @@ mod tests {
 
     #[test]
     fn mktime_rejects_date_only_format() {
-        assert_eq!(parse_mktime("2023-11-14", &Some("%Y-%m-%d".to_string())), None);
+        assert_eq!(
+            parse_mktime("2023-11-14", &Some("%Y-%m-%d".to_string())),
+            None
+        );
     }
 
     #[test]
@@ -400,11 +395,7 @@ mod tests {
 
     #[test]
     fn mktime_roundtrips_through_ctime() {
-        let rendered = format_ctime(
-            "1700000000",
-            &Some("%Y-%m-%d %H:%M:%S".to_string()),
-        )
-        .unwrap();
+        let rendered = format_ctime("1700000000", &Some("%Y-%m-%d %H:%M:%S".to_string())).unwrap();
         let back = parse_mktime(&rendered, &Some("%Y-%m-%d %H:%M:%S".to_string()));
         assert_eq!(back, Some(1_700_000_000.0));
     }

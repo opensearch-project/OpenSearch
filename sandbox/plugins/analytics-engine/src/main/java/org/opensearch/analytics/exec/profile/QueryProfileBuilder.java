@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Snapshots an {@link ExecutionGraph} into a {@link QueryProfile}. Pure read — no
@@ -57,6 +58,8 @@ public final class QueryProfileBuilder {
             String distribution = (stage != null && stage.getExchangeInfo() != null)
                 ? stage.getExchangeInfo().distributionType().name()
                 : null;
+            // TODO(plan-shape): also expose ALL post-fork alternatives
+            // (stage.getPlanAlternatives() -> each .resolvedFragment()) as `alternatives`.
             List<String> fragment = stage != null && stage.getFragment() != null
                 ? splitPlanLines(RelOptUtil.toString(stage.getFragment()))
                 : List.of();
@@ -104,14 +107,48 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
-            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+
+            Map<String, byte[]> shardMetrics = t.shardMetrics();
+            if (shardMetrics != null && shardMetrics.isEmpty() == false) {
+                // Multi-shard task (e.g. LATE_MATERIALIZATION): one profile per shard fetch, keyed
+                // by shard label. Elapsed is the stage-level wall clock (per-shard timing lives in
+                // each shard's data_node_metrics start/end timestamps).
+                for (Map.Entry<String, byte[]> shard : shardMetrics.entrySet()) {
+                    DataNodePayload payload = parseDataNodePayload(shard.getValue());
+                    out.add(new TaskProfile(shard.getKey(), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+                }
+            } else {
+                DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
+                out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+            }
         }
         return out;
     }
 
     private record DataNodePayload(Map<String, Long> metrics, String physicalPlan) {
         static final DataNodePayload EMPTY = new DataNodePayload(null, null);
+    }
+
+    /**
+     * DataFusion's plan {@code Display} impl for file-scan nodes (e.g. {@code DataSourceExec},
+     * {@code ParquetExec}) always embeds the real storage location(s) it's reading from —
+     * local filesystem paths, or object-store URIs/keys when backed by S3/GCS/Azure. That's
+     * appropriate detail for a physical plan, but the profile API can expose it to any caller
+     * already authorized to run the query, which is more than they need to see. Strips the
+     * path list while preserving the group count, which is still useful for diagnosing scan
+     * fan-out (how many files/partitions were touched) without leaking storage layout.
+     *
+     * <p>Matches {@code file_groups={N group(s): [[...]]}} — there are no nested {@code {}} in
+     * this segment (only {@code []} nesting for multiple groups/files), so {@code [^}]*} safely
+     * spans across any number of bracketed sub-lists up to the next closing brace.
+     */
+    private static final Pattern FILE_GROUPS_PATTERN = Pattern.compile("file_groups=\\{(\\d+ groups?): [^}]*\\}");
+
+    // Package-private (not private) so FILE_GROUPS_PATTERN's behavior can be unit-tested
+    // directly without constructing a full ExecutionGraph/Stage/QueryContext fixture.
+    static String redactPhysicalPlan(String plan) {
+        if (plan == null) return null;
+        return FILE_GROUPS_PATTERN.matcher(plan).replaceAll("file_groups={$1: <redacted>}");
     }
 
     @SuppressWarnings("unchecked")
@@ -125,7 +162,7 @@ public final class QueryProfileBuilder {
             Map<String, Long> metrics = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : raw.entrySet()) {
                 if ("physical_plan".equals(entry.getKey()) && entry.getValue() instanceof String s) {
-                    physicalPlan = s;
+                    physicalPlan = redactPhysicalPlan(s);
                 } else if (entry.getValue() instanceof Number n) {
                     metrics.put(entry.getKey(), n.longValue());
                 }
@@ -141,7 +178,11 @@ public final class QueryProfileBuilder {
             var target = shardTask.target();
             if (target instanceof ShardExecutionTarget shardTarget) {
                 String nodeId = shardTarget.node() != null ? shardTarget.node().getId() : "(unknown)";
-                return nodeId + "/shard[" + shardTarget.shardId().getId() + "]";
+                // Include the index name: shard IDs are only unique within an index, so a bare
+                // "node/shard[N]" collides (and can't be traced back to an index) if a query ever
+                // spans multiple indices. LM's per-shard label (LateMaterializationStageExecution)
+                // mirrors this exact format so the two stage types read identically in the profile.
+                return nodeId + "/" + shardTarget.shardId().getIndexName() + "/shard[" + shardTarget.shardId().getId() + "]";
             }
             return target.node() != null ? target.node().getId() : "(unknown)";
         }

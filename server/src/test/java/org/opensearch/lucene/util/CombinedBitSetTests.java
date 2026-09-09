@@ -79,6 +79,7 @@ public class CombinedBitSetTests extends OpenSearchTestCase {
         for (int i = 0; i < numBits; ++i) {
             assertEquals(expected.nextSetBit(i), actual.nextSetBit(i));
             assertEquals(Integer.toString(i), expected.prevSetBit(i), actual.prevSetBit(i));
+            assertEquals(Integer.toString(i), expected.nextClearBit(i, numBits), actual.nextClearBit(i, numBits));
         }
     }
 

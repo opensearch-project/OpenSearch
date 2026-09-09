@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.UnsupportedFunctionException;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -87,7 +88,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
             AggregateCall aggCall = aggCalls.get(i);
             List<String> callViable = resolveViableBackendsForCall(aggCall, childFieldStorage);
             if (callViable.isEmpty()) {
-                throw new IllegalStateException("No backend supports aggregate function [" + aggCall.getAggregation().getName() + "]");
+                throw new UnsupportedFunctionException(aggCall.getAggregation().getName(), "as an aggregate function");
             }
             callAnnotations.put(i, new AggregateCallAnnotation(callViable, context.nextAnnotationId()));
         }
@@ -97,12 +98,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         if (viableBackends.isEmpty()) {
             List<String> funcNames = aggCalls.stream().map(aggCall -> aggCall.getAggregation().getName()).toList();
-            throw new IllegalStateException(
-                "No backend can execute aggregate: functions "
-                    + funcNames
-                    + " not supported by any viable backend among "
-                    + childViableBackends
-            );
+            throw new UnsupportedFunctionException(funcNames.toString(), "as aggregate functions in combination");
         }
 
         LOGGER.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);

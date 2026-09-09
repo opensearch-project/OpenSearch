@@ -15,11 +15,18 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -113,5 +120,58 @@ public class MergeSchedulerTests extends OpenSearchTestCase {
         MergeHandler mergeHandler = mock(MergeHandler.class);
         MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
         assertFalse("HOT tiering state must not report frozen", scheduler.isFrozen());
+    }
+
+    public void testForceMergeSkipsAfterShutdown() throws IOException {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+        MergeScheduler scheduler = newScheduler(mergeHandler, IndexModule.TieringState.HOT);
+
+        scheduler.shutdown();
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        verify(mergeHandler, never()).findForceMerges(anyInt());
+    }
+
+    public void testForceMergeAbortsRemainingMergesOnShutdown() throws Exception {
+        MergeHandler mergeHandler = mock(MergeHandler.class);
+
+        Segment s1 = new Segment(1L, Map.of());
+        Segment s2 = new Segment(2L, Map.of());
+        OneMerge merge1 = new OneMerge(List.of(s1));
+        OneMerge merge2 = new OneMerge(List.of(s2));
+
+        when(mergeHandler.findForceMerges(1)).thenReturn(List.of(merge1, merge2));
+        when(mergeHandler.doMerge(merge1)).thenReturn(new MergeResult(Map.of()));
+
+        final java.util.concurrent.atomic.AtomicReference<MergeScheduler> schedulerRef =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+        MergeScheduler scheduler = new MergeScheduler(
+            mergeHandler,
+            (result, merge) -> { schedulerRef.get().shutdown(); },
+            () -> {},
+            shardId,
+            indexSettings(IndexModule.TieringState.HOT),
+            threadPool
+        );
+        schedulerRef.set(scheduler);
+
+        String oldName = Thread.currentThread().getName();
+        Thread.currentThread().setName("TEST-" + ThreadPool.Names.FORCE_MERGE + "-0");
+        try {
+            scheduler.forceMerge(1);
+        } finally {
+            Thread.currentThread().setName(oldName);
+        }
+
+        verify(mergeHandler).doMerge(merge1);
+        verify(mergeHandler, never()).doMerge(merge2);
     }
 }

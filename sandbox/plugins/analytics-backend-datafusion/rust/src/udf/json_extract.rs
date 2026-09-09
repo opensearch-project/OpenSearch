@@ -99,8 +99,10 @@ impl ScalarUDFImpl for JsonExtractUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut path_buf: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);

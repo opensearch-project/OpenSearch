@@ -122,8 +122,8 @@ pub(crate) fn coerce_args(
 
 pub mod binary_to_base64;
 pub mod conv;
-pub mod convert_tz;
 pub mod conversion;
+pub mod convert_tz;
 pub mod crc32;
 pub mod date_format;
 pub mod extract;
@@ -155,6 +155,7 @@ pub mod os_week;
 pub mod parse;
 pub mod pattern_parser;
 pub mod range_bucket;
+pub mod reduce_eval;
 pub mod rex_extract;
 pub mod rex_extract_multi;
 pub mod rex_offset;
@@ -164,7 +165,6 @@ pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
 pub mod width_bucket;
-pub mod reduce_eval;
 
 // Dev note: if a freshly added UDF here fails at runtime with
 // "Unsupported function name: <X>" despite the Java side being wired, the
@@ -346,7 +346,10 @@ mod tests {
     fn utf8_passes_string_variant_through_unchanged() {
         for observed in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             let result = coerce_slot("s", 0, &observed, CoerceMode::Utf8).unwrap();
-            assert_eq!(result, observed, "CoerceMode::Utf8 should pass the variant through");
+            assert_eq!(
+                result, observed,
+                "CoerceMode::Utf8 should pass the variant through"
+            );
         }
     }
 

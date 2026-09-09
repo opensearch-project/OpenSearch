@@ -34,7 +34,9 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::{Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility,
+};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udaf(AggregateUDF::from(OsCountDistinctUdaf::new()));
@@ -47,7 +49,9 @@ pub struct OsCountDistinctUdaf {
 
 impl OsCountDistinctUdaf {
     pub fn new() -> Self {
-        Self { signature: Signature::any(1, Volatility::Immutable) }
+        Self {
+            signature: Signature::any(1, Volatility::Immutable),
+        }
     }
 }
 
@@ -109,7 +113,10 @@ impl AggregateUDFImpl for OsCountDistinctUdaf {
             DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _),
         );
         let element_type = inner_element_type(&raw_arg0);
-        Ok(Box::new(OsCountDistinctAccumulator::new(element_type, arg0_is_list)))
+        Ok(Box::new(OsCountDistinctAccumulator::new(
+            element_type,
+            arg0_is_list,
+        )))
     }
 
     fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<FieldRef>> {
@@ -142,7 +149,11 @@ pub struct OsCountDistinctAccumulator {
 
 impl OsCountDistinctAccumulator {
     pub fn new(element_type: DataType, arg0_is_list: bool) -> Self {
-        Self { element_type, seen: HashSet::new(), arg0_is_list }
+        Self {
+            element_type,
+            seen: HashSet::new(),
+            arg0_is_list,
+        }
     }
 
     fn add_from_array(&mut self, col: &ArrayRef) -> Result<()> {
@@ -300,14 +311,12 @@ mod tests {
         let mut shard1 = OsCountDistinctAccumulator::new(DataType::Utf8, false);
         shard1
             .update_batch(&[
-                Arc::new(StringArray::from(vec![Some("a"), Some("b"), Some("a")])) as ArrayRef
+                Arc::new(StringArray::from(vec![Some("a"), Some("b"), Some("a")])) as ArrayRef,
             ])
             .unwrap();
         let mut shard2 = OsCountDistinctAccumulator::new(DataType::Utf8, false);
         shard2
-            .update_batch(&[
-                Arc::new(StringArray::from(vec![Some("b"), Some("c")])) as ArrayRef
-            ])
+            .update_batch(&[Arc::new(StringArray::from(vec![Some("b"), Some("c")])) as ArrayRef])
             .unwrap();
         let s1: ArrayRef = match shard1.state().unwrap().pop().unwrap() {
             ScalarValue::List(l) => l,

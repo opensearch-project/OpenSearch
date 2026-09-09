@@ -38,10 +38,12 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.codec.CriteriaBasedCodec;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.List;
@@ -67,11 +69,22 @@ public final class VersionsAndSeqNoResolver {
     };
 
     private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
+        return getLookupState(reader, uidField, PerThreadIDVersionAndSeqNoLookup.LookupMode.FULL);
+    }
+
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(
+        IndexReader reader,
+        String uidField,
+        PerThreadIDVersionAndSeqNoLookup.LookupMode mode
+    ) throws IOException {
         // We cache on the top level
         // This means cache entries have a shorter lifetime, maybe as low as 1s with the
         // default refresh interval and a steady indexing rate, but on the other hand it
         // proved to be cheaper than having to perform a CHM and a TL get for every segment.
         // See https://github.com/elastic/elasticsearch/pull/19856.
+        // Note: a given reader is only ever queried in one mode — InternalEngine readers go through
+        // the strict path (LookupMode.FULL); the composite secondary reader is only used by
+        // loadDocId (LookupMode.DOC_ID_ONLY) — so a cache entry's build mode always matches its caller.
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
@@ -91,7 +104,7 @@ public final class VersionsAndSeqNoResolver {
         if (lookupState == null) {
             lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
             for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField, mode);
             }
             ctl.set(lookupState);
         }
@@ -202,6 +215,30 @@ public final class VersionsAndSeqNoResolver {
             final DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
             if (result != null) {
                 return result;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resolves the live doc id for a uid (no {@code _version}/{@code _seq_no} needed), returning the
+     * leaf and doc id, or null if not found. The returned {@link DocIdAndSeqNo} has
+     * {@code seqNo = }{@link SequenceNumbers#UNASSIGNED_SEQ_NO} — use only {@code docId} and {@code context}.
+     */
+    public static DocIdAndSeqNo loadDocId(IndexReader reader, Term term) throws IOException {
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(
+            reader,
+            term.field(),
+            PerThreadIDVersionAndSeqNoLookup.LookupMode.DOC_ID_ONLY
+        );
+        final List<LeafReaderContext> leaves = reader.leaves();
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            final int docId = lookups[leaf.ord].getDocID(term.bytes(), leaf);
+            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                return new DocIdAndSeqNo(docId, SequenceNumbers.UNASSIGNED_SEQ_NO, leaf);
             }
         }
         return null;

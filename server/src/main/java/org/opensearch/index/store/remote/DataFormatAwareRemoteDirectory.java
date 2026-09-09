@@ -27,7 +27,6 @@ import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
@@ -76,8 +75,6 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
 
     private static final String DEFAULT_FORMAT = "lucene";
 
-    private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
-    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
     private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
     private final FormatBlobRouter formatBlobRouter;
@@ -107,8 +104,6 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             pendingDownloadMergedSegments
         );
         this.formatBlobRouter = new FormatBlobRouter(blobStore, baseBlobPath);
-        this.uploadRateLimiter = uploadRateLimiter;
-        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
         this.logger = logger;
 
@@ -379,19 +374,24 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
         } else {
             expectedChecksum = calculateChecksumOfChecksum(from, src);
         }
-        IndexInput indexInput = from.openInput(src, ioContext);
+        // Wrap the master input with the shared lifecycle tracking (double-close / use-after-close detection)
+        // from the base class. See RemoteDirectory#wrapWithLifecycleTracking and PR #22309.
+        final IndexInput indexInput = wrapWithLifecycleTracking(from.openInput(src, ioContext), src);
         try {
             long contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = (targetContainer instanceof AsyncMultiStreamBlobContainer)
                 && ((AsyncMultiStreamBlobContainer) targetContainer).remoteIntegrityCheckSupported();
 
-            lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            final boolean effectiveLowPriority = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            lowPriorityUpload = effectiveLowPriority;
 
-            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = lowPriorityUpload
-                ? (size, position) -> lowPriorityUploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
-                )
-                : (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(indexInput.clone(), size, position));
+            // Part streams are built by the shared base-class helper, which uses slice() (not clone())
+            // so each part gets its own independent MemorySegment[] array copy and closing one part
+            // cannot corrupt the others. See RemoteDirectory#createOffsetRangeInputStreamSupplier and PR #22309.
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = createOffsetRangeInputStreamSupplier(
+                indexInput,
+                effectiveLowPriority
+            );
 
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 src,
@@ -409,7 +409,13 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
                 postUploadRunner,
                 listener,
                 remoteTransferContainer,
-                indexInput
+                () -> {
+                    try {
+                        indexInput.close();
+                    } catch (IOException e) {
+                        logger.warn(() -> new ParameterizedMessage("Error closing IndexInput for file [{}]", src), e);
+                    }
+                }
             );
 
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
@@ -496,7 +502,7 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
         Runnable postUploadRunner,
         ActionListener<Void> listener,
         RemoteTransferContainer remoteTransferContainer,
-        IndexInput indexInput
+        Runnable onClose
     ) {
         ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
             try {
@@ -530,13 +536,9 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             }
         });
 
-        completionListener = ActionListener.runAfter(completionListener, () -> {
-            try {
-                indexInput.close();
-            } catch (IOException e) {
-                logger.warn("Error closing IndexInput", e);
-            }
-        });
+        if (onClose != null) {
+            completionListener = ActionListener.runAfter(completionListener, onClose);
+        }
 
         return completionListener;
     }

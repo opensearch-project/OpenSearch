@@ -136,7 +136,7 @@ public class CompositeEngineParquetFailureCheckpointIT extends RemoteStoreBaseIn
         ensureGreen(INDEX_NAME);
 
         // Doc 1 with the original mapping (just f1) — succeeds.
-        IndexResponse ok1 = client().prepareIndex(INDEX_NAME).setId("1").setSource("f1", "value-1").get();
+        IndexResponse ok1 = client().prepareIndex(INDEX_NAME).setSource("f1", "value-1").get();
         assertEquals(RestStatus.CREATED, ok1.status());
 
         // Suppress the parquet writer's mapping-version updates. Then add a new field f2
@@ -148,7 +148,7 @@ public class CompositeEngineParquetFailureCheckpointIT extends RemoteStoreBaseIn
         FailableParquetDataFormatPlugin.armSchemaSuppression();
         client().admin().indices().preparePutMapping(INDEX_NAME).setSource("f2", "type=keyword").get();
 
-        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setId("2").setSource("f2", "value-2")).get();
+        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setSource("f2", "value-2")).get();
         assertEquals(1, bulk.getItems().length);
         BulkItemResponse failed = bulk.getItems()[0];
         assertTrue("doc 2 must surface as a per-item failure: " + failed.getFailureMessage(), failed.isFailed());
@@ -166,7 +166,7 @@ public class CompositeEngineParquetFailureCheckpointIT extends RemoteStoreBaseIn
 
         // Doc 3 with f1 (already in every schema version) succeeds on the fresh writer —
         // proves the engine survives a per-doc parquet failure and continues serving writes.
-        IndexResponse ok3 = client().prepareIndex(INDEX_NAME).setId("3").setSource("f1", "value-3").get();
+        IndexResponse ok3 = client().prepareIndex(INDEX_NAME).setSource("f1", "value-3").get();
         assertEquals(RestStatus.CREATED, ok3.status());
 
         client().admin().indices().prepareFlush(INDEX_NAME).get();
@@ -205,7 +205,7 @@ public class CompositeEngineParquetFailureCheckpointIT extends RemoteStoreBaseIn
         ensureGreen(INDEX_NAME);
 
         // Doc 1 mints writer-1 in the pool.
-        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setId("1").setSource("f1", "v1").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setSource("f1", "v1").get().status());
 
         DataFormatAwareEngine engine = CompositeEngineHelper.getEngine(clusterService(), internalCluster(), INDEX_NAME);
         Writer<?> writerBefore = singleWriter(engine);
@@ -214,12 +214,12 @@ public class CompositeEngineParquetFailureCheckpointIT extends RemoteStoreBaseIn
         // → composite rollback → state restored to ACTIVE (no flush, no retire).
         FailableParquetDataFormatPlugin.armSchemaSuppression();
         client().admin().indices().preparePutMapping(INDEX_NAME).setSource("f2", "type=keyword").get();
-        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setId("fail").setSource("f2", "x")).get();
+        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setSource("f2", "x")).get();
         assertTrue("must surface per-item failure", bulk.getItems()[0].isFailed());
         FailableParquetDataFormatPlugin.clearFailure();
 
         // Doc 3 (f1, schema v1-compatible) must land on the same writer instance.
-        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setId("3").setSource("f1", "v3").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setSource("f1", "v3").get().status());
         Writer<?> writerAfter = singleWriter(engine);
 
         assertSame("parquet self-rollback must keep the same writer instance in the pool", writerBefore, writerAfter);

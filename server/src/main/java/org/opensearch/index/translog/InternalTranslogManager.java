@@ -21,6 +21,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -35,12 +36,18 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements TranslogManager {
+public class InternalTranslogManager implements TranslogManager, RemoteStoreFenceOwnership {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;
     private final ShardId shardId;
     private final Translog translog;
+    /**
+     * The translog's fence, or {@code null} when it has none. A fence is an object-store construct, so only a
+     * remote-backed translog has one; narrowing once here keeps that out of {@link Translog} without repeating the test
+     * on every call. Safe to hold because {@link #translog} is assigned once.
+     */
+    private final RemoteStoreFenceOwnership fence;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final TranslogEventListener translogEventListener;
     private final Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier;
@@ -75,6 +82,7 @@ public class InternalTranslogManager implements TranslogManager {
         }, translogUUID, translogFactory, startedPrimarySupplier, translogOperationHelper);
         assert translog.getGeneration() != null;
         this.translog = translog;
+        this.fence = translog instanceof RemoteStoreFenceOwnership fenceAware ? fenceAware : null;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
         // don't allow commits until we are done with recovering
         pendingTranslogRecovery.set(true);
@@ -312,6 +320,31 @@ public class InternalTranslogManager implements TranslogManager {
         return translog.drainSync();
     }
 
+    /*
+     * Fence operations, delegated when this translog has a fence. The absent case is answered here, beside the reason
+     * for each answer, rather than by defaults on the shared Translog base. IndexShard additionally gates these on the
+     * index setting, so a fencing-enabled shard never relies on the fallbacks below.
+     */
+
+    @Override
+    public boolean isRemoteStoreFenceSuperseded() throws IOException {
+        // No fence means nothing can have superseded us; matches the fail-open choice documented on the caller.
+        return fence != null && fence.isRemoteStoreFenceSuperseded();
+    }
+
+    @Override
+    public void transferFenceOwnership(String targetAllocationId) throws IOException {
+        if (fence != null) {
+            fence.transferFenceOwnership(targetAllocationId);
+        }
+    }
+
+    @Override
+    public boolean revertFenceOwnership() throws IOException {
+        // With no fence there is no ownership to lose, so an aborted handoff leaves this copy free to resume.
+        return fence == null || fence.revertFenceOwnership();
+    }
+
     @Override
     public Translog.TranslogGeneration getTranslogGeneration() {
         return translog.getGeneration();
@@ -430,6 +463,11 @@ public class InternalTranslogManager implements TranslogManager {
      */
     public String getTranslogUUID() {
         return translog.getTranslogUUID();
+    }
+
+    @Override
+    public Closeable acquireHistoryRetentionLock() {
+        return translog.acquireRetentionLock();
     }
 
     /**

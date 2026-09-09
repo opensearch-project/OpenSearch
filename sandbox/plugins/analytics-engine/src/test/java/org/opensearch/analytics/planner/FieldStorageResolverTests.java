@@ -89,6 +89,42 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertEquals("alias", infos.get(2).getFieldName());
     }
 
+    public void testIndexWithoutMappingContributesNoFields() {
+        // An index created empty (no mapping, no data) declares no fields. It must construct
+        // cleanly — aliases legitimately span such indices next to populated ones — and resolving
+        // any field against it alone fails with the standard "not found" error.
+        FieldStorageResolver resolver = newMappinglessResolver();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolver.resolve(List.of("name")));
+        assertTrue("expected 'not found' error, got: " + ex.getMessage(), ex.getMessage().contains("not found in field storage"));
+    }
+
+    public void testMergedResolverSkipsMappinglessIndex() {
+        // Alias over {empty index, populated index}: the union must equal the populated index's
+        // field set — the empty member contributes nothing and must not fail the merge.
+        FieldStorageResolver empty = newMappinglessResolver();
+        FieldStorageResolver populated = newResolver("parquet", Map.of("name", Map.of("type", "text"), "age", Map.of("type", "long")));
+
+        FieldStorageResolver merged = FieldStorageResolver.merged(List.of(empty, populated));
+        List<FieldStorageInfo> infos = merged.resolve(List.of("name", "age"));
+
+        assertEquals(2, infos.size());
+        assertEquals("name", infos.get(0).getFieldName());
+        assertEquals("age", infos.get(1).getFieldName());
+    }
+
+    private static FieldStorageResolver newMappinglessResolver() {
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getIndex()).thenReturn(new Index("empty_index", "uuid"));
+        when(indexMetadata.getSettings()).thenReturn(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "parquet")
+                .putList("index.composite.secondary_data_formats", "lucene")
+                .build()
+        );
+        when(indexMetadata.mapping()).thenReturn(null);
+        return new FieldStorageResolver(indexMetadata);
+    }
+
     private static FieldStorageResolver newResolver(String primaryFormat, Map<String, Map<String, Object>> fieldMappings) {
         Map<String, Object> mappingSource = Map.of("properties", fieldMappings);
 

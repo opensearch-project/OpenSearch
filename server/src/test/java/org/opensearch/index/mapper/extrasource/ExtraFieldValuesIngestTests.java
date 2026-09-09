@@ -81,7 +81,7 @@ public class ExtraFieldValuesIngestTests extends MapperServiceTestCase {
 
         var source = source(b -> b.field("other", "x"));
 
-        ExtraFieldValues efv = new ExtraFieldValues(Map.of("obj.vec", new PrimitiveFloatArray(new float[] { 10.5f, 20.25f })));
+        ExtraFieldValues efv = new ExtraFieldValues(Map.of("obj.vec", FloatArrayValue.fromFloatArray(new float[] { 10.5f, 20.25f })));
 
         SourceToParse stp = new SourceToParse(
             "test",
@@ -97,6 +97,62 @@ public class ExtraFieldValuesIngestTests extends MapperServiceTestCase {
         assertThat(doc.rootDoc().getField("obj.vec_type").binaryValue().utf8ToString(), is("FLOAT_ARRAY"));
         assertThat(doc.rootDoc().getField("obj.vec_dim").numericValue().intValue(), is(2));
         assertThat(doc.rootDoc().getField("obj.vec_f0").numericValue().floatValue(), is(10.5f));
+    }
+
+    public void testExtraFieldValues_numericArrayTypes() throws Exception {
+        DocumentMapper dm = createDocumentMapper(mapping(b -> {
+            b.startObject("int_field");
+            {
+                b.field("type", ExtraFieldValuesMapperPlugin.EXTRA_FIELDS_TEST);
+            }
+            b.endObject();
+            b.startObject("long_field");
+            {
+                b.field("type", ExtraFieldValuesMapperPlugin.EXTRA_FIELDS_TEST);
+            }
+            b.endObject();
+            b.startObject("double_field");
+            {
+                b.field("type", ExtraFieldValuesMapperPlugin.EXTRA_FIELDS_TEST);
+            }
+            b.endObject();
+        }));
+
+        var source = source(b -> b.field("other", "x"));
+
+        ExtraFieldValues efv = new ExtraFieldValues(
+            Map.of(
+                "int_field",
+                IntArrayValue.fromIntArray(new int[] { 10, 20 }),
+                "long_field",
+                LongArrayValue.fromLongArray(new long[] { 100L, 200L }),
+                "double_field",
+                DoubleArrayValue.fromDoubleArray(new double[] { 1.5d, 2.5d })
+            )
+        );
+
+        SourceToParse stp = new SourceToParse(
+            "test",
+            "1",
+            source.source(),
+            MediaType.fromMediaType(source.getMediaType().mediaType()),
+            null,
+            efv
+        );
+
+        ParsedDocument doc = dm.parse(stp);
+
+        assertThat(doc.rootDoc().getField("int_field_type").binaryValue().utf8ToString(), is("INT_ARRAY"));
+        assertThat(doc.rootDoc().getField("int_field_dim").numericValue().intValue(), is(2));
+        assertThat(doc.rootDoc().getField("int_field_i0").numericValue().intValue(), is(10));
+
+        assertThat(doc.rootDoc().getField("long_field_type").binaryValue().utf8ToString(), is("LONG_ARRAY"));
+        assertThat(doc.rootDoc().getField("long_field_dim").numericValue().intValue(), is(2));
+        assertThat(doc.rootDoc().getField("long_field_l0").numericValue().longValue(), is(100L));
+
+        assertThat(doc.rootDoc().getField("double_field_type").binaryValue().utf8ToString(), is("DOUBLE_ARRAY"));
+        assertThat(doc.rootDoc().getField("double_field_dim").numericValue().intValue(), is(2));
+        assertThat(doc.rootDoc().getField("double_field_d0").numericValue().doubleValue(), is(1.5d));
     }
 
     public void testExtraFieldValues_throwsIfNoMapper() throws Exception {

@@ -30,7 +30,8 @@ use datafusion::arrow::datatypes::{DataType, Float64Type, Int64Type};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 
 pub fn register_all(ctx: &SessionContext) {
@@ -148,7 +149,9 @@ impl ScalarUDFImpl for ToStringUdf {
                         .collect();
                     Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
                 }
-                other => exec_err!("tostring: expected Int64 or Float64 value array, got {other:?}"),
+                other => {
+                    exec_err!("tostring: expected Int64 or Float64 value array, got {other:?}")
+                }
             },
         }
     }
@@ -189,8 +192,9 @@ fn format_at(format_col: &ColumnarValue, row: usize) -> Result<Option<String>> {
             exec_err!("tostring: format must be VARCHAR, got {other:?}")
         }
         ColumnarValue::Array(arr) => {
-            let view = crate::udf::json_common::StringArrayView::from_array(arr)
-                .map_err(|e| datafusion::common::DataFusionError::Execution(format!("tostring: {e}")))?;
+            let view = crate::udf::json_common::StringArrayView::from_array(arr).map_err(|e| {
+                datafusion::common::DataFusionError::Execution(format!("tostring: {e}"))
+            })?;
             Ok(view.cell(row).map(|s| s.to_string()))
         }
     }
@@ -237,7 +241,9 @@ fn format_f64_as(value: f64, format: &str) -> String {
             // `BigDecimal.valueOf(42.0).toString() == "42.0"` → passed to `NumberFormat` with no
             // decimals would print `"42"`.
             let rendered = format!("{value}");
-            rendered.strip_suffix(".0").map_or(rendered.clone(), |s| s.to_string())
+            rendered
+                .strip_suffix(".0")
+                .map_or(rendered.clone(), |s| s.to_string())
         }
     }
 }
@@ -408,7 +414,8 @@ mod tests {
 
     #[test]
     fn binary_matches_biginteger_tostring_2() {
-        let out = invoke_scalar(ScalarValue::Int64(Some(39225)), DataType::Int64, "binary").unwrap();
+        let out =
+            invoke_scalar(ScalarValue::Int64(Some(39225)), DataType::Int64, "binary").unwrap();
         assert_eq!(utf8(out), "1001100100111001");
     }
 
@@ -420,7 +427,8 @@ mod tests {
 
     #[test]
     fn commas_integer_doc_example() {
-        let out = invoke_scalar(ScalarValue::Int64(Some(39225)), DataType::Int64, "commas").unwrap();
+        let out =
+            invoke_scalar(ScalarValue::Int64(Some(39225)), DataType::Int64, "commas").unwrap();
         assert_eq!(utf8(out), "39,225");
     }
 
@@ -448,13 +456,15 @@ mod tests {
 
     #[test]
     fn duration_seconds_doc_example() {
-        let out = invoke_scalar(ScalarValue::Int64(Some(6500)), DataType::Int64, "duration").unwrap();
+        let out =
+            invoke_scalar(ScalarValue::Int64(Some(6500)), DataType::Int64, "duration").unwrap();
         assert_eq!(utf8(out), "01:48:20");
     }
 
     #[test]
     fn duration_bigdecimal_positive_example() {
-        let out = invoke_scalar(ScalarValue::Int64(Some(3661)), DataType::Int64, "duration").unwrap();
+        let out =
+            invoke_scalar(ScalarValue::Int64(Some(3661)), DataType::Int64, "duration").unwrap();
         assert_eq!(utf8(out), "01:01:01");
     }
 

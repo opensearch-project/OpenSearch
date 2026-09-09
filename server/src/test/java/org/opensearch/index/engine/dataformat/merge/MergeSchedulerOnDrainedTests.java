@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.storage.action.tiering.MergeDrainTimeoutException;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -569,5 +570,113 @@ public class MergeSchedulerOnDrainedTests extends OpenSearchTestCase {
 
         assertNull("concurrent onDrained() must not throw", error.get());
         assertEquals("every listener must fire inline when already drained", numThreads, fired.get());
+    }
+
+    /**
+     * Verifies that an in-flight force merge blocks {@code onDrained} from firing immediately.
+     * The drain listener must only fire after the force merge completes. This tests the fix for
+     * the tiering race condition where {@code onMergesDrained} would fire immediately during
+     * a running force merge because {@code activeMerges} was never incremented.
+     */
+    public void testOnDrained_BlockedByInFlightForceMerge() throws Exception {
+        MergeHandler mockHandler = mock(MergeHandler.class);
+        when(mockHandler.hasPendingMerges()).thenReturn(false);
+
+        Segment s1 = new Segment(1L, Collections.emptyMap());
+        OneMerge oneMerge = new OneMerge(Collections.singletonList(s1));
+        when(mockHandler.findForceMerges(1)).thenReturn(Collections.singletonList(oneMerge));
+
+        // doMerge blocks until we release the latch — simulates a long-running merge
+        CountDownLatch mergeStarted = new CountDownLatch(1);
+        CountDownLatch mergeCanProceed = new CountDownLatch(1);
+        when(mockHandler.doMerge(oneMerge)).thenAnswer(invocation -> {
+            mergeStarted.countDown();
+            mergeCanProceed.await(10, TimeUnit.SECONDS);
+            return new MergeResult(Collections.emptyMap());
+        });
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+        ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
+        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+
+        // Start force merge on a FORCE_MERGE-named thread (required by assertion)
+        AtomicReference<Exception> forceMergeError = new AtomicReference<>();
+        Thread forceMergeThread = new Thread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (Exception e) {
+                forceMergeError.set(e);
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-test");
+        forceMergeThread.setDaemon(true);
+        forceMergeThread.start();
+
+        // Wait for merge to actually start
+        assertTrue("Force merge should have started", mergeStarted.await(5, TimeUnit.SECONDS));
+
+        // Now freeze and try to drain — should NOT fire immediately
+        scheduler.freeze();
+        AtomicBoolean drainListenerFired = new AtomicBoolean(false);
+        scheduler.onDrained(() -> drainListenerFired.set(true));
+
+        // Drain listener must NOT have fired — force merge is still running
+        assertFalse("onDrained listener must NOT fire while force merge is in-flight", drainListenerFired.get());
+
+        // Verify activeMerges reflects the running force merge
+        assertEquals("activeMerges should be 1 during force merge", 1, scheduler.getActiveMergeCount());
+
+        // Now let the merge complete
+        mergeCanProceed.countDown();
+        forceMergeThread.join(10_000);
+        assertNull("forceMerge should complete without error", forceMergeError.get());
+
+        // After force merge completes, drain listener should have fired
+        assertTrue("onDrained listener must fire after force merge completes", drainListenerFired.get());
+        assertEquals("activeMerges should be 0 after force merge", 0, scheduler.getActiveMergeCount());
+    }
+
+    /**
+     * Verifies that {@code getActiveMergeCount()} correctly includes a running force merge.
+     * Before the fix, force merges never incremented {@code activeMerges}, making them invisible
+     * to the tiering drain mechanism.
+     */
+    public void testGetActiveMergeCount_IncludesForceMerge() throws Exception {
+        MergeHandler mockHandler = mock(MergeHandler.class);
+        when(mockHandler.hasPendingMerges()).thenReturn(false);
+
+        Segment s1 = new Segment(1L, Collections.emptyMap());
+        OneMerge oneMerge = new OneMerge(Collections.singletonList(s1));
+        when(mockHandler.findForceMerges(1)).thenReturn(Collections.singletonList(oneMerge));
+
+        CountDownLatch mergeStarted = new CountDownLatch(1);
+        CountDownLatch mergeCanProceed = new CountDownLatch(1);
+        when(mockHandler.doMerge(oneMerge)).thenAnswer(invocation -> {
+            mergeStarted.countDown();
+            mergeCanProceed.await(10, TimeUnit.SECONDS);
+            return new MergeResult(Collections.emptyMap());
+        });
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+        ShardId testShardId = new ShardId(indexSettings.getIndex(), 0);
+        MergeScheduler scheduler = new MergeScheduler(mockHandler, (result, merge) -> {}, () -> {}, testShardId, indexSettings, threadPool);
+
+        assertEquals("activeMerges should be 0 before force merge", 0, scheduler.getActiveMergeCount());
+
+        Thread forceMergeThread = new Thread(() -> {
+            try {
+                scheduler.forceMerge(1);
+            } catch (Exception e) {
+                // ignore
+            }
+        }, ThreadPool.Names.FORCE_MERGE + "-test");
+        forceMergeThread.setDaemon(true);
+        forceMergeThread.start();
+
+        assertTrue("Merge should have started", mergeStarted.await(5, TimeUnit.SECONDS));
+        assertEquals("activeMerges should be 1 during force merge", 1, scheduler.getActiveMergeCount());
+
+        mergeCanProceed.countDown();
+        forceMergeThread.join(10_000);
+        assertEquals("activeMerges should be 0 after force merge", 0, scheduler.getActiveMergeCount());
     }
 }

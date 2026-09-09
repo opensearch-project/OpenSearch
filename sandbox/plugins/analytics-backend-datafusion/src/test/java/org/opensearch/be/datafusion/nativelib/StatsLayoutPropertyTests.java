@@ -35,7 +35,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
 
     private static final int TRIES = 100;
 
-    private static final int FIELD_COUNT = 75;
+    private static final int FIELD_COUNT = 85;
 
     // ---- Generators ----
 
@@ -187,26 +187,36 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                 assertEquals(values[55], cs.getStatisticsCache().entryCount);
                 assertEquals(values[56], cs.getStatisticsCache().memoryBytes);
                 assertEquals(values[57], cs.getStatisticsCache().sizeLimitBytes);
+                assertEquals(values[58], cs.getColumnIndexCache().hitCount);
+                assertEquals(values[59], cs.getColumnIndexCache().missCount);
+                assertEquals(values[60], cs.getColumnIndexCache().entryCount);
+                assertEquals(values[61], cs.getColumnIndexCache().memoryBytes);
+                assertEquals(values[62], cs.getColumnIndexCache().sizeLimitBytes);
+                assertEquals(values[63], cs.getOffsetIndexCache().hitCount);
+                assertEquals(values[64], cs.getOffsetIndexCache().missCount);
+                assertEquals(values[65], cs.getOffsetIndexCache().entryCount);
+                assertEquals(values[66], cs.getOffsetIndexCache().memoryBytes);
+                assertEquals(values[67], cs.getOffsetIndexCache().sizeLimitBytes);
 
-                // Search stats (offsets 58-74)
+                // Search stats (offsets 68-84)
                 var ss = StatsLayout.readSearchStats(seg);
-                assertEquals(values[58], ss.listingTableScan);
-                assertEquals(values[59], ss.singleCollectorScan);
-                assertEquals(values[60], ss.bitmapTreeScan);
-                assertEquals(values[61], ss.delegationCalls);
-                assertEquals(values[62], ss.rgProcessed);
-                assertEquals(values[63], ss.rgSkipped);
-                assertEquals(values[64], ss.parquetScanTotalTimeMs);
-                assertEquals(values[65], ss.parquetScanUntilDataTimeMs);
-                assertEquals(values[66], ss.parquetProcessingTimeMs);
-                assertEquals(values[67], ss.parquetBytesScanned);
-                assertEquals(values[68], ss.prefetchWaitTimeMs);
-                assertEquals(values[69], ss.prefetchWaitCount);
-                assertEquals(values[70], ss.elapsedComputeMs);
-                assertEquals(values[71], ss.buildMaskTimeMs);
-                assertEquals(values[72], ss.onBatchMaskTimeMs);
-                assertEquals(values[73], ss.filterRecordBatchTimeMs);
-                assertEquals(values[74], ss.objectStoreReadTimeMs);
+                assertEquals(values[68], ss.listingTableScan);
+                assertEquals(values[69], ss.singleCollectorScan);
+                assertEquals(values[70], ss.bitmapTreeScan);
+                assertEquals(values[71], ss.delegationCalls);
+                assertEquals(values[72], ss.rgProcessed);
+                assertEquals(values[73], ss.rgSkipped);
+                assertEquals(values[74], ss.parquetScanTotalTimeMs);
+                assertEquals(values[75], ss.parquetScanUntilDataTimeMs);
+                assertEquals(values[76], ss.parquetProcessingTimeMs);
+                assertEquals(values[77], ss.parquetBytesScanned);
+                assertEquals(values[78], ss.prefetchWaitTimeMs);
+                assertEquals(values[79], ss.prefetchWaitCount);
+                assertEquals(values[80], ss.elapsedComputeMs);
+                assertEquals(values[81], ss.buildMaskTimeMs);
+                assertEquals(values[82], ss.onBatchMaskTimeMs);
+                assertEquals(values[83], ss.filterRecordBatchTimeMs);
+                assertEquals(values[84], ss.objectStoreReadTimeMs);
             }
         }
     }
@@ -328,6 +338,18 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                     cs.getStatisticsCache().entryCount,
                     cs.getStatisticsCache().memoryBytes,
                     cs.getStatisticsCache().sizeLimitBytes,
+                    // cache_stats.column_index_cache (5)
+                    cs.getColumnIndexCache().hitCount,
+                    cs.getColumnIndexCache().missCount,
+                    cs.getColumnIndexCache().entryCount,
+                    cs.getColumnIndexCache().memoryBytes,
+                    cs.getColumnIndexCache().sizeLimitBytes,
+                    // cache_stats.offset_index_cache (5)
+                    cs.getOffsetIndexCache().hitCount,
+                    cs.getOffsetIndexCache().missCount,
+                    cs.getOffsetIndexCache().entryCount,
+                    cs.getOffsetIndexCache().memoryBytes,
+                    cs.getOffsetIndexCache().sizeLimitBytes,
                     // search_stats (17)
                     ss.listingTableScan,
                     ss.singleCollectorScan,

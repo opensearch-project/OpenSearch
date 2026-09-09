@@ -406,10 +406,11 @@ async fn run_large(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        arrow_schema: schema.clone(),
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = Arc::new(tree);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -423,7 +424,11 @@ async fn run_large(
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -434,8 +439,10 @@ async fn run_large(
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                    stats_prune_tree: None,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -444,7 +451,7 @@ async fn run_large(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(1)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -460,6 +467,7 @@ async fn run_large(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
 
     let ctx = SessionContext::new();
@@ -864,10 +872,11 @@ async fn run_large_partitioned(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        arrow_schema: schema.clone(),
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     let tree = Arc::new(tree);
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
@@ -881,7 +890,11 @@ async fn run_large_partitioned(
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -892,8 +905,10 @@ async fn run_large_partitioned(
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                    stats_prune_tree: None,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -901,7 +916,7 @@ async fn run_large_partitioned(
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
         .target_partitions(partitions)
         .force_strategy(Some(FilterStrategy::BooleanMask))
-        .force_pushdown(Some(false))
+        .indexed_pushdown_filters(false)
         .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
@@ -917,6 +932,7 @@ async fn run_large_partitioned(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
+        cancellation_token: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

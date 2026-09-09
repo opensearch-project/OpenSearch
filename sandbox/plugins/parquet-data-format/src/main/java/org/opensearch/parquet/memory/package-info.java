@@ -9,12 +9,10 @@
 /**
  * Arrow memory management for the Parquet plugin.
  *
- * <p>This package provides a managed wrapper around Apache Arrow's {@code RootAllocator},
- * with allocation limits derived from the {@code parquet.max_native_allocation} setting.
- * The pool computes the maximum allocation as a percentage of available non-heap system memory
- * and provides child allocators for individual VSR instances.
+ * <p>This package provides a managed wrapper around the unified native allocator's ingest pool
+ * (see {@link org.opensearch.arrow.allocator.ArrowNativeAllocator}). The pool's dynamic limit is the
+ * enforced constraint, and this package provides child allocators for individual VSR instances.
  *
  * @see org.opensearch.parquet.memory.ArrowBufferPool
- * @see org.opensearch.parquet.ParquetSettings#MAX_NATIVE_ALLOCATION
  */
 package org.opensearch.parquet.memory;

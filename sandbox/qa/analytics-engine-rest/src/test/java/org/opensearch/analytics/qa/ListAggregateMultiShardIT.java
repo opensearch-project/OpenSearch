@@ -160,7 +160,7 @@ public class ListAggregateMultiShardIT extends AnalyticsRestTestCase {
         // FULL_TEXT_SEARCH" — so we rely on default _id routing.) The cross-shard reduce path is
         // exercised because the SINGLE list/values aggregate is gathered from all shards; the
         // assertions sort the merged list so they hold regardless of the exact 1/1 vs 2/0 split.
-        String bulk = "{\"index\":{\"_id\":\"1\"}}\n"
+        String bulk = "{\"index\":{}}\n"
             + "{"
             + "\"byte_value\":4,\"short_value\":3,\"integer_value\":2,\"long_value\":1,"
             + "\"float_value\":6.2,\"double_value\":5.1,"
@@ -168,7 +168,7 @@ public class ListAggregateMultiShardIT extends AnalyticsRestTestCase {
             + "\"binary_value\":\"YWFh\","
             + "\"date_value\":\"2020-10-13 13:00:00\",\"ip_value\":\"127.0.0.1\""
             + "}\n"
-            + "{\"index\":{\"_id\":\"2\"}}\n"
+            + "{\"index\":{}}\n"
             + "{"
             + "\"byte_value\":40,\"short_value\":30,\"integer_value\":20,\"long_value\":10,"
             + "\"float_value\":60.2,\"double_value\":50.1,"

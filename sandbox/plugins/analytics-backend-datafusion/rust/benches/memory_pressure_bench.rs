@@ -272,8 +272,18 @@ fn print_result(label: &str, r: &SimulationResult) {
         r.budgeted_effective_partitions.iter().sum::<usize>() as f64
             / r.budgeted_effective_partitions.len() as f64
     };
-    let min_partitions = r.budgeted_effective_partitions.iter().min().copied().unwrap_or(0);
-    let max_partitions = r.budgeted_effective_partitions.iter().max().copied().unwrap_or(0);
+    let min_partitions = r
+        .budgeted_effective_partitions
+        .iter()
+        .min()
+        .copied()
+        .unwrap_or(0);
+    let max_partitions = r
+        .budgeted_effective_partitions
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or(0);
 
     let memory_saved = r
         .unbudgeted_total_memory
@@ -288,26 +298,14 @@ fn print_result(label: &str, r: &SimulationResult) {
     println!("┌─────────────────────────────────────────────────────────────────┐");
     println!("│ {:<63} │", label);
     println!("├─────────────────────────────────────────────────────────────────┤");
-    println!(
-        "│ Pool limit:             {:<40} │",
-        fmt_mb(r.pool_limit)
-    );
-    println!(
-        "│ Concurrent queries:     {:<40} │",
-        r.num_queries
-    );
+    println!("│ Pool limit:             {:<40} │", fmt_mb(r.pool_limit));
+    println!("│ Concurrent queries:     {:<40} │", r.num_queries);
     println!(
         "│ Configured partitions:  {:<40} │",
         r.configured_target_partitions
     );
-    println!(
-        "│ Batch size:             {:<40} │",
-        r.batch_size
-    );
-    println!(
-        "│ Avg row bytes:          {:<40} │",
-        r.avg_row_bytes
-    );
+    println!("│ Batch size:             {:<40} │", r.batch_size);
+    println!("│ Avg row bytes:          {:<40} │", r.avg_row_bytes);
     println!("├────────────────── WITH BUDGET ───────────────────────────────────┤");
     println!(
         "│ Peak pool reserved:     {:<40} │",
@@ -321,14 +319,8 @@ fn print_result(label: &str, r: &SimulationResult) {
         "│ Effective partitions:   avg={:.1}, min={}, max={:<21} │",
         avg_partitions, min_partitions, max_partitions
     );
-    println!(
-        "│ Operator spills:        {:<40} │",
-        r.budgeted_spills
-    );
-    println!(
-        "│ Queries rejected:       {:<40} │",
-        r.budgeted_rejections
-    );
+    println!("│ Operator spills:        {:<40} │", r.budgeted_spills);
+    println!("│ Queries rejected:       {:<40} │", r.budgeted_rejections);
     println!(
         "│ Within pool limit:      {:<40} │",
         if within_pool { "YES ✓" } else { "NO ✗" }
@@ -349,7 +341,10 @@ fn print_result(label: &str, r: &SimulationResult) {
     println!(
         "│ Would exceed pool:      {:<40} │",
         if r.unbudgeted_total_memory > r.pool_limit {
-            format!("YES by {}", fmt_mb(r.unbudgeted_total_memory - r.pool_limit))
+            format!(
+                "YES by {}",
+                fmt_mb(r.unbudgeted_total_memory - r.pool_limit)
+            )
         } else {
             "NO".to_string()
         }
@@ -359,11 +354,15 @@ fn print_result(label: &str, r: &SimulationResult) {
     let (u_avg, u_min, u_p50, u_p99) = latency_stats(&r.unbudgeted_latencies_ns);
     println!(
         "│ With budget:    avg={}, p50={}, p99={:<12} │",
-        fmt_ns(b_avg), fmt_ns(b_p50), fmt_ns(b_p99)
+        fmt_ns(b_avg),
+        fmt_ns(b_p50),
+        fmt_ns(b_p99)
     );
     println!(
         "│ Without budget: avg={}, p50={}, p99={:<12} │",
-        fmt_ns(u_avg), fmt_ns(u_p50), fmt_ns(u_p99)
+        fmt_ns(u_avg),
+        fmt_ns(u_p50),
+        fmt_ns(u_p99)
     );
     let overhead_ns = b_avg - u_avg;
     let overhead_pct = if u_avg > 0.0 {
@@ -405,7 +404,10 @@ fn main() {
         8192,              // batch_size=8192
         &analytics,
     );
-    print_result("Scenario 1: Low concurrency (4 queries, 256MB pool, 10-col schema)", &r);
+    print_result(
+        "Scenario 1: Low concurrency (4 queries, 256MB pool, 10-col schema)",
+        &r,
+    );
 
     // Scenario 2: Moderate concurrency, moderate pool
     let r = simulate_concurrent_queries(
@@ -415,7 +417,10 @@ fn main() {
         8192,
         &analytics,
     );
-    print_result("Scenario 2: Moderate concurrency (8 queries, 128MB pool, 10-col)", &r);
+    print_result(
+        "Scenario 2: Moderate concurrency (8 queries, 128MB pool, 10-col)",
+        &r,
+    );
 
     // Scenario 3: High concurrency, tight pool
     let r = simulate_concurrent_queries(
@@ -425,17 +430,23 @@ fn main() {
         8192,
         &analytics,
     );
-    print_result("Scenario 3: High concurrency (16 queries, 64MB pool, 10-col)", &r);
+    print_result(
+        "Scenario 3: High concurrency (16 queries, 64MB pool, 10-col)",
+        &r,
+    );
 
     // Scenario 4: Wide schema under moderate pressure
     let r = simulate_concurrent_queries(
         256 * 1024 * 1024, // 256MB pool
         8,
-        8,    // higher parallelism
+        8, // higher parallelism
         8192,
         &wide,
     );
-    print_result("Scenario 4: Wide schema (8 queries, 256MB pool, 100-col, tp=8)", &r);
+    print_result(
+        "Scenario 4: Wide schema (8 queries, 256MB pool, 100-col, tp=8)",
+        &r,
+    );
 
     // Scenario 5: Wide schema under extreme pressure
     let r = simulate_concurrent_queries(
@@ -445,7 +456,10 @@ fn main() {
         8192,
         &wide,
     );
-    print_result("Scenario 5: Wide schema extreme (16 queries, 128MB pool, 100-col, tp=8)", &r);
+    print_result(
+        "Scenario 5: Wide schema extreme (16 queries, 128MB pool, 100-col, tp=8)",
+        &r,
+    );
 
     // Scenario 6: Very high concurrency burst
     let r = simulate_concurrent_queries(
@@ -455,5 +469,8 @@ fn main() {
         8192,
         &analytics,
     );
-    print_result("Scenario 6: Burst (32 queries, 256MB pool, 10-col, tp=4)", &r);
+    print_result(
+        "Scenario 6: Burst (32 queries, 256MB pool, 10-col, tp=4)",
+        &r,
+    );
 }

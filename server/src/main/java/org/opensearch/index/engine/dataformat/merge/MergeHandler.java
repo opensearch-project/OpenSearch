@@ -107,7 +107,22 @@ public class MergeHandler {
             List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
             List<List<Segment>> mergeCandidates = mergePolicy.findForceMergeCandidates(segmentList, maxSegmentCount);
             for (List<Segment> mergeGroup : mergeCandidates) {
-                oneMerges.add(new OneMerge(mergeGroup));
+                boolean hasConflict = false;
+                synchronized (this) {
+                    for (Segment seg : mergeGroup) {
+                        if (currentlyMergingSegments.contains(seg)) {
+                            hasConflict = true;
+                            break;
+                        }
+                    }
+                    if (!hasConflict) {
+                        OneMerge oneMerge = new OneMerge(mergeGroup);
+                        if (registerMerge(oneMerge, false)) {
+                            oneMerges.add(oneMerge);
+                        }
+                    }
+                }
+
             }
         } catch (Exception e) {
             logger.warn("Failed to acquire snapshots", e);
@@ -142,21 +157,28 @@ public class MergeHandler {
      * @param merge the merge to register
      */
     public synchronized void registerMerge(OneMerge merge) {
+        registerMerge(merge, true);
+    }
+
+    private synchronized boolean registerMerge(OneMerge merge, boolean addToPending) {
         try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
             List<Segment> catalogSegments = catalogSnapshotRef.get().getSegments();
             for (Segment mergeSegment : merge.getSegmentsToMerge()) {
                 if (!catalogSegments.contains(mergeSegment)) {
-                    return;
+                    return false;
                 }
             }
         } catch (Exception e) {
             logger.warn("Failed to acquire snapshots", e);
             throw new RuntimeException(e);
         }
-        pendingMerges.add(merge);
+        if (addToPending) { // Skips this for force merges. Avoid 2 workers executing the merge.
+            pendingMerges.add(merge);
+        }
         currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
         mergeListener.addMergingSegment(merge.getSegmentsToMerge());
         logger.debug(() -> new ParameterizedMessage("Registered merge [{}], pendingMerges: [{}]", merge, pendingMerges));
+        return true;
     }
 
     /**

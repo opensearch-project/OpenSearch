@@ -33,7 +33,12 @@ public class SortedSetDocValuesWriterWrapper implements DocValuesWriterWrapper<S
      * @see SortedSetDocValuesWriter
      */
     public SortedSetDocValuesWriterWrapper(FieldInfo fieldInfo, Counter counter, ByteBlockPool byteBlockPool) {
-        sortedSetDocValuesWriterDelegate = new SortedSetDocValuesWriter(fieldInfo, counter, byteBlockPool);
+        sortedSetDocValuesWriterDelegate = new SortedSetDocValuesWriter(
+            fieldInfo,
+            counter,
+            byteBlockPool,
+            new SharedIndexingScratch(counter)
+        );
     }
 
     /**

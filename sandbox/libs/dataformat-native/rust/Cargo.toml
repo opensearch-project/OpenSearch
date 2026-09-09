@@ -77,6 +77,7 @@ proptest = "=1.4.0"
 
 # Internal
 native-bridge-common = { path = "common" }
+opensearch-tiered-storage = { path = "../../tiered-storage/src/main/rust" }
 opensearch-repository-s3 = { path = "../../../plugins/native-repository-s3/src/main/rust" }
 opensearch-repository-gcs = { path = "../../../plugins/native-repository-gcs/src/main/rust" }
 opensearch-repository-azure = { path = "../../../plugins/native-repository-azure/src/main/rust" }

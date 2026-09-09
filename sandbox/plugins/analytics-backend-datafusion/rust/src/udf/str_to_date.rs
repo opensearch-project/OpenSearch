@@ -140,9 +140,17 @@ mod tests {
     fn parses_well_formed_inputs() {
         // (input, format, expected micros). Date-only defaults 00:00:00.
         for (i, f, want) in [
-            ("2020-03-15 10:30:45", "%Y-%m-%d %H:%i:%S", 1_584_268_245_000_000_i64),
+            (
+                "2020-03-15 10:30:45",
+                "%Y-%m-%d %H:%i:%S",
+                1_584_268_245_000_000_i64,
+            ),
             ("2020-03-15", "%Y-%m-%d", 1_584_230_400_000_000),
-            ("2020-03-15 10:30:45.123456", "%Y-%m-%d %H:%i:%S.%f", 1_584_268_245_123_456),
+            (
+                "2020-03-15 10:30:45.123456",
+                "%Y-%m-%d %H:%i:%S.%f",
+                1_584_268_245_123_456,
+            ),
         ] {
             assert_eq!(parse_to_micros(i, f), Some(want), "input={i}");
         }
@@ -164,7 +172,10 @@ mod tests {
             .unwrap()
             .and_utc()
             .timestamp_micros();
-        assert_eq!(parse_to_micros("2017-10-23", "%Y-%m-%d %h:%i:%s"), Some(want));
+        assert_eq!(
+            parse_to_micros("2017-10-23", "%Y-%m-%d %h:%i:%s"),
+            Some(want)
+        );
     }
 
     #[test]
@@ -175,7 +186,10 @@ mod tests {
             .unwrap()
             .and_utc()
             .timestamp_micros();
-        assert_eq!(parse_to_micros("2017-10-23 00:00:00", "%Y-%m-%d %h:%i:%s"), Some(want));
+        assert_eq!(
+            parse_to_micros("2017-10-23 00:00:00", "%Y-%m-%d %h:%i:%s"),
+            Some(want)
+        );
     }
 
     #[test]
@@ -186,6 +200,9 @@ mod tests {
             .unwrap()
             .and_utc()
             .timestamp_micros();
-        assert_eq!(parse_to_micros("23-Oct-17 00:00:00", "%d-%b-%y %h:%i:%s"), Some(want));
+        assert_eq!(
+            parse_to_micros("23-Oct-17 00:00:00", "%d-%b-%y %h:%i:%s"),
+            Some(want)
+        );
     }
 }

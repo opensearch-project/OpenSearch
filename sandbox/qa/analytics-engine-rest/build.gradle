@@ -7,6 +7,7 @@
  */
 
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
@@ -44,12 +45,18 @@ dependencies {
     // /_plugins/_ppl on the real plugin.
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
+    // External plugins are versioned as <opensearch_version>.0-SNAPSHOT and pulled from
+    // OpenSearch Snapshots (no local build). Derive the version from core's
+    // buildSrc/version.properties (via VersionProperties) so this stays in lockstep with
+    // the current OpenSearch version instead of pinning to a stale release. Strip any
+    // -SNAPSHOT so the "<x.y.z>.0-SNAPSHOT" plugin coordinate is well-formed.
+    def externalPluginVersion = "${VersionProperties.getOpenSearch().replace('-SNAPSHOT', '')}.0-SNAPSHOT"
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:${externalPluginVersion}@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:${externalPluginVersion}@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -115,14 +122,28 @@ def configureAnalyticsCluster = { cluster ->
 }
 
 // ── Default integTest cluster ────────────────────────────────────────────────
-// TODO: enable numberOfNodes = 2 once partial aggs is handled
 testClusters.integTest {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+    // Override block-list to empty so FilterDelegationGoldenIT exercises all predicate shapes.
+    setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 }
 
 integTest {
     systemProperty 'tests.security.manager', 'false'
+    // Forward plan-shape harness props to the forked test JVM (see PlanShapeGoldenTestBase):
+    //   -Dplan.generate=write  capture + write q{N}.plan.yaml to the source tree
+    //   -Dplan.generate=print  capture + log the block (read-only peek, no write)
+    //   (flag absent           = assertion mode: compare capture vs golden)
+    //   -Dplan.combos=...       override which named combos run (else combos.yaml defaults)
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    // Source resources dir, so -Dplan.generate writes goldens to the source tree (not build/).
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+    testLogging {
+        exceptionFormat = 'full'
+    }
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
@@ -130,11 +151,35 @@ integTest {
     exclude '**/SpillCleanupOnBootIT.class'
     exclude '**/YmlOversamplingIT.class'
     exclude '**/*NoMergeIT.class'
+    exclude '**/planshape/*IT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
     // when ITs provision their indices lazily. Keep the OpenSearchTestBasePlugin
     // defaults (single fork, no maxParallelForks override).
+}
+
+// ── Plan-shape variant: 2 nodes, production-default blocked_predicates ───────
+// Runs plan-shape golden ITs with the production delegation blocklist (NOT the
+// empty override used by the default integTest cluster for FilterDelegationGoldenIT).
+task integTestPlanShape(type: RestIntegTestTask) {
+    description = 'Runs plan-shape golden ITs with production-default delegation blocklist'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.planshape.*IT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+    ['plan.generate', 'plan.combos'].each { k ->
+        if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
+    }
+    systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
+}
+check.dependsOn(integTestPlanShape)
+
+testClusters.integTestPlanShape {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────

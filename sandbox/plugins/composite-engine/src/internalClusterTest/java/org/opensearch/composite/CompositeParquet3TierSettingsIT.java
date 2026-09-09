@@ -440,7 +440,6 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         for (int i = 0; i < 5; i++) {
             client().prepareIndex()
                 .setIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
                 .setSource(
                     "col_utf8",
                     "val_" + i,

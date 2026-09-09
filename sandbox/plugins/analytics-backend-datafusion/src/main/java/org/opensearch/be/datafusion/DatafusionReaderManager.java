@@ -110,7 +110,30 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void onFilesAdded(Collection<String> files) throws IOException {
         if (files == null || files.isEmpty()) return;
-        dataFusionService.onFilesAdded(toAbsolutePaths(files));
+        Collection<String> absolutePaths = toAbsolutePaths(files);
+        long storePtr = storePointerOrDefault(dataformatAwareStoreHandle);
+        if (storePtr > 0) {
+            dataFusionService.onFilesAddedWithStore(absolutePaths, storePtr);
+        } else {
+            dataFusionService.onFilesAdded(absolutePaths);
+        }
+    }
+
+    /**
+     * Resolves the native store pointer for cache warming. Returns {@code 0} when there is no
+     * live handle (no per-shard remote store, e.g. hot tier) so the caller falls back to the
+     * legacy local-FS warming path.
+     */
+    private static long storePointerOrDefault(NativeStoreHandle handle) {
+        if (handle == null) {
+            return 0L;
+        }
+        try {
+            return handle.getPointer();
+        } catch (IllegalStateException closed) {
+            // Handle closed between check and extraction — fall back to local.
+            return 0L;
+        }
     }
 
     @Override

@@ -740,6 +740,26 @@ public class Cache<K, V> {
         };
     }
 
+    /**
+     * A point-in-time copy of the keys in the cache, in no particular order. Unlike {@link #keys()}, the returned
+     * list is not backed by the cache and is safe to iterate under any concurrent mutation. The copy is weakly
+     * consistent: it contains every key that was present in the cache for the entire duration of the call, and may
+     * or may not reflect concurrent insertions and removals. Keys are copied one segment at a time while holding
+     * only that segment's read lock, so this method never blocks cache reads, briefly blocks writes to a single
+     * segment at a time, and does not acquire the LRU lock.
+     *
+     * @return a copy of the keys in the cache
+     */
+    public List<K> keysSnapshot() {
+        List<K> keys = new ArrayList<>(count);
+        for (CacheSegment<K, V> segment : segments) {
+            try (ReleasableLock ignored = segment.readLock.acquire()) {
+                keys.addAll(segment.map.keySet());
+            }
+        }
+        return keys;
+    }
+
     private class CacheIterator implements Iterator<Entry<K, V>> {
         private Entry<K, V> current;
         private Entry<K, V> next;
@@ -936,7 +956,20 @@ public class Cache<K, V> {
     private void delete(Entry<K, V> entry, RemovalReason removalReason) {
         assert lruLock.isHeldByCurrentThread();
 
-        if (unlink(entry)) {
+        final boolean removed;
+        if (entry.state == State.NEW) {
+            // The entry was removed from the segment map before the thread that loaded it acquired the LRU lock to
+            // promote it. Claim it by marking it DELETED so that the pending promote() becomes a no-op: otherwise the
+            // entry gets linked into the LRU list while absent from the segment map, where it is counted in
+            // count()/weight() but is unreachable via get() and can no longer be invalidated by key. There is no
+            // count/weight adjustment to make here because the entry was never linked, but the removal notification
+            // must still fire so that listeners can account for the value the loader produced.
+            entry.state = State.DELETED;
+            removed = true;
+        } else {
+            removed = unlink(entry);
+        }
+        if (removed) {
             removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, removalReason));
         }
     }

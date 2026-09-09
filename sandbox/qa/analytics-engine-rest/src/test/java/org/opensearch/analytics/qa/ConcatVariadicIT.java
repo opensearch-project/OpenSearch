@@ -19,6 +19,16 @@ import java.util.Map;
  * VARCHAR / FixedChar operand list (the natural shape when fields and short string
  * literals appear together) trips isthmus' consistency check. The adapter pre-casts
  * every non-VARCHAR operand to VARCHAR so substrait emits a uniform-typed call.
+ *
+ * <p>Operand-shape coverage matters here: a concat operand can be a field reference
+ * ({@code RexInputRef}), a string literal ({@code RexLiteral}), or a nested scalar-function
+ * call ({@code RexCall}, e.g. {@code substring(...)}). These travel different conversion
+ * paths, so the tests below exercise concat over <em>scalar-function operands</em> in
+ * addition to the field/literal shapes — the natural form of queries like
+ * {@code concat(substring(url, 1, 10), '|', substring(referer, 1, 10))}.
+ *
+ * <p>Fixture row 0 ({@code key00}) of calcs: str0="FURNITURE", str1="CLAMP ON LAMPS",
+ * str2="one", str3="e".
  */
 public class ConcatVariadicIT extends AnalyticsRestTestCase {
 
@@ -49,6 +59,50 @@ public class ConcatVariadicIT extends AnalyticsRestTestCase {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | eval r = concat(str2, '-', str3) | fields r | head 1",
             row("one-e")
+        );
+    }
+
+    public void testConcatSubstringLiteralSubstringWithFilter() throws IOException {
+        // 3-arg concat where the outer operands are SUBSTRING scalar-function calls (RexCall, not
+        // field refs) and the middle operand is a short string literal, above a WHERE filter on the
+        // same fields. Row 0 of calcs has str0=`FURNITURE` and str1=`CLAMP ON LAMPS`, so
+        // substring(_,1,3) yields `FUR` and `CLA` → `FUR|CLA`.
+        assertRowsEqual(
+            "source="
+                + DATASET.indexName
+                + " | where str0 != '' and str1 != ''"
+                + " | eval r = concat(substring(str0, 1, 3), '|', substring(str1, 1, 3))"
+                + " | fields r | head 1",
+            row("FUR|CLA")
+        );
+    }
+
+    public void testConcatTwoSubstringsNoLiteral() throws IOException {
+        // 2-arg concat of two SUBSTRING calls, no middle literal — every operand is an already
+        // VARCHAR-typed scalar call, so the variadic adapter makes no change. `FUR` + `CLA`.
+        assertRowsEqual(
+            "source=" + DATASET.indexName + " | eval r = concat(substring(str0, 1, 3), substring(str1, 1, 3)) | fields r | head 1",
+            row("FURCLA")
+        );
+    }
+
+    public void testConcatUpperAndLowerScalarFns() throws IOException {
+        // concat of two different scalar-function operands, no literal: upper(str3)=`E`,
+        // lower(str0)=`furniture` → `Efurniture`. Confirms the adapter's no-op path holds when
+        // operands are RexCalls (not field refs) typed VARCHAR.
+        assertRowsEqual(
+            "source=" + DATASET.indexName + " | eval r = concat(upper(str3), lower(str0)) | fields r | head 1",
+            row("Efurniture")
+        );
+    }
+
+    public void testConcatScalarFnLiteralScalarFnDistinctFns() throws IOException {
+        // 3-arg concat(scalarFn, literal, scalarFn) with two distinct functions around a FixedChar
+        // literal: left(str0,3)=`FUR`, right(str0,3)=`URE` → `FUR#URE`. Exercises the cast path on
+        // the middle literal while both outer operands are scalar-function calls.
+        assertRowsEqual(
+            "source=" + DATASET.indexName + " | eval r = concat(left(str0, 3), '#', right(str0, 3)) | fields r | head 1",
+            row("FUR#URE")
         );
     }
 

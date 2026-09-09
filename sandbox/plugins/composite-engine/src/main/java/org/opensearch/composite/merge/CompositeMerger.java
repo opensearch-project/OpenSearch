@@ -11,6 +11,7 @@ package org.opensearch.composite.merge;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -18,6 +19,7 @@ import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,18 +42,23 @@ public class CompositeMerger implements Merger {
     private final DataFormat primaryFormat;
     private final List<DataFormat> secondaryFormats;
     private final CompositeMergeExecutor executor;
+    private final CompositeShardStatsTracker statsTracker;
 
     public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat) {
         this.primaryFormat = compositeDataFormat.getPrimaryDataFormat();
         this.secondaryFormats = resolveSecondaryFormats(compositeDataFormat, primaryFormat);
         this.executor = new CompositeMergeExecutor(buildMergerMap(engine));
+        this.statsTracker = engine.statsTracker();
     }
 
     @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
-        Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
-        MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
-        return executor.execute(plan);
+        // recordOutcome: time always, merge_total on success, merge_failures on throw.
+        return StatsRecorder.recordOutcome(() -> {
+            Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
+            MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
+            return executor.execute(plan);
+        }, statsTracker::addMergeTimeMillis, statsTracker::incMergeTotal, statsTracker::incMergeFailures);
     }
 
     private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {

@@ -131,7 +131,8 @@ impl PhantomCorrector {
 
         if diff.abs() > threshold {
             self.pending_delta.fetch_add(diff, Ordering::Relaxed);
-            self.current_phantom_bytes.fetch_add(diff, Ordering::Relaxed);
+            self.current_phantom_bytes
+                .fetch_add(diff, Ordering::Relaxed);
         }
     }
 
@@ -266,7 +267,8 @@ mod tests {
         let pipeline_slots = 13;
         let initial_phantom = measured_batch * pipeline_slots;
 
-        let c = PhantomCorrector::new_from_metadata(initial_phantom, measured_batch, pipeline_slots);
+        let c =
+            PhantomCorrector::new_from_metadata(initial_phantom, measured_batch, pipeline_slots);
 
         let mut phantom = initial_phantom as i64;
         for _ in 0..20 {
@@ -298,7 +300,7 @@ mod tests {
     #[test]
     fn initial_bloat_before_correction() {
         let estimated_batch = 100 * 8192; // schema-based (over-estimate)
-        let actual_batch = 40 * 8192;     // actual (2.5x smaller)
+        let actual_batch = 40 * 8192; // actual (2.5x smaller)
         let pipeline_slots = 13;
         let initial_phantom = estimated_batch * pipeline_slots;
 
@@ -320,7 +322,9 @@ mod tests {
 
         println!(
             "Initial bloat: {:.2}x (corrects after {} batches = {} rows)",
-            initial_bloat, first_correction_at, first_correction_at * 8192
+            initial_bloat,
+            first_correction_at,
+            first_correction_at * 8192
         );
 
         // First correction should fire within 4-8 batches (warmup + interval)

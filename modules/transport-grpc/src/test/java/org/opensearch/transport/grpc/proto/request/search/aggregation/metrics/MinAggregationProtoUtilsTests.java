@@ -46,6 +46,17 @@ public class MinAggregationProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(0.0, result.missing());
     }
 
+    public void testFromProtoWithStringMissingValue() {
+        MinAggregation proto = MinAggregation.newBuilder()
+            .setField("status")
+            .setMissing(FieldValue.newBuilder().setString("unknown").build())
+            .build();
+
+        MinAggregationBuilder result = MinAggregationProtoUtils.fromProto("min_status", proto);
+
+        assertEquals("unknown", result.missing());
+    }
+
     public void testFromProtoWithoutFieldOrScript() {
         MinAggregation proto = MinAggregation.newBuilder().build();
 

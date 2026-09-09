@@ -133,7 +133,6 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
     protected void indexDocs(int count) {
         for (int i = 0; i < count; i++) {
             client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
                 .setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE)
                 .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", (long) i)
                 .get();
@@ -143,7 +142,6 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
     protected void indexDocsWithOffset(int offset, int count) {
         for (int i = 0; i < count; i++) {
             client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(offset + i))
                 .setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE)
                 .setSource(
                     "field_text",

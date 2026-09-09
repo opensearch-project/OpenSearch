@@ -142,4 +142,17 @@ public final class CombinedBitSet extends BitSet implements Bits {
         return next;
 
     }
+
+    @Override
+    public int nextClearBit(int start, int upperBound) {
+        assert start >= 0 && start < length() : "start=" + start + " numBits=" + length();
+        assert upperBound >= start && upperBound <= length() : "upperBound=" + upperBound + " numBits=" + length();
+
+        for (int i = start; i < upperBound; i++) {
+            if (get(i) == false) {
+                return i;
+            }
+        }
+        return DocIdSetIterator.NO_MORE_DOCS;
+    }
 }

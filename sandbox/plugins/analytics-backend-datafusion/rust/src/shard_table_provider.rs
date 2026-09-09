@@ -13,8 +13,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
-use datafusion::common::{Result, ScalarValue, Statistics};
 use datafusion::common::stats::Precision;
+use datafusion::common::{Result, ScalarValue, Statistics};
 use datafusion::datasource::physical_plan::ParquetSource;
 use datafusion::datasource::source::DataSourceExec;
 use datafusion::datasource::TableType;
@@ -44,7 +44,10 @@ impl ShardTableProvider {
         let mut fields: Vec<Arc<Field>> = config.file_schema.fields().iter().cloned().collect();
         fields.push(Arc::new(Field::new("row_base", DataType::Int64, true)));
         let table_schema = Arc::new(Schema::new(fields));
-        Self { table_schema, config }
+        Self {
+            table_schema,
+            config,
+        }
     }
 }
 
@@ -58,8 +61,12 @@ impl std::fmt::Debug for ShardTableProvider {
 
 #[async_trait]
 impl TableProvider for ShardTableProvider {
-    fn schema(&self) -> SchemaRef { self.table_schema.clone() }
-    fn table_type(&self) -> TableType { TableType::Base }
+    fn schema(&self) -> SchemaRef {
+        self.table_schema.clone()
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
 
     fn supports_filters_pushdown(
         &self,
@@ -82,7 +89,10 @@ impl TableProvider for ShardTableProvider {
             "ShardTableProvider: files not ordered by row_base — ProjectRowIdOptimizer would compute wrong global IDs"
         );
         let num_file_cols = self.config.file_schema.fields().len();
-        let partitioned_files: Vec<PartitionedFile> = self.config.files.iter()
+        let partitioned_files: Vec<PartitionedFile> = self
+            .config
+            .files
+            .iter()
             .map(|file_info| {
                 let mut pf = PartitionedFile::from(file_info.object_meta.clone());
                 pf.partition_values = vec![ScalarValue::Int64(Some(file_info.row_base))];
@@ -111,11 +121,9 @@ impl TableProvider for ShardTableProvider {
 
         let parquet_source = ParquetSource::new(table_schema);
 
-        let mut builder = FileScanConfigBuilder::new(
-            self.config.store_url.clone(),
-            Arc::new(parquet_source),
-        )
-        .with_file_groups(file_groups);
+        let mut builder =
+            FileScanConfigBuilder::new(self.config.store_url.clone(), Arc::new(parquet_source))
+                .with_file_groups(file_groups);
 
         // Always include the row_base partition column (index = num_file_cols)
         // so ProjectRowIdOptimizer can compute __row_id__ + row_base.
@@ -142,5 +150,7 @@ impl TableProvider for ShardTableProvider {
         Ok(DataSourceExec::from_data_source(file_scan_config))
     }
 
-    fn statistics(&self) -> Option<Statistics> { None }
+    fn statistics(&self) -> Option<Statistics> {
+        None
+    }
 }

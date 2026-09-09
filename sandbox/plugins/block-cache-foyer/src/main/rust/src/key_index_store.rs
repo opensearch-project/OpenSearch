@@ -66,7 +66,10 @@ impl KeyIndexSnapshot {
     /// Return an empty snapshot with the current version.
     /// Used as a fallback when the snapshot file is missing or unparseable.
     pub fn empty() -> Self {
-        Self { version: SNAPSHOT_VERSION, index: HashMap::new() }
+        Self {
+            version: SNAPSHOT_VERSION,
+            index: HashMap::new(),
+        }
     }
 
     /// Return `true` when there are no prefix buckets in this snapshot.
@@ -97,7 +100,7 @@ pub fn save(dir: &Path, key_index: &DashMap<String, HashSet<String>>) -> io::Res
     }))
     .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
 
-    let tmp_path   = dir.join(KEY_INDEX_TMP_FILENAME);
+    let tmp_path = dir.join(KEY_INDEX_TMP_FILENAME);
     let final_path = dir.join(KEY_INDEX_FILENAME);
 
     // Atomic write: write to .tmp then rename.
@@ -136,7 +139,7 @@ pub fn load(dir: &Path) -> io::Result<KeyIndexSnapshot> {
 
 fn load_inner(dir: &Path) -> io::Result<KeyIndexSnapshot> {
     let final_path = dir.join(KEY_INDEX_FILENAME);
-    let tmp_path   = dir.join(KEY_INDEX_TMP_FILENAME);
+    let tmp_path = dir.join(KEY_INDEX_TMP_FILENAME);
 
     // 1. Try the committed file.
     match std::fs::read_to_string(&final_path) {
@@ -154,16 +157,17 @@ fn load_inner(dir: &Path) -> io::Result<KeyIndexSnapshot> {
             );
             parse_and_validate(&contents)
         }
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            Err(io::Error::new(ErrorKind::NotFound, "key_index.json not found"))
-        }
+        Err(e) if e.kind() == ErrorKind::NotFound => Err(io::Error::new(
+            ErrorKind::NotFound,
+            "key_index.json not found",
+        )),
         Err(e) => Err(e),
     }
 }
 
 fn parse_and_validate(contents: &str) -> io::Result<KeyIndexSnapshot> {
-    let snapshot: KeyIndexSnapshot = serde_json::from_str(contents)
-        .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+    let snapshot: KeyIndexSnapshot =
+        serde_json::from_str(contents).map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
 
     if snapshot.version != SNAPSHOT_VERSION {
         return Err(io::Error::new(
@@ -237,9 +241,18 @@ mod tests {
     fn test_save_and_load_roundtrip() {
         let dir = TempDir::new().unwrap();
         let map = make_map(vec![
-            ("data/a.parquet", vec!["data/a.parquet\x1F0-100", "data/a.parquet\x1F100-200"]),
-            ("data/b.parquet", vec!["data/b.parquet\x1F0-512", "data/b.parquet\x1F512-1024"]),
-            ("data/c.parquet", vec!["data/c.parquet\x1F0-4096", "data/c.parquet\x1F4096-8192"]),
+            (
+                "data/a.parquet",
+                vec!["data/a.parquet\x1F0-100", "data/a.parquet\x1F100-200"],
+            ),
+            (
+                "data/b.parquet",
+                vec!["data/b.parquet\x1F0-512", "data/b.parquet\x1F512-1024"],
+            ),
+            (
+                "data/c.parquet",
+                vec!["data/c.parquet\x1F0-4096", "data/c.parquet\x1F4096-8192"],
+            ),
         ]);
 
         save(dir.path(), &map).expect("save must succeed");
@@ -261,7 +274,10 @@ mod tests {
         save(dir.path(), &map).unwrap();
         let snapshot = load(dir.path()).unwrap();
         let keys = snapshot.index.get("data/nodes/0/file.parquet").unwrap();
-        assert!(keys.contains(key), "\\x1F separator must survive serde roundtrip");
+        assert!(
+            keys.contains(key),
+            "\\x1F separator must survive serde roundtrip"
+        );
     }
 
     #[test]
@@ -300,7 +316,8 @@ mod tests {
         std::fs::write(
             dir.path().join(KEY_INDEX_FILENAME),
             br#"{"version":999,"index":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(load(dir.path()).unwrap_err().kind(), ErrorKind::InvalidData);
     }
 
@@ -323,7 +340,10 @@ mod tests {
             version: SNAPSHOT_VERSION,
             index: {
                 let mut m = HashMap::new();
-                m.insert("data/x.parquet".to_string(), ["data/x.parquet\x1F0-100".to_string()].into());
+                m.insert(
+                    "data/x.parquet".to_string(),
+                    ["data/x.parquet\x1F0-100".to_string()].into(),
+                );
                 m
             },
         };
@@ -334,7 +354,10 @@ mod tests {
         let loaded = load(dir.path()).expect(".tmp fallback must succeed");
         assert_eq!(loaded.index.len(), 1);
         assert!(loaded.index.contains_key("data/x.parquet"));
-        assert!(!dir.path().join(KEY_INDEX_TMP_FILENAME).exists(), ".tmp must be deleted");
+        assert!(
+            !dir.path().join(KEY_INDEX_TMP_FILENAME).exists(),
+            ".tmp must be deleted"
+        );
     }
 
     #[test]
@@ -342,14 +365,30 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let main_snap = KeyIndexSnapshot {
             version: SNAPSHOT_VERSION,
-            index: { let mut m = HashMap::new(); m.insert("main".to_string(), HashSet::new()); m },
+            index: {
+                let mut m = HashMap::new();
+                m.insert("main".to_string(), HashSet::new());
+                m
+            },
         };
         let tmp_snap = KeyIndexSnapshot {
             version: SNAPSHOT_VERSION,
-            index: { let mut m = HashMap::new(); m.insert("tmp".to_string(), HashSet::new()); m },
+            index: {
+                let mut m = HashMap::new();
+                m.insert("tmp".to_string(), HashSet::new());
+                m
+            },
         };
-        std::fs::write(dir.path().join(KEY_INDEX_FILENAME), serde_json::to_string(&main_snap).unwrap().as_bytes()).unwrap();
-        std::fs::write(dir.path().join(KEY_INDEX_TMP_FILENAME), serde_json::to_string(&tmp_snap).unwrap().as_bytes()).unwrap();
+        std::fs::write(
+            dir.path().join(KEY_INDEX_FILENAME),
+            serde_json::to_string(&main_snap).unwrap().as_bytes(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(KEY_INDEX_TMP_FILENAME),
+            serde_json::to_string(&tmp_snap).unwrap().as_bytes(),
+        )
+        .unwrap();
 
         let loaded = load(dir.path()).unwrap();
         assert!(loaded.index.contains_key("main"));
@@ -366,8 +405,15 @@ mod tests {
     #[test]
     fn test_load_cleans_up_tmp_even_when_main_succeeds() {
         let dir = TempDir::new().unwrap();
-        let snap = KeyIndexSnapshot { version: SNAPSHOT_VERSION, index: HashMap::new() };
-        std::fs::write(dir.path().join(KEY_INDEX_FILENAME), serde_json::to_string(&snap).unwrap().as_bytes()).unwrap();
+        let snap = KeyIndexSnapshot {
+            version: SNAPSHOT_VERSION,
+            index: HashMap::new(),
+        };
+        std::fs::write(
+            dir.path().join(KEY_INDEX_FILENAME),
+            serde_json::to_string(&snap).unwrap().as_bytes(),
+        )
+        .unwrap();
         std::fs::write(dir.path().join(KEY_INDEX_TMP_FILENAME), b"stale").unwrap();
 
         load(dir.path()).unwrap();

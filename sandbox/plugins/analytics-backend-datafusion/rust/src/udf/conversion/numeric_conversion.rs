@@ -26,7 +26,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -34,13 +35,27 @@ use regex::Regex;
 /// Register every conversion UDF (`num`, `auto`, `memk`, `rmcomma`, `rmunit`,
 /// `dur2sec`, `mstime`) on a session.
 pub fn register_all(ctx: &SessionContext) {
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Num)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Auto)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Memk)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Rmcomma)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Rmunit)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Dur2sec)));
-    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Mstime)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Num,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Auto,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Memk,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Rmcomma,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Rmunit,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Dur2sec,
+    )));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(
+        NumericConversionFn::Mstime,
+    )));
 }
 
 /// Which conversion function this UDF instance implements.
@@ -167,7 +182,10 @@ impl ScalarUDFImpl for NumericConversionUdf {
                         .map(|opt| opt.and_then(|s| self.kind.apply(s)))
                         .collect(),
                     other => {
-                        return exec_err!("{}: expected Utf8 array, got {other:?}", self.kind.name());
+                        return exec_err!(
+                            "{}: expected Utf8 array, got {other:?}",
+                            self.kind.name()
+                        );
                     }
                 };
                 Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
@@ -179,13 +197,13 @@ impl ScalarUDFImpl for NumericConversionUdf {
 // ── Per-function implementations ───────────────────────────────────────────────────────────
 
 /// Gatekeeper for `num`.
-static STARTS_WITH_SIGN_OR_DIGIT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[+\-]?[\d.].*").unwrap());
+static STARTS_WITH_SIGN_OR_DIGIT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[+\-]?[\d.].*").unwrap());
 
 /// Captures an optional sign, the numeric body (one of `digits`, `digits.digits`, `digits.`, or `.digits`),
 /// and an optional exponent.
-static LEADING_NUMBER_WITH_UNIT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^([+\-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+\-]?\d+)?)(.*)$").unwrap()
-});
+static LEADING_NUMBER_WITH_UNIT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^([+\-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+\-]?\d+)?)(.*)$").unwrap());
 
 /// Optional sign, number body, optional unit in {k,m,g} (case-insensitive). Bare number with no unit is accepted.
 static MEMK: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([+\-]?\d+\.?\d*)([kmgKMG])?$").unwrap());
@@ -194,14 +212,12 @@ static MEMK: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([+\-]?\d+\.?\d*)([kmgKMG]
 static CONTAINS_LETTER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[a-zA-Z]").unwrap());
 
 /// `[D+]HH:MM:SS` — optional day count prefix separated by `+`.
-static DUR2SEC: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^(?:(\d+)\+)?(\d{1,2}):(\d{1,2}):(\d{1,2})$").unwrap()
-});
+static DUR2SEC: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(?:(\d+)\+)?(\d{1,2}):(\d{1,2}):(\d{1,2})$").unwrap());
 
 /// Optional `MM:` prefix, required `SS`, optional `.SSS`.
-static MSTIME: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^(?:(\d{1,2}):)?(\d{1,2})(?:\.(\d{1,3}))?$").unwrap()
-});
+static MSTIME: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(?:(\d{1,2}):)?(\d{1,2})(?:\.(\d{1,3}))?$").unwrap());
 
 const MB_TO_KB: f64 = 1024.0;
 const GB_TO_KB: f64 = 1024.0 * 1024.0;
@@ -274,7 +290,12 @@ fn convert_dur2sec(s: &str) -> Option<f64> {
         return Some(n);
     }
     let caps = DUR2SEC.captures(s)?;
-    let days: u64 = caps.get(1).map(|m| m.as_str()).unwrap_or("0").parse().ok()?;
+    let days: u64 = caps
+        .get(1)
+        .map(|m| m.as_str())
+        .unwrap_or("0")
+        .parse()
+        .ok()?;
     let hours: u64 = caps.get(2)?.as_str().parse().ok()?;
     let minutes: u64 = caps.get(3)?.as_str().parse().ok()?;
     let seconds: u64 = caps.get(4)?.as_str().parse().ok()?;
@@ -291,7 +312,12 @@ fn convert_mstime(s: &str) -> Option<f64> {
         return Some(n);
     }
     let caps = MSTIME.captures(s)?;
-    let minutes: u64 = caps.get(1).map(|m| m.as_str()).unwrap_or("0").parse().ok()?;
+    let minutes: u64 = caps
+        .get(1)
+        .map(|m| m.as_str())
+        .unwrap_or("0")
+        .parse()
+        .ok()?;
     let seconds: u64 = caps.get(2)?.as_str().parse().ok()?;
     if seconds >= 60 {
         return None;
@@ -517,7 +543,12 @@ mod tests {
             NumericConversionFn::Dur2sec,
             NumericConversionFn::Mstime,
         ] {
-            assert_eq!(kind.apply(""), None, "{:?} should return None for empty", kind);
+            assert_eq!(
+                kind.apply(""),
+                None,
+                "{:?} should return None for empty",
+                kind
+            );
             assert_eq!(
                 kind.apply("   "),
                 None,
