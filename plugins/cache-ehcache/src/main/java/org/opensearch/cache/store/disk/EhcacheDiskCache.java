@@ -34,6 +34,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,8 +42,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -191,7 +190,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         }
     }
 
-    @SuppressWarnings({ "rawtypes", "removal" })
+    @SuppressWarnings("rawtypes")
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
         // Creating the cache requires permissions specified in plugin-security.policy
         int segmentCount = (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings);
@@ -262,12 +261,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         return completableFutureMap;
     }
 
-    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "Ehcache uses File.io")
     PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
         // Creating the cache manager also requires permissions specified in plugin-security.policy
-        return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
+        return AccessController.doPrivileged(() -> {
             return CacheManagerBuilder.newCacheManagerBuilder()
                 .with(CacheManagerBuilder.persistence(new File(storagePath)))
 
