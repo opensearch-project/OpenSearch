@@ -412,6 +412,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private final Object periodicFlushMutex = new Object();
     private volatile AsyncShardFlushTask periodicFlushTask;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
@@ -3830,6 +3831,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings.getSoftDeleteRetentionOperations()
             );
         }
+        // index.periodic_flush_interval is dynamic: start, reschedule or stop the periodic flush task to match the current value.
+        updatePeriodicFlushTask(engineOrNull != null);
     }
 
     private void turnOffTranslogRetention() {
@@ -6715,12 +6718,53 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return refreshTask;
     }
 
+    /**
+     * Starts the periodic flush task if {@code index.periodic_flush_interval} is enabled and the task is not already running.
+     * Invoked when a new engine is created. Subsequent changes to the setting are applied by {@link #updatePeriodicFlushTask(boolean)}.
+     */
     public void startPeriodicFlushTask() {
-        TimeValue interval = indexSettings.getPeriodicFlushInterval();
-        // Only start the async flush task if interval is >0 and task is not already running
-        if (interval.millis() > 0 && periodicFlushTask == null) {
-            periodicFlushTask = new AsyncShardFlushTask(this, interval);
-            logger.info("Started periodic flush task for shard [{}] with interval [{}]", shardId, interval);
+        // Called from onNewEngine, before the engine reference is published, so the engine is known to be available.
+        updatePeriodicFlushTask(true);
+    }
+
+    /**
+     * Reconciles the periodic flush task with the current value of {@code index.periodic_flush_interval}:
+     * <ul>
+     *   <li>interval &gt; 0 and no task: a new task is started (only if an engine is available to flush)</li>
+     *   <li>interval &gt; 0 and a task exists with a different interval: the task is rescheduled with the new interval</li>
+     *   <li>interval &lt;= 0 and a task exists: the task is closed</li>
+     * </ul>
+     * The setting is dynamic, so this is called both on engine creation and on every settings change.
+     *
+     * @param engineAvailable whether an engine exists (or is about to be published) for this shard
+     */
+    void updatePeriodicFlushTask(boolean engineAvailable) {
+        synchronized (periodicFlushMutex) {
+            if (state == IndexShardState.CLOSED) {
+                return;
+            }
+            final TimeValue interval = indexSettings.getPeriodicFlushInterval();
+            final AsyncShardFlushTask current = periodicFlushTask;
+            if (interval.millis() <= 0) {
+                if (current != null) {
+                    current.close();
+                    periodicFlushTask = null;
+                    logger.info("Stopped periodic flush task for shard [{}]", shardId);
+                }
+                return;
+            }
+            if (current == null) {
+                // Without an engine there is nothing to flush; onNewEngine will start the task once one is created.
+                if (engineAvailable == false) {
+                    return;
+                }
+                periodicFlushTask = new AsyncShardFlushTask(this, interval);
+                logger.info("Started periodic flush task for shard [{}] with interval [{}]", shardId, interval);
+            } else if (interval.equals(current.getInterval()) == false) {
+                final TimeValue previous = current.getInterval();
+                current.setInterval(interval);
+                logger.info("Updated periodic flush interval for shard [{}] from [{}] to [{}]", shardId, previous, interval);
+            }
         }
     }
 

@@ -615,6 +615,65 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
     }
 
+    public void testPeriodicFlushIntervalDynamicUpdate() throws Exception {
+        final IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen();
+        final IndexShard shard = indexService.getShard(0);
+        // Periodic flush is disabled by default for a regular index, so no task is running.
+        assertNull(shard.getPeriodicFlushTask());
+
+        // Enable on a live index via the settings API: the task must start without an engine restart.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m"))
+        );
+        assertBusy(() -> {
+            IndexShard.AsyncShardFlushTask task = shard.getPeriodicFlushTask();
+            assertNotNull(task);
+            assertThat(task.getInterval(), equalTo(TimeValue.timeValueMinutes(1)));
+            assertTrue(task.isScheduled());
+        });
+        final IndexShard.AsyncShardFlushTask task = shard.getPeriodicFlushTask();
+
+        // Shorten the interval: the same task is rescheduled and starts firing flushes at the new cadence.
+        final long periodicBefore = shard.flushStats().getPeriodic();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "100ms"))
+        );
+        assertBusy(() -> {
+            assertSame(task, shard.getPeriodicFlushTask());
+            assertThat(task.getInterval(), equalTo(TimeValue.timeValueMillis(100)));
+        });
+        client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertThat(shard.flushStats().getPeriodic(), greaterThan(periodicBefore)));
+
+        // Disable: the task is closed and no further periodic flushes happen.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1"))
+        );
+        assertBusy(() -> {
+            assertNull(shard.getPeriodicFlushTask());
+            assertTrue(task.isClosed());
+            assertFalse(task.isScheduled());
+        });
+        // Allow any in-flight run to finish, then confirm the counter is flat.
+        Thread.sleep(300);
+        final long periodicAfterDisable = shard.flushStats().getPeriodic();
+        Thread.sleep(500);
+        assertThat(shard.flushStats().getPeriodic(), equalTo(periodicAfterDisable));
+    }
+
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
         createIndex("test");
         ensureGreen();
