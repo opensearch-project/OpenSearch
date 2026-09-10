@@ -678,9 +678,24 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_flush_and_sort_chunk_count: *mut i64,
     out_flush_and_sort_chunk_time_millis: *mut i64,
     out_row_id_mapping_max: *mut i64,
+    // Optional Box<Arc<dyn MetadataCachingStore>> pointer (from ts_get_object_store_box_ptr).
+    // Non-zero on warm shards: merge inputs are opened through the tiered object store so
+    // REMOTE files are readable. Zero on hot shards: inputs open as local files (unchanged).
+    input_store_box_ptr: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
+    let input_store: Option<std::sync::Arc<dyn object_store::ObjectStore>> = if input_store_box_ptr != 0 {
+        // Borrow the Box without taking ownership (the pointer is owned by the Java side
+        // and shared across calls); clone the Arc and upcast to ObjectStore.
+        let boxed = unsafe {
+            &*(input_store_box_ptr
+                as *const std::sync::Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>)
+        };
+        Some(std::sync::Arc::clone(boxed) as std::sync::Arc<dyn object_store::ObjectStore>)
+    } else {
+        None
+    };
     let output_path = str_from_raw(output_ptr, output_len)
         .map_err(|e| format!("parquet_merge_files output: {}", e))?;
     let index_name = str_from_raw(index_name_ptr, index_name_len)
@@ -711,6 +726,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             output_path,
             index_name,
             output_writer_generation,
+            input_store.as_ref(),
         )
     } else {
         merge::merge_sorted(
@@ -721,6 +737,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &reverse_flags,
             &nulls_first_flags,
             output_writer_generation,
+            input_store.as_ref(),
         )
     }
     .map_err(|e| format!("{}", e))?;

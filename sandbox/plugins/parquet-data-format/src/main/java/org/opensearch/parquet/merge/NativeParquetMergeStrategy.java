@@ -75,10 +75,15 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         List<Path> filePaths = new ArrayList<>();
         files.forEach(mono -> filePaths.add(Path.of(mono.directory()).resolve(mono.file())));
         assert filePaths.isEmpty() == false : "must have at least one input file path for merge";
-        // All input files must exist on disk before invoking the native merge
-        // This will change to object store lookup once warm is in place
-        assert filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p)) : "all input files must exist on disk before merge: "
-            + filePaths.stream().filter(p -> java.nio.file.Files.exists(p) == false).toList();
+
+        // Warm shards: merge inputs are read through the shard's tiered object store
+        // (LOCAL files from disk, REMOTE files from the remote store). Hot shards have
+        // no store handle and inputs must all exist on local disk.
+        org.opensearch.plugins.NativeStoreHandle storeHandle = mergeInput.storeHandles().get(dataFormat);
+        long storePtr = (storeHandle != null && storeHandle.isLive()) ? storeHandle.getPointer() : 0L;
+        assert storePtr != 0L || filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p))
+            : "all input files must exist on disk before a local merge: "
+                + filePaths.stream().filter(p -> java.nio.file.Files.exists(p) == false).toList();
 
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
@@ -86,7 +91,13 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         long startNanos = System.nanoTime();
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(
+                filePaths,
+                mergedFilePath.toString(),
+                indexName,
+                writerGeneration,
+                storePtr
+            );
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 

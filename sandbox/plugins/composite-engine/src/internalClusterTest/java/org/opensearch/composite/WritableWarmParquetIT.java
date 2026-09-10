@@ -202,6 +202,47 @@ public class WritableWarmParquetIT extends DataFormatAwareReadonlyEngineBaseIT {
     }
 
     /**
+     * Merge scenario: background merges on a writable warm shard read their parquet inputs
+     * through the tiered object store. By the time the merge policy fires, earlier writer
+     * files have been uploaded and flipped to REMOTE (local copies deleted) - including the
+     * hot-phase file removed at warm-open by reconciliation - so the native merge must
+     * fetch them from the remote store. The merged output then goes through the normal
+     * write -> upload -> flip lifecycle.
+     */
+    public void testBackgroundMergeOnWarmReadsRemoteInputs() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+        createHotIndexAndTierToWritableWarm(0);
+
+        IndexShard primaryShard = getIndexShard(primaryNodeName());
+
+        // Several warm write+refresh cycles: each refresh creates a new parquet writer file
+        // and triggers upload; earlier files flip to REMOTE while later cycles keep writing.
+        int docsPerCycle = 5;
+        int cycles = 15;
+        for (int c = 0; c < cycles; c++) {
+            indexDocsOnWarm(DOC_COUNT + c * docsPerCycle, docsPerCycle);
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        }
+        long expectedDocs = DOC_COUNT + (long) cycles * docsPerCycle;
+
+        // The background merge must produce a merged parquet file, and that file must be
+        // uploaded to remote (proving the full merge -> upload -> flip lifecycle on warm).
+        assertBusy(() -> {
+            Set<String> uploaded = uploadedParquetFiles(primaryShard);
+            assertTrue(
+                "expected a merged parquet file in remote uploads, got " + uploaded,
+                uploaded.stream().anyMatch(f -> f.contains("merged"))
+            );
+        }, 120, java.util.concurrent.TimeUnit.SECONDS);
+
+        // No docs lost across the merge, and reads still work.
+        assertBusy(() -> assertEquals("doc count must be intact after warm merge", expectedDocs, primaryDocCount()));
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        assertEquals(expectedDocs, primaryDocCount());
+    }
+
+    /**
      * Restart scenario: after warm writes are uploaded, a full restart recovers the shard
      * from remote and all docs (hot-phase and warm-phase) remain present and readable.
      */

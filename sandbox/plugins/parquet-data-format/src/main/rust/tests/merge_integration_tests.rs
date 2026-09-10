@@ -124,7 +124,7 @@ fn test_unsorted_merge_real_files() {
     let output_str = output.to_string_lossy().to_string();
 
     // Empty sort columns → unsorted merge
-    merge_unsorted(&files, &output_str, "test-index", 0).unwrap();
+    merge_unsorted(&files, &output_str, "test-index", 0, None).unwrap();
 
     assert!(output.exists(), "Output file was not created");
     let actual_rows = count_rows(&output_str);
@@ -192,8 +192,7 @@ fn test_sorted_merge_real_files() {
         &sort_cols,
         &reverse,
         &nulls_first,
-        0,
-    )
+        0, None)
     .unwrap();
 
     assert!(output.exists(), "Output file was not created");
@@ -304,8 +303,7 @@ fn test_tier2_yield_after_batch_boundary() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -361,8 +359,7 @@ fn test_tier2_yield_multiple_cursors() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -412,8 +409,7 @@ fn test_tier2_yield_descending() {
         &["v".into()],
         &[true],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -463,8 +459,7 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -516,8 +511,7 @@ fn test_tier2_yield_many_small_batches() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -633,8 +627,7 @@ fn test_default_settings_ascending_nulls_last() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
@@ -692,8 +685,7 @@ fn test_default_settings_descending_nulls_last() {
         &["v".into()],
         &[true],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
@@ -763,8 +755,7 @@ fn test_default_settings_ascending_nulls_first() {
         &["v".into()],
         &[false],
         &[true],
-        0,
-    )
+        0, None)
     .unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
@@ -825,8 +816,7 @@ fn test_single_large_file_passthrough() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -880,8 +870,7 @@ fn test_skewed_file_sizes_large_small() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let total = large + small;
@@ -956,8 +945,7 @@ fn test_three_files_middle_exhausts_first() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let total = a_count + b_count + c_count;
@@ -1014,8 +1002,7 @@ fn test_all_duplicate_sort_keys_large() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let total = n * 3;
@@ -1072,8 +1059,7 @@ fn test_non_multiple_of_batch_size() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let total = a_count + b_count;
@@ -1132,8 +1118,7 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
         &["v".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -1259,8 +1244,7 @@ fn test_deferred_wide_schema_correctness() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1329,8 +1313,7 @@ fn test_eager_forced_by_high_threshold() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1390,8 +1373,7 @@ fn test_deferred_multi_batch_sync() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1451,8 +1433,7 @@ fn test_deferred_tier3_interleaved() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1517,8 +1498,7 @@ fn test_deferred_vs_eager_identical_output() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     // Run with eager (threshold=9999)
@@ -1536,8 +1516,7 @@ fn test_deferred_vs_eager_identical_output() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     // Compare outputs — must be identical
@@ -1608,8 +1587,7 @@ fn test_deferred_tier1_single_cursor_drain() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1672,8 +1650,7 @@ fn test_deferred_tier1_multi_batch_drain() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1735,8 +1712,7 @@ fn test_deferred_tier2_full_batch_emit() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1800,6 +1776,7 @@ fn test_deferred_tier2_descending() {
         &[true],
         &[false],
         0, // reverse=true (descending)
+        None,
     )
     .unwrap();
 
@@ -1870,8 +1847,7 @@ fn test_deferred_tier3_many_cursors() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -1944,8 +1920,7 @@ fn test_deferred_different_schemas() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -2074,8 +2049,7 @@ fn test_deferred_three_files_different_schemas() {
         &["ts".into()],
         &[false],
         &[false],
-        0,
-    )
+        0, None)
     .unwrap();
 
     let ts_vals = read_all_int64(&output, "ts");
@@ -2161,4 +2135,94 @@ fn test_deferred_three_files_different_schemas() {
         }
     }
     assert_eq!(extra_vals, vec!["NULL", "x2", "x3", "NULL", "x5", "x6"]);
+}
+
+// ---------------------------------------------------------------------------
+// Writable warm: merge inputs served through the TieredObjectStore
+// ---------------------------------------------------------------------------
+
+/// Merges inputs that DO NOT exist at their shard-local paths: they are
+/// registered REMOTE in the tiered registry, backed by a separate "bucket"
+/// directory via the store-level remote LocalFileSystem. Proves the merge
+/// reads through the TieredObjectStore rather than the local filesystem.
+#[test]
+fn test_merge_reads_remote_inputs_through_tiered_store() {
+    use object_store::local::LocalFileSystem;
+    use object_store::ObjectStore;
+    use opensearch_parquet_format::merge::merge_unsorted;
+    use opensearch_tiered_storage::registry::traits::FileRegistry;
+    use opensearch_tiered_storage::registry::TieredStorageRegistry;
+    use opensearch_tiered_storage::tiered_object_store::TieredObjectStore;
+    use opensearch_tiered_storage::types::{FileLocation, TieredFileEntry};
+    use std::sync::Arc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let bucket = tmp.path().join("bucket");
+    let shard = tmp.path().join("shard").join("parquet");
+    std::fs::create_dir_all(&bucket).unwrap();
+    std::fs::create_dir_all(&shard).unwrap();
+
+    // Write two input files into the "remote bucket" only.
+    let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
+    let batch1 = RecordBatch::try_new(
+        schema.clone(),
+        vec![Arc::new(Int64Array::from(vec![1_i64, 2, 3]))],
+    )
+    .unwrap();
+    let batch2 = RecordBatch::try_new(
+        schema.clone(),
+        vec![Arc::new(Int64Array::from(vec![4_i64, 5]))],
+    )
+    .unwrap();
+    let remote1 = bucket.join("blob_gen1").to_string_lossy().to_string();
+    let remote2 = bucket.join("blob_gen2").to_string_lossy().to_string();
+    write_parquet(&remote1, &batch1);
+    write_parquet(&remote2, &batch2);
+
+    // Shard-local paths that DO NOT exist on disk.
+    let local1 = shard.join("seg_gen1.parquet").to_string_lossy().to_string();
+    let local2 = shard.join("seg_gen2.parquet").to_string_lossy().to_string();
+    assert!(!std::path::Path::new(&local1).exists());
+
+    // Registry: both files REMOTE, remote_path pointing at the bucket blobs.
+    let registry = Arc::new(TieredStorageRegistry::new());
+    registry.register(
+        &local1,
+        TieredFileEntry::with_size(
+            FileLocation::Remote,
+            Some(Arc::from(remote1.trim_start_matches('/'))),
+            std::fs::metadata(&remote1).unwrap().len(),
+        ),
+    );
+    registry.register(
+        &local2,
+        TieredFileEntry::with_size(
+            FileLocation::Remote,
+            Some(Arc::from(remote2.trim_start_matches('/'))),
+            std::fs::metadata(&remote2).unwrap().len(),
+        ),
+    );
+
+    let tiered = TieredObjectStore::new(registry, Arc::new(LocalFileSystem::new()));
+    tiered.set_remote(Arc::new(LocalFileSystem::new()));
+    let store: Arc<dyn ObjectStore> = Arc::new(tiered);
+
+    let output = tmp
+        .path()
+        .join("merged_remote.parquet")
+        .to_string_lossy()
+        .to_string();
+    merge_unsorted(
+        &[local1, local2],
+        &output,
+        "warm-merge-idx",
+        7,
+        Some(&store),
+    )
+    .unwrap();
+
+    // Output written locally, contains all rows from both remote inputs.
+    assert_eq!(count_rows(&output), 5);
+    let vals = read_all_int64(&output, "v");
+    assert_eq!(vals, vec![1, 2, 3, 4, 5]);
 }

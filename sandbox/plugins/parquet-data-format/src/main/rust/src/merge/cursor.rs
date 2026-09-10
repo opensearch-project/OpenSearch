@@ -6,12 +6,14 @@
  * compatible open source license.
  */
 
-use std::fs::File;
 use std::sync::{Arc, Mutex};
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
+use object_store::ObjectStore;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+use super::store_reader::TieredChunkReader;
 use parquet::schema::types::SchemaDescriptor;
 
 use super::error::{MergeError, MergeResult};
@@ -58,9 +60,11 @@ impl FileCursor {
         batch_size: usize,
         deferred_threshold: usize,
         reservation: &mut MemoryReservation,
+        input_store: Option<&Arc<dyn ObjectStore>>,
     ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
-        // Open file and read metadata
-        let file = File::open(path)?;
+        // Open file and read metadata. Store-backed on warm shards (routes LOCAL to
+        // disk, REMOTE to the remote store); plain local file on hot shards.
+        let file = TieredChunkReader::open(path, input_store)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
         let writer_generation = crate::writer_properties_builder::read_writer_generation(
@@ -112,7 +116,7 @@ impl FileCursor {
         let data_projection_indices = projection_indices_excluding_row_id(&schema);
 
         // Build sort reader (sort-only in deferred, all-columns in eager)
-        let file1 = File::open(path)?;
+        let file1 = TieredChunkReader::open(path, input_store)?;
         let builder1 = ParquetRecordBatchReaderBuilder::try_new(file1)?;
         let sort_projection = if deferred {
             let sort_indices: Vec<usize> = sort_columns
@@ -133,7 +137,7 @@ impl FileCursor {
 
         // Build data reader (only in deferred mode)
         let data_reader = if deferred {
-            let file2 = File::open(path)?;
+            let file2 = TieredChunkReader::open(path, input_store)?;
             let builder2 = ParquetRecordBatchReaderBuilder::try_new(file2)?;
             let data_proj = parquet::arrow::ProjectionMask::roots(
                 builder2.parquet_schema(),

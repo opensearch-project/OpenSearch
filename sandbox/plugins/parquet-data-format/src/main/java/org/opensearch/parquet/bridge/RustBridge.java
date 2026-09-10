@@ -234,7 +234,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,    // out_gen_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
                 ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
-                ValueLayout.ADDRESS     // out_row_id_mapping_max
+                ValueLayout.ADDRESS,    // out_row_id_mapping_max
+                ValueLayout.JAVA_LONG   // input_store_box_ptr (0 = local files only)
             )
         );
         FREE_MERGE_RESULT = linker.downcallHandle(
@@ -577,6 +578,21 @@ public class RustBridge {
         String indexName,
         long outputWriterGeneration
     ) {
+        return mergeParquetFilesInRust(inputFiles, outputFile, indexName, outputWriterGeneration, 0L);
+    }
+
+    /**
+     * Merge variant with an optional native tiered-store pointer ({@code 0} = local files
+     * only). Non-zero on warm shards: inputs are opened through the tiered object store so
+     * REMOTE files are readable.
+     */
+    public static MergeFilesResult mergeParquetFilesInRust(
+        List<Path> inputFiles,
+        String outputFile,
+        String indexName,
+        long outputWriterGeneration,
+        long inputStoreBoxPtr
+    ) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
@@ -625,7 +641,8 @@ public class RustBridge {
                 outGenCount,
                 outFlushChunkCount,
                 outFlushChunkTimeMillis,
-                outRowIdMappingMax
+                outRowIdMappingMax,
+                inputStoreBoxPtr
             );
 
             int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
