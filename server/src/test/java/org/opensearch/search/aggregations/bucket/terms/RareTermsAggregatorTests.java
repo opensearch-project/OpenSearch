@@ -61,10 +61,12 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -74,6 +76,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.TextParams;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -434,6 +437,54 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(((Terms) (children.asList().get(0))).getBuckets().size(), equalTo(1));
             assertThat(((Terms) (children.asList().get(0))).getBuckets().get(0).getKeyAsString(), equalTo("1"));
         });
+    }
+
+    public void testRareTermsDocValuesMismatchGuard() throws IOException {
+        // Every 5-character string over {a, b}: all 32 values are distinct, so all are rare
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < 32; i++) {
+            StringBuilder value = new StringBuilder();
+            for (int bit = 4; bit >= 0; bit--) {
+                value.append(((i >> bit) & 1) == 0 ? 'a' : 'b');
+            }
+            values.add(value.toString());
+        }
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                for (String value : values) {
+                    ADD_WILDCARD_FIELD_INDEXED.apply(document, KEYWORD_FIELD, value);
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field(KEYWORD_FIELD)
+                    .maxDocCount(1);
+                MappedFieldType fieldType = new WildcardFieldMapper.Builder(KEYWORD_FIELD).docValues(true)
+                    .build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(1)))
+                    .fieldType();
+
+                // The precompute path must be skipped, so all documents are visited via normal collection
+                InternalMappedRareTerms<?, ?> result = searchAndReduceCounting(
+                    values.size(),
+                    null,
+                    indexSearcher,
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder,
+                    -1,
+                    false,
+                    false,
+                    fieldType
+                );
+                assertEquals(values.size(), result.getBuckets().size());
+                for (int i = 0; i < values.size(); i++) {
+                    assertEquals(values.get(i), result.getBuckets().get(i).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(i).getDocCount());
+                }
+            }
+        }
     }
 
     public void testInsideTerms() throws IOException {
