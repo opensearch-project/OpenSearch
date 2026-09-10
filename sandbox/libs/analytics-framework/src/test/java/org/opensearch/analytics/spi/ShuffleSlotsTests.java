@@ -61,7 +61,7 @@ public class ShuffleSlotsTests extends OpenSearchTestCase {
         bySlot.put("in0", 5);
         bySlot.put("in1", 3);
         bySlot.put("in2", 7);
-        ShuffleWorkerSetupInstructionNode original = new ShuffleWorkerSetupInstructionNode("q-1", 9, 2, bySlot, false);
+        ShuffleWorkerSetupInstructionNode original = new ShuffleWorkerSetupInstructionNode("q-1", 9, 2, bySlot, false, /* pipelined */ false);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -74,12 +74,13 @@ public class ShuffleSlotsTests extends OpenSearchTestCase {
                 assertEquals(9, decoded.getTargetStageId());
                 assertEquals(2, decoded.getPartitionIndex());
                 assertFalse(decoded.getPreferHashJoin());
+                assertFalse("the shuffle shape must survive the wire too", decoded.isPipelined());
             }
         }
     }
 
     public void testWorkerSetupBinaryCtorRoundtripsThroughSlots() throws Exception {
-        ShuffleWorkerSetupInstructionNode original = new ShuffleWorkerSetupInstructionNode("q-2", 4, -1, 7, 3, true);
+        ShuffleWorkerSetupInstructionNode original = new ShuffleWorkerSetupInstructionNode("q-2", 4, -1, 7, 3, true, /* pipelined */ true);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -98,7 +99,15 @@ public class ShuffleSlotsTests extends OpenSearchTestCase {
     public void testWorkerSetupBinaryCtorOmitsNegativeSide() {
         // The single-slot agg-shuffle path passes rightExpectedSenders=-1 meaning "no right slot at all";
         // declaring it as -1 would leave a slot the buffer's awaitReady could never satisfy.
-        ShuffleWorkerSetupInstructionNode node = new ShuffleWorkerSetupInstructionNode("q-3", 4, 0, 2, -1, true);
+        ShuffleWorkerSetupInstructionNode node = new ShuffleWorkerSetupInstructionNode(
+            "q-3",
+            4,
+            0,
+            2,
+            -1,
+            /* preferHashJoin */ true,
+            /* pipelined */ true
+        );
         assertEquals(Map.of("left", 2), node.getExpectedSendersBySlot());
         assertEquals(-1, node.getRightExpectedSenders());
     }

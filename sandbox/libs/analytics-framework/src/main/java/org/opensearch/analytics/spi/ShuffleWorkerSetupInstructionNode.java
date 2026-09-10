@@ -22,11 +22,19 @@ import java.util.Map;
  * table) and returns it as the {@link BackendExecutionContext}, so subsequent
  * {@link ShuffleScanInstructionNode} handlers can register named-input streams against it.
  *
- * <p>Beyond the buffer-triple key + expected-sender counts, the node carries the per-worker-stage
- * {@code preferHashJoin} decision: the coordinator sets it {@code false} when it estimates this
- * worker join's build side is too large for an in-memory hash table, so the backend builds a
- * spillable sort-merge join instead of the non-spillable hash-join build. Defaults {@code true}
- * (hash-join, the historical behavior).
+ * <p>Beyond the buffer-triple key + expected-sender counts, the node carries two per-worker-stage
+ * decisions the coordinator makes because that is where the stats live:
+ * <ul>
+ *   <li>{@code preferHashJoin} — {@code false} when this worker join's build side is estimated too
+ *       large for an in-memory hash table, so the backend builds a spillable sort-merge join instead
+ *       of the non-spillable hash-join build. Defaults {@code true} (hash-join, the historical
+ *       behavior).</li>
+ *   <li>{@code pipelined} — {@code true} to drain CONCURRENTLY with the producers (low latency,
+ *       residency bounded by arrival rate), {@code false} for the MATERIALIZED shape: the producers
+ *       all finish first and the consumer's buffer spills, so residency is bounded by a shallow
+ *       window and backpressure cannot fail the query. Per stage rather than per node because the
+ *       right answer is a property of the shuffle's size, not of the cluster.</li>
+ * </ul>
  *
  * @opensearch.internal
  */
@@ -37,6 +45,7 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
     private final int partitionIndex;
     private final Map<String, Integer> expectedSendersBySlot;
     private final boolean preferHashJoin;
+    private final boolean pipelined;
 
     /**
      * @param queryId               worker buffer triple key
@@ -47,13 +56,16 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
      *                              handler declares them all in one call so the buffer's
      *                              {@code awaitReady} waits on the complete set.
      * @param preferHashJoin        false → the backend builds a spillable sort-merge join for this worker
+     * @param pipelined             false → this worker uses the materialized shape (producers finish
+     *                              first, consumer buffer spills) instead of draining concurrently
      */
     public ShuffleWorkerSetupInstructionNode(
         String queryId,
         int targetStageId,
         int partitionIndex,
         Map<String, Integer> expectedSendersBySlot,
-        boolean preferHashJoin
+        boolean preferHashJoin,
+        boolean pipelined
     ) {
         this.queryId = queryId;
         this.targetStageId = targetStageId;
@@ -62,6 +74,7 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         // handler's declaration order deterministic (the buffer itself is order-insensitive).
         this.expectedSendersBySlot = Collections.unmodifiableMap(new LinkedHashMap<>(expectedSendersBySlot));
         this.preferHashJoin = preferHashJoin;
+        this.pipelined = pipelined;
     }
 
     /**
@@ -74,9 +87,10 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         int partitionIndex,
         int leftExpectedSenders,
         int rightExpectedSenders,
-        boolean preferHashJoin
+        boolean preferHashJoin,
+        boolean pipelined
     ) {
-        this(queryId, targetStageId, partitionIndex, binarySlots(leftExpectedSenders, rightExpectedSenders), preferHashJoin);
+        this(queryId, targetStageId, partitionIndex, binarySlots(leftExpectedSenders, rightExpectedSenders), preferHashJoin, pipelined);
     }
 
     private static Map<String, Integer> binarySlots(int leftExpectedSenders, int rightExpectedSenders) {
@@ -101,6 +115,7 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         }
         this.expectedSendersBySlot = Collections.unmodifiableMap(bySlot);
         this.preferHashJoin = in.readBoolean();
+        this.pipelined = in.readBoolean();
     }
 
     public String getQueryId() {
@@ -137,6 +152,11 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
         return preferHashJoin;
     }
 
+    /** True when this worker drains concurrently with its producers; false for the materialized shape. */
+    public boolean isPipelined() {
+        return pipelined;
+    }
+
     @Override
     public InstructionType type() {
         return InstructionType.SETUP_SHUFFLE_WORKER;
@@ -153,5 +173,6 @@ public class ShuffleWorkerSetupInstructionNode implements InstructionNode {
             out.writeVInt(e.getValue());
         }
         out.writeBoolean(preferHashJoin);
+        out.writeBoolean(pipelined);
     }
 }

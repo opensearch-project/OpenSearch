@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.join;
 
+import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -20,6 +21,7 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.LinkedHashMap;
@@ -127,7 +129,8 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
             /* queryId */ "qid-test",
             /* leftProducerStageId */ 11,
             /* rightProducerStageId */ 12,
-            /* preferHashJoin */ true
+            /* preferHashJoin */ true,
+            /* pipelined */ true
         );
 
         List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
@@ -167,7 +170,17 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         Stage consumer = new Stage(/* stageId */ 4, null, List.of(), null, null, null);
         consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
 
-        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, 7, 3, "qid", 1, 2, /* preferHashJoin */ false);
+        ShuffleEnrichment.enrichWorkerAlternatives(
+            consumer,
+            /* partitionCount */ 2,
+            7,
+            3,
+            "qid",
+            1,
+            2,
+            /* preferHashJoin */ false,
+            /* pipelined */ false
+        );
 
         ShuffleWorkerSetupInstructionNode setup = (ShuffleWorkerSetupInstructionNode) consumer.getPlanAlternatives()
             .get(0)
@@ -179,6 +192,7 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         assertEquals("qid", setup.getQueryId());
         assertEquals(4, setup.getTargetStageId());
         assertFalse("preferHashJoin flows through to the setup placeholder", setup.getPreferHashJoin());
+        assertFalse("the shuffle shape flows through the same placeholder", setup.isPipelined());
     }
 
     public void testEnrichWorkerAlternativesForThreeSlots() {
@@ -196,7 +210,7 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         producers.put("in1", 32);
         producers.put("in2", 33);
 
-        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, expected, "qid-n", producers, true);
+        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, expected, "qid-n", producers, true, /* pipelined */ true);
 
         List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
         assertEquals("1 setup + 2 partitions × 3 slots = 7 instructions", 7, instr.size());
@@ -230,10 +244,67 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
                 new LinkedHashMap<>(Map.of("in0", 1, "in1", 1)),
                 "qid",
                 new LinkedHashMap<>(Map.of("in0", 5)),
-                true
+                true,
+                /* pipelined */ true
             )
         );
         assertTrue("must name the disagreeing slot sets", ex.getMessage().contains("disagree"));
+    }
+
+    /**
+     * The shuffle SHAPE decision. A worker join whose build is estimated not to fit in memory takes the
+     * materialized shape (producers finish, then the consumer drains its spilling buffer), because there a
+     * residency bound that cannot fail a query is worth more than overlapping the drain with its
+     * producers. A build that does fit keeps the pipelined shape, which is the class whose latency
+     * regressed when the in-flight window was squeezed.
+     *
+     * <p>Driven through {@code sortMergeJoinMinRows}: with null fragments every build estimates 0 rows, so
+     * a floor of 0 makes the estimate fail it ({@code 0 < 0} is false) and a floor of 1 makes it pass.
+     */
+    public void testShuffleShapeFollowsTheBuildFitsInMemoryEstimate() {
+        assertFalse("a build that does not fit takes the materialized shape", shapeFor(/* smjMinRows */ 0, /* inputs */ 2));
+        assertTrue("a build that fits keeps the pipelined shape", shapeFor(/* smjMinRows */ 1, /* inputs */ 2));
+    }
+
+    /**
+     * ...but only for a JOIN worker. A single-input worker — the FINAL half of an aggregate shuffle —
+     * consumes its one stream continuously, so its drain never stalls and materializing would cost latency
+     * for nothing. Its estimate is also the wrong quantity: it measures the scan under a PARTIAL aggregate,
+     * not the bytes that aggregate ships.
+     */
+    public void testSingleInputWorkerStaysPipelinedEvenWhenTheEstimateFails() {
+        assertTrue("an aggregate-shuffle worker must not be materialized by a join heuristic", shapeFor(0, /* inputs */ 1));
+    }
+
+    /** Runs {@code enrichLevels} for one worker level with {@code inputCount} producers and returns the
+     *  shuffle shape it stamped on the setup placeholder. */
+    private static boolean shapeFor(long sortMergeJoinMinRows, int inputCount) {
+        Stage worker = new Stage(/* stageId */ 30, null, List.of(), null, null, null);
+        worker.setPlanAlternatives(List.of(new StagePlan(null, "df")));
+        List<ShuffleEnrichment.WorkerInput> inputs = new java.util.ArrayList<>();
+        for (int i = 0; i < inputCount; i++) {
+            Stage producer = newProducerStage(/* stageId */ 40 + i, /* partitionCount */ 1, List.of(0));
+            producer.setPlanAlternatives(List.of(new StagePlan(null, "df").withInstructions(List.of(new ShardScanInstructionNode()))));
+            inputs.add(new ShuffleEnrichment.WorkerInput(producer, List.of(0), inputCount == 1 ? "left" : (i == 0 ? "left" : "right")));
+        }
+        ShuffleEnrichment.WorkerLevel level = new ShuffleEnrichment.WorkerLevel(worker, inputs, 1, List.of("node-0"));
+
+        QueryContext ctx = mock(QueryContext.class);
+        when(ctx.queryId()).thenReturn("qid-shape");
+        ShuffleEnrichment.enrichLevels(
+            List.of(level),
+            ctx,
+            mock(ClusterService.class),
+            shuffleCapableRegistry("df"),
+            sortMergeJoinMinRows
+        );
+
+        for (InstructionNode node : worker.getPlanAlternatives().get(0).instructions()) {
+            if (node instanceof ShuffleWorkerSetupInstructionNode setup) {
+                return setup.isPipelined();
+            }
+        }
+        throw new AssertionError("enrichLevels emitted no worker setup instruction");
     }
 
     private static Stage newProducerStage(int stageId, int partitionCount, List<Integer> hashKeys) {

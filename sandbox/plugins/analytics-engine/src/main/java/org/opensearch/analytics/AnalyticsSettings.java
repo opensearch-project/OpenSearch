@@ -136,19 +136,31 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Whether a hash-shuffle consumer drains CONCURRENTLY with its producers (default) or waits for all
-     * of them to finish first.
+     * Node-level KILL SWITCH for the pipelined shuffle shape — whether a hash-shuffle consumer may drain
+     * CONCURRENTLY with its producers (default) or must wait for all of them first (materialized).
      *
-     * <p>Enabled by default: the barrier it removes is what forces a whole partition to be resident
-     * twice over — once as buffered chunks and again as decoded batches — which is the dominant peak in
-     * shuffle-heavy plans. Streaming makes peak residency a function of arrival rate instead of
-     * partition size.
+     * <p>The shape is normally chosen PER WORKER STAGE by the coordinator, from the same estimate that
+     * decides whether the worker join can be an in-memory hash join
+     * ({@code ShuffleEnrichment.enrichLevels}): a build that does not fit takes the materialized shape,
+     * because there a bound that cannot fail is worth more than overlap. This setting is the operator's
+     * override in the safe direction only — {@code false} forces every worker stage to materialize;
+     * {@code true} (default) lets the plan decide. A stage can narrow to materialized but never broaden
+     * back to pipelined, so the switch cannot be defeated by a plan.
      *
-     * <p>Kept as a switch purely so the streaming path can be ruled out when diagnosing a shuffle
-     * failure, since it changes the timing of every producer/consumer interaction. Turning it off is a
-     * memory regression, not a safe default: correctness is identical either way, and a stalled producer
-     * fails loudly on both paths rather than short-reading. Distinct from
-     * {@link #MPP_SHUFFLE_STREAM_WINDOW}, which paces producers WITHIN the streaming path.
+     * <p>What each shape trades:
+     * <ul>
+     *   <li>PIPELINED — the drain starts on the first chunk, so peak residency follows arrival rate
+     *       rather than partition size (the barrier it removes is what forced a whole partition to be
+     *       resident twice over, once as buffered chunks and again as decoded batches). Its backpressure
+     *       is a retryable reject, which can exhaust the sender's attempt budget and fail the query.</li>
+     *   <li>MATERIALIZED — the producers all finish first, and the accumulating buffer SPILLS
+     *       ({@link #MPP_SHUFFLE_SPILL_ENABLED}), so residency is bounded by a shallow window and a full
+     *       window is relieved by disk instead of by a retry. Slower (no overlap), but backpressure
+     *       cannot fail the query. Without spill enabled it degrades to the pre-streaming behaviour:
+     *       the whole partition resident, bounded only by the node budget.</li>
+     * </ul>
+     * Correctness is identical either way, and a stalled producer fails loudly on both paths rather than
+     * short-reading.
      */
     public static final Setting<Boolean> MPP_SHUFFLE_PIPELINED_ENABLED = Setting.boolSetting(
         "analytics.mpp.shuffle.pipelined.enabled",
@@ -162,23 +174,33 @@ public final class AnalyticsSettings {
      * queued-but-undrained on one (buffer, slot) before admission returns a retryable reject, pacing
      * producers to the consumer's drain rate.
      *
-     * <p><b>DISABLED by default (0), and it must stay that way until backpressure is a real PAUSE.</b>
-     * The intent is to bound peak residency independently of partition size. As implemented, a full
-     * window is signalled by a retryable REJECT, and that DEADLOCKS: {@code HashJoinExec} reads its
-     * inputs sequentially, so the probe-side drain blocks at the native channel's capacity until the
-     * build completes, the probe window fills, and its producers enter a re-send storm on the bounded
-     * GENERIC pool — contending with the very work that would release them. Measured at sf=10: all seven
-     * probe queries hung to the harness's 150s cap with a 64MB window; with the window off the same
-     * build passed q5/q11/q13/q19/q21 with no regressions.
+     * <p><b>Unset (0) by default, and it should stay unset for PIPELINED stages.</b> There a full window
+     * is signalled by a retryable REJECT, and a reject can fail a query: {@code ShuffleSenderRetry}
+     * gives up after a bounded number of attempts. Measured at sf=10 over 13 shuffle-heavy queries,
+     * failures rose MONOTONICALLY as the window shrank — 11/13 passing with the window off, 10/13 at
+     * 64 MB, 8/13 at 16 MB — and q3/q19 also ran 2-3x slower. Making a window safe under pipelining
+     * needs the producer to STOP PULLING while it is full (ClickHouse's {@code StreamingExchangeSink}:
+     * "Propagate back-pressure upstream: don't pull until there's room", returning {@code Status::Async})
+     * rather than to re-send; a pause cannot fail, a bounded re-send can.
      *
-     * <p>Streaming alone (this window disabled) still lowers peak residency, because the drain starts on
-     * the first chunk instead of after a barrier, so on-heap bytes are consumed as they arrive rather than
-     * accumulated — q18's heap fell 63% => 42%, q5's to 6%. The absolute backstop remains
-     * {@link #MPP_SHUFFLE_NODE_BUDGET_PERCENT}.
+     * <p>On a MATERIALIZED stage ({@link #MPP_SHUFFLE_PIPELINED_ENABLED}) the same window is safe and is
+     * applied by default, because nothing is draining yet: a full window is relieved by SPILLING the
+     * slot's oldest chunks, so the producer is never asked to retry. There, this setting overrides the
+     * derived default ({@code ShuffleBufferManager.MATERIALIZED_WINDOW_DEFAULT_BYTES}). With spill
+     * disabled the window is IGNORED on those stages rather than enforced — nothing could relieve it, so
+     * enforcing it would be a guaranteed failure for any partition larger than the window.
      *
-     * <p>Enabling this needs the producer to STOP PULLING while the window is full (ClickHouse's
-     * {@code StreamingExchangeSink}: "Propagate back-pressure upstream: don't pull until there's room",
-     * returning {@code Status::Async}), not to re-send. A pause cannot fail; a re-send storm can.
+     * <p>Note the earlier explanation of the pipelined deadlock recorded here was wrong on mechanism: it
+     * blamed GENERIC-pool contention between retries and the work that releases the window, plus
+     * {@code HashJoinExec}'s build-before-probe ordering. Neither holds — the release path runs on the
+     * worker pool and a raw drain thread, and at the time the consumer stage was not scheduled until every
+     * producer had SUCCEEDED, so during the producer phase there was no drain to release the window at
+     * all. Worker stages now schedule eagerly, which removed that structural cause; what remains is the
+     * bounded-retry ceiling above.
+     *
+     * <p>Streaming alone (this window unset) still lowers peak residency, because the drain starts on the
+     * first chunk instead of after a barrier — q18's heap fell 63% => 42%, q5's to 6%. The absolute
+     * backstop remains {@link #MPP_SHUFFLE_NODE_BUDGET_PERCENT}.
      */
     public static final Setting<ByteSizeValue> MPP_SHUFFLE_STREAM_WINDOW = Setting.byteSizeSetting(
         "analytics.mpp.shuffle.stream_window",
@@ -287,9 +309,21 @@ public final class AnalyticsSettings {
      * and the consumer drains spilled chunks back (in arrival order) followed by the in-memory tail —
      * preserving the proven buffer-all consumer contract.
      *
+     * <p>Two things trigger a spill, and the second is what makes the MATERIALIZED shuffle shape worth
+     * choosing (see {@link #MPP_SHUFFLE_PIPELINED_ENABLED}):
+     * <ul>
+     *   <li>a per-query on-heap budget breach — the original trigger, an alternative to failing fast;</li>
+     *   <li>a full per-slot in-flight window ({@link #MPP_SHUFFLE_STREAM_WINDOW}), which turns
+     *       backpressure into a disk write instead of a producer retry. Only possible while no consumer is
+     *       draining the buffer, since eviction takes from the queue head the consumer reads — i.e.
+     *       throughout a materialized stage's accumulation phase, and only before the drain starts on a
+     *       pipelined one.</li>
+     * </ul>
+     *
      * <p>When {@code false} (default), behavior is byte-identical to the pre-spill fail-fast path: a
-     * per-query budget breach still throws {@code ShuffleBufferExceededException}. The node-budget
-     * REJECT_RETRY (transient cross-query contention) path is unchanged either way.
+     * per-query budget breach still throws {@code ShuffleBufferExceededException}, and a materialized
+     * stage has no residency bound beyond that budget. The node-budget REJECT_RETRY (transient
+     * cross-query contention) path is unchanged either way.
      *
      * <p>Even with spill enabled the query still fails — re-messaged to name {@code spill.max_bytes} /
      * disk-full — once the disk ceiling {@link #MPP_SHUFFLE_SPILL_MAX_BYTES} is hit or a spill write

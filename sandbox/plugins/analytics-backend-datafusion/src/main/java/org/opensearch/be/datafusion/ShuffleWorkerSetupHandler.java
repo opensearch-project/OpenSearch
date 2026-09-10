@@ -50,6 +50,13 @@ public class ShuffleWorkerSetupHandler implements FragmentInstructionHandler<Shu
         if (registry != null) {
             ShuffleBufferAccess buffer = registry.getOrCreate(node.getQueryId(), node.getTargetStageId(), node.getPartitionIndex());
             buffer.setExpectedSenders(node.getExpectedSendersBySlot());
+            // Apply the coordinator's shuffle-shape decision to THIS buffer. One-way (materialized only):
+            // the node-level pipelined.enabled switch stays the operator's kill switch. This must happen
+            // before any producer chunk is admitted, which it does — the setup instruction runs ahead of
+            // every ShuffleScanHandler, and admission consults the buffer's mode on each chunk.
+            if (node.isPipelined() == false) {
+                buffer.useMaterializedMode();
+            }
         }
         DataFusionService dataFusionService = plugin.getDataFusionService();
         long runtimePtr = dataFusionService.getNativeRuntime().get();

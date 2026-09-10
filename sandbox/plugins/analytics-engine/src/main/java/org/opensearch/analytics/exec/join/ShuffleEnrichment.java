@@ -181,21 +181,57 @@ public final class ShuffleEnrichment {
             long buildRows = subtreeMaxScanRows(buildProducer.getFragment());
             boolean preferHashJoin = buildRows < sortMergeJoinMinRows;
 
+            // Shuffle SHAPE, from the same estimate and for the same reason. Pipelined (drain concurrent
+            // with the producers) buys latency and keeps residency proportional to arrival rate, but its
+            // backpressure is a retryable reject that can exhaust and fail the query, because once the
+            // consumer owns the queue nothing can spill it away. Materialized (producers finish, then the
+            // consumer drains) gives that up for a bound that cannot fail: the accumulating buffer spills,
+            // so a full window is relieved by disk.
+            //
+            // Reusing preferHashJoin rather than inventing a threshold: it is already the calibrated
+            // "this build does not fit in memory" signal, and a shuffle whose build does not fit is
+            // exactly the memory-bound class where a bound that cannot fail is worth more than overlap.
+            // Where the build does fit, the build phase is short, so the window in which an undrained
+            // probe can pile up is short too — that is the class whose latency regressed when the
+            // in-flight window was squeezed, so it keeps the pipelined shape.
+            //
+            // Restricted to MULTI-INPUT workers. The residency the materialized shape exists to bound is
+            // the side a join cannot consume yet: a hash join reads its build fully before it touches the
+            // probe, so probe bytes pile up in the consumer's buffer with nowhere to go. A single-input
+            // worker (the FINAL half of an aggregate shuffle) consumes its one stream continuously, so its
+            // drain never stalls and the pipelined shape costs it nothing. Its buildRows estimate would
+            // also be misleading: subtreeMaxScanRows measures the scan under a PARTIAL aggregate, which
+            // says nothing about how many bytes that aggregate actually ships.
+            //
+            // Refinements deliberately NOT added here: partition count and cascade depth both also drive
+            // concurrent residency, but neither has a measured threshold yet, and three uncalibrated
+            // constants would be harder to reason about than one signal that is already tuned.
+            boolean pipelined = preferHashJoin || level.inputs().size() < 2;
+
             // The worker consumes every producer's partitions. enrichWorkerAlternatives prepends a setup
             // placeholder and appends per-(partition,slot) scans; a producer instruction (added above when
             // this worker also feeds a higher level) stays AFTER the scans because enrichProducerAlternatives
             // appended it to the worker's own alternatives.
-            enrichWorkerAlternatives(worker, partitionCount, expectedBySlot, ctx.queryId(), producerStageIdBySlot, preferHashJoin);
+            enrichWorkerAlternatives(
+                worker,
+                partitionCount,
+                expectedBySlot,
+                ctx.queryId(),
+                producerStageIdBySlot,
+                preferHashJoin,
+                pipelined
+            );
 
             LOGGER.debug(
                 "[ShuffleEnrichment] level worker={} producers={} partitions={} expectedSenders={} "
-                    + "buildRows={} preferHashJoin={} targets={}",
+                    + "buildRows={} preferHashJoin={} pipelined={} targets={}",
                 workerStageId,
                 producerStageIdBySlot,
                 partitionCount,
                 expectedBySlot,
                 buildRows,
                 preferHashJoin,
+                pipelined,
                 targets
             );
         }
@@ -281,7 +317,8 @@ public final class ShuffleEnrichment {
         String queryId,
         int leftProducerStageId,
         int rightProducerStageId,
-        boolean preferHashJoin
+        boolean preferHashJoin,
+        boolean pipelined
     ) {
         // LinkedHashMap built left-then-right: slot order drives the per-partition scan emission order, so
         // Map.of (unordered) would make the interleaving non-deterministic.
@@ -291,7 +328,7 @@ public final class ShuffleEnrichment {
         Map<String, Integer> producers = new LinkedHashMap<>();
         producers.put(ShuffleSlots.LEFT, leftProducerStageId);
         producers.put(ShuffleSlots.RIGHT, rightProducerStageId);
-        enrichWorkerAlternatives(workerStage, partitionCount, expected, queryId, producers, preferHashJoin);
+        enrichWorkerAlternatives(workerStage, partitionCount, expected, queryId, producers, preferHashJoin, pipelined);
     }
 
     public static void enrichWorkerAlternatives(
@@ -300,7 +337,8 @@ public final class ShuffleEnrichment {
         Map<String, Integer> expectedSendersBySlot,
         String queryId,
         Map<String, Integer> producerStageIdBySlot,
-        boolean preferHashJoin
+        boolean preferHashJoin,
+        boolean pipelined
     ) {
         if (!expectedSendersBySlot.keySet().equals(producerStageIdBySlot.keySet())) {
             throw new IllegalArgumentException(
@@ -324,7 +362,7 @@ public final class ShuffleEnrichment {
             // WorkerFragmentStageExecutionFactory replaces this with a partition-specific copy carrying every
             // slot's expected sender count. We don't know the partition at this step (one alternative serves
             // all partitions; per-task filtering picks the right one).
-            merged.add(new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, expectedSendersBySlot, preferHashJoin));
+            merged.add(new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, expectedSendersBySlot, preferHashJoin, pipelined));
             merged.addAll(existing);
             for (int p = 0; p < partitionCount; p++) {
                 for (Map.Entry<String, Integer> e : producerStageIdBySlot.entrySet()) {

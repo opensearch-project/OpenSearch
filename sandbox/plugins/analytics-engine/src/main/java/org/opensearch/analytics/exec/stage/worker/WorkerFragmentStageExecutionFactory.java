@@ -69,8 +69,12 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
      *
      * <p>The returned alternatives are the wire payload sent to the worker task; the
      * data-node-side handler chain runs setup → one register-stream per slot → execute.
+     *
+     * <p>Package-private so a test can pin the per-task rebuild directly: every coordinator decision on
+     * the placeholder (join algorithm, shuffle shape) has to be copied onto the partition-specific node,
+     * and silently dropping one reverts that decision for every task with nothing to show it.
      */
-    private static List<FragmentExecutionRequest.PlanAlternative> filterPlanAlternativesForPartition(Stage stage, int partitionIndex) {
+    static List<FragmentExecutionRequest.PlanAlternative> filterPlanAlternativesForPartition(Stage stage, int partitionIndex) {
         List<FragmentExecutionRequest.PlanAlternative> alts = new ArrayList<>();
         for (StagePlan plan : stage.getPlanAlternatives()) {
             // Compute per-partition setup parameters from the partition's own scan instructions —
@@ -81,6 +85,7 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
             String queryId = null;
             int targetStageId = -1;
             boolean preferHashJoin = true;
+            boolean pipelined = true;
             ShuffleWorkerSetupInstructionNode placeholderSetup = null;
             for (InstructionNode node : plan.instructions()) {
                 if (node instanceof ShuffleScanInstructionNode scan && scan.getShufflePartitionIndex() == partitionIndex) {
@@ -103,9 +108,10 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                     queryId = placeholderSetup.getQueryId();
                     targetStageId = placeholderSetup.getTargetStageId();
                 }
-                // Carry the coordinator's per-worker-stage sort-merge-join decision through the
-                // placeholder → partition-specific rebuild below.
+                // Carry the coordinator's per-worker-stage decisions (join algorithm + shuffle shape)
+                // through the placeholder → partition-specific rebuild below.
                 preferHashJoin = placeholderSetup.getPreferHashJoin();
+                pipelined = placeholderSetup.isPipelined();
             }
 
             List<InstructionNode> filtered = new ArrayList<>();
@@ -119,7 +125,14 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                     // slot's expected count.
                     if (queryId != null) {
                         filtered.add(
-                            new ShuffleWorkerSetupInstructionNode(queryId, targetStageId, partitionIndex, expectedBySlot, preferHashJoin)
+                            new ShuffleWorkerSetupInstructionNode(
+                                queryId,
+                                targetStageId,
+                                partitionIndex,
+                                expectedBySlot,
+                                preferHashJoin,
+                                pipelined
+                            )
                         );
                     } else {
                         filtered.add(node);

@@ -59,6 +59,20 @@ public interface ShuffleBufferAccess {
     }
 
     /**
+     * Switches this buffer to the MATERIALIZED shape: {@link #drain(String, long)} waits for every
+     * declared sender before yielding a chunk, and the accumulating buffer spills so residency stays
+     * bounded while nothing is draining.
+     *
+     * <p>One-way on purpose. The coordinator decides the mode per worker stage (from the same estimate
+     * that picks a spillable join), and the node-level {@code analytics.mpp.shuffle.pipelined.enabled}
+     * switch is an operator kill switch; letting an instruction turn pipelining back ON would let a plan
+     * override that switch. So a stage can only narrow to materialized, never broaden.
+     *
+     * <p>Default no-op: an implementation that holds everything in memory has one mode.
+     */
+    default void useMaterializedMode() {}
+
+    /**
      * Blocks until every declared slot's senders have all reported {@code isLast}, or
      * {@code timeoutMillis} elapses. Returns {@code true} on success, {@code false} on timeout.
      * Throws {@link InterruptedException} if the calling thread is interrupted (e.g. task
