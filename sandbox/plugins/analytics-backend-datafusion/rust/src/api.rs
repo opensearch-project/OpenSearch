@@ -415,9 +415,7 @@ pub fn build_shard_files(
 }
 
 impl DataFusionRuntime {
-    pub fn new_for_bench(
-        runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>,
-    ) -> Self {
+    pub fn new_for_bench(runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>) -> Self {
         let (_pool, handle) = DynamicLimitPool::new(0);
         Self {
             runtime_env,
