@@ -24,24 +24,31 @@ import java.util.List;
  * ({@code AND}, {@code OR}, {@code NOT}). A flat {@code a=1 OR b=2 OR c=3} counts
  * as 3 leaf predicates regardless of the tree's nesting shape.
  *
- * <p>Boolean nesting depth is intentionally not guarded here: the SQL plugin's
- * {@code plugins.query.max_expression_depth} (default 1000) already bounds parse-tree
- * recursion depth before a query reaches the analytics engine, and Calcite flattens
- * associative {@code AND}/{@code OR} chains during optimization, so pathological depth
- * rarely survives to this point. Predicate count is the gap that guard doesn't cover —
- * a flat fan-out of many OR-ed conditions passes the SQL plugin's depth check easily.
+ * <p>Boolean nesting <b>depth</b> is intentionally out of scope here — it is bounded upstream,
+ * before a condition ever reaches this guard:
+ * <ul>
+ *   <li>PPL/SQL text queries: the SQL plugin's {@code plugins.query.max_expression_depth}
+ *       (default 1000) bounds AST-visitor recursion at parse time and rejects deeper expressions
+ *       with HTTP 400.</li>
+ *   <li>DSL {@code _search} queries: the XContent (JSON/CBOR/YAML/SMILE) parser enforces a maximum
+ *       nesting depth (default 1000), so a {@code bool} tree deeper than that is rejected at parse
+ *       time before any query builder — or RexNode — is constructed.</li>
+ * </ul>
+ * A guard here could not defend depth even if it wanted to: Calcite's own {@code RexUtil.isFlat}
+ * recurses the whole AND/OR/NOT subtree while building/normalizing the condition, so a
+ * pathologically deep tree overflows inside Calcite <em>before</em> this guard runs. Depth is the
+ * upstream parsers' job; count is the gap they leave, and count is what this guard covers.
  *
- * <p><b>The traversal itself is bounded.</b> A guard that walks the tree recursively is
- * only as safe as the tree is shallow: a pathologically deep boolean condition (deeper than
- * the JVM can recurse) would overflow the stack <em>inside the guard</em> and surface as a
- * {@link StackOverflowError} — an unhandled {@code Error}, not the intended HTTP 400 — before
- * the guard could reject it. Depth flattening upstream makes this unlikely, but a guard whose
- * own safety depends on the input already being well-formed is not a guard. So the walk here is
- * iterative (an explicit stack, never the call stack) and short-circuits the moment the leaf
- * count exceeds the limit: it never visits more than {@code maxCount + 1} leaves, and never
- * pushes deeper than the tree it is rejecting. Regardless of how the input is shaped, the guard
- * either passes it or throws {@link IllegalArgumentException} — it can no longer be made to fail
- * by the very complexity it exists to reject.
+ * <p>Predicate <b>count</b> is that gap: a flat fan-out of many OR-ed conditions
+ * ({@code a=1 OR b=2 OR ... OR z=26}) is shallow — it sails through the depth bounds above — yet
+ * multiplies per-predicate planning and execution cost. That is the shape this guard rejects.
+ *
+ * <p><b>The count traversal itself is bounded.</b> A guard that walks the tree recursively is only
+ * as safe as the tree is shallow; even though depth is bounded upstream today, this guard does not
+ * rely on that for its own safety. The walk is iterative (an explicit stack, never the call stack)
+ * and short-circuits the moment the leaf count exceeds the limit: it never visits more than
+ * {@code maxCount + 1} leaves and never recurses on the JVM call stack, so it cannot itself be made
+ * to overflow by the complexity it is measuring.
  *
  * @opensearch.internal
  */

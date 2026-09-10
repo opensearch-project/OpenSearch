@@ -97,28 +97,30 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
     }
 
     /**
-     * A condition tree deep enough to overflow a recursive walk must be rejected with the
-     * intended {@link IllegalArgumentException} (HTTP 400), NOT escape as a {@link StackOverflowError}.
-     * This is the core regression: the guard's own traversal must be bounded so pathological input
-     * cannot defeat the guard before it runs. A right-leaning AND chain of 200k nodes is far past
-     * the default JVM recursion limit for this walk.
+     * Guard-level stack safety: {@link FilterPredicateGuard} must count a very deep tree without
+     * recursing on the JVM call stack. This asserts the guard's OWN traversal is iterative — it does
+     * NOT claim the system accepts trees this deep. In production, depth is bounded far below this by
+     * the PPL/SQL parser ({@code plugins.query.max_expression_depth}) and the DSL XContent nesting
+     * limit, and Calcite would overflow building such a tree before the guard ever ran. This test
+     * builds the RexNode directly to exercise the guard in isolation.
      */
     public void testDeeplyNestedConditionRejectedWithoutStackOverflow() {
         RexNode deep = buildDeepAndChain(200_000);
-        // limit 500 (the production default) — the deep chain has 200k leaves, so it must be rejected.
+        // limit 500 (the production default) — the deep chain has 200k leaves, so the guard rejects it.
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FilterPredicateGuard.validate(deep, 500));
         assertTrue(e.getMessage().contains("more than 500 predicates"));
         assertTrue(e.getMessage().contains("maximum allowed [500]"));
     }
 
     /**
-     * A deep tree that fits under the limit must still be walked without recursing into a
-     * StackOverflowError. Depth here (with only a handful of leaves) exceeds a naive recursive
-     * walk's safe depth, proving traversal depth is decoupled from the JVM call stack.
+     * Guard-level stack safety for the low-leaf-count case: a tree that is deep but has few leaves
+     * must still be walked iteratively (no StackOverflowError) and pass the count check. Again this
+     * exercises the guard in isolation; it is not a statement that the system accepts 200k-deep
+     * conditions (it does not — see the class Javadoc on upstream depth bounds).
      */
     public void testDeeplyNestedConditionWithinLimitDoesNotOverflow() {
         // 200k-deep chain of NOT(...) around a single comparison: exactly 1 leaf predicate, but
-        // 200k levels of nesting. A recursive walk would overflow; the iterative walk must not.
+        // 200k levels of nesting. A recursive count would overflow; the iterative count must not.
         RexNode deepButOneLeaf = makeComparison();
         for (int i = 0; i < 200_000; i++) {
             deepButOneLeaf = rexBuilder.makeCall(SqlStdOperatorTable.NOT, deepButOneLeaf);
@@ -150,6 +152,41 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
         assertEquals("short-circuited count", 10, FilterPredicateGuard.countLeavesUpTo(bigOr, 10));
         // Full count still reachable via the unbounded entry point.
         assertEquals("full count", 50, FilterPredicateGuard.countLeaves(bigOr));
+    }
+
+    /** Boundary: exactly maxCount leaves passes; maxCount + 1 is rejected. */
+    public void testBoundaryExactlyAtLimitPassesOverByOneRejected() {
+        List<RexNode> atLimit = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            atLimit.add(makeComparison());
+        }
+        // Exactly 10 leaves, limit 10 — passes (validate rejects only when count > maxCount).
+        FilterPredicateGuard.validate(buildFlatOr(atLimit), 10);
+
+        List<RexNode> overByOne = new ArrayList<>();
+        for (int i = 0; i < 11; i++) {
+            overByOne.add(makeComparison());
+        }
+        // 11 leaves, limit 10 — rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FilterPredicateGuard.validate(buildFlatOr(overByOne), 10)
+        );
+        assertTrue(e.getMessage().contains("maximum allowed [10]"));
+    }
+
+    /** A negative limit disables the guard, exactly like 0. */
+    public void testNegativeLimitDisablesGuard() {
+        List<RexNode> predicates = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            predicates.add(makeComparison());
+        }
+        FilterPredicateGuard.validate(buildFlatOr(predicates), -1); // no throw
+    }
+
+    /** A bare leaf predicate at the top level (not wrapped in a connective) counts as one. */
+    public void testBareLeafCountsAsOne() {
+        assertEquals("bare comparison is one leaf", 1, FilterPredicateGuard.countLeaves(makeComparison()));
     }
 
     /** Right-leaning AND chain: AND(a, AND(a, AND(a, ...))) with {@code depth} leaf comparisons. */
