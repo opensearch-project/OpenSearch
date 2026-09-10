@@ -17,13 +17,12 @@ use crate::native_settings::NativeSettings;
 /// Parquet file-level metadata key for the writer generation.
 pub const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 
-/// Parquet file-level metadata key for the opensearch-defined parquet format version.
-pub const FORMAT_VERSION_KEY: &str = "opensearch.format_version";
-
-/// Current parquet format version produced by this writer. Plugin-defined namespace —
-/// NOT comparable to Lucene or other format versions. Must stay in sync with the Java
-/// constant `ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION`.
-pub const FORMAT_VERSION: &str = "1.0.0.0";
+// The format-version key, current version, sentinel, and long encoding live in
+// native-bridge-common so the reader side (doc-values cursor) shares them without depending on
+// this crate. Re-exported here so writer-side callers keep one import path.
+pub use native_bridge_common::format_version::{
+    encode_format_version, FORMAT_VERSION, FORMAT_VERSION_KEY, FORMAT_VERSION_UNKNOWN,
+};
 
 /// Reads the writer generation from a Parquet file's key-value metadata.
 /// Returns the generation value, or falls back to `file_index` if not present.
@@ -52,6 +51,12 @@ pub fn read_format_version(metadata: &FileMetaData) -> String {
                 .and_then(|kv| kv.value.clone())
         })
         .unwrap_or_default()
+}
+
+/// Long-encodes the opensearch format version stamped in the footer. See
+/// [`encode_format_version`]; returns [`FORMAT_VERSION_UNKNOWN`] when the stamp is absent.
+pub fn read_format_version_encoded(metadata: &FileMetaData) -> i64 {
+    encode_format_version(&read_format_version(metadata))
 }
 
 /// Builder for converting NativeSettings into Parquet WriterProperties.
