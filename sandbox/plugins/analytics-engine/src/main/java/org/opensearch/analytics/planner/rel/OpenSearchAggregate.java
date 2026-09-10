@@ -12,7 +12,6 @@ import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -320,67 +319,99 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        // SINGLE / PARTIAL placement gates (upstream): price out a SINGLE over partitioned input
-        // and a PARTIAL over singleton input so Volcano never lands them on the wrong distribution.
-        for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-            RelTrait trait = getInput().getTraitSet().getTrait(index);
-            if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-            // An UNRESOLVED input cannot be consumed: its placement is still undecided, so no operator
-            // above it has a defined cost or a defined correctness. This ONE invariant replaces the
-            // shape-by-shape legality table — the seed nodes live in the ANY subset and only their
-            // passThrough/derive alternatives, which carry concrete traits, are consumable.
-            if (distribution.getType() == RelDistribution.Type.ANY) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
-            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON;
-
-            // NOTE: the SINGLE-over-partitioned shape gate is GONE. passThroughTraits now declares that a
-            // SINGLE aggregate demands SINGLETON of its input, so the illegal pair is never constructed.
-            // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
-            if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
+        OpenSearchDistribution inputDistribution = OpenSearchRelNode.distributionOf(getInput().getTraitSet());
+        // An UNRESOLVED input cannot be consumed: its placement is still undecided, so nothing above it has a
+        // defined cost or a defined correctness. This ONE invariant does the work that a shape-by-shape
+        // legality table used to — the marking phase's seed lives in the ANY subset, and only the concrete
+        // alternatives its passThrough/derive hooks produce are consumable.
+        if (inputDistribution == null || inputDistribution.getType() == RelDistribution.Type.ANY) {
+            return planner.getCostFactory().makeInfiniteCost();
         }
-        // FINAL placement + parallel-merge cost (our hash-shuffle feature): FINAL is legal only over
-        // a COORDINATOR+SINGLETON gather or a WORKER+HASH shuffle, and the HASH case merges in
-        // parallel across N workers (the /partitionCount discount that lets shuffle beat coord-centric
-        // for high-cardinality GROUP BY).
+        // PARTIAL over already-gathered input STAYS PRICED, not asserted: OpenSearchAggregateSplitRule builds
+        // its PARTIAL at child.getTraitSet(), and at match time that child can still be unresolved, so the
+        // rule cannot check its own legality and registers OPTIMISTICALLY. The combination therefore really is
+        // constructed (an assertion here fires on 34 tests), and cost is what keeps it from being chosen.
+        // Retiring this needs a "partitioned, specification irrelevant" value in OpenSearchDistribution, so
+        // the split can be formed against what the input can actually DELIVER rather than against the trait
+        // already stamped on it. Modelling that value is not enough on its own: demanding it via convert()
+        // makes the PARTIAL itself carry a wildcard trait, which is a demand-side value and corrupts every
+        // downstream trait (measured: 48 test failures). It needs a consumer that pushes the demand DOWN.
+        if (mode == AggregateMode.PARTIAL && inputDistribution.getType() == RelDistribution.Type.SINGLETON) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
+        assert assertPlacementIsLegal(inputDistribution);
+
+        // FINAL pays a merge cost proportional to its input row count. Coord-centric merges serially
+        // (partitionCount=1); HASH+WORKER merges in parallel across N workers (partitionCount=N). That /N
+        // discount is what lets the shuffle path beat the coord-centric path on high-cardinality GROUP BY
+        // despite paying an extra gather ER on top — and only when the savings exceed the gather's setup, so
+        // tiny inputs still route coord-centric. This is REAL cost, not a placement gate.
         if (mode == AggregateMode.FINAL) {
-            int partitionCount = 1;
-            boolean traitResolved = false;
-            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
-                RelTrait trait = getInput().getTraitSet().getTrait(index);
-                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                if (distribution.getType() == RelDistribution.Type.ANY) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
-                boolean singletonCoord = distribution.getType() == RelDistribution.Type.SINGLETON
-                    && distribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
-                boolean hashWorker = distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
-                    && distribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
-                if (!singletonCoord && !hashWorker) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
-                traitResolved = true;
-                if (hashWorker && distribution.getPartitionCount() != null) {
-                    partitionCount = Math.max(1, distribution.getPartitionCount());
-                }
+            boolean singletonCoord = inputDistribution.getType() == RelDistribution.Type.SINGLETON
+                && inputDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
+            boolean hashWorker = inputDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+                && inputDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
+            // STAYS PRICED, like the PARTIAL branch, and for a reason that an assertion cannot see: the
+            // assertion below skips a node whose OWN distribution is unresolved, but this gate does not — and
+            // a FINAL that has not yet committed to a placement, sitting over some other concrete
+            // distribution, is exactly what it prices out. Asserting instead never fires (no COMMITTED FINAL
+            // reaches an illegal input) yet still costs q8 a 7x regression at sf=10: 0.4s -> 3.1s, because the
+            // alternatives this used to make unaffordable start competing and displace q8's broadcast
+            // (shape `shuf x12, gather x2, bcast x1` becomes `shuf x14, gather x2`).
+            if (!singletonCoord && !hashWorker) {
+                return planner.getCostFactory().makeInfiniteCost();
             }
-            // FINAL pays a merge cost proportional to its input row count. Coord-centric merges
-            // serially (partitionCount=1); HASH+WORKER merges in parallel across N workers
-            // (partitionCount=N). The /N discount is what lets the shuffle path beat the
-            // coord-centric path on high-cardinality GROUP BY despite paying an extra gather
-            // ER on top — but only when the savings exceed the gather's setup, so tiny inputs
-            // still route coord-centric. Use tinyCost while the trait is unresolved (Volcano's
-            // ANY placeholder) so memo expansion can register alternatives without committing
-            // to a cost.
-            if (traitResolved) {
-                double finalRows = mq.getRowCount(getInput());
-                double finalCost = finalRows / partitionCount;
-                return planner.getCostFactory().makeCost(finalCost, finalCost, 0);
-            }
+            int partitionCount = hashWorker && inputDistribution.getPartitionCount() != null
+                ? Math.max(1, inputDistribution.getPartitionCount())
+                : 1;
+            double finalCost = mq.getRowCount(getInput()) / partitionCount;
+            return planner.getCostFactory().makeCost(finalCost, finalCost, 0);
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    /**
+     * The placement invariants each aggregate mode implies. ASSERTED, not priced.
+     *
+     * <p>These were three {@code makeInfiniteCost()} branches — legality expressed through the cost channel,
+     * which exists for ranking. They are unreachable now that the requirements are stated where they belong:
+     * <ul>
+     *   <li>{@code SINGLE} needs gathered input (per-shard aggregates would never merge) and
+     *       {@link #passThroughTraits} DEMANDS it, so the illegal pair is not constructible;</li>
+     *   <li>{@code PARTIAL} is NOT covered here — it is still priced, see the branch above;</li>
+     *   <li>{@code FINAL} is NOT covered here either — also still priced, see the branch above.</li>
+     * </ul>
+     * Kept as an assertion rather than deleted because a violation is silently WRONG RESULTS, not a slow plan:
+     * it would under-count. Assertions are on in the test suites, so a future builder that breaks one fails
+     * loudly there instead of shipping.
+     *
+     * @return always {@code true}, so this reads as {@code assert assertPlacementIsLegal(...)}
+     * @throws IllegalStateException when a mode meets input it cannot correctly consume
+     */
+    private boolean assertPlacementIsLegal(OpenSearchDistribution inputDistribution) {
+        // The UNRESOLVED seed makes no placement claim yet, so its mode cannot contradict its input. The HEP
+        // marking rule registers exactly such a node (SINGLE over a RANDOM(SHARD) scan, self trait ANY); it is
+        // costed but NOT consumable, because every parent refuses an unresolved input. Only a node that has
+        // COMMITTED to a distribution can be illegal.
+        OpenSearchDistribution selfDistribution = OpenSearchRelNode.distributionOf(getTraitSet());
+        if (selfDistribution == null || selfDistribution.getType() == RelDistribution.Type.ANY) {
+            return true;
+        }
+        boolean inputIsSingleton = inputDistribution.getType() == RelDistribution.Type.SINGLETON;
+        if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+            throw new IllegalStateException("SINGLE aggregate over partitioned input [" + inputDistribution + "] would under-count");
+        }
+        if (mode == AggregateMode.FINAL) {
+            boolean singletonCoord = inputIsSingleton && inputDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
+            boolean hashWorker = inputDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+                && inputDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
+            if (!singletonCoord && !hashWorker) {
+                throw new IllegalStateException(
+                    "FINAL aggregate over neither a coordinator gather nor a worker shuffle [" + inputDistribution + "]"
+                );
+            }
+        }
+        return true;
     }
 
     // ---- PhysicalNode (top-down trait propagation) ----
