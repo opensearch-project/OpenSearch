@@ -150,7 +150,10 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
                     && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
             )
             .count();
-        assertEquals("both join levels are binary tiers (each over two shuffles)", 2, binaryTierJoins);
+        // Co-partitioned levels FUSE into one worker tier (see assertFusedTier): the upper join consumes the
+        // lower join directly, so only the BOTTOM join sits over two shuffles. Fusing drops the redundant
+        // same-key reshuffle the binary lowering used to force.
+        assertEquals("fused cascade: only the bottom join sits over two shuffles", 1, binaryTierJoins);
     }
 
     /**
@@ -236,7 +239,10 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
                     && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
             )
             .count();
-        assertEquals("joins still distribute when only the agg sub-toggle is off", 2, binaryTierJoins);
+        // Co-partitioned levels FUSE into one worker tier (see assertFusedTier): the upper join consumes the
+        // lower join directly, so only the BOTTOM join sits over two shuffles. Fusing drops the redundant
+        // same-key reshuffle the binary lowering used to force.
+        assertEquals("joins still distribute when only the agg sub-toggle is off", 1, binaryTierJoins);
     }
 
     /**
@@ -351,7 +357,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeAggregateOverThreeWayJoin(context), context);
         List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
-        assertEquals("two binary join tiers → two worker tiers", 2, levels.size());
+        // Co-partitioned join levels fuse into ONE worker tier, so the PARTIAL rides that single tier.
+        assertEquals("fused cascade → one worker tier", 1, levels.size());
 
         // The top worker fragment carries the PARTIAL aggregate above its join.
         ShuffleEnrichment.WorkerLevel top = levels.get(levels.size() - 1);
@@ -726,7 +733,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             context.getCapabilityRegistry(),
             (levelIndex, partitionCount) -> nodeIds(partitionCount)
         );
-        assertEquals("two join worker tiers promoted", 2, structure.buildLevels().size());
+        // Co-partitioned levels fuse: one worker tier carries both join levels.
+        assertEquals("fused cascade → one worker tier promoted", 1, structure.buildLevels().size());
     }
 
     /**

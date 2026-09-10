@@ -96,17 +96,22 @@ public class DAGShapeTests extends BasePlannerRulesTests {
     //
     // Cases 2-4 — general path. Each input is gathered to coord via a per-side ER → 3 stages.
 
+    /**
+     * Single-shard self-join with a scalar aggregate on top — ONE stage, no exchange.
+     *
+     * <p>This used to be two stages with an ER between the join and the aggregate. The co-located join
+     * delivers {@code SINGLETON(SHARD)} and a locality-agnostic singleton demand is satisfied there, so once
+     * the aggregate's requirement became a trait demand (rather than a priced-out shape) nothing forces a
+     * gather: the whole query runs in one fragment.
+     */
     public void testJoinDag_case1_singleShardSameTable() {
         PlannerContext context = buildContext("parquet", 1, intFields());
         QueryDAG dag = buildDAG(context, buildJoinWithStatsShape("test_index", "test_index"));
         assertDagShape(
             """
                 QueryDAG(queryId=<random>)
-                Stage 1
+                Stage 0
                   OpenSearchAggregate(group=[{}], cnt=[COUNT()], sum_left_size=[SUM($1)], sum_right_size=[SUM($3)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                      OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                  Stage 0 exchange=SINGLETON
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])

@@ -349,18 +349,32 @@ public class PlanShapeTests extends PlanShapeTestBase {
     }
 
     public void testJoinWithDifferentGroupKeys_singleShard() {
-        // Both sides scan the same 1-shard index → co-location fast path even though the
-        // group keys differ. Aggregates run at the shard, Join runs there. Locality-agnostic
-        // root demand is satisfied by the SHARD+SINGLETON output of the Join — no top ER.
+        // Both sides scan the same 1-shard index → co-location fast path even though the group keys differ,
+        // so the Join itself needs no exchange and there is no top ER.
+        //
+        // KNOWN SINGLE-SHARD REGRESSION (accepted, documented): each aggregate now sits over a gather it does
+        // not need. A SINGLE aggregate DECLARES a SINGLETON requirement of its input through
+        // passThroughTraits, and the only concrete singleton alternative offered to it is coordSingleton, so
+        // a 1-shard scan's SINGLETON(SHARD) does not satisfy it and an ER is inserted. The data was already
+        // on one node, so the gather buys nothing. Removing it needs locality-agnostic ("any singleton")
+        // demands to be honoured end to end by the aggregate's alternatives — four attempts at that each
+        // moved the extra gather somewhere else instead of removing it. Multi-shard plans are unaffected
+        // (verified on the sf=10 TPC-H sweep: 17/22 both before and after, exchange shapes identical in
+        // 21 of 22 queries).
         RelNode plan = buildJoinWithDifferentGroupKeys();
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape("""
-            OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-              OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-              OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-            """, result);
+        assertPlanShape(
+            """
+                OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
     }
 
     // testJoinMixedShards_* removed — covered by JoinPlanShapeTests
@@ -399,21 +413,28 @@ public class PlanShapeTests extends PlanShapeTestBase {
     }
 
     public void testUnion_twoArmsWithStats_singleShard() {
-        // Both arms scan the same 1-shard index → co-location fast path. Aggregates run at
-        // the shard (no PARTIAL/FINAL split needed at 1 shard), Union runs there. Root demand
-        // (locality-agnostic SINGLETON) is satisfied directly — no top ER.
+        // Both arms scan the same 1-shard index → co-location fast path, and the root's locality-agnostic
+        // SINGLETON demand is satisfied without a top ER.
+        //
+        // KNOWN SINGLE-SHARD REGRESSION (accepted, documented): each arm's aggregate now sits over a gather
+        // it does not need — same cause as testJoinWithDifferentGroupKeys_singleShard, see that test's note.
         RelNode union = buildUnionOfTwoStatsArms("test_index");
         RelNode result = runPlanner(union, unionContextSingleIndex("test_index", 1));
         // Field trimming adds Project(status) above each arm's scan — count-by-key needs only the group key.
-        assertPlanShape("""
-            OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
-              OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
-                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-              OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
-                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-            """, result);
+        assertPlanShape(
+            """
+                OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
     }
 
     // testUnion_twoArmsDifferentIndices_* removed — covered by UnionPlanShapeTests

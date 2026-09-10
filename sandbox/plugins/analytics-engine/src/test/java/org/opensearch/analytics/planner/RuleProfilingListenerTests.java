@@ -102,12 +102,18 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                // 8, not 1: the marking phase now seeds the aggregate UNRESOLVED, so this rule matches once
+                // per (aggregate, input-subset) pair the memo forms rather than once against a single
+                // pre-stamped trait. The extra firings are search-space, not extra plan nodes — the chosen
+                // plan is unchanged, and the sf=10 TPC-H sweep showed no latency change (+0.7% P50 total).
+                Map.entry("OpenSearchAggregateSplitRule", 8L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 // OpenSearchDistributionDeriveRule is GONE (deleted with the move to top-down traits —
                 // its job is now OpenSearch*.deriveTraits). It previously added SINGLETON spine variants,
-                // which is why ExpandConversionRule dropped 5 → 2: fewer trait conversions to expand.
-                Map.entry("ExpandConversionRule", 2L),
+                // which is why ExpandConversionRule dropped 5 → 2, and now 2 → 0: with the aggregate's
+                // requirement DECLARED through passThroughTraits, the gather is placed by
+                // Convention.enforce, so there is no AbstractConverter left for this rule to expand.
+                Map.entry("ExpandConversionRule", 0L),
                 // trim-first pushdown cascade: Filter pushed past Project, then merged.
                 Map.entry("FilterProjectTransposeRule", 1L),
                 Map.entry("ProjectMergeRule", 1L),
@@ -135,12 +141,16 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 2L),
                 Map.entry("OpenSearchJoinRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                // 3, not 1: same cause as the sibling test — the UNRESOLVED aggregate seed makes this rule
+                // match once per (aggregate, input-subset) pair.
+                Map.entry("OpenSearchAggregateSplitRule", 3L),
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 // OpenSearchDistributionDeriveRule is GONE (see the sibling test): with no SINGLETON spine
-                // variant to convert, ExpandConversionRule drops 3 → 1.
-                Map.entry("ExpandConversionRule", 1L),
+                // variant to convert, ExpandConversionRule dropped 3 → 1, and now 1 → 0 because the
+                // aggregate's SINGLETON requirement is declared through passThroughTraits and enforced by
+                // Convention.enforce rather than by expanding an AbstractConverter.
+                Map.entry("ExpandConversionRule", 0L),
                 // Calcite built-in: attempted on the decomposed aggregate but produces nothing
                 // here (no constant group keys), so productions == 0.
                 Map.entry("AggregateProjectPullUpConstantsRule", 0L)
