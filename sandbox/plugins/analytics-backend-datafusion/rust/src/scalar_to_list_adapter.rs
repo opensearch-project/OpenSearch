@@ -31,6 +31,14 @@ impl PhysicalExprAdapterFactory for ScalarToListExprAdapterFactory {
         logical_file_schema: SchemaRef,
         physical_file_schema: SchemaRef,
     ) -> Result<Arc<dyn PhysicalExprAdapter>> {
+        // Most files need only DataFusion's standard name resolution, missing-column handling, and
+        // ordinary casts. Avoid allocating the custom adapter unless this specific physical file
+        // has a column that requires scalar-to-LIST promotion or LIST child-field normalization.
+        if !requires_list_adaptation(logical_file_schema.as_ref(), physical_file_schema.as_ref()) {
+            return DefaultPhysicalExprAdapterFactory
+                .create(logical_file_schema, physical_file_schema);
+        }
+
         // Let DataFusion's default adapter resolve names, physical indices, missing columns, and
         // ordinary casts. For promoted columns only, temporarily present the physical scalar field
         // as the logical field so the default adapter does not reject the intentional T -> List<T>
@@ -290,6 +298,25 @@ impl PhysicalExpr for ScalarToListExpr {
     }
 }
 
+fn requires_list_adaptation(logical: &Schema, physical: &Schema) -> bool {
+    logical.fields().iter().any(|logical_field| {
+        let Ok(physical_field) = physical.field_with_name(logical_field.name()) else {
+            return false;
+        };
+        let DataType::List(logical_child) = logical_field.data_type() else {
+            return false;
+        };
+
+        match physical_field.data_type() {
+            DataType::List(physical_child) => {
+                physical_field != logical_field.as_ref()
+                    && compatible_scalar_type(physical_child.data_type(), logical_child.data_type())
+            }
+            physical_type => can_promote_scalar_to_list(physical_type, logical_child.data_type()),
+        }
+    })
+}
+
 fn scalar_compatible_logical_schema(logical: &Schema, physical: &Schema) -> SchemaRef {
     let fields = logical
         .fields()
@@ -301,13 +328,13 @@ fn scalar_compatible_logical_schema(logical: &Schema, physical: &Schema) -> Sche
             let DataType::List(child) = logical_field.data_type() else {
                 return Arc::clone(logical_field);
             };
-            let compatible_list = matches!(
+            let is_compatible_list = matches!(
                 physical_field.data_type(),
                 DataType::List(physical_child)
                     if compatible_scalar_type(physical_child.data_type(), child.data_type())
             );
             if can_promote_scalar_to_list(physical_field.data_type(), child.data_type())
-                || compatible_list
+                || is_compatible_list
             {
                 Arc::new(physical_field.clone())
             } else {
@@ -341,6 +368,57 @@ fn compatible_scalar_type(physical: &DataType, logical: &DataType) -> bool {
 mod tests {
     use super::*;
     use datafusion::arrow::array::{Array, StringArray, StringViewArray};
+
+    #[test]
+    fn matching_schema_does_not_require_list_adaptation() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("tags", DataType::List(child), true),
+        ]);
+
+        assert!(!requires_list_adaptation(&schema, &schema));
+    }
+
+    #[test]
+    fn missing_list_and_ordinary_cast_do_not_require_list_adaptation() {
+        let logical = Schema::new(vec![
+            Field::new("count", DataType::Int64, true),
+            Field::new(
+                "tags",
+                DataType::List(Arc::new(Field::new("element", DataType::Utf8View, true))),
+                true,
+            ),
+        ]);
+        let physical = Schema::new(vec![Field::new("count", DataType::Int32, true)]);
+
+        assert!(!requires_list_adaptation(&logical, &physical));
+    }
+
+    #[test]
+    fn scalar_to_list_requires_list_adaptation() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let logical = Schema::new(vec![Field::new("tags", DataType::List(child), true)]);
+        let physical = Schema::new(vec![Field::new("tags", DataType::Utf8, true)]);
+
+        assert!(requires_list_adaptation(&logical, &physical));
+    }
+
+    #[test]
+    fn different_compatible_list_child_requires_list_adaptation() {
+        let logical = Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::new(Field::new("element", DataType::Utf8View, true))),
+            true,
+        )]);
+        let physical = Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8View, false))),
+            false,
+        )]);
+
+        assert!(requires_list_adaptation(&logical, &physical));
+    }
 
     #[test]
     fn wraps_scalar_column_as_singleton_lists() {
