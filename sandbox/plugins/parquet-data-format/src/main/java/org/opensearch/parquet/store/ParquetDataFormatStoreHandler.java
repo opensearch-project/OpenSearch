@@ -121,6 +121,15 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
     }
 
     @Override
+    public void onWritten(String file, String localAbsolutePath, long size) {
+        if (storeHandle.isLive() == false) {
+            return;
+        }
+        TieredStorageBridge.registerFile(storeHandle.getPointer(), file, localAbsolutePath, LOCAL, size);
+        logger.trace("onWritten: file=[{}], localPath=[{}], size={}", file, localAbsolutePath, size);
+    }
+
+    @Override
     public void onRemoved(String file) {
         if (storeHandle.isLive() == false) {
             return;

@@ -318,6 +318,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexModule.INDEX_STORE_LOCALITY_SETTING,
                 IndexModule.INDEX_TIERING_STATE,
                 IndexModule.IS_WARM_INDEX_SETTING,
+                IndexModule.WARM_WRITABLE_SETTING,
 
                 // Tiered storage search slow log settings
                 TieredStorageSearchSlowLog.TIERED_STORAGE_SEARCH_SLOWLOG_ENABLED,

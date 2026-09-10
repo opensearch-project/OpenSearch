@@ -196,6 +196,21 @@ public final class IndexModule {
 
     public static final Setting<Boolean> IS_WARM_INDEX_SETTING = Setting.boolSetting("index.warm", false, Property.IndexScope);
 
+    /**
+     * Enables a writable (primary) engine on warm composite (pluggable dataformat) indices.
+     * When {@code false} (default), warm shards use a read-only engine. Locally written
+     * format files are fsynced at commit, registered LOCAL in the native tiered-store
+     * registry, accounted in the file cache, uploaded to the remote store, and released
+     * locally once uploaded.
+     *
+     * @opensearch.experimental
+     */
+    public static final Setting<Boolean> WARM_WRITABLE_SETTING = Setting.boolSetting(
+        "index.warm.writable.enabled",
+        false,
+        Property.IndexScope
+    );
+
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
         "",

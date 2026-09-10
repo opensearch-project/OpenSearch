@@ -90,7 +90,21 @@ impl FileRegistry for TieredStorageRegistry {
     fn register(&self, key: &str, value: TieredFileEntry) {
         // Strip leading "/" — keys are stored without leading slash
         let key = key.strip_prefix('/').unwrap_or(key);
-        self.files.insert(key.to_string(), value);
+        // Upsert-in-place: a re-registration is a tier transition (LOCAL -> REMOTE on upload,
+        // or a size refresh). The entry's active reader count must survive the transition so
+        // in-flight reads keep the entry pinned; a blind insert would reset it to zero.
+        match self.files.entry(key.to_string()) {
+            dashmap::mapref::entry::Entry::Occupied(mut occupied) => {
+                let entry = occupied.get_mut();
+                entry.location = value.location;
+                entry.remote_path = value.remote_path;
+                entry.size = value.size;
+                // active_reads intentionally preserved
+            }
+            dashmap::mapref::entry::Entry::Vacant(vacant) => {
+                vacant.insert(value);
+            }
+        }
     }
 
     fn get(&self, key: &str) -> Option<ReadGuard<'_>> {
@@ -496,5 +510,50 @@ mod tests {
         }
 
         assert_eq!(reg.len(), num_threads * 100);
+    }
+}
+
+#[cfg(test)]
+mod upsert_tests {
+    use super::*;
+    use crate::types::{FileLocation, TieredFileEntry};
+    use std::sync::Arc;
+
+    #[test]
+    fn register_upsert_preserves_active_reads() {
+        let registry = TieredStorageRegistry::new();
+        registry.register(
+            "shard0/parquet/f1.parquet",
+            TieredFileEntry::with_size(FileLocation::Local, None, 100),
+        );
+        // Simulate an in-flight reader.
+        {
+            let guard = registry.get("shard0/parquet/f1.parquet").unwrap();
+            assert_eq!(guard.location(), FileLocation::Local);
+        }
+        // acquire a ref manually via entry
+        registry.update("shard0/parquet/f1.parquet", |e| e.acquire());
+
+        // Re-register as REMOTE (the upload flip).
+        registry.register(
+            "shard0/parquet/f1.parquet",
+            TieredFileEntry::with_size(
+                FileLocation::Remote,
+                Some(Arc::from("base/f1__uuid")),
+                100,
+            ),
+        );
+
+        let guard = registry.get("shard0/parquet/f1.parquet").unwrap();
+        assert_eq!(guard.location(), FileLocation::Remote);
+        assert_eq!(guard.remote_path(), Some("base/f1__uuid"));
+        // The reader count must have survived the flip: 1 manual acquire + 1 held by this guard.
+        assert_eq!(guard.ref_count(), 2);
+        drop(guard);
+
+        // Non-force remove refuses while the ref is held; succeeds after release.
+        assert!(!registry.remove("shard0/parquet/f1.parquet", false));
+        registry.update("shard0/parquet/f1.parquet", |e| e.release());
+        assert!(registry.remove("shard0/parquet/f1.parquet", false));
     }
 }

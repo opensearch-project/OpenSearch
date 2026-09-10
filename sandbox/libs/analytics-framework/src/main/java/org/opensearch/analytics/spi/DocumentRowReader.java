@@ -9,6 +9,7 @@
 package org.opensearch.analytics.spi;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
@@ -40,6 +41,10 @@ public interface DocumentRowReader {
      */
     Map<String, Object> executeSingleRow(long rowId, WriterFileSet fileSet) throws IOException;
 
+    default Map<String, Object> executeSingleRow(long rowId, WriterFileSet fileSet, IndexReaderProvider.Reader reader) throws IOException {
+        return executeSingleRow(rowId, fileSet);
+    }
+
     /**
      * Fetch all rows with {@code _seq_no > fromSeqNoExclusive} from the Core-resolved file sets
      * (one per segment for this backend's format).
@@ -48,4 +53,12 @@ public interface DocumentRowReader {
      * @param fromSeqNoExclusive the exclusive lower bound on {@code _seq_no}
      */
     List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long fromSeqNoExclusive) throws IOException;
+
+    default List<Map<String, Object>> executeRowsAboveSeqNo(
+        List<WriterFileSet> fileSets,
+        long fromSeqNoExclusive,
+        IndexReaderProvider.Reader reader
+    ) throws IOException {
+        return executeRowsAboveSeqNo(fileSets, fromSeqNoExclusive);
+    }
 }

@@ -36,6 +36,7 @@ public class DatafusionReader implements Closeable {
     private static final Logger logger = LogManager.getLogger(DatafusionReader.class);
     private final String directoryPath;
     private final ReaderHandle readerHandle;
+    private final NativeStoreHandle dataformatAwareStoreHandle;
 
     /**
      * Creates a DatafusionReader for the given shard directory and per-segment files.
@@ -58,6 +59,7 @@ public class DatafusionReader implements Closeable {
         List<String> sortOrders
     ) {
         this.directoryPath = directoryPath;
+        this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
         List<MonoFileWriterSet> segments;
         if (writerFileSets == null || writerFileSets.isEmpty()) {
             segments = List.of();
@@ -74,6 +76,11 @@ public class DatafusionReader implements Closeable {
     DatafusionReader(long nativePtr) {
         this.directoryPath = "";
         this.readerHandle = ReaderHandle.wrap(nativePtr);
+        this.dataformatAwareStoreHandle = null;
+    }
+
+    public NativeStoreHandle getDataformatAwareStoreHandle() {
+        return dataformatAwareStoreHandle;
     }
 
     @Override
