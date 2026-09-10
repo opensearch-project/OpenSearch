@@ -57,11 +57,13 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -557,6 +559,119 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             balanced = false;
         }
         assertFalse(balanced);
+    }
+
+    /**
+     * Reproduces primary imbalance caused by the interaction between
+     * primary-shard rebalance (both {@code cluster.routing.allocation.balance.prefer_primary}
+     * and {@code cluster.routing.allocation.rebalance.primary.enable} are ON)
+     * and {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}.
+     * Initial state (3 nodes; 2 indices {@code testA} and {@code testB},
+     * each with 3 primaries and 1 replica; 12 shards total):
+     * <pre>
+     *             node_0              node_1                          node_2
+     *             ---------           ------------------------        ---------
+     * testA       PA0 PA1 PA2         RA0 RA1 RA2
+     * testB                           RB0 RB1 RB2                     PB0 PB1 PB2
+     * </pre>
+     *
+     * Primary count is 3 / 0 / 3 across the three nodes. node_1 has zero
+     * primaries but hosts the replica of every shard of BOTH indices, so
+     * any single-step attempt to move a primary onto node_1 is rejected
+     * by SameShardAllocationDecider (the matching replica is still there).
+     * Moving a primary between node_0 and node_2 is also useless because
+     * it just swaps which peer holds 3 primaries. The current weight-based
+     * rebalance logic therefore makes no progress and primaries stay at
+     * 3 / 0 / 3, causing the "2 primaries per node" assertion below to
+     * fail until the balancer is taught to first relocate a blocking
+     * replica off node_1 and then relocate a primary onto the freed slot.
+     */
+    @TestLogging(reason = "Enable trace logs for test", value = "org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE")
+    public void testPrimaryRebalance_SameShardConstraint() {
+        AllocationService strategy = createAllocationService(
+            getSettingsBuilderForPrimaryReBalance().put(
+                BalancedShardsAllocator.RELOCATE_BLOCKING_REPLICA_FOR_PRIMARY_REBALANCE.getKey(),
+                true
+            ).put(ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2).build(),
+            new TestGatewayAllocator()
+        );
+
+        // 3 nodes, deterministic ids: node_0, node_1, node_2
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<String> nodesList = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            final DiscoveryNode node = newNode("node_" + i);
+            discoBuilder = discoBuilder.add(node);
+            nodesList.add(node.getId());
+        }
+        discoBuilder.localNodeId(nodesList.get(0));
+        discoBuilder.clusterManagerNodeId(nodesList.get(0));
+
+        Metadata.Builder metadata = Metadata.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+
+        IndexMetadata indexA = getIndexMetadata("testA", 3, 1);
+        IndexMetadata indexB = getIndexMetadata("testB", 3, 1);
+        IndexRoutingTable.Builder rtA = IndexRoutingTable.builder(indexA.getIndex());
+        IndexRoutingTable.Builder rtB = IndexRoutingTable.builder(indexB.getIndex());
+
+        // testA: primaries on node_0, replicas on node_1
+        IndexShardRoutingTable[] tablesA = new IndexShardRoutingTable[3];
+        for (int shard = 0; shard < 3; shard++) {
+            ShardId sid = new ShardId(indexA.getIndex(), shard);
+            IndexShardRoutingTable.Builder b = new IndexShardRoutingTable.Builder(sid);
+            b.addShard(TestShardRouting.newShardRouting(sid, nodesList.get(0), true, ShardRoutingState.STARTED));
+            b.addShard(TestShardRouting.newShardRouting(sid, nodesList.get(1), false, ShardRoutingState.STARTED));
+            tablesA[shard] = b.build();
+            rtA.addIndexShard(tablesA[shard]);
+        }
+        // testB: primaries on node_2, replicas on node_1
+        IndexShardRoutingTable[] tablesB = new IndexShardRoutingTable[3];
+        for (int shard = 0; shard < 3; shard++) {
+            ShardId sid = new ShardId(indexB.getIndex(), shard);
+            IndexShardRoutingTable.Builder b = new IndexShardRoutingTable.Builder(sid);
+            b.addShard(TestShardRouting.newShardRouting(sid, nodesList.get(2), true, ShardRoutingState.STARTED));
+            b.addShard(TestShardRouting.newShardRouting(sid, nodesList.get(1), false, ShardRoutingState.STARTED));
+            tablesB[shard] = b.build();
+            rtB.addIndexShard(tablesB[shard]);
+        }
+
+        IndexMetadata.Builder indexABuilder = IndexMetadata.builder(indexA);
+        IndexMetadata.Builder indexBBuilder = IndexMetadata.builder(indexB);
+        for (int shard = 0; shard < 3; shard++) {
+            indexABuilder.putInSyncAllocationIds(shard, tablesA[shard].getAllAllocationIds());
+            indexBBuilder.putInSyncAllocationIds(shard, tablesB[shard].getAllAllocationIds());
+        }
+        metadata.put(indexABuilder.build(), false);
+        metadata.put(indexBBuilder.build(), false);
+        routingTable.add(rtA);
+        routingTable.add(rtB);
+
+        ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"));
+        stateBuilder.nodes(discoBuilder);
+        stateBuilder.metadata(metadata.generateClusterUuidIfNeeded().build());
+        stateBuilder.routingTable(routingTable.build());
+        ClusterState clusterState = stateBuilder.build();
+
+        // Drive multiple reroute rounds so the rebalancer gets its chances.
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = applyAllocationUntilNoChange(clusterState, strategy);
+        logger.info(ShardAllocations.printShardDistribution(clusterState));
+
+        // Global sanity: no shard lost or duplicated.
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        int totalPrimaries = 0;
+        for (RoutingNode node : routingNodes) {
+            totalPrimaries += (int) node.shardsWithState(STARTED).stream().filter(ShardRouting::primary).count();
+        }
+        assertEquals("total started primaries must stay at 6", 6, totalPrimaries);
+
+        for (String nodeId : nodesList) {
+            long primaryCount = routingNodes.node(nodeId).shardsWithState(STARTED).stream().filter(ShardRouting::primary).count();
+            assertEquals("each node should host exactly 2 primaries after rebalance (node=" + nodeId + ")", 2L, primaryCount);
+        }
+        // Per-index primary balance must also hold.
+        verifyPerIndexPrimaryBalance(clusterState);
     }
 
     /**
