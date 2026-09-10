@@ -131,6 +131,9 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         if (!containsOver() && !pinAboveExchange) {
             return planner.getCostFactory().makeTinyCost();
         }
@@ -199,9 +202,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
             if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
                 return null;
             }
-            OpenSearchDistributionTraitDef windowTraitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-            OpenSearchDistribution singleton = windowTraitDef.coordSingleton();
-            return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
+            // Pass the SINGLETON demand through VERBATIM. What a window frame needs is that ALL rows are on
+            // ONE node, which a 1-shard SINGLETON(SHARD) input already gives; the root asks for anySingleton
+            // (locality null), so narrowing to COORDINATOR here inserted a gather purely to move data that
+            // was already gathered.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
         }
         if (requiredDistribution.getKeys().isEmpty()) {
             // Locality-only demand (SINGLETON / RANDOM / ANY): no key to remap, ride it as-is.

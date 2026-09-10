@@ -120,6 +120,9 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         if (perPartition || ridesChildDistribution()) {
             return planner.getCostFactory().makeTinyCost();
         }
@@ -177,7 +180,14 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         // (Sort(fetch) over an ER, per DAGShapeTests case2/case4). Calcite tolerates a passThrough whose
         // delivered traits differ from the request; it costs the result and the parent re-enforces.
         OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-        OpenSearchDistribution singleton = traitDef.coordSingleton();
+        // A SINGLETON demand passes through VERBATIM, locality included. The root asks for anySingleton
+        // (locality null), which a 1-shard SINGLETON(SHARD) subtree already satisfies — narrowing it to
+        // COORDINATOR here inserted a gather on every single-shard query, for data that was already on one
+        // node. A NON-singleton demand (a join asking its input for RANDOM(SHARD) or WORKER+HASH) still gets
+        // the gathered shape, per the paragraph above.
+        OpenSearchDistribution singleton = requiredDistribution.getType() == RelDistribution.Type.SINGLETON
+            ? requiredDistribution
+            : traitDef.coordSingleton();
         return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
     }
 

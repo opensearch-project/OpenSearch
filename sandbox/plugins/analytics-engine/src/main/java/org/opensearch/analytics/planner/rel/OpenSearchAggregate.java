@@ -26,7 +26,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -326,20 +325,17 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         for (int index = 0; index < getInput().getTraitSet().size(); index++) {
             RelTrait trait = getInput().getTraitSet().getTrait(index);
             if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-            // ANY is Volcano's UNRESOLVED placeholder, not a real distribution — skip it and let the
-            // memo expand, exactly as the FINAL branch below already does. Treating ANY as SINGLETON
-            // priced every PARTIAL whose input trait was not yet resolved at INFINITY, which is why the
-            // agg-over-distributed-join split (TPC-H q3/q5/q7/q11/q21) could never win the cost race and
-            // only the post-CBO pass could produce it: the split IS registered and `deriveTraits` does
-            // derive PARTIAL@HASH(WORKER), but the alternative was unaffordable before it could compete.
-            // The real placement invariants still hold — they are enforced on the RESOLVED trait below.
-            if (distribution.getType() == RelDistribution.Type.ANY) continue;
-            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON;
-
-            // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
-            if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
+            // An UNRESOLVED input cannot be consumed: its placement is still undecided, so no operator
+            // above it has a defined cost or a defined correctness. This ONE invariant replaces the
+            // shape-by-shape legality table — the seed nodes live in the ANY subset and only their
+            // passThrough/derive alternatives, which carry concrete traits, are consumable.
+            if (distribution.getType() == RelDistribution.Type.ANY) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON;
+
+            // NOTE: the SINGLE-over-partitioned shape gate is GONE. passThroughTraits now declares that a
+            // SINGLE aggregate demands SINGLETON of its input, so the illegal pair is never constructed.
             // Prices a PARTIAL above the Exchange out (infinite cost) so it's never chosen.
             if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
                 return planner.getCostFactory().makeInfiniteCost();
@@ -355,7 +351,9 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             for (int index = 0; index < getInput().getTraitSet().size(); index++) {
                 RelTrait trait = getInput().getTraitSet().getTrait(index);
                 if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-                if (distribution.getType() == RelDistribution.Type.ANY) continue;
+                if (distribution.getType() == RelDistribution.Type.ANY) {
+                    return planner.getCostFactory().makeInfiniteCost();
+                }
                 boolean singletonCoord = distribution.getType() == RelDistribution.Type.SINGLETON
                     && distribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
                 boolean hashWorker = distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
@@ -427,23 +425,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             OpenSearchDistribution singleton = traitDef.coordSingleton();
             return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
         }
-        // SINGLE: claim the SINGLETON alternative ONLY for an aggregate that cannot be split at all
-        // (STATE_EXPANDING / DISTINCT / cross-family non-prefix group set). For those, gather-then-run-
-        // SINGLE is the only correct shape, so this can never out-compete a two-phase alternative —
-        // there is none to compete with. Claiming it unconditionally instead lets a SINGLE-over-gather
-        // plan beat a legitimate PARTIAL/FINAL split whenever the row estimate collapses to the 1.0
-        // floor (measured: the two multi-predicate AggregateSplitCostTests, where 4-7 equi conjuncts at
-        // Calcite's 0.15 selectivity drive the estimate to 1 row and a two-phase aggregate is pure
-        // overhead). Splittable aggregates keep deferring to OpenSearchAggregateSplitRule.
-        //
-        // Correctness is not at stake either way: computeSelfCost prices SINGLE-over-partitioned at
-        // infinity, so an unsplit aggregate can never read partitioned input and under-count.
-        if (mode == AggregateMode.SINGLE
-            && requiredDistribution.getType() == RelDistribution.Type.SINGLETON
-            && OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
-            OpenSearchDistributionTraitDef td = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-            OpenSearchDistribution sg = td.coordSingleton();
-            return Pair.of(getTraitSet().replace(sg), List.of(getInput().getTraitSet().replace(sg)));
+        // SINGLE rides any SINGLETON demand, passing the required locality through verbatim. This is where
+        // the requirement "a SINGLE aggregate needs gathered input" is DECLARED, so the planner inserts the
+        // gather below rather than cost having to reject the alternative afterwards.
+        if (mode == AggregateMode.SINGLE && requiredDistribution.getType() == RelDistribution.Type.SINGLETON) {
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
         }
         return null;
     }
