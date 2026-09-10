@@ -9,6 +9,9 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.io.IOUtils;
@@ -69,6 +72,31 @@ public class FileSnapshot implements Closeable {
         return fileChannel != null
             ? new BufferedInputStream(Channels.newInputStream(fileChannel))
             : new InputStreamIndexInput(new ByteArrayIndexInput(this.name, content), content.length);
+    }
+
+    /**
+     * Supplies the offset-ranged streams that a multipart (async) upload reads its parts from.
+     * <p>
+     * Unlike {@link #inputStream()}, which is sequential and single-shot, the returned supplier must serve
+     * arbitrary {@code (size, position)} slices, repeatedly and concurrently — one per upload part. The
+     * default implementation reads directly from the backing file (or the in-memory content, for
+     * content-backed snapshots), so no part of the file is ever held on heap.
+     * <p>
+     * Subclasses that transform the bytes on the way out (for example decrypting a client-side encrypted
+     * translog) must override this in addition to {@link #inputStream()}, and must keep the supplier
+     * random-access. Buffering the whole transformed file to satisfy the random-access contract would put
+     * the entire file on heap for the duration of the upload.
+     *
+     * @return a supplier of offset-ranged streams over the bytes to be uploaded
+     */
+    public RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier() {
+        if (path != null) {
+            final Path filePath = path;
+            return (size, position) -> new OffsetRangeFileInputStream(filePath, size, position);
+        }
+        final String resourceDescription = this.name;
+        final byte[] bytes = this.content;
+        return (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position);
     }
 
     @Override
