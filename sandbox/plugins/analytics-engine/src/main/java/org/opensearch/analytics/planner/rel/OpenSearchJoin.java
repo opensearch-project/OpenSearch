@@ -263,13 +263,14 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             return null;
         }
         OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-        // A locality-AGNOSTIC singleton demand (the root's anySingleton) over two 1-shard inputs of the SAME
-        // table is already satisfied where the data sits — that is the co-location shape this class's cost
-        // model accepts as legal shape #1. Narrowing such a demand to COORDINATOR inserted a gather under
-        // every single-shard join, purely to move data that was already on one node. Any other demand, or
-        // inputs that are not co-located, still gets the coordinator shape.
-        OpenSearchDistribution colocated = requiredDistribution.getLocality() == null ? colocatedInputDistribution() : null;
-        OpenSearchDistribution singleton = colocated != null ? colocated : traitDef.coordSingleton();
+        // Answers a SINGLETON demand with the COORDINATOR shape, deliberately, even when the demand is
+        // locality-agnostic and two co-located 1-shard inputs could satisfy it where they sit. Passing the
+        // demand through instead saves one gather on a single-shard join but costs q8 SEVEN TIMES its runtime
+        // at sf=10 (0.4s to 2.8s): the join stops seeing a coordinator-gathered pair, and its BROADCAST
+        // alternative (`shuf x12, gather x2, bcast x1`) loses to a pure shuffle (`shuf x14, gather x2`).
+        // Measured on the analytics-bench cluster with the shard layout pinned; reverting restores both the
+        // 0.4s and the broadcast shape, and fixes no test on its own.
+        OpenSearchDistribution singleton = traitDef.coordSingleton();
         return Pair.of(
             getTraitSet().replace(singleton),
             List.of(getLeft().getTraitSet().replace(singleton), getRight().getTraitSet().replace(singleton))
@@ -449,31 +450,6 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
     @Override
     public DeriveMode getDeriveMode() {
         return DeriveMode.BOTH;
-    }
-
-    /**
-     * The shared {@code SINGLETON(SHARD)} distribution when BOTH inputs are 1-shard scans of the same table,
-     * else null. Mirrors {@code OpenSearchJoinSplitRule.commonColocatedTableId}: same tableId, shardCount 1,
-     * SHARD locality — the conditions {@link #computeSelfCost} requires of a co-located join.
-     */
-    private OpenSearchDistribution colocatedInputDistribution() {
-        OpenSearchDistribution common = null;
-        for (RelNode input : getInputs()) {
-            OpenSearchDistribution dist = distributionOf(input);
-            if (dist == null
-                || dist.getType() != RelDistribution.Type.SINGLETON
-                || dist.getLocality() != OpenSearchDistribution.Locality.SHARD
-                || dist.getTableId() == null
-                || !Integer.valueOf(1).equals(dist.getShardCount())) {
-                return null;
-            }
-            if (common == null) {
-                common = dist;
-            } else if (!common.getTableId().equals(dist.getTableId())) {
-                return null;
-            }
-        }
-        return common;
     }
 
     private static OpenSearchDistribution distributionOf(RelNode rel) {
