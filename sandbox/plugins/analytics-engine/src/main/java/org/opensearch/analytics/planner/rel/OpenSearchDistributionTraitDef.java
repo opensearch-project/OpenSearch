@@ -229,6 +229,14 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             return rel;
         }
 
+        // An UNRESOLVED input cannot be enforced: you cannot gather data whose location is undecided, and
+        // the exchange would have no source to read from. Declining is what stops the "put the exchange on
+        // top of the unresolved subtree" shape, which is always cheaper (it moves the operator's OUTPUT
+        // instead of its input) and would therefore always win.
+        if (fromTrait != null && fromTrait.getType() == RelDistribution.Type.ANY) {
+            return null;
+        }
+
         List<String> viableBackends = resolveViableBackendsFromRel(rel);
 
         LOGGER.debug(

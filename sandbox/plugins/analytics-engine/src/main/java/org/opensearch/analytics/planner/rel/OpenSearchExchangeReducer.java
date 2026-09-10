@@ -185,6 +185,9 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         double rows = mq.getRowCount(getInput());
         // Width term is ADDITIVE (per-column overhead), NOT rows × width. Two competing decisions key
         // off this ER cost and pull in opposite directions:

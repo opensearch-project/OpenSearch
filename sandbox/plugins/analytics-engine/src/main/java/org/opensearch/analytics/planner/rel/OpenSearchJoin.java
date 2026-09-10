@@ -163,7 +163,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         for (RelNode input : getInputs()) {
             OpenSearchDistribution inputDist = distributionOf(input);
             if (inputDist == null) continue;
-            if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) continue;
+            // An UNRESOLVED input cannot be consumed — same invariant as OpenSearchAggregate. Skipping it
+            // here is what let a per-partition SINGLE aggregate reach a join as an ANY subset and win.
+            if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
 
             if (isBroadcastShape) {
                 if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
@@ -259,7 +263,13 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             return null;
         }
         OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-        OpenSearchDistribution singleton = traitDef.coordSingleton();
+        // A locality-AGNOSTIC singleton demand (the root's anySingleton) over two 1-shard inputs of the SAME
+        // table is already satisfied where the data sits — that is the co-location shape this class's cost
+        // model accepts as legal shape #1. Narrowing such a demand to COORDINATOR inserted a gather under
+        // every single-shard join, purely to move data that was already on one node. Any other demand, or
+        // inputs that are not co-located, still gets the coordinator shape.
+        OpenSearchDistribution colocated = requiredDistribution.getLocality() == null ? colocatedInputDistribution() : null;
+        OpenSearchDistribution singleton = colocated != null ? colocated : traitDef.coordSingleton();
         return Pair.of(
             getTraitSet().replace(singleton),
             List.of(getLeft().getTraitSet().replace(singleton), getRight().getTraitSet().replace(singleton))
@@ -439,6 +449,31 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
     @Override
     public DeriveMode getDeriveMode() {
         return DeriveMode.BOTH;
+    }
+
+    /**
+     * The shared {@code SINGLETON(SHARD)} distribution when BOTH inputs are 1-shard scans of the same table,
+     * else null. Mirrors {@code OpenSearchJoinSplitRule.commonColocatedTableId}: same tableId, shardCount 1,
+     * SHARD locality — the conditions {@link #computeSelfCost} requires of a co-located join.
+     */
+    private OpenSearchDistribution colocatedInputDistribution() {
+        OpenSearchDistribution common = null;
+        for (RelNode input : getInputs()) {
+            OpenSearchDistribution dist = distributionOf(input);
+            if (dist == null
+                || dist.getType() != RelDistribution.Type.SINGLETON
+                || dist.getLocality() != OpenSearchDistribution.Locality.SHARD
+                || dist.getTableId() == null
+                || !Integer.valueOf(1).equals(dist.getShardCount())) {
+                return null;
+            }
+            if (common == null) {
+                common = dist;
+            } else if (!common.getTableId().equals(dist.getTableId())) {
+                return null;
+            }
+        }
+        return common;
     }
 
     private static OpenSearchDistribution distributionOf(RelNode rel) {

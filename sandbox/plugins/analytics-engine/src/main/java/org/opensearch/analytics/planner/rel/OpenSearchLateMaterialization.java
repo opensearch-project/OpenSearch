@@ -151,6 +151,9 @@ public class OpenSearchLateMaterialization extends SingleRel implements OpenSear
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         // Reduces wire bytes by deferring aboveAnchorPhysicalFields until after Sort+Limit; cheap relative to ER.
         return planner.getCostFactory().makeTinyCost();
     }

@@ -64,6 +64,30 @@ public interface OpenSearchRelNode extends PhysicalNode {
         return null;
     }
 
+    /**
+     * True when any input's distribution is still UNRESOLVED ({@code Type.ANY}).
+     *
+     * <p>THE invariant that keeps placement legality out of the cost model's shape tables: an unresolved
+     * input has no decided location, so nothing above it has a defined cost — or a defined correctness.
+     * Every operator's {@code computeSelfCost} refuses such an input, which confines the seed nodes the HEP
+     * marking phase produces (they cannot demand traits of their inputs, so they claim nothing) to the ANY
+     * subset. Only their {@code passThroughTraits}/{@code deriveTraits} alternatives, which set self and
+     * input traits together, are consumable.
+     *
+     * <p>Miss this check in ONE operator and that operator becomes the hole: a Union that skipped it let a
+     * per-partition {@code SINGLE} aggregate through as an ANY subset, and the gather above concatenated
+     * three partial results without merging them.
+     */
+    default boolean hasUnresolvedInput() {
+        for (RelNode input : ((RelNode) this).getInputs()) {
+            OpenSearchDistribution dist = distributionOf(input.getTraitSet());
+            if (dist != null && dist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Counterpart to {@link #passThroughTraits} for bottom-up derivation. Null means "no alternative". */
     @Override
     default Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
