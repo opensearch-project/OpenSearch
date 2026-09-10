@@ -41,15 +41,15 @@ const SUBMIT_QUEUE: usize = 8 * 1024 * 1024;
 
 /// Build the data + metadata cache pair used by these tests.
 ///
-/// Both Foyer instances are **disk-only**: `FoyerCache` sets the DRAM tier to 1 byte, which
-/// opts out of DRAM caching, so an entry is retrievable only once the storage flusher has
-/// written it to the `FsDevice`. `put`/`insert` is fire-and-forget — it returns before the
-/// flusher persists the entry — so a test that needs a `get` to hit must first call
-/// `cache.wait_for_flush()`, whose documented post-condition is "all previously put() entries
-/// are on SSD and findable via get()". Without that drain, a range still queued in the write
-/// buffer misses; under heavy parallel load (the full suite) that happens often enough to make
-/// the tests below flaky, and a test that deleted its local file to force a cache-only read then
-/// fails with `NotFound` from the vanished file instead of reading from cache.
+/// Both Foyer instances are configured with a DRAM capacity of 1, but that does NOT opt out of
+/// DRAM caching: the default weighter counts ENTRIES, not bytes, and the in-memory cache is
+/// sharded 8 ways by key hash, so a handful of entries stay resident. The disk write happens when
+/// an entry is RELEASED by DRAM eviction, not at insert time, and `put`/`insert` is fire-and-forget
+/// either way.
+///
+/// A test that needs a `get` to hit must therefore call [`drain_to_disk`], NOT
+/// `cache.wait_for_flush()` — see that function for why the flusher drain alone leaves these tests
+/// flaky, and what the failure looks like when it does.
 fn create_tiered_cache(
     data_dir: &std::path::Path,
     meta_dir: &std::path::Path,
@@ -79,6 +79,35 @@ fn create_tiered_cache(
         false,
     ));
     Arc::new(TieredBlockCache::new(data_cache, metadata_cache))
+}
+
+/// Make every entry put so far readable from disk, not just from DRAM.
+///
+/// `cache.wait_for_flush()` on its own is NOT enough, and that is what left these tests flaky.
+/// It drains the storage flusher, which does nothing for an entry that has not been submitted to
+/// the device yet — and with a DRAM capacity counted in ENTRIES across 8 shards, entries do stay
+/// resident, their disk write deferred until eviction releases them. A `get` right after a `put`
+/// is then answered out of DRAM without the entry ever reaching the device; under full-suite load
+/// that same entry can instead be evicted with its write still in flight, leaving it in neither
+/// place, and the `get` misses.
+///
+/// So evict first, then drain. One filler put per shard is not enough — `drain_dram_tier` in
+/// block-cache-foyer's own tests makes the same point — hence 64, into both tiers, since which
+/// tier a test asserts on varies and each has its own shards.
+///
+/// Measured on `small_file_warmup_persists_every_range_to_metadata_tier`, which fails on the
+/// largest of its four warmed ranges (`0..13076`, the whole-file range a sub-64KB file's footer
+/// collapses to — the widest write window): 2 of 10 full-suite rounds failed with
+/// `wait_for_flush()` alone, 0 of 14 with this.
+async fn drain_to_disk(cache: &TieredBlockCache) {
+    const FILLER: [u8; 1024] = [0xBB; 1024];
+    let filler = bytes::Bytes::from_static(&FILLER);
+    for i in 0..64u64 {
+        let key = range_cache_key("__drain_filler__", i * 1024, (i + 1) * 1024);
+        cache.put_metadata(&key, filler.clone());
+        cache.put(&key, filler.clone());
+    }
+    cache.wait_for_flush().await;
 }
 
 fn create_store(
@@ -460,7 +489,7 @@ fn metadata_served_from_ssd_not_local_fs() {
     );
 
     // Drain the flusher so the warmup put is on SSD before its only other source disappears.
-    block_on(cache.wait_for_flush());
+    block_on(drain_to_disk(&cache));
 
     // Delete local file — force subsequent reads to come from cache only
     std::fs::remove_file(parquet_dir.path().join("ssd_only.parquet")).unwrap();
@@ -846,7 +875,7 @@ fn warmup_put_metadata_then_datafusion_query_from_cache() {
         // Step 2: Now promote the footer range to metadata_cache.
         // Drain first: query 1's data-tier puts are fire-and-forget, so without this the read
         // below misses, put_metadata never runs, and the metadata_cache assert after it fails.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
         let footer_start = file_size.saturating_sub(64 * 1024);
         let footer_key = range_cache_key("warm.parquet", footer_start, file_size);
         if let Some(footer_bytes) = cache.get(&footer_key).await {
@@ -855,7 +884,7 @@ fn warmup_put_metadata_then_datafusion_query_from_cache() {
 
         // Verify metadata is now in metadata_cache
         // Drain again: put_metadata is fire-and-forget into the metadata tier.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
         assert!(
             cache.metadata_cache().get(&footer_key).await.is_some(),
             "footer must be in metadata_cache after put_metadata"
@@ -926,7 +955,7 @@ fn datafusion_query_succeeds_from_cache_after_local_file_deleted() {
         // ── Delete local file — cache is the only source now ─────────────────
         // Drain the flusher first: query 1's puts must be on SSD before their only other
         // source disappears, otherwise query 2 misses and hits the deleted file.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
         std::fs::remove_file(parquet_dir.path().join("align.parquet")).unwrap();
 
         // ── Query 2: same query, file gone — must succeed from cache ─────────
@@ -969,7 +998,7 @@ impl DeferredPutCache {
         }
     }
 
-    /// The analogue of `TieredBlockCache::wait_for_flush()`: make every staged entry findable.
+    /// The analogue of [`drain_to_disk`]: make every staged entry findable.
     fn flush(&self) {
         let mut staged = self.staged.lock().unwrap();
         let mut visible = self.visible.lock().unwrap();
@@ -1012,14 +1041,14 @@ impl BlockCache for DeferredPutCache {
     }
 }
 
-/// Deterministic reproduction of the flake that the `wait_for_flush()` calls above fix.
+/// Deterministic reproduction of the flake that the [`drain_to_disk`] calls above fix.
 ///
 /// Same shape as `datafusion_query_succeeds_from_cache_after_local_file_deleted`, but with a
 /// cache whose flush point is explicit instead of a background task. With the puts still
 /// unflushed, deleting the local file makes the cache-only query fail with exactly the
 /// `NotFound` that CI reported: every cache probe misses, `TieredObjectStore::fetch_misses`
 /// falls back to the local store, and the file it wants is gone. Flushing first — what
-/// `wait_for_flush()` does for the real cache — makes the same query succeed.
+/// [`drain_to_disk`] does for the real cache — makes the same query succeed.
 #[test]
 fn unflushed_cache_puts_make_query_after_delete_fail() {
     const QUERY: &str = "SELECT id FROM t WHERE id < 3 ORDER BY id";
@@ -1240,7 +1269,7 @@ fn page_index_key_alignment_warmup_matches_query_time() {
     );
 
     // Drain the flusher so both warmup puts are on SSD before the local file goes away.
-    block_on(cache.wait_for_flush());
+    block_on(drain_to_disk(&cache));
 
     // Delete local file — all reads must come from metadata cache
     std::fs::remove_file(parquet_dir.path().join("page_idx.parquet")).unwrap();
@@ -1313,7 +1342,7 @@ fn concurrent_shard_warmup_does_not_corrupt() {
         // (full test suite) a get() issued immediately after can miss an entry still queued in the
         // write buffer. Drain the flusher first — its documented post-condition is "all previously
         // put() entries are on SSD and findable via get()" — so the verification reads are deterministic.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
 
         // Verify each file's metadata is independently correct
         for (filename, file_size, expected_bytes) in &file_info {
@@ -1833,7 +1862,7 @@ fn production_warmup_then_query_from_cache_only() {
         // ── Step 3: Delete local file ────────────────────────────────────────
         // Drain the flusher first: the warmup put_metadata and the first query's data puts
         // must be on SSD before their only other source disappears.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
         std::fs::remove_file(parquet_dir.path().join("prod.parquet")).unwrap();
 
         // ── Step 4: Second query — must succeed entirely from cache ───────────
@@ -2133,7 +2162,7 @@ fn small_file_warmup_persists_every_range_to_metadata_tier() {
         store.put_metadata("small.parquet", &ranges, &fetched);
 
         // Drain the flusher: put_metadata is fire-and-forget, so every get below would race it.
-        cache.wait_for_flush().await;
+        drain_to_disk(&cache).await;
 
         for r in &ranges {
             let key = range_cache_key("small.parquet", r.start, r.end);
