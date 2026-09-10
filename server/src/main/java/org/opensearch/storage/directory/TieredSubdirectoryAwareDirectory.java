@@ -308,15 +308,29 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
             if (strategies.matchFor(identifier) == null) {
                 continue; // not a store-handled format (e.g. lucene)
             }
-            if (remoteDirectory.getExistingRemoteFilename(identifier) != null) {
-                continue; // already uploaded - REMOTE seeding/flip owns it
+            String blobKey = remoteDirectory.getExistingRemoteFilename(identifier);
+            if (blobKey != null) {
+                // Already uploaded (replica learning of a primary upload, or a re-add of a
+                // flipped file). Register/refresh it as REMOTE - the registry upsert is
+                // idempotent and preserves reader counts - so a later promotion can build
+                // readers over it without a local copy.
+                long size;
+                try {
+                    size = remoteDirectory.fileLength(identifier);
+                } catch (IOException e) {
+                    size = 0;
+                }
+                StoreStrategyRegistry.Match match = strategies.matchFor(identifier);
+                String formatName = match != null ? match.format().name() : "";
+                strategies.onUploaded(identifier, remoteDirectory.getRemoteBasePath(formatName), blobKey, size);
+                continue;
             }
             java.nio.file.Path localPath = shardPath.getDataPath().resolve(identifier);
             long size;
             try {
                 size = java.nio.file.Files.size(localPath);
             } catch (IOException e) {
-                continue; // no local copy (e.g. replica without local bytes) - nothing to register
+                continue; // neither remote nor local - nothing to register
             }
             strategies.onWritten(identifier, size);
             accountLocalFormatFile(localPath, size);

@@ -79,16 +79,40 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return Runtime.getRuntime().availableProcessors();
     }
 
+    /**
+     * Process-wide reference count for the native Tokio runtime manager. The native
+     * side keeps ONE runtime manager per process, but this service is per-node —
+     * with multiple nodes in one process (internal test clusters, embedded use),
+     * stopping one node must not tear the runtime away from the survivors. Init
+     * happens only on the 0 -> 1 transition, shutdown only on 1 -> 0.
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger RUNTIME_MANAGER_REFS = new java.util.concurrent.atomic.AtomicInteger();
+    /** Ensures this instance decrements the refcount at most once across doStop/doClose. */
+    private final java.util.concurrent.atomic.AtomicBoolean runtimeManagerReleased = new java.util.concurrent.atomic.AtomicBoolean();
+
+    private void releaseTokioRuntimeManagerRef() {
+        if (runtimeManagerReleased.compareAndSet(false, true)) {
+            if (RUNTIME_MANAGER_REFS.decrementAndGet() == 0) {
+                NativeBridge.shutdownTokioRuntimeManager();
+            }
+        }
+    }
+
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
-        logger.debug(
-            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
-            cpuThreads,
-            datanodeMultiplier,
-            coordinatorMultiplier
-        );
+        if (RUNTIME_MANAGER_REFS.getAndIncrement() == 0) {
+            NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+            logger.debug(
+                "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+                cpuThreads,
+                datanodeMultiplier,
+                coordinatorMultiplier
+            );
+        } else {
+            logger.debug("Tokio runtime manager already initialized by another node in this process; sharing it");
+        }
+        runtimeManagerReleased.set(false);
 
         long cacheManagerPtr = 0L;
         NativeCacheManagerHandle cacheHandle = null;
@@ -123,7 +147,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         try {
             releaseRuntime();
         } finally {
-            NativeBridge.shutdownTokioRuntimeManager();
+            releaseTokioRuntimeManagerRef();
         }
 
         logger.debug("DataFusion service stopped");
@@ -132,7 +156,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() throws IOException {
         releaseRuntime();
-        NativeBridge.shutdownTokioRuntimeManager();
+        releaseTokioRuntimeManagerRef();
     }
 
     /**

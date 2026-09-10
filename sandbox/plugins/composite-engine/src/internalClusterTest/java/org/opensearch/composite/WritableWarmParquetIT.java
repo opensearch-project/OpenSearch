@@ -8,7 +8,6 @@
 
 package org.opensearch.composite;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -43,6 +42,9 @@ import java.util.stream.Collectors;
  * get-by-id (exercises the native parquet read path), the remote upload map, and local
  * parquet directory contents.
  */
+// Native-bridge worker threads can be caught mid-exit by the suite leak scanner (unnamed,
+// empty-stack, RUNNABLE). Give them time to finish dying before failing the suite.
+@com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering(linger = 10000)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 public class WritableWarmParquetIT extends DataFormatAwareReadonlyEngineBaseIT {
 
@@ -273,13 +275,11 @@ public class WritableWarmParquetIT extends DataFormatAwareReadonlyEngineBaseIT {
      * killing the primary node promotes the replica to a WRITABLE primary that accepts
      * further writes.
      *
-     * <p>KNOWN PRODUCT GAP (found by this test): promotion of a writable-warm replica fails
-     * the primary term transition with "Runtime manager not initialized" (native DataFusion
-     * runtime not wired on the warm promotion path), then cascades into
-     * ShardLockObtainFailedException retry loops. Needs a fix in the warm replica promotion
-     * flow before this test can be enabled.
+     * <p>This test originally exposed a process-lifecycle bug: DataFusionService shut down
+     * the process-wide native Tokio runtime manager when ANY node stopped, killing DataFusion
+     * for surviving nodes in the same process (internal test clusters). The runtime manager
+     * is now reference-counted across nodes; see DataFusionService.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/22999")
     public void testReplicaOnWritableWarmAndPromotion() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataAndWarmNodes(2);

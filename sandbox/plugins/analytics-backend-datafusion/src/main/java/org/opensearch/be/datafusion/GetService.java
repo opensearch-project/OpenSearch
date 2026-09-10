@@ -108,7 +108,12 @@ public class GetService implements Closeable {
                 return null;
             }
             DatafusionReader dfReader = reader.getReader(PARQUET_FORMAT_KEY, DatafusionReader.class);
-            return dfReader == null ? null : dfReader.getDataformatAwareStoreHandle();
+            if (dfReader != null && dfReader.getDataformatAwareStoreHandle() != null) {
+                return dfReader.getDataformatAwareStoreHandle();
+            }
+            // No format reader for this snapshot yet (e.g. version-map restore during engine
+            // construction at promotion) - use the shard-level handles carried by the Reader.
+            return reader.storeHandles().get(PARQUET_FORMAT_KEY);
         }
 
         /** Empty Substrait plan — the internal-search path builds its plan natively and ignores it. */

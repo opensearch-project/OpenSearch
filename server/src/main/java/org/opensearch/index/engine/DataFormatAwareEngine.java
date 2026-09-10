@@ -418,7 +418,7 @@ public class DataFormatAwareEngine implements Indexer {
             // Writable warm: the warm-tier directory listens for files entering the catalog so
             // it can register locally-written (native) format files and account their bytes.
             // Notified BEFORE the reader manager so registration precedes any reader warmup.
-            org.opensearch.index.store.FormatFilesAddedListener formatFilesAddedListener = resolveFormatFilesAddedListener();
+            org.opensearch.index.store.FormatFilesAddedListener formatFilesAddedListener = resolveFormatFilesAddedListener(store);
             for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
                 String formatName = entry.getKey().name();
                 FilesListener delegate = entry.getValue();
@@ -2108,7 +2108,7 @@ public class DataFormatAwareEngine implements Indexer {
                     readers.put(entry.getKey(), reader);
                 }
             }
-            DataFormatAwareReader reader = new DataFormatAwareReader(snapshotRef, readers);
+            DataFormatAwareReader reader = new DataFormatAwareReader(snapshotRef, readers, store.getDataformatAwareStoreHandles());
             return new GatedCloseable<>(reader, reader::close);
         } catch (Exception e) {
             snapshotRef.close();
@@ -2510,7 +2510,7 @@ public class DataFormatAwareEngine implements Indexer {
      * {@link org.opensearch.index.store.FormatFilesAddedListener} (the warm-tier
      * directory). Returns {@code null} on hot shards.
      */
-    private org.opensearch.index.store.FormatFilesAddedListener resolveFormatFilesAddedListener() {
+    static org.opensearch.index.store.FormatFilesAddedListener resolveFormatFilesAddedListener(Store store) {
         org.apache.lucene.store.Directory dir = store.directory();
         while (dir != null) {
             if (dir instanceof org.opensearch.index.store.FormatFilesAddedListener listener) {
@@ -2537,10 +2537,25 @@ public class DataFormatAwareEngine implements Indexer {
     public static class DataFormatAwareReader implements IndexReaderProvider.Reader {
         private final GatedCloseable<CatalogSnapshot> snapshotRef;
         private final Map<DataFormat, Object> readers;
+        private final Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles;
 
         public DataFormatAwareReader(GatedCloseable<CatalogSnapshot> snapshotRef, Map<DataFormat, Object> readers) {
+            this(snapshotRef, readers, Map.of());
+        }
+
+        public DataFormatAwareReader(
+            GatedCloseable<CatalogSnapshot> snapshotRef,
+            Map<DataFormat, Object> readers,
+            Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles
+        ) {
             this.snapshotRef = snapshotRef;
             this.readers = readers;
+            this.storeHandles = storeHandles == null ? Map.of() : storeHandles;
+        }
+
+        @Override
+        public Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles() {
+            return storeHandles;
         }
 
         @Override

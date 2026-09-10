@@ -39,6 +39,7 @@ import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
@@ -193,11 +194,31 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             // guarantees readers are updated before the snapshot becomes externally visible.
             List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>(readerManagersRef.values());
 
+            // Writable warm: keep the replica's native tiered-store registry current. Files
+            // arriving via replicated catalog snapshots are registered (REMOTE) with the
+            // warm directory so a later promotion can build readers over them.
+            Map<String, FilesListener> replicaFilesListeners = new HashMap<>();
+            org.opensearch.index.store.FormatFilesAddedListener formatFilesAddedListener = DataFormatAwareEngine
+                .resolveFormatFilesAddedListener(store);
+            if (formatFilesAddedListener != null) {
+                for (DataFormat format : readerManagersRef.keySet()) {
+                    String formatName = format.name();
+                    replicaFilesListeners.put(formatName, new FilesListener() {
+                        @Override
+                        public void onFilesAdded(java.util.Collection<String> files) {
+                            formatFilesAddedListener.onFormatFilesAdded(formatName, files);
+                        }
+
+                        @Override
+                        public void onFilesDeleted(java.util.Collection<String> files) {}
+                    });
+                }
+            }
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
                 new ReplicaDeletionPolicy(),
                 compositeDeleter,
-                Map.of(),
+                replicaFilesListeners,
                 snapshotListeners,
                 store.shardPath(),
                 committer
@@ -399,7 +420,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     readers.put(entry.getKey(), reader);
                 }
             }
-            DataFormatAwareEngine.DataFormatAwareReader reader = new DataFormatAwareEngine.DataFormatAwareReader(snapshotRef, readers);
+            DataFormatAwareEngine.DataFormatAwareReader reader = new DataFormatAwareEngine.DataFormatAwareReader(
+                snapshotRef,
+                readers,
+                store.getDataformatAwareStoreHandles()
+            );
             return new GatedCloseable<>(reader, reader::close);
         } catch (Exception e) {
             snapshotRef.close();
