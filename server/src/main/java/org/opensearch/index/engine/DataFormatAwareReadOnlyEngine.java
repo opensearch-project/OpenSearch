@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -311,6 +312,28 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         // The reader holds a permanent snapshotRef for the engine's lifetime.
         // Callers must not release it — use a no-op close callback.
         return new GatedCloseable<>(reader, () -> {});
+    }
+
+    /**
+     * Builds a point-in-time searcher supplier so {@code _search} reaches a shard tiered to warm, with
+     * each segment bound to the Parquet file backing its doc values. Identical to
+     * {@link DataFormatAwareEngine#acquireSearcherSupplier}, because a warm shard must bind the same way
+     * a hot one does; the difference is that its Parquet files live in the remote object store, which the
+     * shared binding records on each segment.
+     *
+     * <p>The supplier closing {@link #acquireReader()}'s reference is harmless here: this engine's
+     * reference carries a no-op close over a reader pinned for the engine's lifetime.
+     */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        ensureOpen();
+        final GatedCloseable<Reader> readerRef;
+        try {
+            readerRef = acquireReader();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to acquire reader for searcher", e);
+        }
+        return DataFormatAwareSearcherSupport.acquireSearcherSupplier(shardId, engineConfig, store, readerRef, wrapper, logger);
     }
 
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----

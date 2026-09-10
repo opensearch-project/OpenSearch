@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
@@ -24,6 +25,7 @@ import org.opensearch.index.translog.TranslogManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Unified interface for indexing operations in OpenSearch.
@@ -82,6 +84,59 @@ public interface Indexer
      */
     default boolean isReplicaIndexer() {
         return false;
+    }
+
+    /**
+     * Acquires a point-in-time {@link Engine.SearcherSupplier} that can be used to create
+     * {@link Engine.Searcher}s on demand. This lets a format-aware indexer (one that has no inner
+     * {@link org.opensearch.index.engine.Engine}) expose a Lucene searcher built from its own
+     * {@link IndexReaderProvider.Reader}, so the standard {@code _search} path can reach it without
+     * {@link org.opensearch.index.shard.IndexShard} ever depending on the concrete engine type.
+     * <p>
+     * The default implementation throws {@link UnsupportedOperationException}; indexers that are
+     * backed by a legacy {@link org.opensearch.index.engine.Engine} are handled by the caller via
+     * {@link org.opensearch.index.engine.EngineBackedIndexer} and never reach this method.
+     *
+     * @param wrapper a function applied to each acquired {@link Engine.Searcher} (e.g. reader wrapping)
+     * @param scope   the searcher scope
+     * @return a searcher supplier whose {@code close()} releases the underlying reader resources
+     */
+    default Engine.SearcherSupplier acquireSearcherSupplier(
+        Function<Engine.Searcher, Engine.Searcher> wrapper,
+        Engine.SearcherScope scope
+    ) {
+        throw new UnsupportedOperationException("acquireSearcherSupplier not supported by " + getClass().getName());
+    }
+
+    /**
+     * Acquires a single {@link Engine.Searcher} for the given source. The default implementation
+     * delegates to {@link #acquireSearcherSupplier(Function, Engine.SearcherScope)} and acquires a
+     * searcher from the returned supplier. Indexers backed by a legacy engine are handled by the
+     * caller and never reach this method.
+     *
+     * @param source  description of why the searcher is being acquired
+     * @param scope   the searcher scope
+     * @param wrapper a function applied to the acquired {@link Engine.Searcher}
+     * @return a searcher whose {@code close()} releases the supplier and the underlying reader resources
+     */
+    default Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope, Function<Engine.Searcher, Engine.Searcher> wrapper) {
+        Engine.SearcherSupplier supplier = acquireSearcherSupplier(wrapper, scope);
+        try {
+            Engine.Searcher searcher = supplier.acquireSearcher(source);
+            final Engine.SearcherSupplier toClose = supplier;
+            Engine.Searcher wrapped = new Engine.Searcher(
+                searcher.source(),
+                searcher.getDirectoryReader(),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                () -> IOUtils.close(searcher, toClose)
+            );
+            supplier = null; // ownership transferred to the returned searcher
+            return wrapped;
+        } finally {
+            IOUtils.closeWhileHandlingException(supplier);
+        }
     }
 
     /**

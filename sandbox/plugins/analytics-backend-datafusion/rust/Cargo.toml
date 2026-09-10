@@ -42,6 +42,9 @@ log = { workspace = true }
 num_cpus = { workspace = true }
 native-bridge-common = { workspace = true }
 opensearch-tiered-storage = { workspace = true }
+# Reader-side footer reads share the writer's `opensearch.format_version` key and encoding, so the
+# doc-values cursor calls the writer crate's reader rather than reimplementing either.
+opensearch-parquet-format = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 roaring = "=0.10.12"
