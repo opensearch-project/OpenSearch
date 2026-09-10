@@ -373,10 +373,14 @@ public class VSRManager implements AutoCloseable {
                 activeVSR.addFieldVector(schemaField);
                 changed = true;
             } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
-                throw new SchemaChangeRequiresWriterRotationException(
-                    schemaField.getName(),
-                    existingVector.getField().getType(),
-                    schemaField.getType()
+                throw new IllegalStateException(
+                    "Field ["
+                        + schemaField.getName()
+                        + "] changed immutable Parquet storage shape from ["
+                        + existingVector.getField().getType()
+                        + "] to ["
+                        + schemaField.getType()
+                        + "]"
                 );
             }
         }

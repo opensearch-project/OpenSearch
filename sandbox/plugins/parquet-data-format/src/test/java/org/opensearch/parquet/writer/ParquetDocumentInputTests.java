@@ -175,51 +175,26 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertEquals(List.of("a", "b"), pair.getValue());
     }
 
-    public void testUndeclaredKeywordPromotesWhenSecondValueArrives() {
+    public void testScalarKeywordRejectsSecondValue() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType other = new KeywordFieldMapper.KeywordFieldType("other");
-        other.setMultiValueSupported(true);
         assignTestCapabilities(other, PARQUET_FORMAT);
 
         input.addField(other, "one");
-        input.addField(other, "two");
-        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
-
-        FieldValuePair pair = findPair(input, "other");
-        assertTrue(pair.isMultiValued());
-        assertEquals(List.of("one", "two"), pair.getValue());
-        assertEquals(2L, input.getFieldCount("other"));
+        MapperParsingException error = expectThrows(MapperParsingException.class, () -> input.addField(other, "two"));
+        assertThat(error.getMessage(), org.hamcrest.Matchers.containsString("declare [multi_value: true]"));
     }
 
-    public void testExplicitSingleFieldRejectsSecondValue() {
+    public void testScalarNumericFieldRejectsSecondValue() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        number.setMultiValueSupported(true);
-        number.setMultiValueState(MappedFieldType.MultiValueState.SCALAR);
         assignTestCapabilities(number, PARQUET_FORMAT);
 
         input.addField(number, 10);
         MapperParsingException error = expectThrows(MapperParsingException.class, () -> input.addField(number, 20));
-        assertThat(error.getMessage(), org.hamcrest.Matchers.containsString("locked scalar by [multi_value: false]"));
-    }
-
-    public void testUndeclaredNumericFieldPromotesWhenSecondValueArrives() {
-        ParquetDocumentInput input = new ParquetDocumentInput();
-        populateMetadataFields(input);
-        MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        number.setMultiValueSupported(true);
-        assignTestCapabilities(number, PARQUET_FORMAT);
-
-        input.addField(number, 10);
-        input.addField(number, 20);
-        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
-
-        FieldValuePair pair = findPair(input, "number");
-        assertTrue(pair.isMultiValued());
-        assertEquals(List.of(10, 20), pair.getValue());
-        assertEquals(2L, input.getFieldCount("number"));
+        assertThat(error.getMessage(), org.hamcrest.Matchers.containsString("declare [multi_value: true]"));
     }
 
     public void testMultiValueFieldCountIsValueCountNotEntryCount() {

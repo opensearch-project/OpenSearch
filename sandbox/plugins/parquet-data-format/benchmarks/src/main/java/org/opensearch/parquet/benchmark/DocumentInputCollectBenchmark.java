@@ -41,11 +41,10 @@ import java.util.concurrent.TimeUnit;
  * performs while parsing a ClickBench {@code hits} row (106 columns: 25 keyword, 49 short,
  * 19 integer, 6 long, 4 date, in the real column order), plus the four metadata fields.
  *
- * <p>For every keyword field in the default {@code multi_value: auto} state,
- * {@code ParametrizedFieldMapper#addFieldForPluggableFormat} first asks
- * {@link DocumentInput#getFieldCount(String)} whether the field was already seen (to decide on
- * scalar-to-LIST promotion) and only then calls {@link DocumentInput#addField}. The
- * {@code preCheck} param toggles that call so its cost can be isolated from the plain collect path.
+ * <p>For every scalar keyword field, {@code ParametrizedFieldMapper#addFieldForPluggableFormat}
+ * first asks {@link DocumentInput#getFieldCount(String)} whether the field was already seen and
+ * rejects a second value. The {@code preCheck} param toggles that call so its cost can be isolated
+ * from the plain collect path.
  *
  * <p>Run with:
  * <pre>
@@ -65,7 +64,7 @@ public class DocumentInputCollectBenchmark {
     private static final String CLICKBENCH_COLUMN_SHAPE =
         "SSKKIDISIISSIISDDLISSSKSISSSKISSSSSSSSSSSSSDSKSSSIKKKKKKKSKLKKSLIIISSSIISSKISSSISSKKSKSLIKKKKKSSKLLSSIS";
 
-    /** Whether to run the mapper's promotion pre-check ({@code getFieldCount}) before each keyword value. */
+    /** Whether to run the mapper's scalar duplicate pre-check ({@code getFieldCount}) before each keyword value. */
     @Param({ "true", "false" })
     public boolean preCheck;
 
@@ -92,11 +91,7 @@ public class DocumentInputCollectBenchmark {
             String name = "c" + i;
             switch (CLICKBENCH_COLUMN_SHAPE.charAt(i)) {
                 case 'K' -> {
-                    // Mapping-built keyword types are multi_value-capable and default to AUTO; the
-                    // convenience constructor leaves the flag unset, so mirror the builder path here.
-                    MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType(name);
-                    keyword.setMultiValueSupported(true);
-                    fieldTypes[i] = keyword;
+                    fieldTypes[i] = new KeywordFieldMapper.KeywordFieldType(name);
                     values[i] = "keyword-value-" + i;
                     isKeyword[i] = true;
                 }
@@ -151,8 +146,8 @@ public class DocumentInputCollectBenchmark {
         for (int i = 0; i < fieldTypes.length; i++) {
             MappedFieldType ft = fieldTypes[i];
             if (isKeyword[i] && preCheck) {
-                // ParametrizedFieldMapper#addFieldForPluggableFormat, AUTO state, scalar so far.
-                if (ft.isMultiValued() == false && ft.isMultiValueSupported() && input.getFieldCount(ft.name()) > 0) {
+                // ParametrizedFieldMapper#addFieldForPluggableFormat scalar duplicate guard.
+                if (ft.isMultiValued() == false && input.getFieldCount(ft.name()) > 0) {
                     throw new IllegalStateException("unexpected duplicate on scalar workload");
                 }
             }

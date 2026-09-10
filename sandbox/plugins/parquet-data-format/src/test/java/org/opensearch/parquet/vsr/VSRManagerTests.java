@@ -646,19 +646,21 @@ public class VSRManagerTests extends ParquetBaseTests {
         try {
             manager.reconcileSchema(schemaWithMultiValue("tags"));
             NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            KeywordFieldMapper.KeywordFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+            tags.setMultiValued(true);
             assignTestCapabilities(valField, PARQUET_FORMAT);
+            assignTestCapabilities(tags, PARQUET_FORMAT);
 
-            // An explicit "tags": [] parses to zero addField calls, so the writer never sees the
-            // field and the row is null — same as absent. Documented here so the distinction
-            // between [] and absent is a deliberate, tested choice rather than an accident.
             ParquetDocumentInput doc = new ParquetDocumentInput();
             populateMetadataFields(doc);
             doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
             doc.addField(valField, 1);
+            doc.addField(tags, List.of());
             manager.addDocument(doc);
 
             ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
-            assertTrue(listVector.isNull(0));
+            assertFalse("explicit empty array must be a present LIST cell", listVector.isNull(0));
+            assertEquals(List.of(), listElements(listVector, 0));
             assertEquals(1, manager.flush().numRows());
         } finally {
             manager.close();

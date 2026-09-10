@@ -104,22 +104,6 @@ public class FieldValuePair {
         values.add(nextValue);
     }
 
-    /**
-     * Converts a scalar pair into a multi-valued pair and appends the triggering value.
-     * The first parse attempt is discarded while its dynamic mapping update is published;
-     * the retried document is parsed against the LIST mapping.
-     */
-    public void promoteToMultiValued(Object nextValue) {
-        if (values != null) {
-            values.add(nextValue);
-            return;
-        }
-        values = new ArrayList<>(2);
-        values.add(value);
-        values.add(nextValue);
-        value = null;
-    }
-
     /** Returns whether this pair accumulates multiple values into a list column. */
     public boolean isMultiValued() {
         return values != null;

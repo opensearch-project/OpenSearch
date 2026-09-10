@@ -40,6 +40,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ParquetWriterTests extends ParquetBaseTests {
 
     private final ParquetDataFormat parquetFormat = new ParquetDataFormat();
@@ -201,32 +203,32 @@ public class ParquetWriterTests extends ParquetBaseTests {
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
-    public void testMappingTypeChangeRetiresWriterForSchemaFence() throws Exception {
+    public void testMappingTypeChangeViolatesImmutableSchema() throws Exception {
         String filePath = createTempDir().resolve("schema-fence.parquet").toString();
         ParquetField keyword = ArrowFieldRegistry.getParquetField(nameField.typeName());
-        List<Field> promotedFields = new ArrayList<>();
-        promotedFields.add(ArrowFieldRegistry.getParquetField(idField.typeName()).toArrowField(idField.name(), false));
-        promotedFields.add(keyword.toArrowField(nameField.name(), true));
-        promotedFields.add(ArrowFieldRegistry.getParquetField(scoreField.typeName()).toArrowField(scoreField.name(), false));
-        promotedFields.addAll(metadataFields());
-        Schema promotedSchema = new Schema(promotedFields);
+        List<Field> changedFields = new ArrayList<>();
+        changedFields.add(ArrowFieldRegistry.getParquetField(idField.typeName()).toArrowField(idField.name(), false));
+        changedFields.add(keyword.toArrowField(nameField.name(), true));
+        changedFields.add(ArrowFieldRegistry.getParquetField(scoreField.typeName()).toArrowField(scoreField.name(), false));
+        changedFields.addAll(metadataFields());
+        Schema changedSchema = new Schema(changedFields);
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> promotedSchema,
+            () -> changedSchema,
             bufferPool,
             indexSettings,
             threadPool,
             null
         );
 
-        writer.updateMappingVersion(2L);
-
-        assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
-        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+        IllegalStateException error = expectThrows(IllegalStateException.class, () -> writer.updateMappingVersion(2L));
+        assertThat(error.getMessage(), containsString("changed immutable Parquet storage shape"));
+        assertEquals(WriterState.ACTIVE, writer.state());
+        writer.close();
     }
 
     public void testAddDocReturnsFailureOnOutOfMemory() throws Exception {

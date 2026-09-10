@@ -280,31 +280,6 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
-    public MultiValueState multiValueState() {
-        return delegate.multiValueState();
-    }
-
-    @Override
-    public void setMultiValueState(MultiValueState multiValueState) {
-        delegate.setMultiValueState(multiValueState);
-    }
-
-    @Override
-    public boolean isMultiValueAutoPromotionEnabled() {
-        return delegate.isMultiValueAutoPromotionEnabled();
-    }
-
-    @Override
-    public boolean isMultiValueSupported() {
-        return delegate.isMultiValueSupported();
-    }
-
-    @Override
-    public void setMultiValueSupported(boolean multiValueSupported) {
-        delegate.setMultiValueSupported(multiValueSupported);
-    }
-
-    @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         return delegate.docValueFormat(format, timeZone);
     }
