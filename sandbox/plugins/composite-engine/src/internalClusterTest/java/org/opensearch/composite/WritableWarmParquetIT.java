@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -240,6 +241,154 @@ public class WritableWarmParquetIT extends DataFormatAwareReadonlyEngineBaseIT {
         assertBusy(() -> assertEquals("doc count must be intact after warm merge", expectedDocs, primaryDocCount()));
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         assertEquals(expectedDocs, primaryDocCount());
+    }
+
+    /**
+     * Crash-durability scenario (translog replay only): docs indexed on warm with NO
+     * refresh and NO flush must survive a full cluster restart purely via remote translog
+     * replay. This is the payoff of the commit-time durability contract - nothing else
+     * has persisted these docs.
+     */
+    public void testUnflushedWarmWritesSurviveRestart() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+        createHotIndexAndTierToWritableWarm(0);
+
+        // Index on warm: no refresh, no flush - durability rests on the remote translog.
+        List<String> warmIds = indexDocsOnWarm(DOC_COUNT, WARM_DOC_COUNT);
+
+        internalCluster().fullRestart();
+        ensureGreen(INDEX_NAME);
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        assertBusy(() -> assertEquals("unflushed warm docs must be replayed", DOC_COUNT + WARM_DOC_COUNT, primaryDocCount()));
+        for (String id : warmIds) {
+            GetResponse resp = client().prepareGet(INDEX_NAME, id).setRealtime(false).get();
+            assertTrue("unflushed warm doc [" + id + "] must survive restart via translog replay", resp.isExists());
+        }
+    }
+
+    /**
+     * Replica scenario: a writable warm index with one replica replicates warm writes, and
+     * killing the primary node promotes the replica to a WRITABLE primary that accepts
+     * further writes.
+     *
+     * <p>KNOWN PRODUCT GAP (found by this test): promotion of a writable-warm replica fails
+     * the primary term transition with "Runtime manager not initialized" (native DataFusion
+     * runtime not wired on the warm promotion path), then cascades into
+     * ShardLockObtainFailedException retry loops. Needs a fix in the warm replica promotion
+     * flow before this test can be enabled.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/22999")
+    public void testReplicaOnWritableWarmAndPromotion() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+        createHotIndexAndTierToWritableWarm(1);
+
+        List<String> warmIds = indexDocsOnWarm(DOC_COUNT, WARM_DOC_COUNT);
+        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        assertBusy(() -> assertEquals(DOC_COUNT + WARM_DOC_COUNT, primaryDocCount()));
+
+        // Kill the primary's node; the replica must be promoted.
+        String oldPrimaryNode = primaryNodeName();
+        internalCluster().stopRandomNode(org.opensearch.test.InternalTestCluster.nameFilter(oldPrimaryNode));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+
+        // Promotion semantics match the hot path: the promoted engine stays the
+        // NRT-replication engine wired for primary duty (see DataFormatAwareReplicationPromotionIT,
+        // which asserts behavior, never engine class). What matters: writes are accepted.
+        List<String> postPromotionIds = indexDocsOnWarm(DOC_COUNT + WARM_DOC_COUNT, WARM_DOC_COUNT);
+        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        assertBusy(() -> assertEquals("all docs incl. post-promotion writes", DOC_COUNT + 2L * WARM_DOC_COUNT, primaryDocCount()));
+        for (String id : postPromotionIds) {
+            GetResponse resp = client().prepareGet(INDEX_NAME, id).setRealtime(false).get();
+            assertTrue("post-promotion doc [" + id + "] must be readable", resp.isExists());
+        }
+    }
+
+    /**
+     * Explicit force-merge API on warm: segments merged down to one; inputs are read
+     * through the tiered store (earlier files already flipped REMOTE); no doc loss.
+     */
+    public void testForceMergeApiOnWarm() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+        createHotIndexAndTierToWritableWarm(0);
+
+        // Several small writer files across refreshes; earlier ones flip to REMOTE.
+        int docsPerCycle = 5;
+        int cycles = 4;
+        for (int c = 0; c < cycles; c++) {
+            indexDocsOnWarm(DOC_COUNT + c * docsPerCycle, docsPerCycle);
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        }
+        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
+        long expectedDocs = DOC_COUNT + (long) cycles * docsPerCycle;
+
+        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
+
+        IndexShard primaryShard = getIndexShard(primaryNodeName());
+        assertBusy(() -> {
+            Set<String> uploaded = uploadedParquetFiles(primaryShard);
+            assertTrue(
+                "expected a merged parquet file in remote uploads after force merge, got " + uploaded,
+                uploaded.stream().anyMatch(f -> f.contains("merged"))
+            );
+        }, 120, java.util.concurrent.TimeUnit.SECONDS);
+        assertBusy(() -> assertEquals("doc count intact after force merge", expectedDocs, primaryDocCount()));
+    }
+
+    /**
+     * Concurrency scenario: multiple client threads indexing into the warm shard while
+     * refreshes (and therefore uploads + flips) happen concurrently. Exact doc count and
+     * zero indexing failures required.
+     */
+    public void testConcurrentIndexingOnWarm() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(2);
+        createHotIndexAndTierToWritableWarm(0);
+
+        int threads = 4;
+        int docsPerThread = 25;
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
+        List<Thread> workers = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            final int threadId = t;
+            Thread worker = new Thread(() -> {
+                try {
+                    start.await();
+                    for (int i = 0; i < docsPerThread; i++) {
+                        IndexResponse resp = client().prepareIndex(INDEX_NAME)
+                            .setSource("field_text", "concurrent_" + threadId + "_" + i, "field_number", (long) (threadId * 1000 + i))
+                            .get();
+                        if (resp.status() != RestStatus.CREATED) {
+                            failures.incrementAndGet();
+                        }
+                        if (i % 10 == 0) {
+                            client().admin().indices().prepareRefresh(INDEX_NAME).get();
+                        }
+                    }
+                } catch (Exception e) {
+                    failures.incrementAndGet();
+                }
+            }, "warm-concurrent-indexer-" + threadId);
+            workers.add(worker);
+            worker.start();
+        }
+        start.countDown();
+        for (Thread w : workers) {
+            w.join(120_000);
+            assertFalse("worker thread must have finished", w.isAlive());
+        }
+        assertEquals("no indexing failures under concurrency on warm", 0, failures.get());
+
+        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        assertBusy(() -> assertEquals(DOC_COUNT + (long) threads * docsPerThread, primaryDocCount()));
     }
 
     /**
