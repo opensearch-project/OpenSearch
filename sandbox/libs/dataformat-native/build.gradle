@@ -63,18 +63,18 @@ def rustWorkspaceDir = file("${projectDir}/rust")
 def nativeLibFile = file("${rustWorkspaceDir}/target/${buildType}/${libPrefix}${nativeLibName}${libExtension}")
 
 // ═══════════════════════════════════════════════════════════════════
-// Patched third-party crate sources
+// Build-time third-party crate patches
 //
-// parquet is fetched from crates.io, checksum-verified, and patched in place. The resulting
-// directory is what rust/Cargo.toml's [patch.crates-io] points at. See rust/patches/README.md.
+// Some fixes must live inside a crates.io crate — either crate-internal APIs our code can't reach,
+// or upstream behavior we carry until a fix lands upstream. `registerCratePatch` fetches the crate
+// from crates.io, verifies its bytes against the checked-in `<crate>-<version>.crate.sha256`,
+// unpacks it under build/patched/, and applies the in-tree patch (git apply -p2). `Cargo.toml`'s
+// [patch.crates-io] points at the unpacked+patched dir; buildRustLibrary depends on every patch
+// task so cargo never sees the unpatched crate. See patches/README.md to add or refresh a patch.
 // ═══════════════════════════════════════════════════════════════════
-def parquetVersion = '58.3.0'
-def parquetPatchFile = file("${rustWorkspaceDir}/patches/parquet-${parquetVersion}-forward-cursor.patch")
-def parquetShaFile = file("${rustWorkspaceDir}/patches/parquet-${parquetVersion}.crate.sha256")
-def patchedParquetDir = file("${rustWorkspaceDir}/build/patched/parquet-${parquetVersion}")
 def patchedParentDir = file("${rustWorkspaceDir}/build/patched")
-def parquetDownloadDir = file("${rustWorkspaceDir}/build/downloads")
-
+def crateDownloadDir = file("${rustWorkspaceDir}/build/downloads")
+def cratePatchesDir  = file("${rustWorkspaceDir}/patches")
 def repoRootPath = project.rootDir.absolutePath
 def offlineBuild = gradle.startParameter.offline
 
@@ -84,132 +84,107 @@ def sha256Of = { File target ->
     digest.digest().encodeHex().toString()
 }
 
-task preparePatchedParquet {
-    description = "Download parquet ${parquetVersion} from crates.io, verify its checksum, and apply the in-tree patch"
-    group = 'build'
-
-    inputs.files parquetPatchFile, parquetShaFile
-    outputs.dir patchedParquetDir
-
-    doLast {
-        if (!parquetPatchFile.exists() || !parquetShaFile.exists()) {
-            throw new GradleException(
-                "Missing patch inputs for parquet ${parquetVersion}. Expected both:\n" +
-                "  ${parquetPatchFile}\n  ${parquetShaFile}\n" +
-                "If the parquet version was bumped, regenerate both for the new version.")
-        }
-
-        // Cargo only warns when a [patch.crates-io] entry does not match the dependency
-        // requirement, then builds the unpatched crate. Fail here instead.
-        def manifestText = new File(rustWorkspaceDir, 'Cargo.toml').text
-        def requirement = (manifestText =~ /(?m)^\s*parquet\s*=\s*"([^"]+)"/)
-        if (requirement.find()) {
-            def requestedVersion = requirement.group(1).replaceFirst(/^=/, '')
-            if (requestedVersion != parquetVersion) {
-                throw new GradleException(
-                    "parquet version mismatch: Cargo.toml requires '${requirement.group(1)}' but this task " +
-                    "patches ${parquetVersion}.\nUpdate parquetVersion in build.gradle, the " +
-                    "[patch.crates-io] path in Cargo.toml, and regenerate patches/parquet-*.patch " +
-                    "and patches/parquet-*.crate.sha256 for the new version.")
+// Register a task that patches one crates.io crate at build time and return its provider (so
+// callers wire `buildRustLibrary.dependsOn`). Conventions:
+//   - checksum file: patches/<crate>-<version>.crate.sha256
+//   - patch applied with `git apply -p2` (headers like `+++ b/<crate>/<path>`)
+//   - patched sources land at build/patched/<crate>-<version> (point [patch.crates-io] there)
+def registerCratePatch = { String crateName, String version, String patchFileName ->
+    def patchFile  = new File(cratePatchesDir, patchFileName)
+    def shaFile    = new File(cratePatchesDir, "${crateName}-${version}.crate.sha256")
+    def patchedDir = new File(patchedParentDir, "${crateName}-${version}")
+    def taskName   = 'preparePatched' + crateName.split('-').collect { it.capitalize() }.join('')
+    return tasks.register(taskName) {
+        description = "Download ${crateName} ${version} from crates.io, verify checksum, apply ${patchFileName}"
+        group = 'build'
+        inputs.files patchFile, shaFile
+        // No `outputs.dir patchedDir`: it lives under this module's build/ dir, which tree-scanning
+        // Java tasks (spotlessJava, forbiddenApis, …) also see — declaring it as an output makes
+        // Gradle 9.7.1 fail with an implicit-dependency validation. The task is cheap + idempotent
+        // (re-extract+apply) and always runs before cargo via buildRustLibrary.dependsOn, so it
+        // doesn't need up-to-date output tracking.
+        doLast {
+            if (!patchFile.exists() || !shaFile.exists()) {
+                throw new GradleException("Missing patch inputs:\n  ${patchFile}\n  ${shaFile}")
             }
-        }
-
-        def downloadDir = parquetDownloadDir
-        downloadDir.mkdirs()
-        def tarball = new File(downloadDir, "parquet-${parquetVersion}.crate")
-
-        if (!tarball.exists()) {
-            if (offlineBuild) {
-                throw new GradleException(
-                    "--offline was requested but ${tarball} is not cached. Run once without --offline.")
+            crateDownloadDir.mkdirs()
+            def tarball = new File(crateDownloadDir, "${crateName}-${version}.crate")
+            if (!tarball.exists()) {
+                if (offlineBuild) {
+                    throw new GradleException("--offline requested but ${tarball} is not cached. Run once online.")
+                }
+                def url = "https://static.crates.io/crates/${crateName}/${crateName}-${version}.crate"
+                logger.lifecycle("Downloading ${url}")
+                def tmp = new File(crateDownloadDir, "${crateName}-${version}.crate.part")
+                def connection = new URL(url).openConnection()
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 120_000
+                tmp.withOutputStream { out -> connection.inputStream.withCloseable { inp -> out << inp } }
+                if (!tmp.renameTo(tarball)) { throw new GradleException("Could not move ${tmp} to ${tarball}") }
             }
-            def url = "https://static.crates.io/crates/parquet/parquet-${parquetVersion}.crate"
-            logger.lifecycle("Downloading ${url}")
-            def tmp = new File(downloadDir, "parquet-${parquetVersion}.crate.part")
-            def connection = new URL(url).openConnection()
-            connection.connectTimeout = 30_000
-            connection.readTimeout = 120_000
-            tmp.withOutputStream { out -> connection.inputStream.withCloseable { inp -> out << inp } }
-            if (!tmp.renameTo(tarball)) {
-                throw new GradleException("Could not move ${tmp} to ${tarball}")
+            def expected = shaFile.text.trim().split(/\s+/)[0]
+            def actual = sha256Of(tarball)
+            if (actual != expected) {
+                tarball.delete()
+                throw new GradleException("Checksum mismatch for ${tarball.name}\n  expected: ${expected}\n  actual:   ${actual}\nDeleted; re-run to retry.")
             }
-        }
+            patchedDir.deleteDir()
+            patchedParentDir.mkdirs()
+            def untar = new ProcessBuilder('tar', '-xzf', tarball.absolutePath, '-C', patchedParentDir.absolutePath)
+                .redirectErrorStream(true).start()
+            def untarOutput = untar.inputStream.text
+            if (untar.waitFor() != 0) { throw new GradleException("Failed to unpack ${tarball.name}:\n${untarOutput}") }
 
-        // Integrity gate. Path dependencies carry no Cargo.lock checksum, so this is what
-        // guarantees we patched the same bytes that were reviewed.
-        def expected = parquetShaFile.text.trim().split(/\s+/)[0]
-        def actual = sha256Of(tarball)
-        if (actual != expected) {
-            tarball.delete()
-            throw new GradleException(
-                "Checksum mismatch for parquet-${parquetVersion}.crate\n" +
-                "  expected: ${expected}\n" +
-                "  actual:   ${actual}\n" +
-                "The downloaded tarball was deleted. Re-run to retry.")
+            def runGit = { List<String> args ->
+                def proc = new ProcessBuilder(['git'] + args).directory(patchedDir).redirectErrorStream(true)
+                proc.environment().put('GIT_CEILING_DIRECTORIES', repoRootPath)
+                def started = proc.start(); def out = started.inputStream.text
+                [exit: started.waitFor(), output: out]
+            }
+            def patchTargets = patchFile.readLines()
+                .findAll { it.startsWith('+++ ') }
+                .collect { it.substring(4).trim().split('\t')[0].split('/').drop(2).join('/') }
+                .findAll { it }
+            if (patchTargets.isEmpty()) { throw new GradleException("No target paths in ${patchFile}") }
+            def digestsBeforeApply = patchTargets.collectEntries { [it, sha256Of(new File(patchedDir, it))] }
+            def applied = runGit(['apply', '-p2', patchFile.absolutePath])
+            if (applied.exit != 0) {
+                throw new GradleException("Failed to apply ${patchFile.name}:\n${applied.output}")
+            }
+            def untouched = patchTargets.findAll { sha256Of(new File(patchedDir, it)) == digestsBeforeApply[it] }
+            if (!untouched.isEmpty()) {
+                throw new GradleException("${patchFile.name} left unchanged: ${untouched.join(', ')}\n${applied.output}")
+            }
+            logger.lifecycle("Applied ${patchFile.name} to ${patchTargets.size()} file(s) in ${patchedDir}")
         }
-
-        patchedParquetDir.deleteDir()
-        patchedParentDir.mkdirs()
-        def untar = new ProcessBuilder('tar', '-xzf', tarball.absolutePath, '-C', patchedParentDir.absolutePath)
-            .redirectErrorStream(true)
-            .start()
-        def untarOutput = untar.inputStream.text
-        if (untar.waitFor() != 0) {
-            throw new GradleException("Failed to unpack ${tarball.name}:\n${untarOutput}")
-        }
-
-        // GIT_CEILING_DIRECTORIES is required. The unpacked tree sits under gitignored build/,
-        // and git apply skips paths it considers outside its work tree, exiting 0 without
-        // applying anything. Capping repository discovery makes it treat the tree as standalone.
-        def runGit = { List<String> args ->
-            def proc = new ProcessBuilder(['git'] + args)
-                .directory(patchedParquetDir)
-                .redirectErrorStream(true)
-            proc.environment().put('GIT_CEILING_DIRECTORIES', repoRootPath)
-            def started = proc.start()
-            def out = started.inputStream.text
-            [exit: started.waitFor(), output: out]
-        }
-
-        // Files the patch rewrites, read from its "+++ b/parquet/<path>" headers with the two
-        // -p2 components stripped. Hashed before and after so a no-op apply is detectable.
-        def patchTargets = parquetPatchFile.readLines()
-            .findAll { it.startsWith('+++ ') }
-            .collect { it.substring(4).trim().split('\t')[0].split('/').drop(2).join('/') }
-            .findAll { it }
-        if (patchTargets.isEmpty()) {
-            throw new GradleException("Could not read any target paths from ${parquetPatchFile}")
-        }
-        def digestsBeforeApply = patchTargets.collectEntries {
-            [it, sha256Of(new File(patchedParquetDir, it))]
-        }
-
-        def applied = runGit(['apply', '-p2', parquetPatchFile.absolutePath])
-        if (applied.exit != 0) {
-            throw new GradleException(
-                "Failed to apply ${parquetPatchFile.name} to ${patchedParquetDir}:\n${applied.output}")
-        }
-
-        // git apply exits 0 for paths it decides to skip, so a zero status does not prove the
-        // patch landed. Every target file must have actually changed.
-        def untouched = patchTargets.findAll {
-            sha256Of(new File(patchedParquetDir, it)) == digestsBeforeApply[it]
-        }
-        if (!untouched.isEmpty()) {
-            throw new GradleException(
-                "${parquetPatchFile.name} left these files unchanged: ${untouched.join(', ')}\n" +
-                "git apply output:\n${applied.output}")
-        }
-        logger.lifecycle("Applied ${parquetPatchFile.name} to ${patchTargets.size()} file(s) in ${patchedParquetDir}")
     }
 }
+
+// FIXME [df55-regression]: DF55 (apache/datafusion#22857) made ParquetFormat::infer_schema fetch the
+// parquet page index (Optional-when-cached policy), which schema inference never uses; our
+// footer-only metadata cache strips it, so it reloads ~30ms/query per segment. This patch forces
+// PageIndexPolicy::Skip on infer_schema (restores DF54 behavior; the page index is still loaded
+// lazily per-column at scan by the scoped cache).
+// Blanket Skip (not caller-gated) is safe for us: every infer_schema call is Search-side schema
+// resolution, the inferred schema is page-index-independent (comes from the footer), and our L1
+// cache strips the page index regardless — so the eager load is always wasted here, on every path.
+// Upstream candidate — but a DF-core change should make this configurable (other embedders' caches
+// may retain the page index); drop this patch + the [patch.crates-io] entry if adopted upstream.
+def cratePatchTasks = [
+    // parquet: forward-cursor APIs (skip_rows / read_next_batch) on ParquetRecordBatchReader,
+    // needed by forward_reader.rs; not yet upstream (apache/arrow-rs#10655). See patches/README.md.
+    registerCratePatch('parquet', '59.2.0',
+        'parquet-59.2.0-forward-cursor.patch'),
+    registerCratePatch('datafusion-datasource-parquet', '55.0.0',
+        'datafusion-datasource-parquet-55.0.0-infer-skip-pageindex.patch'),
+]
 
 task buildRustLibrary(type: Exec) {
     description = 'Build the unified Rust native library from the Cargo workspace'
     group = 'build'
     workingDir rustWorkspaceDir
-    // cargo cannot read the workspace manifest until [patch.crates-io]'s path exists.
-    dependsOn preparePatchedParquet
+    // cargo cannot read the workspace manifest until [patch.crates-io]'s paths exist.
+    dependsOn cratePatchTasks
 
     def cargoExecutable = 'cargo'
     def possibleCargoPaths = [
@@ -231,8 +206,8 @@ task buildRustLibrary(type: Exec) {
     // Resolved dependency versions live here, so a lockfile change (e.g. pinning a transitive
     // crate) must invalidate the cached native library.
     inputs.file "${rustWorkspaceDir}/Cargo.lock"
-    // Editing the patch changes the compiled parquet crate, so invalidate the cached build.
-    inputs.file parquetPatchFile
+    // Editing any crate patch changes the compiled dependency, so invalidate the cached build.
+    inputs.files fileTree(cratePatchesDir)
     // Track all workspace member Rust sources so changes to plugin crates (e.g.,
     // analytics-backend-datafusion/rust/src/ffm.rs) invalidate the cached build.
     inputs.files fileTree("${projectDir}/../../plugins/analytics-backend-datafusion/rust/src")
@@ -257,7 +232,7 @@ ext.nativeLibPath = resolvedNativeLib
 buildRustLibrary.onlyIf { nativeLibOverride == null }
 // onlyIf skips a task but not its dependencies, so the override must skip the patch prep too -
 // otherwise reusing a prebuilt library still requires a crates.io download.
-preparePatchedParquet.onlyIf { nativeLibOverride == null }
+cratePatchTasks.each { it.configure { onlyIf { nativeLibOverride == null } } }
 
 assemble.dependsOn buildRustLibrary
 

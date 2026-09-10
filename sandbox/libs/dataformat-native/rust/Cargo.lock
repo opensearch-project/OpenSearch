@@ -1163,8 +1163,6 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-parquet"
 version = "55.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c0b0dc1453952952fd5c69ad1c7f6042176e69ed233011d47e07cf74ed0949e"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3039,8 +3037,6 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "59.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7065842956a20c2a536924ce8e4d9955f7422451511b9eb7500d7bfe5077e59c"
 dependencies = [
  "ahash",
  "arrow-array",
