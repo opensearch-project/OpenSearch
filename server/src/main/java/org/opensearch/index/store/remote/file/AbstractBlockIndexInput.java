@@ -317,6 +317,54 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         }
     }
 
+    /**
+     * Bulk reads are served from the current block when the requested range fits in it. Without these
+     * overrides the {@link org.apache.lucene.store.DataInput} defaults read one element at a time through
+     * {@link #readInt()} / {@link #readLong()}, so a single {@code readFloats} of a 1024-dimension vector
+     * turns into 1024 bounds-checked reads on the underlying block instead of one bulk copy. Lucene's own
+     * {@code BufferedIndexInput} carries the same overrides. Ranges that cross a block boundary fall back
+     * to the element-wise superclass implementation, which advances through blocks via
+     * {@link #readInt()} / {@link #readLong()}.
+     */
+    @Override
+    public void readFloats(float[] floats, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        if ((long) len * Float.BYTES <= blockSize - currentBlockPosition()) {
+            blockHolder.block.readFloats(floats, offset, len);
+        } else {
+            super.readFloats(floats, offset, len);
+        }
+    }
+
+    @Override
+    public void readInts(int[] dst, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        if ((long) len * Integer.BYTES <= blockSize - currentBlockPosition()) {
+            blockHolder.block.readInts(dst, offset, len);
+        } else {
+            super.readInts(dst, offset, len);
+        }
+    }
+
+    @Override
+    public void readLongs(long[] dst, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        if ((long) len * Long.BYTES <= blockSize - currentBlockPosition()) {
+            blockHolder.block.readLongs(dst, offset, len);
+        } else {
+            super.readLongs(dst, offset, len);
+        }
+    }
+
     @Override
     public final void readBytes(byte[] b, int offset, int len) throws IOException {
         ensureNotUnpinned();
