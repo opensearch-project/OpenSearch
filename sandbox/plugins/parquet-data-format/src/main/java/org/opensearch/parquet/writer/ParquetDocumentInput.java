@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.NestedAwareDocumentInput;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -40,7 +41,7 @@ import java.util.Set;
  * <p>Calling {@link #close()} clears all collected fields and resets the row ID,
  * allowing the instance to be discarded cleanly after use.
  */
-public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
+public class ParquetDocumentInput implements NestedAwareDocumentInput<List<FieldValuePair>> {
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
@@ -64,13 +65,30 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
      */
     public static class NestedChild {
         public final String path;
-        public final List<FieldValuePair> fields = new ArrayList<>();
+        public final List<NestedLeaf> fields = new ArrayList<>();
         public final List<NestedChild> children = new ArrayList<>();
         // map field full name -> its (key,value) entries in parse order (one MAP<Utf8,Utf8> per key).
         public final LinkedHashMap<String, List<Map.Entry<String, Object>>> mapEntries = new LinkedHashMap<>();
 
         NestedChild(String path) {
             this.path = path;
+        }
+    }
+
+    /**
+     * One leaf field of a nested element, with its name already relative to the element's own
+     * struct — computed once here, while the current nested scope's path is on hand, rather than
+     * re-derived from the full dotted {@code fieldType.name()} at write time.
+     */
+    public static class NestedLeaf {
+        public final String name;
+        public final MappedFieldType fieldType;
+        public final Object value;
+
+        NestedLeaf(String name, MappedFieldType fieldType, Object value) {
+            this.name = name;
+            this.fieldType = fieldType;
+            this.value = value;
         }
     }
 
@@ -83,6 +101,9 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     @Override
     public void endNestedChild() {
         ensureOpen();
+        if (childStack.isEmpty()) {
+            throw new IllegalStateException("endNestedChild called with no open nested child");
+        }
         NestedChild finished = childStack.pop();
         if (childStack.isEmpty()) {
             topLevelChildren.add(finished);
@@ -116,17 +137,19 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         ensureOpen();
-        // Fields inside a nested scope are routed to the innermost open element (no dedup —
-        // different children legitimately repeat the same field type).
-        if (childStack.isEmpty() == false) {
-            childStack.peek().fields.add(new FieldValuePair(fieldType, value));
-            return;
-        }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap()
             .getOrDefault(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of());
         if (capabilities.isEmpty() && fieldType != PrimaryTermFieldType.INSTANCE) {
             // nothing to support on this format for this field.
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
+            return;
+        }
+        // Fields inside a nested scope are routed to the innermost open element (no dedup —
+        // different children legitimately repeat the same field type).
+        if (childStack.isEmpty() == false) {
+            NestedChild current = childStack.peek();
+            String relativeName = fieldType.name().substring(current.path.length() + 1);
+            current.fields.add(new NestedLeaf(relativeName, fieldType, value));
             return;
         }
         if (dedup.add(fieldType) == false) {

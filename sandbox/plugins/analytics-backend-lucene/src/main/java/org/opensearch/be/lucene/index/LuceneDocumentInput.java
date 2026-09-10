@@ -45,12 +45,6 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private long rowId = -1L;
 
-    // Nested and flat_object data is intentionally never represented in Lucene at all — Parquet is
-    // the sole source for both. This counter only tracks whether addField is currently inside a
-    // nested scope, so it can be skipped entirely; no path/name information is needed since nothing
-    // is written for that scope.
-    private int nestedDepth = 0;
-
     /**
      * Creates a new LuceneDocumentInput with the default field factory registry.
      */
@@ -81,16 +75,13 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     /**
      * Adds a field via the registered {@link LuceneFieldFactory} for its type. Silently skipped if no
      * format declared support (empty capability map) — mirrors {@code ParquetDocumentInput}'s
-     * self-filtering. Inside a nested scope, this is a no-op — nested leaves are Parquet-only.
+     * self-filtering.
      *
      * @param fieldType the OpenSearch mapped field type
      * @param value     the field value
      */
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        if (nestedDepth > 0) {
-            return;
-        }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap().getOrDefault(LucenePlugin.DATA_FORMAT, Set.of());
         if (capabilities.isEmpty()) {
             // nothing to support on this format for this field.
@@ -150,34 +141,6 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;
-    }
-
-    /** Enters a nested scope — tracked only to gate {@link #addField}, no path/name is retained. */
-    @Override
-    public void startNestedChild(String nestedPath) {
-        nestedDepth++;
-    }
-
-    /** Leaves the innermost open nested scope. */
-    @Override
-    public void endNestedChild() {
-        if (nestedDepth == 0) {
-            throw new IllegalStateException("endNestedChild called with no open nested child");
-        }
-        nestedDepth--;
-    }
-
-    /**
-     * No-op. {@code flat_object} data — whether at the document root or inside a nested scope — is
-     * Parquet-only; Lucene never represents it, so this intentionally does nothing.
-     *
-     * @param mapField the flat_object field the entry belongs to
-     * @param key      the entry key — the leaf's dotted path relative to {@code mapField}
-     * @param value    the entry value, or {@code null}
-     */
-    @Override
-    public void addMapEntry(MappedFieldType mapField, String key, Object value) {
-        // Intentionally empty — see class-level note on nested/flat_object being Parquet-only.
     }
 
     @Override

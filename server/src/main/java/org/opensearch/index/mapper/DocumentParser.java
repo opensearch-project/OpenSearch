@@ -623,24 +623,24 @@ final class DocumentParser {
             }
         }
 
-        // if we are at the end of the previous object, advance
-        if (token == XContentParser.Token.END_OBJECT) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
-            token = parser.nextToken();
-        }
-
-        innerParseObject(context, mapper, parser, currentFieldName, token);
-
-        // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
-            // Symmetric close of the startNestedChild signal above (same gate) — closes the innermost
-            // open child so the pluggable DocumentInput(s) see children close before their parent.
-            if (context.indexSettings().isPluggableDataFormatEnabled()) {
-                context.documentInput().endNestedChild();
+        try {
+            // if we are at the end of the previous object, advance
+            if (token == XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+                token = parser.nextToken();
+            }
+            innerParseObject(context, mapper, parser, currentFieldName, token);
+        } finally {
+            // Run even on a parse failure, so the startNestedChild signal above always gets its
+            // matching close.
+            if (nested.isNested()) {
+                nested(context, nested);
+                if (context.indexSettings().isPluggableDataFormatEnabled()) {
+                    context.documentInput().endNestedChild();
+                }
             }
         }
     }

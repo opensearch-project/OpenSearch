@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.NestedAwareDocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
@@ -44,6 +45,56 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
 
         assertEquals(1, primaryInput.addedFields.size());
         assertEquals(1, secondaryInput.addedFields.size());
+    }
+
+    public void testAddFieldInsideNestedScopeOnlyReachesNestedAwareInputs() {
+        RecordingDocumentInput primaryInput = new RecordingDocumentInput(); // e.g. Lucene: NOT nested-aware
+        RecordingNestedAwareDocumentInput secondaryInput = new RecordingNestedAwareDocumentInput(); // e.g. Parquet
+
+        DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
+        DataFormat secondaryFormat = mockFormat("parquet", 2, Set.of());
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, Map.of(secondaryFormat, secondaryInput));
+
+        MappedFieldType keywordField = mockFieldType("keyword");
+        composite.startNestedChild("comments");
+        composite.addField(keywordField, "value1");
+        composite.endNestedChild();
+
+        assertEquals("non-nested-aware input never sees a field added inside a nested scope", 0, primaryInput.addedFields.size());
+        assertEquals(1, secondaryInput.addedFields.size());
+        assertEquals(1, secondaryInput.startNestedChildCalls.size());
+        assertEquals(1, secondaryInput.endNestedChildCalls);
+    }
+
+    public void testAddFieldOutsideNestedScopeStillBroadcastsToAllFormats() {
+        RecordingDocumentInput primaryInput = new RecordingDocumentInput();
+        RecordingNestedAwareDocumentInput secondaryInput = new RecordingNestedAwareDocumentInput();
+
+        DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
+        DataFormat secondaryFormat = mockFormat("parquet", 2, Set.of());
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, Map.of(secondaryFormat, secondaryInput));
+
+        // startNestedChild/endNestedChild only reach the nested-aware input, but a top-level (never
+        // inside a nested scope) addField still reaches every format, exactly as before.
+        composite.startNestedChild("comments");
+        composite.endNestedChild();
+        composite.addField(mockFieldType("keyword"), "root-value");
+
+        assertEquals(1, primaryInput.addedFields.size());
+        assertEquals(1, secondaryInput.addedFields.size());
+    }
+
+    public void testAddMapEntryOnlyReachesNestedAwareInputs() {
+        RecordingDocumentInput primaryInput = new RecordingDocumentInput();
+        RecordingNestedAwareDocumentInput secondaryInput = new RecordingNestedAwareDocumentInput();
+
+        DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
+        DataFormat secondaryFormat = mockFormat("parquet", 2, Set.of());
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, Map.of(secondaryFormat, secondaryInput));
+
+        composite.addMapEntry(mockFieldType("flat_object"), "key1", "value1");
+
+        assertEquals(1, secondaryInput.mapEntries.size());
     }
 
     public void testSetRowIdBroadcastsToAllInputs() {
@@ -194,5 +245,27 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** Recording {@link NestedAwareDocumentInput} — stands in for Parquet, the one format that cares. */
+    static class RecordingNestedAwareDocumentInput extends RecordingDocumentInput implements NestedAwareDocumentInput<Object> {
+        final List<String> startNestedChildCalls = new ArrayList<>();
+        int endNestedChildCalls = 0;
+        final List<Object> mapEntries = new ArrayList<>();
+
+        @Override
+        public void startNestedChild(String nestedPath) {
+            startNestedChildCalls.add(nestedPath);
+        }
+
+        @Override
+        public void endNestedChild() {
+            endNestedChildCalls++;
+        }
+
+        @Override
+        public void addMapEntry(MappedFieldType mapField, String key, Object value) {
+            mapEntries.add(value);
+        }
     }
 }

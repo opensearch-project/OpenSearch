@@ -8,13 +8,12 @@
 
 package org.opensearch.parquet.fields.core.data.text;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -28,11 +27,8 @@ public class TextParquetField extends ParquetField {
     public TextParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((VarCharVector) managedVSR.getVector(mappedFieldType.name())).setSafe(
-            managedVSR.getRowCount(),
-            parseValue.toString().getBytes(StandardCharsets.UTF_8)
-        );
+    protected void writeValue(FieldVector vector, int index, Object value) {
+        ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

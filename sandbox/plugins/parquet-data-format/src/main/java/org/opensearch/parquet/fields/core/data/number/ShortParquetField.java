@@ -8,11 +8,10 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 16-bit signed short values using {@link SmallIntVector}.
@@ -23,8 +22,8 @@ public class ShortParquetField extends NumericParquetField {
     public ShortParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((SmallIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Short) parseValue);
+    protected void writeValue(FieldVector vector, int index, Object value) {
+        ((SmallIntVector) vector).setSafe(index, (Short) value);
     }
 
     @Override

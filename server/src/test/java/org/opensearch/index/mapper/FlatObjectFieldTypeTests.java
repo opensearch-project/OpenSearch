@@ -56,7 +56,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         boolean isSearchable,
         boolean hasDocValues
     ) {
-        FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(fieldName);
+        FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(fieldName, false);
         FlatObjectFieldMapper.FlatObjectFieldType flatObjectFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
             fieldName,
             mappedFieldTypeName,
@@ -105,7 +105,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 flatParentFieldType.name() + ".bar",
                 flatParentFieldType.name(),
                 flatParentFieldType.getValueFieldType(),
-                flatParentFieldType.getValueAndPathFieldType()
+                flatParentFieldType.getValueAndPathFieldType(),
+                false
             );
             // when searching for "foo" in "field.bar", the directSubfield is field._valueAndPath field
             String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).getSearchField();
@@ -134,7 +135,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             "field.bar",
             flatParentFieldType.name(),
             flatParentFieldType.getValueFieldType(),
-            flatParentFieldType.getValueAndPathFieldType()
+            flatParentFieldType.getValueAndPathFieldType(),
+            false
         );
 
         // when searching for "foo" in "field.bar", the rewrite value is "field.bar=foo"
@@ -154,7 +156,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 "field.bar",
                 flatParentFieldType.name(),
                 flatParentFieldType.getValueFieldType(),
-                flatParentFieldType.getValueAndPathFieldType()
+                flatParentFieldType.getValueAndPathFieldType(),
+                false
             );
             assertEquals(
                 AutomatonQueries.caseInsensitiveTermQuery(new Term("field._valueAndPath", "field.bar=fOo")),
@@ -288,7 +291,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 "field.bar",
                 flatParentFieldType.name(),
                 flatParentFieldType.getValueFieldType(),
-                flatParentFieldType.getValueAndPathFieldType()
+                flatParentFieldType.getValueAndPathFieldType(),
+                false
             );
 
             // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
@@ -425,7 +429,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 "field.bar",
                 ft.name(),
                 ft.getValueFieldType(),
-                ft.getValueAndPathFieldType()
+                ft.getValueAndPathFieldType(),
+                false
             );
             Automaton termAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.bar="));
             Automaton dvAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.field.bar="));

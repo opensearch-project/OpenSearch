@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.NestedAwareDocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.Collections;
@@ -23,7 +24,13 @@ import java.util.Objects;
  * data format and broadcasts all field additions to every per-format input.
  * <p>
  * Metadata operations ({@code setRowId}, {@code setVersion}, {@code setSeqNo},
- * {@code setPrimaryTerm}) and field additions are broadcast to all per-format inputs.
+ * {@code setPrimaryTerm}) and top-level field additions are broadcast to all per-format inputs.
+ * <p>
+ * Nested-scope signals ({@link #startNestedChild}/{@link #endNestedChild}/{@link #addMapEntry}), and
+ * any {@link #addField} call made while inside a nested scope, are forwarded only to per-format inputs
+ * that implement {@link NestedAwareDocumentInput} — this class owns the nesting-depth bookkeeping so a
+ * format with no nested notion (e.g. Lucene) is never called into for any of it, and needs no bookkeeping
+ * of its own.
  *
  * @opensearch.experimental
  */
@@ -34,6 +41,7 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
     private long rowId = -1L;
+    private int nestedDepth = 0;
 
     /**
      * Constructs a CompositeDocumentInput with a primary format input and secondary format inputs.
@@ -56,23 +64,22 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        try {
-            primaryDocumentInput.addField(fieldType, value);
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                "Failed to add field [" + fieldType.name() + "] in primary format [" + primaryFormat.name() + "]",
-                e
-            );
+        boolean nested = nestedDepth > 0;
+        if (nested == false || primaryDocumentInput instanceof NestedAwareDocumentInput) {
+            addFieldTo(primaryDocumentInput, primaryFormat.name(), fieldType, value);
         }
         for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
-            try {
-                entry.getValue().addField(fieldType, value);
-            } catch (Exception e) {
-                throw new IllegalStateException(
-                    "Failed to add field [" + fieldType.name() + "] in secondary format [" + entry.getKey().name() + "]",
-                    e
-                );
+            if (nested == false || entry.getValue() instanceof NestedAwareDocumentInput) {
+                addFieldTo(entry.getValue(), entry.getKey().name(), fieldType, value);
             }
+        }
+    }
+
+    private static void addFieldTo(DocumentInput<?> input, String formatName, MappedFieldType fieldType, Object value) {
+        try {
+            input.addField(fieldType, value);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to add field [" + fieldType.name() + "] in format [" + formatName + "]", e);
         }
     }
 
@@ -87,30 +94,42 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void startNestedChild(String nestedPath) {
-        // Broadcast the nested-child open to every format so each builds its nested representation
-        // from the SAME parse-order signal stream (e.g. Parquet begins a LIST<STRUCT> element).
-        primaryDocumentInput.startNestedChild(nestedPath);
+        // Incremented before the broadcast below (not after) so depth reflects this open even if a
+        // per-format call throws partway through — DocumentParser's finally always calls the matching
+        // endNestedChild regardless, and that decrement must have a correct increment to pair against.
+        nestedDepth++;
+        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
+            nestedAware.startNestedChild(nestedPath);
+        }
         for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            input.startNestedChild(nestedPath);
+            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
+                nestedAware.startNestedChild(nestedPath);
+            }
         }
     }
 
     @Override
     public void endNestedChild() {
-        primaryDocumentInput.endNestedChild();
+        nestedDepth--;
+        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
+            nestedAware.endNestedChild();
+        }
         for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            input.endNestedChild();
+            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
+                nestedAware.endNestedChild();
+            }
         }
     }
 
     @Override
     public void addMapEntry(MappedFieldType mapField, String key, Object value) {
-        // Broadcast each map key/value to every format so each builds its map representation from the
-        // SAME parse-order signal stream (Parquet fills a MAP<Utf8,Utf8> column; formats with no map
-        // notion no-op via the DocumentInput default).
-        primaryDocumentInput.addMapEntry(mapField, key, value);
+        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
+            nestedAware.addMapEntry(mapField, key, value);
+        }
         for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            input.addMapEntry(mapField, key, value);
+            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
+                nestedAware.addMapEntry(mapField, key, value);
+            }
         }
     }
 
