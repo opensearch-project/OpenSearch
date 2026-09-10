@@ -56,6 +56,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -200,6 +201,23 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertEquals("true", threadContext.getHeader("header.1"));
         assertEquals("true", threadContext.getHeader("header.2"));
         assertNull(threadContext.getHeader("header.3"));
+    }
+
+    public void testCorrelationHeadersStrippedOfControlCharacters() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        Set<RestHeaderDefinition> headers = new HashSet<>(
+            Arrays.asList(new RestHeaderDefinition(Task.X_OPAQUE_ID, false), new RestHeaderDefinition(Task.X_REQUEST_ID, false))
+        );
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        Map<String, List<String>> restHeaders = new HashMap<>();
+        restHeaders.put(Task.X_OPAQUE_ID, Collections.singletonList("opaque\r\nid"));
+        restHeaders.put(Task.X_REQUEST_ID, Collections.singletonList("request\tid"));
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        // Control characters removed from the stored header values; other characters preserved
+        assertEquals("opaqueid", threadContext.getHeader(Task.X_OPAQUE_ID));
+        assertEquals("requestid", threadContext.getHeader(Task.X_REQUEST_ID));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {
