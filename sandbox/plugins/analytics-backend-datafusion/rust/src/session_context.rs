@@ -82,11 +82,10 @@ pub struct IndexedExecutionConfig {
     pub requests_row_ids: bool,
 }
 
-/// Reconciles the footer-derived shard schema with the plan's `base_schema` so the table is
-/// registered with the logical types and columns the Substrait consumer expects. Same-name
-/// compatible scalar fields are promoted when the plan declares `List<T>`, and fields absent from
-/// this shard are appended as nullable. Returns `inferred` unchanged when no usable plan schema is
-/// available or no reconciliation is required.
+/// Widens `inferred` to the plan's `base_schema` (for index-pattern / alias scans) so the
+/// table is registered with every column the Substrait consumer expects. Returns `inferred`
+/// unchanged when no plan is supplied, no matching base_schema exists, or this shard already
+/// covers every column.
 ///
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
@@ -110,9 +109,19 @@ pub(crate) fn widen_schema_from_plan(
         Err(_) => return Arc::clone(inferred),
     };
     let Some(base_schema) = crate::api::base_schema_for_table(&plan, table_name) else {
-        log::warn!("widen_schema_from_plan: no base_schema found for table '{}' in plan — skipping reconciliation", table_name);
+        log::warn!("widen_schema_from_plan: no base_schema found for table '{}' in plan — skipping widening", table_name);
         return Arc::clone(inferred);
     };
+
+    // Cheap gate: if inferred already has every base_schema column, skip.
+    let have: std::collections::HashSet<&str> = inferred
+        .fields()
+        .iter()
+        .map(|f| f.name().as_str())
+        .collect();
+    if base_schema.names.iter().all(|n| have.contains(n.as_str())) {
+        return Arc::clone(inferred);
+    }
 
     // Use the substrait consumer to convert NamedStruct → Arrow Schema (handles all type
     // variants including decimals, nested structs, user-defined types). All fields are
@@ -138,7 +147,7 @@ pub(crate) fn widen_schema_from_plan(
         expected
     };
     let expected = crate::schema_coerce::coerce_inferred_schema(Arc::new(expected));
-    crate::schema_coerce::reconcile_with_expected(inferred, &expected)
+    crate::schema_coerce::append_missing_nullable(inferred, &expected)
         .unwrap_or_else(|| Arc::clone(inferred))
 }
 
@@ -309,40 +318,42 @@ pub async unsafe fn create_session_context(
     // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
     let register_name = resolve_register_name(table_name, plan_bytes);
 
-    // Load every file schema through the shared footer cache, then merge deterministically.
-    // Compatible scalar/List pairs become one logical List field; all other incompatible type
-    // changes remain errors. This replaces ListingOptions::infer_schema because Arrow's default
-    // Schema::try_merge rejects the intentional scalar-to-List promotion across generations.
-    let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
-    let mut discovered_schemas = Vec::with_capacity(shard_view.object_metas.len());
-    for meta in shard_view.object_metas.as_ref() {
-        let (schema, _, _) = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
-            Arc::clone(&shard_view.store),
-            &meta.location,
-            meta.clone(),
-            Arc::clone(&metadata_cache),
-        )
-        .await
-        .map_err(DataFusionError::Execution)?;
-        discovered_schemas.push((meta.location.to_string(), schema.as_ref().clone()));
+    // Pre-warm the metadata cache footer-only before infer_schema fires.
+    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
+    // on a cache miss — fetching full page index bytes. By pre-warming here with
+    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
+    // a cache hit and never touches the page index bytes.
+    // Cache key is meta.location (Path) — same key infer_schema uses.
+    // Empty shard: loop is a no-op; infer_schema is also skipped below.
+    {
+        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+        for meta in shard_view.object_metas.as_ref() {
+            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+                Arc::clone(&shard_view.store),
+                &meta.location,
+                meta.clone(),
+                Arc::clone(&metadata_cache),
+            )
+            .await;
+        }
     }
-    discovered_schemas.sort_by(|left, right| left.0.cmp(&right.0));
 
-    // Empty shards take their logical columns from the Substrait base schema during widening.
-    let inferred: arrow::datatypes::SchemaRef = if discovered_schemas.is_empty() {
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
+    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
         Arc::new(arrow::datatypes::Schema::empty())
     } else {
-        let merged = crate::schema_coerce::merge_file_schemas_with_list_promotion(
-            discovered_schemas
-                .into_iter()
-                .map(|(_, schema)| schema)
-                .collect(),
-        )
-        .map_err(|e| {
-            DataFusionError::Execution(format!("failed to infer promoted parquet schema: {e}"))
-        })?;
-        let merged = crate::schema_coerce::transform_schema_to_view_recursive(merged.as_ref());
-        crate::schema_coerce::coerce_inferred_schema(Arc::new(merged))
+        let inferred = listing_options
+            .infer_schema(&ctx.state(), &shard_view.table_path)
+            .await
+            .map_err(|e| {
+                error!("create_session_context: failed to infer schema: {}", e);
+                e
+            })?;
+        // DataFusion rewrites top-level strings to view types but not LIST children. Apply the
+        // recursive form so predefined ARRAY<VARCHAR> fields bind as List<Utf8View>.
+        let inferred = crate::schema_coerce::transform_schema_to_view_recursive(inferred.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(inferred))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -365,10 +376,7 @@ pub async unsafe fn create_session_context(
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
-        .with_schema(resolved_schema)
-        .with_expr_adapter_factory(Arc::new(
-            crate::scalar_to_list_adapter::ScalarToListExprAdapterFactory,
-        ));
+        .with_schema(resolved_schema);
 
     // Wire the global statistics cache into the ListingTable.
     let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
@@ -773,8 +781,10 @@ mod tests {
         assert_eq!(result.field(0).name(), "a");
     }
 
-    /// When the physical schema already satisfies the plan by both name and type, reconciliation
-    /// must preserve the original schema instance even if the shard exposes additional fields.
+    /// Cheap-gate branch: with a non-empty plan whose `base_schema` names are all already in
+    /// `inferred`, `widen_schema_from_plan` must short-circuit (return `Arc::clone(inferred)`)
+    /// before invoking the substrait NamedStruct→Arrow converter. Verifies the column-name
+    /// subset check at the top of the function, not the empty-plan early-return.
     #[tokio::test]
     async fn test_widen_schema_noop_when_all_columns_present() {
         let ctx = SessionContext::new();
@@ -808,44 +818,8 @@ mod tests {
         // Must return inferred unchanged (Arc::clone, so pointer-equal).
         assert!(
             Arc::ptr_eq(&result, &inferred),
-            "matching name and type must preserve the inferred schema"
+            "subset gate must short-circuit to inferred"
         );
-    }
-
-    /// A sibling shard may contain only scalar files even though another shard has promoted the
-    /// global mapping and the plan now declares this field as ARRAY. Same-name coverage must not
-    /// short-circuit type reconciliation.
-    #[tokio::test]
-    async fn test_widen_schema_promotes_all_scalar_shard_to_plan_list() {
-        let ctx = SessionContext::new();
-        let child = Arc::new(Field::new("element", DataType::Utf8, true));
-        let logical_schema = Arc::new(Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(child),
-            true,
-        )]));
-        let table = MemTable::try_new(Arc::clone(&logical_schema), vec![vec![]]).expect("memtable");
-        ctx.register_table("t", Arc::new(table)).expect("register");
-        let logical = ctx
-            .sql("SELECT tags FROM t")
-            .await
-            .expect("sql")
-            .into_unoptimized_plan();
-        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
-        let mut plan_bytes = Vec::new();
-        plan.encode(&mut plan_bytes).expect("encode");
-
-        let inferred = Arc::new(Schema::new(vec![Field::new(
-            "tags",
-            DataType::Utf8View,
-            true,
-        )]));
-        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
-
-        assert!(matches!(
-            result.field_with_name("tags").unwrap().data_type(),
-            DataType::List(child) if matches!(child.data_type(), DataType::Utf8 | DataType::Utf8View)
-        ));
     }
 
     /// Empty-shard case: a shard with zero parquet files yields an empty inferred schema, but the

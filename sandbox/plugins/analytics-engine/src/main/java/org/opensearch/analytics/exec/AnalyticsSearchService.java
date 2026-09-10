@@ -754,7 +754,6 @@ public class AnalyticsSearchService implements AutoCloseable {
                 readerContext.getReader(),
                 rowIdVector,
                 columns,
-                request.getExpectedSchemaIpc(),
                 allocator,
                 task.getNativeTaskId(),
                 importStagingAllocator

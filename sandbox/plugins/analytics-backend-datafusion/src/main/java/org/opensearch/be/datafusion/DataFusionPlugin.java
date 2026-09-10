@@ -23,7 +23,6 @@ import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -80,11 +79,9 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -1082,30 +1079,7 @@ public class DataFusionPlugin extends Plugin
     public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, Index index, DocumentMetadataResolver resolver)
         throws IOException {
         GetService getService = getServiceOrThrow();
-        return getService.documentLookupService(resolver, multiValueFields(index)).getById(get.id(), reader, index);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Set<String> multiValueFields(Index index) {
-        if (clusterService == null) {
-            return Set.of();
-        }
-        IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
-        if (indexMetadata == null || indexMetadata.mapping() == null) {
-            return Set.of();
-        }
-        Object propertiesObject = indexMetadata.mapping().sourceAsMap().get("properties");
-        if (propertiesObject instanceof Map<?, ?> == false) {
-            return Set.of();
-        }
-        Set<String> fields = new HashSet<>();
-        Map<String, Object> properties = (Map<String, Object>) propertiesObject;
-        for (Map.Entry<String, Object> entry : properties.entrySet()) {
-            if (entry.getValue() instanceof Map<?, ?> field && Boolean.TRUE.equals(((Map<String, Object>) field).get("multi_value"))) {
-                fields.add(entry.getKey());
-            }
-        }
-        return fields;
+        return getService.documentLookupService(resolver).getById(get.id(), reader, index);
     }
 
     @Override

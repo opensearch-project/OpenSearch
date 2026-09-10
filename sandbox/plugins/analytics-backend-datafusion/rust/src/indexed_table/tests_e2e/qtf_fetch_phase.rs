@@ -533,34 +533,18 @@ async fn test_qtf_fetch_empty_result() {
     assert!(batches.is_empty()); // fetch_phase returns empty vec for empty row_ids
 }
 
-/// QTF fetch must use the schema already reconciled by `build_segments` and apply the
-/// scalar-to-singleton-LIST adapter to old generations. Re-running default schema inference here
-/// rejects the intentional Utf8/List<Utf8> evolution before the fetch can execute.
+/// QTF fetch reads predefined LIST columns from every parquet generation without compatibility
+/// promotion or custom expression adapters.
 #[tokio::test]
-async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
+async fn test_qtf_fetch_predefined_list_files() {
     use datafusion::arrow::array::{ListArray, StringViewArray};
     use datafusion::arrow::buffer::OffsetBuffer;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::parquet::arrow::ArrowWriter;
 
     let dir = tempfile::tempdir().unwrap();
-    let scalar_path = dir.path().join("scalar.parquet");
-    let list_path = dir.path().join("list.parquet");
-
-    let scalar_schema = Arc::new(Schema::new(vec![Field::new("tags", DataType::Utf8, true)]));
-    let scalar_batch = RecordBatch::try_new(
-        Arc::clone(&scalar_schema),
-        vec![Arc::new(StringArray::from(vec![Some("prod")]))],
-    )
-    .unwrap();
-    let mut scalar_writer = ArrowWriter::try_new(
-        std::fs::File::create(&scalar_path).unwrap(),
-        scalar_schema,
-        None,
-    )
-    .unwrap();
-    scalar_writer.write(&scalar_batch).unwrap();
-    scalar_writer.close().unwrap();
+    let singleton_path = dir.path().join("list-singleton.parquet");
+    let multiple_path = dir.path().join("list-multiple.parquet");
 
     let list_child = Arc::new(Field::new("element", DataType::Utf8, true));
     let list_schema = Arc::new(Schema::new(vec![Field::new(
@@ -568,7 +552,27 @@ async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
         DataType::List(Arc::clone(&list_child)),
         true,
     )]));
-    let list_batch = RecordBatch::try_new(
+
+    let singleton_batch = RecordBatch::try_new(
+        Arc::clone(&list_schema),
+        vec![Arc::new(ListArray::new(
+            Arc::clone(&list_child),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            Arc::new(StringArray::from(vec!["prod"])),
+            None,
+        ))],
+    )
+    .unwrap();
+    let mut singleton_writer = ArrowWriter::try_new(
+        std::fs::File::create(&singleton_path).unwrap(),
+        Arc::clone(&list_schema),
+        None,
+    )
+    .unwrap();
+    singleton_writer.write(&singleton_batch).unwrap();
+    singleton_writer.close().unwrap();
+
+    let multiple_batch = RecordBatch::try_new(
         Arc::clone(&list_schema),
         vec![Arc::new(ListArray::new(
             list_child,
@@ -578,14 +582,14 @@ async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
         ))],
     )
     .unwrap();
-    let mut list_writer = ArrowWriter::try_new(
-        std::fs::File::create(&list_path).unwrap(),
+    let mut multiple_writer = ArrowWriter::try_new(
+        std::fs::File::create(&multiple_path).unwrap(),
         list_schema,
         None,
     )
     .unwrap();
-    list_writer.write(&list_batch).unwrap();
-    list_writer.close().unwrap();
+    multiple_writer.write(&multiple_batch).unwrap();
+    multiple_writer.close().unwrap();
 
     let object_meta = |path: &std::path::Path| object_store::ObjectMeta {
         location: object_store::path::Path::from(path.to_string_lossy().as_ref()),
@@ -597,13 +601,13 @@ async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
     let ctx = SessionContext::new();
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
-    let metas = vec![object_meta(&scalar_path), object_meta(&list_path)];
+    let metas = vec![object_meta(&singleton_path), object_meta(&multiple_path)];
     let metadata_cache = ctx
         .state()
         .runtime_env()
         .cache_manager
         .get_file_metadata_cache();
-    let (segments, promoted_schema) = crate::indexed_table::segment_info::build_segments(
+    let (segments, resolved_schema) = crate::indexed_table::segment_info::build_segments(
         &ctx.state(),
         Arc::clone(&store),
         &metas,
@@ -634,7 +638,7 @@ async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
     ctx.register_table(
         "t",
         Arc::new(ShardTableProvider::new(ShardTableConfig {
-            file_schema: promoted_schema,
+            file_schema: resolved_schema,
             files,
             store_url,
         })),

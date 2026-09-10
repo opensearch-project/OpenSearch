@@ -85,56 +85,9 @@
 //!     the schema from Java to Rust and adds a second mapping table to keep in
 //!     sync with `OpenSearchSchemaBuilder.mapFieldType`.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
-use datafusion::arrow::error::ArrowError;
-
-/// Merges file schemas while treating `T` and `List<T>` for the same field as one logical
-/// `List<T>` column. This is the one-way schema promotion used after a keyword first receives
-/// multiple stored values. Other incompatible type changes remain errors.
-pub fn merge_file_schemas_with_list_promotion(
-    schemas: Vec<Schema>,
-) -> Result<SchemaRef, ArrowError> {
-    let mut list_fields: HashMap<String, Arc<Field>> = HashMap::new();
-    for schema in &schemas {
-        for field in schema.fields() {
-            if matches!(field.data_type(), DataType::List(_)) {
-                list_fields.insert(field.name().clone(), Arc::clone(field));
-            }
-        }
-    }
-
-    let normalized = schemas
-        .into_iter()
-        .map(|schema| {
-            let fields = schema
-                .fields()
-                .iter()
-                .map(|field| {
-                    let Some(list_field) = list_fields.get(field.name()) else {
-                        return field.as_ref().clone();
-                    };
-                    let DataType::List(child) = list_field.data_type() else {
-                        return field.as_ref().clone();
-                    };
-                    if field.data_type() == child.data_type() {
-                        list_field
-                            .as_ref()
-                            .clone()
-                            .with_nullable(list_field.is_nullable() || field.is_nullable())
-                    } else {
-                        field.as_ref().clone()
-                    }
-                })
-                .collect::<Vec<_>>();
-            Schema::new_with_metadata(fields, schema.metadata().clone())
-        })
-        .collect::<Vec<_>>();
-
-    Schema::try_merge(normalized).map(Arc::new)
-}
 
 /// Convert Parquet string/binary fields to Arrow view types, including LIST children.
 /// DataFusion's `transform_schema_to_view` only rewrites top-level fields, while the
@@ -234,220 +187,41 @@ fn rewrite_data_type(dt: &DataType) -> DataType {
     }
 }
 
-/// Reconciles a footer-derived physical union schema with the logical schema declared by the
-/// query plan. Physical field order and extra fields are retained because Substrait binds table
-/// columns by name. Fields absent from this shard are appended as nullable so the Parquet schema
-/// adapter can null-fill them.
+/// Appends to `registered` any `expected` field whose name is absent, as a nullable column.
+/// `Some(augmented)` if anything was added, `None` if `registered` already covers `expected`.
 ///
-/// A same-name scalar field is promoted when the plan declares a compatible `List<T>`. Compatible
-/// physical LIST fields are also normalized to the plan's exact child field so every shard emits
-/// identical Arrow types. Other same-name type differences remain unchanged and fail later through
-/// the normal DataFusion compatibility checks.
-pub fn reconcile_with_expected(registered: &Schema, expected: &Schema) -> Option<SchemaRef> {
-    let mut changed = false;
-    let mut fields: Vec<Field> = registered
-        .fields()
-        .iter()
-        .map(|registered_field| {
-            let Ok(expected_field) = expected.field_with_name(registered_field.name()) else {
-                return registered_field.as_ref().clone();
-            };
-            let DataType::List(child) = expected_field.data_type() else {
-                return registered_field.as_ref().clone();
-            };
-            if registered_field.data_type() == expected_field.data_type()
-                || !can_reconcile_as_list(registered_field.data_type(), child.data_type())
-            {
-                return registered_field.as_ref().clone();
-            }
-            changed = true;
-            Field::new(
-                expected_field.name(),
-                expected_field.data_type().clone(),
-                registered_field.is_nullable() || expected_field.is_nullable(),
-            )
-            .with_metadata(expected_field.metadata().clone())
-        })
-        .collect();
-
-    for expected_field in expected.fields() {
-        if registered.field_with_name(expected_field.name()).is_err() {
-            changed = true;
-            fields.push(
-                Field::new(
-                    expected_field.name(),
-                    expected_field.data_type().clone(),
-                    true,
-                )
-                .with_metadata(expected_field.metadata().clone()),
+/// The Substrait consumer binds `base_schema` to the provider BY NAME, so the registered schema
+/// only needs to *contain* every expected column — order is irrelevant and present columns keep
+/// their inferred (coerced) types. Appended columns are forced nullable; DataFusion's parquet
+/// `SchemaAdapter` null-fills them at read time.
+pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option<SchemaRef> {
+    let mut added: Vec<Field> = Vec::new();
+    for ef in expected.fields() {
+        if registered.field_with_name(ef.name()).is_err() {
+            added.push(
+                Field::new(ef.name(), ef.data_type().clone(), true)
+                    .with_metadata(ef.metadata().clone()),
             );
         }
     }
-
-    changed.then(|| {
-        Arc::new(Schema::new_with_metadata(
-            fields,
-            registered.metadata().clone(),
-        ))
-    })
-}
-
-fn can_reconcile_as_list(physical: &DataType, logical_child: &DataType) -> bool {
-    match physical {
-        DataType::List(physical_child) => {
-            compatible_scalar_type(physical_child.data_type(), logical_child)
-        }
-        scalar => compatible_scalar_type(scalar, logical_child),
+    if added.is_empty() {
+        return None;
     }
-}
-
-fn compatible_scalar_type(physical: &DataType, logical: &DataType) -> bool {
-    physical == logical
-        || matches!(
-            (physical, logical),
-            (DataType::Utf8 | DataType::LargeUtf8, DataType::Utf8View)
-                | (
-                    DataType::Binary | DataType::LargeBinary,
-                    DataType::BinaryView
-                )
-        )
-}
-
-/// Appends missing expected fields as nullable columns. Kept as a narrow helper for callers and
-/// tests that do not want same-name scalar-to-LIST reconciliation.
-pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option<SchemaRef> {
     let mut fields: Vec<Field> = registered
         .fields()
         .iter()
         .map(|f| f.as_ref().clone())
         .collect();
-    let original_len = fields.len();
-    for expected_field in expected.fields() {
-        if registered.field_with_name(expected_field.name()).is_err() {
-            fields.push(
-                Field::new(
-                    expected_field.name(),
-                    expected_field.data_type().clone(),
-                    true,
-                )
-                .with_metadata(expected_field.metadata().clone()),
-            );
-        }
-    }
-    (fields.len() != original_len).then(|| {
-        Arc::new(Schema::new_with_metadata(
-            fields,
-            registered.metadata().clone(),
-        ))
-    })
+    fields.extend(added);
+    Some(Arc::new(Schema::new_with_metadata(
+        fields,
+        registered.metadata().clone(),
+    )))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn merge_promotes_scalar_and_list_independent_of_input_order() {
-        let child = Arc::new(Field::new("element", DataType::Utf8, true));
-        let scalar = Schema::new(vec![Field::new("tags", DataType::Utf8, false)]);
-        let list = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::clone(&child)),
-            true,
-        )]);
-
-        for schemas in [
-            vec![scalar.clone(), list.clone()],
-            vec![list.clone(), scalar.clone()],
-        ] {
-            let merged = merge_file_schemas_with_list_promotion(schemas).unwrap();
-            let tags = merged.field_with_name("tags").unwrap();
-            assert_eq!(tags.data_type(), &DataType::List(Arc::clone(&child)));
-            assert!(tags.is_nullable());
-        }
-    }
-
-    #[test]
-    fn merge_rejects_scalar_with_different_list_child_type() {
-        let scalar = Schema::new(vec![Field::new("tags", DataType::Utf8, true)]);
-        let list = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::new(Field::new("element", DataType::Int32, true))),
-            true,
-        )]);
-
-        assert!(merge_file_schemas_with_list_promotion(vec![scalar, list]).is_err());
-    }
-
-    #[test]
-    fn reconcile_promotes_all_scalar_field_from_expected_list() {
-        let registered = Schema::new(vec![Field::new("tags", DataType::Utf8, false)]);
-        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
-        let expected = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::clone(&child)),
-            true,
-        )]);
-
-        let reconciled = reconcile_with_expected(&registered, &expected).unwrap();
-        let tags = reconciled.field_with_name("tags").unwrap();
-        assert_eq!(tags.data_type(), &DataType::List(child));
-        assert!(tags.is_nullable());
-    }
-
-    #[test]
-    fn reconcile_normalizes_physical_list_child_to_expected_shape() {
-        let physical_child = Arc::new(Field::new("item", DataType::Utf8View, false));
-        let registered = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(physical_child),
-            false,
-        )]);
-        let expected_child = Arc::new(Field::new("element", DataType::Utf8View, true));
-        let expected = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::clone(&expected_child)),
-            true,
-        )]);
-
-        let reconciled = reconcile_with_expected(&registered, &expected).unwrap();
-        let tags = reconciled.field_with_name("tags").unwrap();
-        assert_eq!(tags.data_type(), &DataType::List(expected_child));
-        assert!(tags.is_nullable());
-    }
-
-    #[test]
-    fn reconcile_promotes_scalar_and_appends_missing_expected_field() {
-        let registered = Schema::new(vec![
-            Field::new("tags", DataType::Utf8View, true),
-            Field::new("physical_only", DataType::Int64, true),
-        ]);
-        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
-        let expected = Schema::new(vec![
-            Field::new("tags", DataType::List(Arc::clone(&child)), true),
-            Field::new("missing", DataType::Int32, false),
-        ]);
-
-        let reconciled = reconcile_with_expected(&registered, &expected).unwrap();
-        assert_eq!(
-            reconciled.field_with_name("tags").unwrap().data_type(),
-            &DataType::List(child)
-        );
-        assert!(reconciled.field_with_name("missing").unwrap().is_nullable());
-        assert!(reconciled.field_with_name("physical_only").is_ok());
-    }
-
-    #[test]
-    fn reconcile_leaves_incompatible_same_name_type_unchanged() {
-        let registered = Schema::new(vec![Field::new("tags", DataType::Int64, true)]);
-        let expected = Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::new(Field::new("element", DataType::Utf8View, true))),
-            true,
-        )]);
-
-        assert!(reconcile_with_expected(&registered, &expected).is_none());
-    }
 
     #[test]
     fn append_missing_adds_absent_columns_as_nullable() {

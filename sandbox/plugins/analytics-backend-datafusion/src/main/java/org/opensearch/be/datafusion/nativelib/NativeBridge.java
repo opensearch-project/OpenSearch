@@ -706,8 +706,7 @@ public final class NativeBridge {
         );
 
         // i64 df_fetch_by_row_ids(shard_view_ptr, row_ids_buf_ptr, row_ids_count,
-        // col_names_ptr, col_names_len_ptr, col_names_count, expected_schema_ptr,
-        // expected_schema_len, runtime_ptr, context_id)
+        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr, context_id)
         FETCH_BY_ROW_IDS = linker.downcallHandle(
             lib.find("df_fetch_by_row_ids").orElseThrow(),
             FunctionDescriptor.of(
@@ -716,8 +715,6 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
@@ -1922,7 +1919,6 @@ public final class NativeBridge {
         long rowIdsBufAddr,
         int rowIdsCount,
         String[] columns,
-        byte[] expectedSchemaIpc,
         long runtimePtr,
         long contextId
     ) {
@@ -1933,7 +1929,6 @@ public final class NativeBridge {
         }
         try (var call = new NativeCall()) {
             var colNames = call.strArray(columns);
-            var expectedSchema = call.bytes(expectedSchemaIpc);
             return call.invoke(
                 FETCH_BY_ROW_IDS,
                 readerPtr,
@@ -1942,8 +1937,6 @@ public final class NativeBridge {
                 colNames.ptrs(),
                 colNames.lens(),
                 colNames.count(),
-                expectedSchema,
-                (long) expectedSchemaIpc.length,
                 runtimePtr,
                 contextId
             );

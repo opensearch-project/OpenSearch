@@ -1072,7 +1072,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         Reader reader,
         BigIntVector rowIdVector,
         String[] columns,
-        byte[] expectedSchemaIpc,
         BufferAllocator allocator,
         long contextId,
         BufferAllocator importStagingAllocator
@@ -1104,7 +1103,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 bufAddr,
                 count,
                 columns,
-                expectedSchemaIpc,
                 dataFusionService.getNativeRuntime().get(),
                 contextId
             );

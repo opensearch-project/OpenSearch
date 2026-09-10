@@ -29,7 +29,6 @@ public class FetchByRowIdsRequestSerializationTests extends OpenSearchTestCase {
             "datafusion",
             new long[] { 10, 42, 99 },
             new String[] { "name", "score" },
-            new byte[] { 1, 2, 3 },
             true
         );
 
@@ -42,7 +41,6 @@ public class FetchByRowIdsRequestSerializationTests extends OpenSearchTestCase {
         assertEquals("datafusion", deserialized.getBackendId());
         assertArrayEquals(new long[] { 10, 42, 99 }, deserialized.getRowIds());
         assertArrayEquals(new String[] { "name", "score" }, deserialized.getColumns());
-        assertArrayEquals(new byte[] { 1, 2, 3 }, deserialized.getExpectedSchemaIpc());
         assertTrue("profile flag must survive round-trip", deserialized.profile());
     }
 
@@ -54,7 +52,6 @@ public class FetchByRowIdsRequestSerializationTests extends OpenSearchTestCase {
             "lucene",
             new long[] { 0 },
             new String[] { "msg" },
-            new byte[0],
             false
         );
 
@@ -66,7 +63,6 @@ public class FetchByRowIdsRequestSerializationTests extends OpenSearchTestCase {
         assertEquals("lucene", deserialized.getBackendId());
         assertArrayEquals(new long[] { 0 }, deserialized.getRowIds());
         assertArrayEquals(new String[] { "msg" }, deserialized.getColumns());
-        assertArrayEquals(new byte[0], deserialized.getExpectedSchemaIpc());
         assertFalse("profile=false must survive round-trip", deserialized.profile());
     }
 

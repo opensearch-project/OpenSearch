@@ -17,7 +17,6 @@
 //! `create_reader` → `ShardView.writer_generations` → `SessionContextHandle` →
 //! `build_segments`. The catalog is the authoritative source.
 
-use crate::schema_coerce::merge_file_schemas_with_list_promotion;
 use datafusion::parquet::file::metadata::ParquetMetaData;
 
 use super::parquet_bridge;
@@ -27,6 +26,8 @@ use std::sync::Arc;
 
 use datafusion::catalog::Session;
 use datafusion::common::ScalarValue;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 
@@ -48,7 +49,7 @@ const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 /// (skip_metadata, coerce_int96, binary_as_string, force_view_types,
 /// file_metadata_cache, meta_fetch_concurrency, parquet_encryption)
 pub async fn build_segments(
-    _state: &dyn Session,
+    state: &dyn Session,
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
     writer_generations: &[i64],
@@ -136,25 +137,13 @@ pub async fn build_segments(
         });
     }
 
-    // Merge per-file schemas deterministically. Compatible scalar/LIST pairs are promoted to
-    // LIST, while all other incompatible same-name type changes remain fail-fast.
-    let mut segment_schemas = segments
-        .iter()
-        .map(|segment| {
-            (
-                segment.object_path.to_string(),
-                segment.arrow_schema.as_ref().clone(),
-            )
-        })
-        .collect::<Vec<_>>();
-    segment_schemas.sort_by(|left, right| left.0.cmp(&right.0));
-    let schema = merge_file_schemas_with_list_promotion(
-        segment_schemas
-            .into_iter()
-            .map(|(_, schema)| schema)
-            .collect(),
-    )
-    .map_err(|e| format!("infer_schema union: {}", e))?;
+    // Delegate to DataFusion's canonical schema inference. All files for a predefined
+    // multi-value field share the same LIST storage shape from their first generation.
+    let format = ParquetFormat::default().with_force_view_types(true);
+    let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
+        .await
+        .map_err(|e| format!("infer_schema union: {}", e))?;
+    // force_view_types does not recursively rewrite LIST children.
     let schema = crate::schema_coerce::transform_schema_to_view_recursive(schema.as_ref());
     let schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(schema));
 
@@ -297,8 +286,7 @@ fn compute_segment_sort_bounds(
 mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
-    use arrow_array::{Int32Array, ListArray, RecordBatch, StringArray};
-    use datafusion::arrow::buffer::OffsetBuffer;
+    use arrow_array::{Int32Array, RecordBatch, StringArray};
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
@@ -536,56 +524,6 @@ mod tests {
             fields_ab, fields_ba,
             "schema order must not depend on object-meta input ordering"
         );
-    }
-
-    #[tokio::test]
-    async fn scalar_and_list_field_promote_to_list_schema() {
-        let dir = tempdir().unwrap();
-        let scalar_schema = Arc::new(Schema::new(vec![Field::new("tags", DataType::Utf8, true)]));
-        let list_child = Arc::new(Field::new("element", DataType::Utf8, true));
-        let list_schema = Arc::new(Schema::new(vec![Field::new(
-            "tags",
-            DataType::List(Arc::clone(&list_child)),
-            true,
-        )]));
-        let scalar_path = write_parquet(
-            dir.path(),
-            "a.parquet",
-            scalar_schema,
-            vec![Arc::new(StringArray::from(vec![Some("prod")]))],
-        );
-        let list_path = write_parquet(
-            dir.path(),
-            "b.parquet",
-            list_schema,
-            vec![Arc::new(ListArray::new(
-                list_child,
-                OffsetBuffer::new(vec![0_i32, 2].into()),
-                Arc::new(StringArray::from(vec!["prod", "error"])),
-                None,
-            ))],
-        );
-
-        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
-        let metas = object_metas(store.as_ref(), &[scalar_path, list_path]).await;
-        let ctx = SessionContext::new();
-        let generations: Vec<i64> = (0..metas.len() as i64).collect();
-        let (_, schema) = build_segments(
-            &ctx.state(),
-            Arc::clone(&store),
-            &metas,
-            &generations,
-            default_metadata_cache(),
-            &[],
-        )
-        .await
-        .unwrap();
-
-        assert!(matches!(
-            schema.field_with_name("tags").unwrap().data_type(),
-            DataType::List(child)
-                if matches!(child.data_type(), DataType::Utf8 | DataType::Utf8View)
-        ));
     }
 
     /// Incompatible types (Int32 vs Int64 on the same field name) is
