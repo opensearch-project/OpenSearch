@@ -595,38 +595,38 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}: it defaults to the index's
-     * {@code index.translog.flush_threshold_size} via setting fallback, a dynamic update of only the fallback is
-     * reflected, an explicit value wins over the fallback, and zero or negative sizes are rejected since they
-     * would flush on every successful segments sync.
+     * Verifies the index scoped {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}: it has a
+     * default, reports whether the index set it explicitly (which is what makes it win over the cluster default at the
+     * publication site), and rejects zero or negative sizes since those would flush on every successful segments sync.
+     * The precedence against the cluster setting is exercised in {@code RemoteStoreRefreshListenerTests}, which owns
+     * the resolution.
      */
     public void testFlushOnUncommittedSegmentsThresholdSize() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "128mb")
-                .build()
+        IndexSettings settings = new IndexSettings(
+            newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()),
+            Settings.EMPTY
         );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(new ByteSizeValue(128, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
-        settings.updateIndexMetadata(
-            newIndexMeta(
-                "index",
-                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb").build()
-            )
+        assertEquals(
+            IndexSettings.DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            settings.getFlushOnUncommittedSegmentsThresholdSize()
         );
-        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        assertFalse(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
                 Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
                     .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "64mb")
                     .build()
             )
         );
         assertEquals(new ByteSizeValue(64, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        assertTrue(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
+        // removing it puts the index back on the cluster default, which the publication site resolves
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertFalse(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
         for (String invalid : new String[] { "0b", "-1" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -643,6 +643,18 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             );
             assertTrue(e.getMessage(), e.getMessage().contains("failed to parse value [" + invalid + "]"));
         }
+    }
+
+    /** Enablement is cluster-only: there is deliberately no index scoped counterpart, so index scope rejects the key. */
+    public void testFlushOnUncommittedSegmentsEnabledHasNoIndexScopedSetting() {
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(
+                Settings.builder().put("index.remote_store.flush_on_uncommitted_segments.enabled", false).build(),
+                false
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("unknown setting [index.remote_store.flush_on_uncommitted_segments.enabled]"));
     }
 
     public void testTranslogGenerationSizeThreshold() {
@@ -936,6 +948,30 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             ),
             iae.getMessage()
         );
+    }
+
+    /**
+     * index.remote_store.auto_restore.enabled requires fencing: the trigger fires on the cluster manager's view of
+     * node membership while the departed primary may still be alive, and only the fence stops it acknowledging
+     * writes the restored copy will never see.
+     */
+    public void testRemoteStoreAutoRestoreRequiresFencing() {
+        Settings withoutFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withoutFencing, true)
+        );
+        assertTrue(iae.getMessage(), iae.getMessage().contains("can only be enabled when"));
+
+        Settings withFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withFencing, true); // must not throw
     }
 
     public void testRemoteTranslogRepoDefaultSetting() {
