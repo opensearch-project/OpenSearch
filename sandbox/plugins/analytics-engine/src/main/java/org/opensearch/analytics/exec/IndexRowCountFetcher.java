@@ -10,6 +10,9 @@ package org.opensearch.analytics.exec;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexSubQuery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -64,13 +67,24 @@ public final class IndexRowCountFetcher {
      *     production via {@code DefaultPlanExecutor}'s injected NodeClient.
      */
     public static ToLongFunction<String> fetchFor(RelNode root, Client client) {
-        Set<String> indexNames = new HashSet<>();
-        collectTableScans(root, indexNames);
+        Set<String> indexNames = referencedIndexNames(root);
         if (indexNames.isEmpty() || client == null) {
             return PlannerContext.DEFAULT_TABLE_ROW_COUNTS;
         }
         Map<String, Long> rowCounts = fetchPrimaryDocCounts(client, indexNames);
         return name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
+    }
+
+    /**
+     * Every index name reachable from {@code root}, including those referenced only inside a subquery.
+     *
+     * @param root the RelNode about to be planned
+     * @return the set of index names whose row counts need seeding
+     */
+    public static Set<String> referencedIndexNames(RelNode root) {
+        Set<String> indexNames = new HashSet<>();
+        collectTableScans(root, indexNames);
+        return indexNames;
     }
 
     private static void collectTableScans(RelNode node, Set<String> out) {
@@ -83,6 +97,19 @@ public final class IndexRowCountFetcher {
         for (RelNode input : node.getInputs()) {
             collectTableScans(input, out);
         }
+        // A subquery is not an input — it hangs off a RexNode (a Filter condition or a Project expression)
+        // as a RexSubQuery, and this fetcher runs BEFORE decorrelation turns it into a join. Walking only
+        // getInputs() therefore misses every table that appears solely inside a subquery, and each of those
+        // scans then falls back to Calcite's default row count. That default is small, so the estimates
+        // derived from it collapse: filters and aggregates above such a scan come out at a row or two, which
+        // makes a large build look tiny and lets plan choices be made on a number with no basis in the data.
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitSubQuery(RexSubQuery subQuery) {
+                collectTableScans(subQuery.rel, out);
+                return super.visitSubQuery(subQuery);
+            }
+        });
     }
 
     private static Map<String, Long> fetchPrimaryDocCounts(Client client, Set<String> indexNames) {

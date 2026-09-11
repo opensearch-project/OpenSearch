@@ -311,7 +311,10 @@ pub async fn create_object_metas(
 /// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache)
 /// and a handle to change the memory pool limit at runtime.
 pub struct DataFusionRuntime {
-    pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
+    /// Behind an `Arc` only so it can be published to the global registry, which stores a `Weak`
+    /// (and a `Weak` can only be made from an `Arc`). This is the sole strong reference, so the
+    /// environment is dropped when Java closes this runtime, exactly as it was when held by value.
+    pub runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub dynamic_limit_handle: DynamicLimitHandle,
 }
@@ -412,7 +415,7 @@ pub fn build_shard_files(
 }
 
 impl DataFusionRuntime {
-    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+    pub fn new_for_bench(runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>) -> Self {
         let (_pool, handle) = DynamicLimitPool::new(0);
         Self {
             runtime_env,
@@ -707,17 +710,22 @@ pub fn create_global_runtime(
         (CacheManagerConfig::default(), None)
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_memory_pool(memory_pool)
-        .with_disk_manager_builder(disk_manager)
-        .with_cache_manager(cache_manager_config)
-        .build()?;
+    let runtime_env = Arc::new(
+        RuntimeEnvBuilder::new()
+            .with_memory_pool(memory_pool)
+            .with_disk_manager_builder(disk_manager)
+            .with_cache_manager(cache_manager_config)
+            .build()?,
+    );
 
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         dynamic_limit_handle,
     };
+    // The doc-values cursor is opened from Lucene with only a file path, so it reads the environment
+    // from here.
+    crate::cache::register_global_runtime_env(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
