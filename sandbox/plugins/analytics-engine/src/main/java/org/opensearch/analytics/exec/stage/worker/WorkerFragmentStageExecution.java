@@ -64,6 +64,37 @@ public class WorkerFragmentStageExecution extends AbstractStageExecution impleme
         this.runner = new WorkerTaskRunner(this, config, dispatcher, requestBuilder);
     }
 
+    /**
+     * Worker tiers schedule EAGERLY — on the first producer RUNNING, not on all producers SUCCEEDED —
+     * in BOTH shuffle shapes.
+     *
+     * <p>For a pipelined worker this is what makes the drain overlap its producers. Under the default
+     * (all-children-SUCCEEDED) a worker's drain cannot begin until every producer has finished, so an
+     * entire shuffle partition is resident before a single row is consumed; the drain then decodes all of
+     * it into Arrow buffers bounded by the query pool, and a large partition exhausts that pool —
+     * measured as {@code shuffle drain failed for input-N: Unable to allocate ... Current allocation:
+     * 1356648008} against a 1,357,503,692-byte pool, i.e. full to within 0.06%. It is also the
+     * prerequisite for any in-flight window: with no consumer during the producer phase there is no drain
+     * to release a window, so every window deadlocks however backpressure is signalled.
+     *
+     * <p>A MATERIALIZED worker keeps it for a different reason: this stage's
+     * {@link org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode} is the only channel that
+     * carries the shuffle shape (and the expected-sender counts) to the consumer NODE, and it only runs
+     * when this stage is dispatched. Waiting for all producers would deliver the shape after every chunk
+     * had already been admitted, so the buffer would spend the whole accumulation phase in the node
+     * default — and the residency bound the materialized shape exists for would never apply.
+     *
+     * <p>Cost, in both shapes: a worker holds a thread from {@code analytics_worker} for the query's
+     * duration rather than only its own compute — the materialized one parked in its barrier, the
+     * pipelined one blocked on chunk arrival. That pool is sized for blocked tasks
+     * ({@code max(16, cores*8)}) precisely to absorb this; SEARCH is not, which is why worker fragments
+     * were moved off it.
+     */
+    @Override
+    public boolean schedulesEagerly() {
+        return true;
+    }
+
     @Override
     protected List<StageTask> materializeTasks() {
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);

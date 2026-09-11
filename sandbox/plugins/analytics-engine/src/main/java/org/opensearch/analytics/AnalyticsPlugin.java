@@ -58,6 +58,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -108,6 +109,21 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     // so the thread pool isn't the throughput bottleneck.
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
+
+    public static final String WORKER_THREAD_POOL_NAME = "analytics_worker";
+
+    // Worker fragments need the same isolation as reduces, for the same reason and then some. A shuffle
+    // WORKER blocks in its shuffle scan until its producers deliver, and in a multi-level cascade the
+    // producers are themselves fragments needing a thread. Sharing SEARCH therefore deadlocks outright
+    // once the worker tasks on a node outnumber that pool: every thread ends up held by a consumer
+    // waiting for a producer that is queued behind it, so nothing can progress and the drain times out
+    // with zero senders received. The task count grows with the shuffle partition count, so this
+    // ceiling is what caps how far partitions can be raised.
+    //
+    // Like reduce threads, these are blocked on data arrival rather than computing, so the pool is
+    // sized well above the core count: it must exceed the deepest cascade's per-node task count, and
+    // idle blocked threads are cheap. Memory stays bounded by the DataFusion pool, not by this size.
+    private static final int WORKER_QUEUE_SIZE = 1000;
 
     // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
     // queries share the coordinator allocator with no per-query cap.
@@ -209,6 +225,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
+        applyShuffleStreamWindow(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW, this::applyShuffleStreamWindow);
+        applyShufflePipelined(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PIPELINED_ENABLED));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_PIPELINED_ENABLED, this::applyShufflePipelined);
         // Resolve the spill root once from the environment's first data path (settings default ""
         // means "use <path.data>/shuffle_spill"); a non-empty setting overrides it. Then wire the
         // spill config from settings (initial value + dynamic updates). Default OFF — when disabled
@@ -266,6 +288,27 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
         shuffleBufferManager.setBudgets(budget, budget);
         logger.info("[analytics] hash-shuffle node budget set to {}% of max heap = {} bytes", percent, budget);
+    }
+
+    /**
+     * Apply the pipelined-shuffle in-flight window. Unlike the node budget above (an absolute OOM
+     * backstop sized off heap), this is the drain-rate-coupled bound that keeps peak shuffle residency
+     * independent of partition size. Called at startup and on dynamic updates.
+     */
+    private void applyShuffleStreamWindow(ByteSizeValue window) {
+        long bytes = window == null ? 0L : window.getBytes();
+        shuffleBufferManager.setStreamWindowBytes(bytes);
+        logger.info("[analytics] hash-shuffle in-flight window set to {} bytes ({})", bytes, bytes <= 0 ? "disabled" : "enabled");
+    }
+
+    /**
+     * Apply the pipelined-shuffle kill switch. Enabled by default; disabling makes a consumer wait for
+     * all of its producers before draining, which restores partition-sized residency. Called at startup
+     * and on dynamic updates.
+     */
+    private void applyShufflePipelined(boolean enabled) {
+        shuffleBufferManager.setPipelinedEnabled(enabled);
+        logger.info("[analytics] hash-shuffle pipelined drain {}", enabled ? "enabled" : "disabled (waits for producers)");
     }
 
     /**
@@ -354,12 +397,18 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         int poolSize = schedulerPoolSize();
         return List.of(
             new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"),
-            new FixedExecutorBuilder(settings, REDUCE_THREAD_POOL_NAME, REDUCE_POOL_SIZE, REDUCE_QUEUE_SIZE, "analytics_reduce")
+            new FixedExecutorBuilder(settings, REDUCE_THREAD_POOL_NAME, REDUCE_POOL_SIZE, REDUCE_QUEUE_SIZE, "analytics_reduce"),
+            new FixedExecutorBuilder(settings, WORKER_THREAD_POOL_NAME, workerPoolSize(), WORKER_QUEUE_SIZE, "analytics_worker")
         );
     }
 
     static int schedulerPoolSize() {
         return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    /** Sized for blocked tasks, not for CPUs — see {@link #WORKER_THREAD_POOL_NAME}. */
+    static int workerPoolSize() {
+        return Math.max(16, Runtime.getRuntime().availableProcessors() * 8);
     }
 
     @Override
