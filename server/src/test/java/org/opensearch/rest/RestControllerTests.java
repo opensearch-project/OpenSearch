@@ -49,6 +49,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
@@ -73,9 +74,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -356,6 +363,163 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
         assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    /**
+     * When the first send fails inside the downstream channel, nothing has reached the client yet. The failure response
+     * must therefore still be delivered over the same channel even though the breaker reservation was already released.
+     */
+    public void testFailureResponseIsSentWhenFirstSendResponseFails() {
+        restController.registerHandler(RestRequest.Method.GET, "/failing-send", (request, channel, client) -> {
+            // The channel rejects the first response, standing in for a body that cannot be serialized.
+            expectThrows(
+                IllegalStateException.class,
+                () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
+            );
+            try {
+                channel.sendResponse(
+                    new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                );
+            } catch (IllegalStateException e) {
+                // Reported as an Error on purpose. RestController catches Exception and would otherwise resend over the
+                // raw channel, hiding the fact that this channel rejected the failure response.
+                throw new AssertionError("failure response was rejected after the first send failed", e);
+            }
+        });
+        RestRequest request = testRestRequest("/failing-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.INTERNAL_SERVER_ERROR, true);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertEquals(2, channel.getAttemptCount());
+        assertEquals(1, channel.getAcceptedCount());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    /**
+     * A second {@link RestChannel#sendResponse} after one the delegate accepted is a handler bug, so it must still fail
+     * loudly instead of writing two responses onto the same connection.
+     */
+    public void testSendResponseAfterSuccessfulSendIsRejected() {
+        AtomicReference<IllegalStateException> rejection = new AtomicReference<>();
+        restController.registerHandler(RestRequest.Method.GET, "/double-send", (request, channel, client) -> {
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            rejection.set(
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> channel.sendResponse(
+                        new BytesRestResponse(RestStatus.ACCEPTED, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                    )
+                )
+            );
+        });
+        RestRequest request = testRestRequest("/double-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertNotNull(rejection.get());
+        assertThat(rejection.get().getMessage(), containsString("already sent"));
+        assertEquals(1, channel.getAttemptCount());
+        assertEquals(1, channel.getAcceptedCount());
+        assertEquals(RestStatus.OK, channel.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testConcurrentSendResponseIsRejected() {
+        RestRequest request = testRestRequest("/concurrent-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        BlockingAssertingChannel delegate = new BlockingAssertingChannel(request, true, RestStatus.OK);
+        AtomicReference<Throwable> firstFailure = new AtomicReference<>();
+        AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+        restController.registerHandler(RestRequest.Method.GET, "/concurrent-send", (restRequest, channel, client) -> {
+            RestResponse response = new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+            Thread firstSend = sendResponseOnNewThread(channel, response, firstFailure);
+            Thread secondSend = sendResponseOnNewThread(channel, response, secondFailure);
+
+            firstSend.start();
+            try {
+                assertTrue("first send did not reach the delegate", delegate.awaitFirstSend());
+                secondSend.start();
+                secondSend.join(10_000L);
+                assertFalse("concurrent send did not finish", secondSend.isAlive());
+            } finally {
+                delegate.releaseFirstSend();
+            }
+            firstSend.join(10_000L);
+            assertFalse("first send did not finish", firstSend.isAlive());
+        });
+
+        restController.dispatchRequest(request, delegate, client.threadPool().getThreadContext());
+
+        assertNull(firstFailure.get());
+        assertTrue(secondFailure.get() instanceof IllegalStateException);
+        assertThat(secondFailure.get().getMessage(), containsString("already sent"));
+        assertEquals(1, delegate.getAttemptCount());
+        assertEquals(1, delegate.getAcceptedCount());
+        assertEquals(RestStatus.OK, delegate.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testStreamingFailureResponseIsSentAndSubsequentSendIsRejected() {
+        AtomicReference<IllegalStateException> rejection = new AtomicReference<>();
+        restController.registerHandler(RestRequest.Method.GET, "/streaming-failing-send", new RestHandler() {
+            @Override
+            public boolean supportsStreaming() {
+                return true;
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
+                );
+                channel.sendResponse(
+                    new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                );
+                rejection.set(
+                    expectThrows(
+                        IllegalStateException.class,
+                        () -> channel.sendResponse(
+                            new BytesRestResponse(RestStatus.ACCEPTED, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                        )
+                    )
+                );
+            }
+        });
+        RestRequest request = testRestRequest("/streaming-failing-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        AssertingStreamingChannel channel = new AssertingStreamingChannel(request, true, RestStatus.INTERNAL_SERVER_ERROR, true);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertNotNull(rejection.get());
+        assertThat(rejection.get().getMessage(), containsString("already sent"));
+        assertEquals(2, channel.getPrepareAttemptCount());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getPreparedStatus());
+        assertEquals(1, channel.getAttemptCount());
+        assertEquals(1, channel.getAcceptedCount());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    private static Thread sendResponseOnNewThread(RestChannel channel, RestResponse response, AtomicReference<Throwable> failure) {
+        return new Thread(() -> {
+            try {
+                channel.sendResponse(response);
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        });
+    }
+
+    /**
+     * Content sized to reserve the whole breaker limit, so that a missed release would be visible.
+     */
+    private String breakerFillingContent() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        return randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
     }
 
     public void testDispatchRequestLimitsBytes() {
@@ -779,19 +943,32 @@ public class RestControllerTests extends OpenSearchTestCase {
         }
     }
 
-    public static final class AssertingChannel extends AbstractRestChannel {
+    public static class AssertingChannel extends AbstractRestChannel {
 
         private final RestStatus expectedStatus;
         private final AtomicReference<RestResponse> responseReference = new AtomicReference<>();
+        private final boolean failFirstSend;
+        private final AtomicInteger attemptCount = new AtomicInteger();
+        private final AtomicInteger acceptedCount = new AtomicInteger();
 
         public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+            this(request, detailedErrorsEnabled, expectedStatus, false);
+        }
+
+        public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus, boolean failFirstSend) {
             super(request, detailedErrorsEnabled);
             this.expectedStatus = expectedStatus;
+            this.failFirstSend = failFirstSend;
         }
 
         @Override
         public void sendResponse(RestResponse response) {
+            int attempt = attemptCount.incrementAndGet();
+            if (failFirstSend && attempt == 1) {
+                throw new IllegalStateException("response body could not be serialized");
+            }
             assertEquals(expectedStatus, response.status());
+            acceptedCount.incrementAndGet();
             responseReference.set(response);
         }
 
@@ -803,6 +980,121 @@ public class RestControllerTests extends OpenSearchTestCase {
             return getRestResponse() != null;
         }
 
+        int getAttemptCount() {
+            return attemptCount.get();
+        }
+
+        int getAcceptedCount() {
+            return acceptedCount.get();
+        }
+
+        RestStatus getLastStatus() {
+            RestResponse response = getRestResponse();
+            return response == null ? null : response.status();
+        }
+    }
+
+    private static final class BlockingAssertingChannel extends AssertingChannel {
+        private final CountDownLatch firstSendEntered = new CountDownLatch(1);
+        private final CountDownLatch releaseFirstSend = new CountDownLatch(1);
+        private final AtomicBoolean blockFirstSend = new AtomicBoolean(true);
+
+        private BlockingAssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+            super(request, detailedErrorsEnabled, expectedStatus);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            if (blockFirstSend.compareAndSet(true, false)) {
+                firstSendEntered.countDown();
+                try {
+                    if (releaseFirstSend.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release the first send");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted while blocking the first send", e);
+                }
+            }
+            super.sendResponse(response);
+        }
+
+        private boolean awaitFirstSend() throws InterruptedException {
+            return firstSendEntered.await(10, TimeUnit.SECONDS);
+        }
+
+        private void releaseFirstSend() {
+            releaseFirstSend.countDown();
+        }
+    }
+
+    private static final class AssertingStreamingChannel extends AssertingChannel implements StreamingRestChannel {
+        private final boolean failFirstPrepare;
+        private final AtomicInteger prepareAttemptCount = new AtomicInteger();
+        private final AtomicReference<RestStatus> preparedStatus = new AtomicReference<>();
+
+        private AssertingStreamingChannel(
+            RestRequest request,
+            boolean detailedErrorsEnabled,
+            RestStatus expectedStatus,
+            boolean failFirstPrepare
+        ) {
+            super(request, detailedErrorsEnabled, expectedStatus);
+            this.failFirstPrepare = failFirstPrepare;
+        }
+
+        @Override
+        public void sendChunk(HttpChunk chunk) {
+            throw new AssertionError("sendChunk is not expected in this test");
+        }
+
+        @Override
+        public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
+            int attempt = prepareAttemptCount.incrementAndGet();
+            if (failFirstPrepare && attempt == 1) {
+                throw new IllegalStateException("response headers could not be prepared");
+            }
+            preparedStatus.set(status);
+        }
+
+        @Override
+        public boolean isReadable() {
+            return true;
+        }
+
+        @Override
+        public boolean isWritable() {
+            return true;
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+            subscriber.onSubscribe(new Subscription() {
+                private final AtomicBoolean completed = new AtomicBoolean();
+
+                @Override
+                public void request(long count) {
+                    if (count <= 0) {
+                        subscriber.onError(new IllegalArgumentException("request count must be positive"));
+                    } else if (completed.compareAndSet(false, true)) {
+                        subscriber.onComplete();
+                    }
+                }
+
+                @Override
+                public void cancel() {
+                    completed.set(true);
+                }
+            });
+        }
+
+        private int getPrepareAttemptCount() {
+            return prepareAttemptCount.get();
+        }
+
+        private RestStatus getPreparedStatus() {
+            return preparedStatus.get();
+        }
     }
 
     private static final class ExceptionThrowingChannel extends AbstractRestChannel {
