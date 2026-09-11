@@ -66,8 +66,28 @@ final class AnalyticsTransportErrors {
         if (cancelled != null) {
             return new StreamException(StreamErrorCode.CANCELLED, cancelled.getMessage(), e);
         }
+        // A BIGINT-arithmetic overflow is a client error (HTTP 400): the data node's
+        // NativeErrorConverter has already turned it into an IllegalArgumentException carrying the
+        // stable phrase. Without an explicit code it would cross Flight as INTERNAL and surface as a
+        // generic 500 on distributed-aggregate paths. Tag it INVALID_ARGUMENT so fromWireError can
+        // rebuild a 400 on the coordinator.
+        Throwable badRequest = ExceptionsHelper.unwrapCausesAndSuppressed(
+            e,
+            t -> t.getMessage() != null && t.getMessage().contains(BIGINT_OVERFLOW_PHRASE)
+        ).orElse(null);
+        if (badRequest != null) {
+            return new StreamException(StreamErrorCode.INVALID_ARGUMENT, badRequest.getMessage(), e);
+        }
         return e;
     }
+
+    /**
+     * Stable phrase identifying a BIGINT-arithmetic overflow client error, produced by the
+     * DataFusion backend's {@code checked_arith} UDF and surfaced by {@code NativeErrorConverter}.
+     * Kept in sync with {@code NativeErrorConverter.BIGINT_OVERFLOW_MSG} and the Rust
+     * {@code OVERFLOW_KEYPHRASE}.
+     */
+    static final String BIGINT_OVERFLOW_PHRASE = "BIGINT arithmetic overflow";
 
     /**
      * Coordinator receive side. Inverse of {@link #toWireError}: maps a {@link StreamException} that
@@ -80,6 +100,8 @@ final class AnalyticsTransportErrors {
      *   drop (node gone, connection reset) is "service unavailable", not an internal error.
      *   <li>{@link StreamErrorCode#CANCELLED} → {@link TaskCancelledException} — a shard cancel (e.g. SBP)
      *   stays a recognizable cancellation instead of degrading to a generic ISE that clients would retry.
+     *   <li>{@link StreamErrorCode#INVALID_ARGUMENT} → 400 {@link OpenSearchStatusException} — a client
+     *   error (e.g. BIGINT arithmetic overflow) stays a 400 instead of being redacted to a generic 500.
      * </ul>
      * Anything else passes through unchanged.
      */
@@ -89,12 +111,17 @@ final class AnalyticsTransportErrors {
             t -> t instanceof StreamException s
                 && (s.getErrorCode() == StreamErrorCode.RESOURCE_EXHAUSTED
                     || s.getErrorCode() == StreamErrorCode.UNAVAILABLE
-                    || s.getErrorCode() == StreamErrorCode.CANCELLED)
+                    || s.getErrorCode() == StreamErrorCode.CANCELLED
+                    || s.getErrorCode() == StreamErrorCode.INVALID_ARGUMENT)
         ).orElse(null);
         if (se == null) {
             return e;
         }
         String message = se.getMessage();
+        if (se.getErrorCode() == StreamErrorCode.INVALID_ARGUMENT) {
+            // Client error (e.g. BIGINT arithmetic overflow) → 400, so it isn't redacted to a 500.
+            return new OpenSearchStatusException(message != null ? message : "invalid argument", RestStatus.BAD_REQUEST, e);
+        }
         if (se.getErrorCode() == StreamErrorCode.RESOURCE_EXHAUSTED) {
             // CircuitBreakingException has no cause-accepting ctor; attach the wire exception via initCause
             // so the original StreamException/stack is kept for server-side troubleshooting.

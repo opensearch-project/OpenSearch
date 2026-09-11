@@ -204,6 +204,8 @@ impl LocalSession {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        // Make BIGINT +,-,* overflow error instead of silently wrapping (see checked_arith_rewrite).
+        let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
         log_debug!(
             "DataFusion logical plan:\n{}",
             logical_plan.display_indent()
@@ -249,6 +251,8 @@ impl LocalSession {
             ))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        // Make BIGINT +,-,* overflow error instead of silently wrapping (see checked_arith_rewrite).
+        let logical_plan = crate::checked_arith_rewrite::rewrite_checked_int64_arith(logical_plan)?;
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
         // Strip first so `force_aggregate_mode(Final)` can find the Final/Partial pair
