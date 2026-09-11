@@ -28,6 +28,7 @@ public class QueryRegistryFactory {
         registry.register(new BoolQueryTranslator(registry));
         registry.register(new PrefixQueryTranslator());
         registry.register(new WildcardQueryTranslator());
+        registry.register(new IdsQueryTranslator());
         // TODO: add other query translators
         return registry;
     }
