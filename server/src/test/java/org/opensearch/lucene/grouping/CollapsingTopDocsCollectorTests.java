@@ -32,25 +32,31 @@
 package org.opensearch.lucene.grouping;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
@@ -633,6 +639,279 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         w.close();
         reader.close();
         dir.close();
+    }
+
+    public void testScoreModeForRelevanceSort() {
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        // Accurate hit counts keep COMPLETE so Lucene uses the exhaustive bulk scorer.
+        CollapsingTopDocsCollector<?> accurate = CollapsingTopDocsCollector.createNumeric("group", fieldType, Sort.RELEVANCE, 10);
+        assertEquals(ScoreMode.COMPLETE, accurate.scoreMode());
+        CollapsingTopDocsCollector<?> pruning = CollapsingTopDocsCollector.createNumeric("group", fieldType, Sort.RELEVANCE, 10, 0);
+        assertEquals(ScoreMode.TOP_SCORES, pruning.scoreMode());
+    }
+
+    public void testScoreModeForNonRelevanceSort() {
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        Sort sort = new Sort(new SortField("group", SortField.Type.LONG));
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, sort, 10);
+        assertEquals(ScoreMode.COMPLETE_NO_SCORES, collector.scoreMode());
+    }
+
+    public void testScoreModeForAscendingScoreSort() {
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        Sort sort = new Sort(new SortField(null, SortField.Type.SCORE, true));
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, sort, 10);
+        // Ascending score sort cannot use min competitive score because lower scores are more competitive.
+        assertEquals(ScoreMode.COMPLETE, collector.scoreMode());
+    }
+
+    public void testMinCompetitiveScoreIsPropagatedAfterHeapFills() throws IOException {
+        final int numDocs = 200;
+        final int numGroups = 50;
+        final int topN = 10;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i % numGroups));
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, Sort.RELEVANCE, topN, 0);
+        MinScoreTrackingCollector wrapper = new MinScoreTrackingCollector(collector);
+
+        searcher.search(new MatchAllDocsQuery(), wrapper);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertEquals(topN, topDocs.scoreDocs.length);
+        assertTrue("min competitive score should be propagated after the group heap fills", wrapper.minCompetitiveScoreSet);
+        assertTrue("min competitive score should be > 0", wrapper.minCompetitiveScore > 0f);
+        assertTrue("min competitive score should be set after at least topN groups are collected", wrapper.firstSetAtCollect >= topN);
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testMinCompetitiveScoreNotPropagatedWhenHeapNotFull() throws IOException {
+        final int numDocs = 50;
+        final int numGroups = 10;
+        final int topN = 100;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i % numGroups));
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, Sort.RELEVANCE, topN, 0);
+        MinScoreTrackingCollector wrapper = new MinScoreTrackingCollector(collector);
+
+        searcher.search(new MatchAllDocsQuery(), wrapper);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertEquals(numGroups, topDocs.scoreDocs.length);
+        assertFalse("min competitive score must not be set before the group heap is full", wrapper.minCompetitiveScoreSet);
+        assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
+        assertEquals(numDocs, topDocs.totalHits.value());
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testMinCompetitiveScoreNotPropagatedWhenAccurate() throws IOException {
+        final int numDocs = 100;
+        final int maxGroup = 10;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i % maxGroup));
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric(
+            "group",
+            fieldType,
+            Sort.RELEVANCE,
+            maxGroup,
+            Integer.MAX_VALUE
+        );
+        MinScoreTrackingCollector wrapper = new MinScoreTrackingCollector(collector);
+
+        searcher.search(new MatchAllDocsQuery(), wrapper);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertEquals(maxGroup, topDocs.scoreDocs.length);
+        assertFalse("min competitive score should not be propagated when total hits must be accurate", wrapper.minCompetitiveScoreSet);
+        assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
+        assertEquals(numDocs, topDocs.totalHits.value());
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testMinCompetitiveScoreMatchesUnoptimizedPath() throws IOException {
+        final int numDocs = 200;
+        final int numGroups = 40;
+        final int topN = 10;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i % numGroups));
+            for (int j = 0; j < (i % 20) + 1; j++) {
+                doc.add(new TextField("text", "term", Field.Store.NO));
+            }
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        Query query = new TermQuery(new Term("text", "term"));
+
+        CollapsingTopDocsCollector<?> baselineCollector = CollapsingTopDocsCollector.createNumeric(
+            "group",
+            fieldType,
+            Sort.RELEVANCE,
+            topN,
+            Integer.MAX_VALUE
+        );
+        searcher.search(query, baselineCollector);
+        CollapseTopFieldDocs baselineTopDocs = baselineCollector.getTopDocs();
+
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, Sort.RELEVANCE, topN, 0);
+        MinScoreTrackingCollector wrapper = new MinScoreTrackingCollector(collector);
+        searcher.search(query, wrapper);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertTrue("min competitive score should be propagated", wrapper.minCompetitiveScoreSet);
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
+        assertEquals(baselineTopDocs.scoreDocs.length, topDocs.scoreDocs.length);
+        assertTopDocsEquals(query, baselineTopDocs, topDocs);
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testMinCompetitiveScoreMatchesUnoptimizedPathKeyword() throws IOException {
+        final int numDocs = 200;
+        final int numGroups = 40;
+        final int topN = 10;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new SortedDocValuesField("group", new BytesRef("g" + (i % numGroups))));
+            for (int j = 0; j < (i % 20) + 1; j++) {
+                doc.add(new TextField("text", "term", Field.Store.NO));
+            }
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        Query query = new TermQuery(new Term("text", "term"));
+
+        CollapsingTopDocsCollector<?> baselineCollector = CollapsingTopDocsCollector.createKeyword(
+            "group",
+            fieldType,
+            Sort.RELEVANCE,
+            topN,
+            Integer.MAX_VALUE
+        );
+        searcher.search(query, baselineCollector);
+        CollapseTopFieldDocs baselineTopDocs = baselineCollector.getTopDocs();
+
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createKeyword("group", fieldType, Sort.RELEVANCE, topN, 0);
+        MinScoreTrackingCollector wrapper = new MinScoreTrackingCollector(collector);
+        searcher.search(query, wrapper);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertTrue("min competitive score should be propagated", wrapper.minCompetitiveScoreSet);
+        assertEquals(baselineTopDocs.scoreDocs.length, topDocs.scoreDocs.length);
+        assertTopDocsEquals(query, baselineTopDocs, topDocs);
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    /**
+     * Wraps a collapsing collector so tests can observe {@link Scorable#setMinCompetitiveScore(float)}
+     * after the group heap fills.
+     */
+    private static class MinScoreTrackingCollector implements Collector {
+        private final CollapsingTopDocsCollector<?> inner;
+        private boolean minCompetitiveScoreSet;
+        private float minCompetitiveScore;
+        private int collectCount;
+        private int firstSetAtCollect = -1;
+
+        MinScoreTrackingCollector(CollapsingTopDocsCollector<?> inner) {
+            this.inner = inner;
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return inner.scoreMode();
+        }
+
+        @Override
+        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+            LeafCollector innerLeaf = inner.getLeafCollector(context);
+            return new LeafCollector() {
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                    innerLeaf.setScorer(new Scorable() {
+                        @Override
+                        public float score() throws IOException {
+                            return scorer.score();
+                        }
+
+                        @Override
+                        public void setMinCompetitiveScore(float minScore) throws IOException {
+                            minCompetitiveScoreSet = true;
+                            minCompetitiveScore = minScore;
+                            if (firstSetAtCollect < 0) {
+                                firstSetAtCollect = collectCount;
+                            }
+                            scorer.setMinCompetitiveScore(minScore);
+                        }
+                    });
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    collectCount++;
+                    innerLeaf.collect(doc);
+                }
+            };
+        }
     }
 
     // Helper classes for test data
