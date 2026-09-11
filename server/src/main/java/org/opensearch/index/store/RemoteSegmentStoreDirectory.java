@@ -1145,6 +1145,36 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
+     * Returns {@code true} if the given list of metadata filenames contains more than one distinct primary term.
+     * <p>
+     * The primary term is encoded in position [1] of the {@code __}-separated filename. Detection requires only
+     * string parsing — no remote reads are needed.
+     *
+     * @param metadataFiles list of metadata filenames (any order)
+     * @return {@code true} when more than one primary term is present
+     */
+    // Visible for testing
+    static boolean hasMultiplePrimaryTerms(List<String> metadataFiles) {
+        if (metadataFiles.size() < 2) {
+            return false;
+        }
+        String firstTerm = null;
+        for (String filename : metadataFiles) {
+            String[] tokens = filename.split(MetadataFilenameUtils.SEPARATOR);
+            if (tokens.length < 2) {
+                continue;
+            }
+            String term = tokens[1]; // inverted primary term string
+            if (firstTerm == null) {
+                firstTerm = term;
+            } else if (firstTerm.equals(term) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Delete stale segment and metadata files
      * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
      * we just need to read the latest metadata file.
@@ -1152,9 +1182,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * (1) if a segment file is not present in a md file, it will never be present in any md file created after that, and
      * (2) if (md1, md2, md3) are in sorted order, it is not possible that a segment file will be in md1 and md3 but not in md2.
      * <p>
-     * for each deletable md file, segments present in non-deletable md file before this and non-deletable md file
-     * after this are sufficient to compute the list of active or non-deletable segment files referenced by a deletable
-     * md file
+     * These assumptions hold only when all retained metadata files belong to a single primary term (single-writer
+     * lineage). When a zombie primary uploads divergent metadata after a failover, two primary terms may coexist
+     * inside the retention window. In that case the boundary optimization is unsafe, and the active set is built
+     * from all retained metadata files instead. Once the old-term metadata ages out of the window the fast path
+     * is automatically restored.
      *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
@@ -1238,19 +1270,42 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
 
-        final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
-            sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
-            sortedMetadataFileList,
-            allLockFiles
-        );
+        if (lastNMetadataFilesToKeep > 0) {
+            // Determine the retained (non-deletable) window: indices [0, lastNMetadataFilesToKeep).
+            List<String> retainedMetadataFiles = sortedMetadataFileList.subList(0, lastNMetadataFilesToKeep);
 
-        for (String metadataFile : metadataFilesToFilterActiveSegments) {
-            Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
-            activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
-            activeSegmentRemoteFilenames.addAll(
-                segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
-            );
+            if (hasMultiplePrimaryTerms(retainedMetadataFiles)) {
+                // Zombie-primary divergence detected: the boundary optimization is unsafe because the two
+                // monotonicity assumptions no longer hold across different primary terms. Fall back to reading
+                // all retained metadata files to build the complete active set. This costs at most
+                // lastNMetadataFilesToKeep extra reads and is self-healing: once the old-term files age out of
+                // the window the fast path is automatically restored.
+                logger.debug("Multiple primary terms detected in retained metadata window; falling back to full active-set scan");
+                for (String metadataFile : retainedMetadataFiles) {
+                    Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
+                    activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
+                    activeSegmentRemoteFilenames.addAll(
+                        segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
+                    );
+                }
+            } else {
+                // Single primary-term fast path: the boundary optimization is safe.
+                final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
+                    sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
+                    sortedMetadataFileList,
+                    allLockFiles
+                );
+                for (String metadataFile : metadataFilesToFilterActiveSegments) {
+                    Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
+                    activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
+                    activeSegmentRemoteFilenames.addAll(
+                        segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
+                    );
+                }
+            }
         }
+        // When lastNMetadataFilesToKeep == 0 this is a full cleanup; the active set remains empty so all
+        // segment blobs referenced by the deletable metadata files become eligible for deletion.
         Set<String> deletedSegmentFiles = new HashSet<>();
         for (String metadataFile : metadataFilesToBeDeleted) {
             Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
