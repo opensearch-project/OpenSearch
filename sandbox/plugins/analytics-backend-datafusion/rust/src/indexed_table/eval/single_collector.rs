@@ -250,6 +250,7 @@ impl SingleCollectorEvaluator {
 /// `page_ranges == None` means there's no usable PruningPredicate for the
 /// residual at all (e.g. text-column predicate with no parquet stats) — DF
 /// can't help, so consult.
+#[allow(dead_code)]
 fn should_consult_lucene(
     page_ranges: &Option<Vec<(i32, i32)>>,
     rg: &RowGroupInfo,
@@ -463,8 +464,11 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         // TODO(d3): consult ALL performance leaves whose gate fires and AND their
         // bitsets. Today we consult the first leaf only — sufficient for AND-only
         // single-call demo. Multi-leaf intersection is part of D3 follow-up.
+        // Performance-delegated leaves are semantically authoritative: consult the
+        // peer unconditionally (design decision A in the issue). The selectivity gate
+        // is dropped for these leaves because the residual was removed in
+        // strip_collectors - the peer answer is the only correct filter.
         if !self.performance_provider_locks.is_empty()
-            && should_consult_lucene(&page_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD)
         {
             // Pick the smallest annotation_id deterministically so logs/tests are stable.
             // Avoids the Vec/sort allocation in the common single-leaf case.

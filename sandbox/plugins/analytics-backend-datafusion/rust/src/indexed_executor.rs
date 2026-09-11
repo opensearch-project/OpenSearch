@@ -269,10 +269,10 @@ fn collect_predicate_exprs(tree: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>
         }
         BoolNode::Not(inner) => collect_predicate_exprs(inner, out),
         BoolNode::Collector { .. } => {}
-        // Performance-delegated leaves contribute their original expression to the
-        // PruningPredicate cache exactly like a plain Predicate — DF prunes pages
-        // using the original expr; only the per-RG decision differs.
-        BoolNode::DelegationPossible { original_expr, .. } => out.push(Arc::clone(original_expr)),
+        // Performance-delegated leaves are answered by the peer backend; the driving
+        // backend does not rebuild them (handled in strip_collectors), so the columns
+        // they reference are not read into the predicate projection.
+        BoolNode::DelegationPossible { .. } => {}
         BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
     }
 }
@@ -408,6 +408,11 @@ fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
     fn strip_collectors(node: &BoolNode) -> Option<BoolNode> {
         match node {
             BoolNode::Collector { .. } => None,
+            // Performance-delegated leaves are answered by the peer backend (Lucene);
+            // the driving backend must not rebuild the predicate (re-applying it is a
+            // *different* predicate when backends disagree, e.g. analyzed text vs raw
+            // columnar string) - same treatment as Collector.
+            BoolNode::DelegationPossible { .. } => None,
             BoolNode::Predicate(_) => Some(node.clone()),
             BoolNode::And(children) => {
                 let residuals: Vec<BoolNode> =
