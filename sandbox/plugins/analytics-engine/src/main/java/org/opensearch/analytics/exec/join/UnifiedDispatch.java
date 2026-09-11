@@ -312,7 +312,7 @@ public final class UnifiedDispatch {
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         Stage strippedRoot = stripBuildChildren(dag.rootStage(), capturedByBuildId);
-        QueryDAG strippedDag = new QueryDAG(dag.queryId(), strippedRoot);
+        QueryDAG strippedDag = new QueryDAG(dag.queryId(), strippedRoot, dag.targetPartitions());
         LOGGER.debug(
             "[UnifiedDispatch] stripped {} captured build(s); dispatching broadcast-free DAG with deferred injection",
             capturedByBuildId.size()

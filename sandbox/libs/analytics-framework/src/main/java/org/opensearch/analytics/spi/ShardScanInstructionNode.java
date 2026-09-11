@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.spi;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -34,24 +35,35 @@ public class ShardScanInstructionNode implements InstructionNode, Writeable {
 
     private final String logicalTableName;
     private final boolean requestsRowIds;
+    private final Integer targetPartitions;
 
     public ShardScanInstructionNode() {
-        this(false, null);
+        this(false, null, null);
     }
 
     public ShardScanInstructionNode(boolean requestsRowIds) {
-        this(requestsRowIds, null);
+        this(requestsRowIds, null, null);
     }
 
     // requestsRowIds is upstream's param; logicalTableName is our feature-branch addition, appended last.
     public ShardScanInstructionNode(boolean requestsRowIds, String logicalTableName) {
+        this(requestsRowIds, logicalTableName, null);
+    }
+
+    public ShardScanInstructionNode(boolean requestsRowIds, String logicalTableName, Integer targetPartitions) {
         this.logicalTableName = logicalTableName;
         this.requestsRowIds = requestsRowIds;
+        this.targetPartitions = targetPartitions;
     }
 
     public ShardScanInstructionNode(StreamInput in) throws IOException {
         this.logicalTableName = in.readOptionalString();
         this.requestsRowIds = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
+            this.targetPartitions = in.readOptionalVInt();
+        } else {
+            this.targetPartitions = null;
+        }
     }
 
     /**
@@ -67,6 +79,10 @@ public class ShardScanInstructionNode implements InstructionNode, Writeable {
         return requestsRowIds;
     }
 
+    public Integer getTargetPartitions() {
+        return targetPartitions;
+    }
+
     @Override
     public InstructionType type() {
         return InstructionType.SETUP_SHARD_SCAN;
@@ -76,5 +92,8 @@ public class ShardScanInstructionNode implements InstructionNode, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(logicalTableName);
         out.writeBoolean(requestsRowIds);
+        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+            out.writeOptionalVInt(targetPartitions);
+        }
     }
 }
