@@ -11,9 +11,11 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -23,14 +25,22 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, Map<
+    DataFormat,
+    NativeStoreHandle> storeHandles) {
 
     public MergeInput {
         segments = List.copyOf(segments);
+        storeHandles = storeHandles == null ? Map.of() : Map.copyOf(storeHandles);
+    }
+
+    /** Compatibility constructor without store handles (hot-path merges). */
+    public MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+        this(segments, rowIdMapping, newWriterGeneration, Map.of());
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration, builder.storeHandles);
     }
 
     /**
@@ -60,6 +70,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
         private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private Map<DataFormat, NativeStoreHandle> storeHandles = Map.of();
 
         private Builder() {}
 
@@ -93,6 +104,18 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
          */
         public Builder rowIdMapping(RowIdMapping rowIdMapping) {
             this.rowIdMapping = rowIdMapping;
+            return this;
+        }
+
+        /**
+         * Sets per-format native store handles for reading merge inputs through the
+         * tiered object store (warm shards). Empty on hot shards.
+         *
+         * @param storeHandles map of data format to native store handle
+         * @return this builder
+         */
+        public Builder storeHandles(Map<DataFormat, NativeStoreHandle> storeHandles) {
+            this.storeHandles = storeHandles == null ? Map.of() : storeHandles;
             return this;
         }
 

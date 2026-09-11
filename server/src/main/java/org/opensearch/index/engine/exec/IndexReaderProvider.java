@@ -63,5 +63,16 @@ public interface IndexReaderProvider {
         Object reader(DataFormat format);
 
         <R> R getReader(DataFormat format, Class<R> readerType);
+
+        /**
+         * Per-format native store handles for the shard this reader belongs to, or an
+         * empty map when the shard has no native stores (hot tier). Lets consumers route
+         * row reads through the tiered object store even when no format-specific reader
+         * object exists yet for this snapshot (e.g. version-map restore during engine
+         * construction at replica promotion).
+         */
+        default java.util.Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles() {
+            return java.util.Map.of();
+        }
     }
 }

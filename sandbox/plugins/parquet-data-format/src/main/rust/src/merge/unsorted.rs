@@ -6,9 +6,10 @@
  * compatible open source license.
  */
 
-use std::fs::File;
+use std::sync::Arc;
 
 use arrow::array::RecordBatchReader;
+use object_store::ObjectStore;
 use arrow::datatypes::Schema as ArrowSchema;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::schema::types::SchemaDescriptor;
@@ -18,6 +19,7 @@ use crate::log_debug;
 use super::context::MergeContext;
 use super::error::MergeResult;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
+use super::store_reader::TieredChunkReader;
 
 use crate::memory::merge_pool;
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
@@ -29,6 +31,7 @@ pub fn merge_unsorted(
     output_path: &str,
     index_name: &str,
     output_writer_generation: i64,
+    input_store: Option<&Arc<dyn ObjectStore>>,
 ) -> MergeResult<super::MergeOutput> {
     let mut reservation =
         MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
@@ -38,6 +41,7 @@ pub fn merge_unsorted(
         index_name,
         output_writer_generation,
         &mut reservation,
+        input_store,
     )
 }
 
@@ -48,6 +52,7 @@ pub fn merge_unsorted_with_pool(
     index_name: &str,
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
+    input_store: Option<&Arc<dyn ObjectStore>>,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -71,7 +76,9 @@ pub fn merge_unsorted_with_pool(
     let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
 
     for (file_idx, path) in input_files.iter().enumerate() {
-        let file = File::open(path)?;
+        // Store-backed on warm shards (routes LOCAL to disk, REMOTE to the remote store);
+        // plain local file on hot shards (input_store is None).
+        let file = TieredChunkReader::open(path, input_store)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
         let parquet_descr = builder.parquet_schema().clone();

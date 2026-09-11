@@ -64,6 +64,12 @@ pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
 
 pub(crate) static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
+/// Shared IO runtime handle for store-backed merge reads. Initializes the
+/// runtime with default sizing when no merge has configured it yet.
+pub(crate) fn io_runtime_handle() -> &'static Runtime {
+    get_io_runtime(None)
+}
+
 fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
         let n = num_threads.unwrap_or_else(default_merge_threads);

@@ -11,6 +11,7 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use arrow::datatypes::Schema as ArrowSchema;
+use object_store::ObjectStore;
 use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
@@ -33,6 +34,7 @@ pub fn merge_sorted(
     reverse_sorts: &[bool],
     nulls_first: &[bool],
     output_writer_generation: i64,
+    input_store: Option<&Arc<dyn ObjectStore>>,
 ) -> super::MergeResult<super::MergeOutput> {
     let mut reservation =
         MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
@@ -45,6 +47,7 @@ pub fn merge_sorted(
         nulls_first,
         output_writer_generation,
         &mut reservation,
+        input_store,
     )
 }
 
@@ -58,6 +61,7 @@ pub fn merge_sorted_with_pool(
     nulls_first: &[bool],
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
+    input_store: Option<&Arc<dyn ObjectStore>>,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -118,6 +122,7 @@ pub fn merge_sorted_with_pool(
             batch_size,
             deferred_threshold,
             reservation,
+            input_store,
         )?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());

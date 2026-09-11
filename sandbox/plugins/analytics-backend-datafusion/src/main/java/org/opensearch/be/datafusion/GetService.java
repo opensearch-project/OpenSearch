@@ -22,12 +22,16 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -82,6 +86,36 @@ public class GetService implements Closeable {
 
         private static final String GET_BY_ID_TABLE_ALIAS = "_t";
         private static final String PARQUET_FORMAT = "parquet";
+        private static final DataFormat PARQUET_FORMAT_KEY = new DataFormat() {
+            @Override
+            public String name() {
+                return PARQUET_FORMAT;
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public java.util.Set<FieldTypeCapabilities> supportedFields() {
+                return java.util.Set.of();
+            }
+        };
+
+        private static NativeStoreHandle storeHandleFrom(IndexReaderProvider.Reader reader) {
+            if (reader == null) {
+                return null;
+            }
+            DatafusionReader dfReader = reader.getReader(PARQUET_FORMAT_KEY, DatafusionReader.class);
+            if (dfReader != null && dfReader.getDataformatAwareStoreHandle() != null) {
+                return dfReader.getDataformatAwareStoreHandle();
+            }
+            // No format reader for this snapshot yet (e.g. version-map restore during engine
+            // construction at promotion) - use the shard-level handles carried by the Reader.
+            return reader.storeHandles().get(PARQUET_FORMAT_KEY);
+        }
+
         /** Empty Substrait plan — the internal-search path builds its plan natively and ignores it. */
         private static final byte[] EMPTY_PLAN = new byte[0];
 
@@ -118,6 +152,12 @@ public class GetService implements Closeable {
 
         @Override
         public Map<String, Object> executeSingleRow(long rowId, WriterFileSet parquetSet) throws IOException {
+            return executeSingleRow(rowId, parquetSet, null);
+        }
+
+        @Override
+        public Map<String, Object> executeSingleRow(long rowId, WriterFileSet parquetSet, IndexReaderProvider.Reader reader)
+            throws IOException {
             if (rowId < 0) {
                 throw new IllegalArgumentException("rowId must be non-negative, got: " + rowId);
             }
@@ -127,7 +167,9 @@ public class GetService implements Closeable {
             // ReaderHandle registers the native pointer with NativeHandle so downstream
             // validatePointer() calls in executeQueryAsync() find it in the live set.
             MonoFileWriterSet segment = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(segment), null, List.of(), List.of())) {
+            try (
+                ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(segment), storeHandleFrom(reader), List.of(), List.of())
+            ) {
                 long readerPtr = readerHandle.getPointer();
                 // Internal-search get-by-row-id: the native side ignores Substrait and builds a
                 // DataFrame plan filtering `__row_id__ = rowId` with pushdown enabled. __row_id__ is
@@ -149,13 +191,30 @@ public class GetService implements Closeable {
 
         @Override
         public List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long seqNoFloor) throws IOException {
+            return executeRowsAboveSeqNo(fileSets, seqNoFloor, null);
+        }
+
+        @Override
+        public List<Map<String, Object>> executeRowsAboveSeqNo(
+            List<WriterFileSet> fileSets,
+            long seqNoFloor,
+            IndexReaderProvider.Reader reader
+        ) throws IOException {
             long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
             List<Map<String, Object>> all = new ArrayList<>();
             for (WriterFileSet parquetSet : fileSets) {
                 String parquetDir = parquetSet.directory();
                 String parquetFile = parquetSet.files().iterator().next();
                 MonoFileWriterSet writerSet = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null, List.of(), List.of())) {
+                try (
+                    ReaderHandle readerHandle = new ReaderHandle(
+                        parquetDir,
+                        List.of(writerSet),
+                        storeHandleFrom(reader),
+                        List.of(),
+                        List.of()
+                    )
+                ) {
                     long readerPtr = readerHandle.getPointer();
                     // Internal-search seq-no scan: the native side ignores Substrait and builds a
                     // DataFrame plan filtering `_seq_no > seqNoFloor`, projecting only the version

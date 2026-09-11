@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FormatFilesAddedListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSyncListener;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
@@ -58,11 +59,12 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements RemoteSyncListener {
+public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements RemoteSyncListener, FormatFilesAddedListener {
 
     private static final Logger logger = LogManager.getLogger(TieredSubdirectoryAwareDirectory.class);
 
     private final TieredDirectory tieredDirectory;
+    private final FileCache fileCache;
     private final StoreStrategyRegistry strategies;
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final ShardPath shardPath;
@@ -80,6 +82,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     ) {
         super(localDirectory);
         this.strategies = strategies == null ? StoreStrategyRegistry.EMPTY : strategies;
+        this.fileCache = fileCache;
         this.remoteDirectory = remoteDirectory;
         this.shardPath = shardPath;
         boolean success = false;
@@ -92,6 +95,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
                 tieredStoragePrefetchSettingsSupplier
             );
             logger.debug("Created TieredSubdirectoryAwareDirectory (hasStoreHandlers={})", this.strategies.hasStoreHandlers());
+            reconcileLocalFormatFiles();
             success = true;
         } finally {
             if (success == false) {
@@ -173,6 +177,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
             } catch (NoSuchFileException e) {
                 // Expected on read-only warm — file was never local or already evicted
             }
+            releaseLocalFormatFileAccounting(shardPath.getDataPath().resolve(name));
             return;
         }
         tieredDirectory.deleteFile(name);
@@ -222,16 +227,159 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
             } catch (IOException e) {
                 logger.warn("afterSyncToRemote: failed to delete local copy of file={}", file);
             }
+            // Local bytes released — drop the FileCache accounting entry.
+            releaseLocalFormatFileAccounting(shardPath.getDataPath().resolve(file));
             return;
         }
         tieredDirectory.afterSyncToRemote(file);
     }
 
+    /**
+     * Startup reconciliation of local format files (crash recovery). For every file found
+     * under a format subdirectory at open:
+     * <ul>
+     *   <li>{@code temp-*} — incomplete native writer output: delete.</li>
+     *   <li>present in remote metadata — already-uploaded leftover (crash after upload,
+     *       before local delete): delete local, remote wins.</li>
+     *   <li>otherwise — crash after write, before upload: register LOCAL + account, so the
+     *       file is readable if the recovered commit references it and disk usage is truthful.
+     *       Unreferenced files are reclaimed by normal file GC ({@link #deleteFile}).</li>
+     * </ul>
+     */
+    private void reconcileLocalFormatFiles() {
+        if (strategies.hasStoreHandlers() == false) {
+            return;
+        }
+        java.nio.file.Path dataPath = shardPath.getDataPath();
+        try (var subdirs = java.nio.file.Files.newDirectoryStream(dataPath, java.nio.file.Files::isDirectory)) {
+            for (java.nio.file.Path subdir : subdirs) {
+                String format = subdir.getFileName().toString();
+                if (strategies.matchFor(format + "/probe") == null) {
+                    continue; // not a store-handled format subdirectory
+                }
+                try (var files = java.nio.file.Files.newDirectoryStream(subdir, java.nio.file.Files::isRegularFile)) {
+                    for (java.nio.file.Path filePath : files) {
+                        reconcileLocalFormatFile(format, filePath);
+                    }
+                }
+            }
+        } catch (java.nio.file.NoSuchFileException e) {
+            // No data path subdirectories yet - fresh shard
+        } catch (IOException e) {
+            logger.warn("reconcileLocalFormatFiles: failed to scan local format subdirectories", e);
+        }
+    }
+
+    private void reconcileLocalFormatFile(String format, java.nio.file.Path filePath) {
+        String bareName = filePath.getFileName().toString();
+        String identifier = format + "/" + bareName;
+        try {
+            if (bareName.startsWith("temp-")) {
+                java.nio.file.Files.deleteIfExists(filePath);
+                logger.debug("reconcile: deleted incomplete writer temp file [{}]", identifier);
+            } else if (remoteDirectory.getExistingRemoteFilename(identifier) != null) {
+                java.nio.file.Files.deleteIfExists(filePath);
+                logger.debug("reconcile: deleted already-uploaded local leftover [{}]", identifier);
+            } else {
+                long size = java.nio.file.Files.size(filePath);
+                strategies.onWritten(identifier, size);
+                accountLocalFormatFile(filePath, size);
+                logger.debug("reconcile: registered un-uploaded local file [{}] as LOCAL ({} bytes)", identifier, size);
+            }
+        } catch (IOException e) {
+            logger.warn("reconcile: failed to process local format file [{}]", identifier);
+        }
+    }
+
+    /**
+     * Engine callback: format files just gained their first catalog reference (completed
+     * native writer or merge output, or replicated/recovered files). For each file that is
+     * present locally and not yet uploaded: register it LOCAL in the native registry (size
+     * fast-path + in-place upload flip) and pin an accounting-only entry in the FileCache so
+     * warm-node disk budgeting sees the bytes until the upload flip deletes the local copy.
+     *
+     * <p>Files already in remote metadata (recovery/replication adds) and files with no
+     * local presence are skipped. Never populates any block cache.
+     */
     @Override
-    public void sync(Collection<String> names) {
-        // Skip — same as TieredDirectory (CompositeDirectory). On warm, files are
-        // either remote-only (format files) or cached from remote.
-        // No local writes to fsync. Writable warm will need to revisit this.
+    public void onFormatFilesAdded(String format, Collection<String> files) {
+        for (String bareName : files) {
+            String identifier = format + "/" + bareName;
+            if (strategies.matchFor(identifier) == null) {
+                continue; // not a store-handled format (e.g. lucene)
+            }
+            String blobKey = remoteDirectory.getExistingRemoteFilename(identifier);
+            if (blobKey != null) {
+                // Already uploaded (replica learning of a primary upload, or a re-add of a
+                // flipped file). Register/refresh it as REMOTE - the registry upsert is
+                // idempotent and preserves reader counts - so a later promotion can build
+                // readers over it without a local copy.
+                long size;
+                try {
+                    size = remoteDirectory.fileLength(identifier);
+                } catch (IOException e) {
+                    size = 0;
+                }
+                StoreStrategyRegistry.Match match = strategies.matchFor(identifier);
+                String formatName = match != null ? match.format().name() : "";
+                strategies.onUploaded(identifier, remoteDirectory.getRemoteBasePath(formatName), blobKey, size);
+                continue;
+            }
+            java.nio.file.Path localPath = shardPath.getDataPath().resolve(identifier);
+            long size;
+            try {
+                size = java.nio.file.Files.size(localPath);
+            } catch (IOException e) {
+                continue; // neither remote nor local - nothing to register
+            }
+            strategies.onWritten(identifier, size);
+            accountLocalFormatFile(localPath, size);
+        }
+    }
+
+    /** Pins a length-only accounting entry for a local format file in the FileCache. */
+    private void accountLocalFormatFile(java.nio.file.Path localPath, long size) {
+        if (fileCache == null) {
+            return;
+        }
+        try {
+            fileCache.put(localPath, new FileCache.RestoredCachedIndexInput(size));
+        } catch (Exception e) {
+            logger.warn("failed to account local format file [{}] in FileCache", localPath);
+        }
+    }
+
+    /** Releases the accounting entry for a local format file, if present. */
+    private void releaseLocalFormatFileAccounting(java.nio.file.Path localPath) {
+        if (fileCache == null) {
+            return;
+        }
+        try {
+            fileCache.remove(localPath);
+        } catch (Exception e) {
+            logger.warn("failed to release FileCache accounting for [{}]", localPath);
+        }
+    }
+
+    @Override
+    public void sync(Collection<String> names) throws IOException {
+        // Writable warm: format files written locally by the native writer are fsynced
+        // here at commit time — this is the ONLY durability barrier for those bytes
+        // (the native parquet writer never fsyncs). Format files already uploaded to
+        // remote, and Lucene files (remote-backed via TieredDirectory), keep the skip
+        // semantics of CompositeDirectory.
+        java.util.List<String> unsyncedFormatFiles = null;
+        for (String name : names) {
+            if (isFormatFile(name) && remoteDirectory.getExistingRemoteFilename(name) == null) {
+                if (unsyncedFormatFiles == null) {
+                    unsyncedFormatFiles = new java.util.ArrayList<>();
+                }
+                unsyncedFormatFiles.add(name);
+            }
+        }
+        if (unsyncedFormatFiles != null) {
+            in.sync(unsyncedFormatFiles);
+        }
     }
 
     @Override

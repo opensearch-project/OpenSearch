@@ -816,6 +816,7 @@ impl NativeParquetWriter {
             nulls_first,
             writer_generation,
             &mut merge_reservation,
+            None, // writer-internal chunk merge: inputs are always local temp files
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()

@@ -674,13 +674,133 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // sync() tests
     // ═══════════════════════════════════════════════════════════════
 
-    public void testSyncIsNoOp() throws IOException {
+    public void testSyncSkipsLuceneFiles() throws IOException {
         directory = buildDirectoryNoFormats();
         try {
-            // sync should not throw even with non-existent files — it's a no-op on warm
-            directory.sync(java.util.List.of("_0.cfe", "parquet/seg_0.parquet", "nonexistent.file"));
+            // Lucene files keep the skip semantics: no fsync attempt, no throw even for
+            // non-existent names (they are remote-backed via TieredDirectory).
+            directory.sync(java.util.List.of("_0.cfe", "nonexistent.file"));
         } finally {
             directory.close();
+        }
+    }
+
+    public void testSyncFsyncsLocalFormatFileNotInRemote() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            // Written locally (native writer), NOT in remote metadata: sync must fsync it.
+            String parquetFile = "parquet/seg_sync.parquet";
+            writeParquetFileToDisk(parquetFile);
+            w.directory.sync(java.util.List.of(parquetFile, "_0.cfe"));
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testSyncSkipsFormatFileAlreadyInRemote() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            // In remote metadata but NOT on local disk (read-only warm shape): sync must
+            // skip it rather than attempting a local fsync of a non-existent file.
+            String parquetFile = "parquet/seg_uploaded.parquet";
+            addParquetMetadataEntry(parquetFile, "seg_uploaded__uuid1");
+            w.directory.sync(java.util.List.of(parquetFile));
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // onFormatFilesAdded() + reconciliation tests (writable warm)
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testOnFormatFilesAddedRegistersLocalFileAndAccounts() throws IOException {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        WithRegistry w = buildDirectoryWithParquetFormat(handler);
+        try {
+            writeParquetFileToDisk("parquet/seg_new.parquet");
+            w.directory.onFormatFilesAdded("parquet", java.util.List.of("seg_new.parquet"));
+
+            java.nio.file.Path abs = shardPath.getDataPath().resolve("parquet/seg_new.parquet");
+            org.mockito.Mockito.verify(handler)
+                .onWritten(
+                    org.mockito.Mockito.eq(abs.toString()),
+                    org.mockito.Mockito.eq(abs.toString()),
+                    org.mockito.Mockito.eq((long) PARQUET_DATA.length)
+                );
+            assertNotNull("local format file must be accounted in FileCache", fileCache.get(abs));
+            fileCache.decRef(abs);
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testOnFormatFilesAddedSkipsRemoteSeededAndMissingFiles() throws IOException {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        WithRegistry w = buildDirectoryWithParquetFormat(handler);
+        try {
+            // Already uploaded: must be skipped even if a local copy exists.
+            writeParquetFileToDisk("parquet/seg_up.parquet");
+            addParquetMetadataEntry("parquet/seg_up.parquet", "seg_up__uuid");
+            // No local copy: must be skipped.
+            w.directory.onFormatFilesAdded("parquet", java.util.List.of("seg_up.parquet", "seg_missing.parquet"));
+            org.mockito.Mockito.verify(handler, org.mockito.Mockito.never())
+                .onWritten(org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString(), org.mockito.Mockito.anyLong());
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testReconcileDeletesTempAndUploadedLeftoversRegistersOrphan() throws IOException {
+        // Files on disk BEFORE the directory (and its reconciliation) is constructed.
+        writeParquetFileToDisk("parquet/temp-seg_a.parquet");
+        writeParquetFileToDisk("parquet/seg_uploaded.parquet");
+        writeParquetFileToDisk("parquet/seg_orphan.parquet");
+        addParquetMetadataEntry("parquet/seg_uploaded.parquet", "seg_uploaded__uuid");
+
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        WithRegistry w = buildDirectoryWithParquetFormat(handler);
+        try {
+            // temp- writer output: deleted.
+            assertFalse(
+                "incomplete temp writer file must be deleted at open",
+                java.nio.file.Files.exists(shardPath.getDataPath().resolve("parquet/temp-seg_a.parquet"))
+            );
+            // already uploaded: local leftover deleted, remote wins.
+            assertFalse(
+                "already-uploaded local leftover must be deleted at open",
+                java.nio.file.Files.exists(shardPath.getDataPath().resolve("parquet/seg_uploaded.parquet"))
+            );
+            // orphan (crash before upload): kept, registered LOCAL, accounted.
+            java.nio.file.Path orphan = shardPath.getDataPath().resolve("parquet/seg_orphan.parquet");
+            assertTrue("orphan must be kept", java.nio.file.Files.exists(orphan));
+            org.mockito.Mockito.verify(handler)
+                .onWritten(
+                    org.mockito.Mockito.eq(orphan.toString()),
+                    org.mockito.Mockito.eq(orphan.toString()),
+                    org.mockito.Mockito.eq((long) PARQUET_DATA.length)
+                );
+            assertNotNull("orphan must be accounted in FileCache", fileCache.get(orphan));
+            fileCache.decRef(orphan);
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testAccountingReleasedOnDeleteFile() throws IOException {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        WithRegistry w = buildDirectoryWithParquetFormat(handler);
+        try {
+            writeParquetFileToDisk("parquet/seg_del.parquet");
+            w.directory.onFormatFilesAdded("parquet", java.util.List.of("seg_del.parquet"));
+            java.nio.file.Path abs = shardPath.getDataPath().resolve("parquet/seg_del.parquet");
+            assertNotNull(fileCache.get(abs));
+            fileCache.decRef(abs);
+
+            w.directory.deleteFile("parquet/seg_del.parquet");
+            assertNull("accounting entry must be released on deleteFile", fileCache.get(abs));
+        } finally {
+            w.directory.close();
         }
     }
 

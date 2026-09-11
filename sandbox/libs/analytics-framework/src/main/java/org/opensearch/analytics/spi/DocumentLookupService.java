@@ -94,7 +94,7 @@ public class DocumentLookupService {
             );
         }
 
-        Map<String, Object> row = executor.executeSingleRow(metadata.rowId(), fileSet);
+        Map<String, Object> row = executor.executeSingleRow(metadata.rowId(), fileSet, reader);
         if (row == null) {
             throw new IllegalStateException(
                 "Resolver located id ["
@@ -119,7 +119,7 @@ public class DocumentLookupService {
             }
         }
         List<DocumentLookupResult> results = new ArrayList<>();
-        for (Map<String, Object> row : executor.executeRowsAboveSeqNo(fileSets, fromSeqNoExclusive)) {
+        for (Map<String, Object> row : executor.executeRowsAboveSeqNo(fileSets, fromSeqNoExclusive, reader)) {
             Object idVal = row.get("_id");
             if (idVal != null) {
                 results.add(buildResultFromRow(idVal.toString(), row));
