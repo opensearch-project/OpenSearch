@@ -86,6 +86,13 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     }
 
     @Override
+    public void onStreamCreated(StreamTransportResponse<T> response) {
+        // No span scope and no endSpan: this is not a terminal callback, it only lets the delegate
+        // arrange cancellation for a stream that is about to be opened.
+        delegate.onStreamCreated(response);
+    }
+
+    @Override
     public void handleException(TransportException exp) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.handleException(exp);
