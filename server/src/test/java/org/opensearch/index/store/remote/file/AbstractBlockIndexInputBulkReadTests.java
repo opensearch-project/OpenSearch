@@ -126,6 +126,26 @@ public class AbstractBlockIndexInputBulkReadTests extends OpenSearchTestCase {
             assertFloats(pos, actual);
             assertEquals(pos + (long) len * Float.BYTES, input.getFilePointer());
             assertEquals(1, input.currentBlock());
+            // one bulk read per block, no element-wise reads: the boundary falls between two elements
+            assertEquals(2, totalReadFloatsCalls());
+            assertEquals(0, totalElementReads());
+        }
+    }
+
+    public void testReadFloatsAcrossBlockBoundarySplittingAnElement() throws IOException {
+        final int len = 1024;
+        // shift by one byte so the block boundary falls inside an element
+        final int pos = BLOCK_SIZE - randomIntBetween(1, len - 1) * Float.BYTES - 1;
+        try (CountingBlockIndexInput input = newInput()) {
+            input.seek(pos);
+            float[] actual = new float[len];
+            input.readFloats(actual, 0, len);
+            assertFloats(pos, actual);
+            assertEquals(pos + (long) len * Float.BYTES, input.getFilePointer());
+            assertEquals(1, input.currentBlock());
+            // one bulk read per block plus the split element assembled from four single bytes
+            assertEquals(2, totalReadFloatsCalls());
+            assertEquals(4, totalElementReads());
         }
     }
 
@@ -139,6 +159,8 @@ public class AbstractBlockIndexInputBulkReadTests extends OpenSearchTestCase {
             assertInts(pos, actual);
             assertEquals(pos + (long) len * Integer.BYTES, input.getFilePointer());
             assertEquals(1, input.currentBlock());
+            assertEquals(2, totalReadIntsCalls());
+            assertEquals(0, totalElementReads());
         }
     }
 
@@ -152,6 +174,24 @@ public class AbstractBlockIndexInputBulkReadTests extends OpenSearchTestCase {
             assertLongs(pos, actual);
             assertEquals(pos + (long) len * Long.BYTES, input.getFilePointer());
             assertEquals(1, input.currentBlock());
+            assertEquals(2, totalReadLongsCalls());
+            assertEquals(0, totalElementReads());
+        }
+    }
+
+    public void testReadLongsAcrossBlockBoundarySplittingAnElement() throws IOException {
+        final int len = 256;
+        final int pos = BLOCK_SIZE - randomIntBetween(1, len - 1) * Long.BYTES - randomIntBetween(1, Long.BYTES - 1);
+        try (CountingBlockIndexInput input = newInput()) {
+            input.seek(pos);
+            long[] actual = new long[len];
+            input.readLongs(actual, 0, len);
+            assertLongs(pos, actual);
+            assertEquals(pos + (long) len * Long.BYTES, input.getFilePointer());
+            assertEquals(2, totalReadLongsCalls());
+            // DataInput#readLong is two readInt calls: whichever half fits in a block is one readInt on the
+            // block, the half crossing the boundary is four single-byte reads
+            assertEquals(5, totalElementReads());
         }
     }
 
@@ -166,6 +206,9 @@ public class AbstractBlockIndexInputBulkReadTests extends OpenSearchTestCase {
             assertInts(pos, actual);
             assertEquals(pos + (long) len * Integer.BYTES, input.getFilePointer());
             assertEquals(2, input.currentBlock());
+            // three blocks touched, one bulk read each
+            assertEquals(3, totalReadIntsCalls());
+            assertEquals(0, totalElementReads());
         }
     }
 

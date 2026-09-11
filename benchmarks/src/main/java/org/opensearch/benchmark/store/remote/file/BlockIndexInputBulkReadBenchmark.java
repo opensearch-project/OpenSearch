@@ -54,7 +54,9 @@ import java.util.concurrent.TimeUnit;
  * With {@code access=random} every read seeks to an arbitrary aligned position in the 32 MB file, so most
  * reads on the {@code block} input also switch blocks (close the previous block, look the next one up in the
  * file cache, clone it). With {@code access=singleBlock} all reads stay inside the first block and measure
- * the read itself.
+ * the read itself. {@code straddleAligned} reads a range whose second half lies in the next block, with the
+ * boundary falling between two elements; {@code straddleSplit} shifts that range by one byte so the boundary
+ * falls inside an element. Both are only meaningful for the {@code block} input.
  */
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
@@ -78,7 +80,7 @@ public class BlockIndexInputBulkReadBenchmark {
     @Param({ "128", "1024" })
     public int length;
 
-    @Param({ "random", "singleBlock" })
+    @Param({ "random", "singleBlock", "straddleAligned", "straddleSplit" })
     public String access;
 
     private Path directory;
@@ -173,11 +175,19 @@ public class BlockIndexInputBulkReadBenchmark {
         return longs;
     }
 
-    /** A random offset aligned to the read size, so reads never straddle a block boundary. */
+    /** Offset of the next read: random and aligned to the read size (never straddling a block boundary), or fixed across the first block boundary. */
     private long nextOffset(int bytesPerValue) {
         final long stride = (long) length * bytesPerValue;
-        final long range = "singleBlock".equals(access) ? BLOCK_SIZE : FILE_LENGTH;
-        return random.nextLong(range / stride) * stride;
+        switch (access) {
+            case "straddleAligned":
+                return BLOCK_SIZE - (long) (length / 2) * bytesPerValue;
+            case "straddleSplit":
+                return BLOCK_SIZE - (long) (length / 2) * bytesPerValue - 1;
+            case "singleBlock":
+                return random.nextLong(BLOCK_SIZE / stride) * stride;
+            default:
+                return random.nextLong(FILE_LENGTH / stride) * stride;
+        }
     }
 
     /**

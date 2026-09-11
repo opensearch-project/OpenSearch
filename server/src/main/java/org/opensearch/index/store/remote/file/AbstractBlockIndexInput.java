@@ -318,13 +318,14 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
     }
 
     /**
-     * Bulk reads are served from the current block when the requested range fits in it. Without these
-     * overrides the {@link org.apache.lucene.store.DataInput} defaults read one element at a time through
-     * {@link #readInt()} / {@link #readLong()}, so a single {@code readFloats} of a 1024-dimension vector
-     * turns into 1024 bounds-checked reads on the underlying block instead of one bulk copy. Lucene's own
-     * {@code BufferedIndexInput} carries the same overrides. Ranges that cross a block boundary fall back
-     * to the element-wise superclass implementation, which advances through blocks via
-     * {@link #readInt()} / {@link #readLong()}.
+     * Bulk reads. Elements that fit in the current block are copied with one bulk read on the block; an
+     * element split by a block boundary is assembled byte by byte through {@link #readInt()} /
+     * {@link #readLong()} (whose {@link #readByte()} path moves to the next block); a read positioned exactly
+     * at a block boundary moves to the next block and continues in bulk. This mirrors
+     * {@code BufferedIndexInput#readFloats} and friends. Without these overrides the
+     * {@link org.apache.lucene.store.DataInput} defaults read one element at a time, so a single
+     * {@code readFloats} of a 1024-dimension vector turned into 1024 bounds-checked reads on the underlying
+     * block instead of one bulk copy.
      */
     @Override
     public void readFloats(float[] floats, int offset, int len) throws IOException {
@@ -332,10 +333,20 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         if (blockHolder.block == null) {
             seek(0);
         }
-        if ((long) len * Float.BYTES <= blockSize - currentBlockPosition()) {
-            blockHolder.block.readFloats(floats, offset, len);
-        } else {
-            super.readFloats(floats, offset, len);
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Float.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readFloats(floats, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                floats[offset++] = Float.intBitsToFloat(super.readInt());
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
         }
     }
 
@@ -345,10 +356,20 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         if (blockHolder.block == null) {
             seek(0);
         }
-        if ((long) len * Integer.BYTES <= blockSize - currentBlockPosition()) {
-            blockHolder.block.readInts(dst, offset, len);
-        } else {
-            super.readInts(dst, offset, len);
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Integer.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readInts(dst, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                dst[offset++] = super.readInt();
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
         }
     }
 
@@ -358,10 +379,20 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         if (blockHolder.block == null) {
             seek(0);
         }
-        if ((long) len * Long.BYTES <= blockSize - currentBlockPosition()) {
-            blockHolder.block.readLongs(dst, offset, len);
-        } else {
-            super.readLongs(dst, offset, len);
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Long.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readLongs(dst, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                dst[offset++] = super.readLong();
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
         }
     }
 
