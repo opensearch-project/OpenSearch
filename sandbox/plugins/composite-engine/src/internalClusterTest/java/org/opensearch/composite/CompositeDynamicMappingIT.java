@@ -93,6 +93,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
+            .put(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, true)
             .build();
     }
 

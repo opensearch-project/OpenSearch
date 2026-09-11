@@ -57,6 +57,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -529,7 +530,8 @@ public abstract class MappedFieldType {
     /** Whether an additional value may trigger an automatic mapping promotion. */
     @ExperimentalApi
     public boolean isMultiValueAutoPromotionEnabled() {
-        return multiValueState == MultiValueState.AUTO;
+        return multiValueState == MultiValueState.AUTO
+            && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG);
     }
 
     /**

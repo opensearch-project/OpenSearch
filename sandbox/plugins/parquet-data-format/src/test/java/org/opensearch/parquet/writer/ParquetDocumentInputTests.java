@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -175,7 +176,7 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertEquals(List.of("a", "b"), pair.getValue());
     }
 
-    public void testUndeclaredKeywordPromotesWhenSecondValueArrives() {
+    public void testAutoFieldRejectsSecondValueWhenPromotionDisabled() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType other = new KeywordFieldMapper.KeywordFieldType("other");
@@ -183,13 +184,27 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assignTestCapabilities(other, PARQUET_FORMAT);
 
         input.addField(other, "one");
-        input.addField(other, "two");
-        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        MapperParsingException error = expectThrows(MapperParsingException.class, () -> input.addField(other, "two"));
+        assertThat(error.getMessage(), org.hamcrest.Matchers.containsString("automatic promotion is disabled"));
+    }
 
-        FieldValuePair pair = findPair(input, "other");
-        assertTrue(pair.isMultiValued());
-        assertEquals(List.of("one", "two"), pair.getValue());
-        assertEquals(2L, input.getFieldCount("other"));
+    public void testUndeclaredKeywordPromotesWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            ParquetDocumentInput input = new ParquetDocumentInput();
+            populateMetadataFields(input);
+            MappedFieldType other = new KeywordFieldMapper.KeywordFieldType("other");
+            other.setMultiValueSupported(true);
+            assignTestCapabilities(other, PARQUET_FORMAT);
+
+            input.addField(other, "one");
+            input.addField(other, "two");
+            input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+            FieldValuePair pair = findPair(input, "other");
+            assertTrue(pair.isMultiValued());
+            assertEquals(List.of("one", "two"), pair.getValue());
+            assertEquals(2L, input.getFieldCount("other"));
+        });
     }
 
     public void testExplicitSingleFieldRejectsSecondValue() {
@@ -205,21 +220,23 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertThat(error.getMessage(), org.hamcrest.Matchers.containsString("locked scalar by [multi_value: false]"));
     }
 
-    public void testUndeclaredNumericFieldPromotesWhenSecondValueArrives() {
-        ParquetDocumentInput input = new ParquetDocumentInput();
-        populateMetadataFields(input);
-        MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        number.setMultiValueSupported(true);
-        assignTestCapabilities(number, PARQUET_FORMAT);
+    public void testUndeclaredNumericFieldPromotesWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            ParquetDocumentInput input = new ParquetDocumentInput();
+            populateMetadataFields(input);
+            MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+            number.setMultiValueSupported(true);
+            assignTestCapabilities(number, PARQUET_FORMAT);
 
-        input.addField(number, 10);
-        input.addField(number, 20);
-        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+            input.addField(number, 10);
+            input.addField(number, 20);
+            input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
 
-        FieldValuePair pair = findPair(input, "number");
-        assertTrue(pair.isMultiValued());
-        assertEquals(List.of(10, 20), pair.getValue());
-        assertEquals(2L, input.getFieldCount("number"));
+            FieldValuePair pair = findPair(input, "number");
+            assertTrue(pair.isMultiValued());
+            assertEquals(List.of(10, 20), pair.getValue());
+            assertEquals(2L, input.getFieldCount("number"));
+        });
     }
 
     public void testMultiValueFieldCountIsValueCountNotEntryCount() {

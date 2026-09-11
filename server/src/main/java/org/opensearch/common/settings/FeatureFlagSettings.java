@@ -39,6 +39,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
         FeatureFlags.STREAM_TRANSPORT_SETTING,
         FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING,
+        FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING,
         FeatureFlags.SNAPSHOT_RESILIENCE_SETTING
     );
 }

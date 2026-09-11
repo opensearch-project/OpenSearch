@@ -1573,6 +1573,10 @@ final class DocumentParser {
         Mapper leaf = getMapper(context, mapper, lastFieldName, paths);
         if (leaf instanceof ParametrizedFieldMapper fieldMapper && fieldMapper.fieldType().isMultiValueSupported()) {
             if (fieldMapper.fieldType().isMultiValued() == false) {
+                if (fieldMapper.fieldType().multiValueState() == MappedFieldType.MultiValueState.AUTO
+                    && fieldMapper.fieldType().isMultiValueAutoPromotionEnabled() == false) {
+                    return;
+                }
                 fieldMapper.addMultiValueMappingUpdate(context);
             }
             context.documentInput().addField(fieldMapper.fieldType(), List.of());

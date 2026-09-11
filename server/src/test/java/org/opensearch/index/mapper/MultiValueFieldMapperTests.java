@@ -38,17 +38,43 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testSecondValuePromotesKeyword() throws IOException {
-        DocumentMapper mapper = keywordMapper();
-        CapturingDocumentInput input = new CapturingDocumentInput();
-        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").value("prod").value("error").endArray()), input);
+    public void testNonPluggableIndexRejectsMultiValueParameter() {
+        MapperParsingException error = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                getIndexSettings(),
+                mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", true).endObject())
+            )
+        );
+        assertThat(error.getMessage(), containsString("unknown parameter [multi_value]"));
+    }
 
-        assertEquals(2L, input.getFieldCount("field"));
-        assertNotNull(parsed.dynamicMappingsUpdate());
-        Mapper update = parsed.dynamicMappingsUpdate().root().getMapper("field");
-        assertThat(update, instanceOf(ParametrizedFieldMapper.class));
-        assertTrue(((FieldMapper) update).fieldType().isMultiValued());
-        assertTrue(((FieldMapper) update).fieldType().isMultiValueSupported());
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testSecondValueRejectedWhenAutoPromotionDisabled() throws IOException {
+        DocumentMapper mapper = keywordMapper();
+        MapperParsingException error = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("field").value("prod").value("error").endArray()), new CapturingDocumentInput())
+        );
+        String trace = org.opensearch.ExceptionsHelper.stackTrace(error);
+        assertThat(trace, containsString("automatic promotion is disabled"));
+        assertThat(trace, containsString(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testSecondValuePromotesKeywordWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            DocumentMapper mapper = keywordMapper();
+            CapturingDocumentInput input = new CapturingDocumentInput();
+            ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").value("prod").value("error").endArray()), input);
+
+            assertEquals(2L, input.getFieldCount("field"));
+            assertNotNull(parsed.dynamicMappingsUpdate());
+            Mapper update = parsed.dynamicMappingsUpdate().root().getMapper("field");
+            assertThat(update, instanceOf(ParametrizedFieldMapper.class));
+            assertTrue(((FieldMapper) update).fieldType().isMultiValued());
+            assertTrue(((FieldMapper) update).fieldType().isMultiValueSupported());
+        });
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
@@ -72,13 +98,25 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testEmptyArrayPromotesKeyword() throws IOException {
+    public void testEmptyArrayIsAbsentWhenAutoPromotionDisabled() throws IOException {
         DocumentMapper mapper = keywordMapper();
-        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), new CapturingDocumentInput());
+        CapturingDocumentInput input = new CapturingDocumentInput();
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), input);
 
-        assertNotNull(parsed.dynamicMappingsUpdate());
-        FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper("field");
-        assertTrue(update.fieldType().isMultiValued());
+        assertEquals(0L, input.getFieldCount("field"));
+        assertNull(parsed.dynamicMappingsUpdate());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testEmptyArrayPromotesKeywordWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            DocumentMapper mapper = keywordMapper();
+            ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), new CapturingDocumentInput());
+
+            assertNotNull(parsed.dynamicMappingsUpdate());
+            FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper("field");
+            assertTrue(update.fieldType().isMultiValued());
+        });
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
@@ -126,6 +164,20 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testAutoMappingCannotUpdateToListWhenPromotionDisabled() throws IOException {
+        MapperService mapperService = createMapperService(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", true).endObject()))
+        );
+        assertThat(error.getMessage(), containsString("Cannot update parameter [multi_value] from [auto] to [true]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testExplicitFalseCannotBeUpdatedToTrueAndUnspecifiedUpdatePreservesLock() throws IOException {
         MapperService mapperService = createMapperService(
             pluggableSettings(),
@@ -143,17 +195,39 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testIndexSortFieldCanPromote() throws IOException {
-        Settings settings = Settings.builder()
-            .put(pluggableSettings())
-            .putList("index.sort.field", "field")
-            .putList("index.sort.order", "asc")
-            .build();
-        DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+    public void testExplicitTrueCannotBeUpdatedToFalse() throws IOException {
+        MapperService mapperService = createMapperService(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", true).endObject())
+        );
 
-        ParsedDocument parsed = mapper.parse(source(b -> b.array("field", "z", "a")), new CapturingDocumentInput());
-        assertNotNull(parsed.dynamicMappingsUpdate());
-        FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper("field");
-        assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(
+                mapperService,
+                mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", false).endObject())
+            )
+        );
+        assertThat(error.getMessage(), containsString("Cannot update parameter [multi_value] from [true] to [false]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIndexSortFieldCanPromoteWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            Settings settings = Settings.builder()
+                .put(pluggableSettings())
+                .putList("index.sort.field", "field")
+                .putList("index.sort.order", "asc")
+                .build();
+            DocumentMapper mapper = createDocumentMapper(
+                settings,
+                mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+            );
+
+            ParsedDocument parsed = mapper.parse(source(b -> b.array("field", "z", "a")), new CapturingDocumentInput());
+            assertNotNull(parsed.dynamicMappingsUpdate());
+            FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper("field");
+            assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+        });
     }
 }
