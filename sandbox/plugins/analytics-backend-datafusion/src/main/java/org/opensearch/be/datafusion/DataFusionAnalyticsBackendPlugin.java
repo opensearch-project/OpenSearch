@@ -473,6 +473,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
 
+    /**
+     * {@code MAKE_STRUCT} returns OBJECT rather than a scalar, so capability lookup — which keys on
+     * return type — needs it declared here rather than in SUPPORTED_FIELD_TYPES. Widening that set
+     * would wrongly claim filter/sort/aggregate support over structs.
+     */
+    private static final Set<ScalarFunction> OBJECT_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.MAKE_STRUCT);
+
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -635,6 +642,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 for (ScalarFunction op : MAP_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.MAP), formats, true));
                 }
+                for (ScalarFunction op : OBJECT_RETURNING_PROJECT_OPS) {
+                    caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.OBJECT), formats, true));
+                }
                 for (ScalarFunction op : POLYMORPHIC_RETURN_PROJECT_OPS) {
                     for (FieldType ft : FieldType.values()) {
                         caps.add(new ProjectCapability.Scalar(op, Set.of(ft), formats, true));
@@ -647,6 +657,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             public Set<AggregateCapability> aggregateCapabilities() {
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<AggregateCapability> caps = new HashSet<>();
+                // Aggregates over a struct-typed (object) column. Registered separately because
+                // FieldType.OBJECT is deliberately NOT in SUPPORTED_FIELD_TYPES — most aggregates
+                // are meaningless on a struct (no ordering ⇒ MIN/MAX, no arithmetic ⇒ SUM/AVG),
+                // and adding OBJECT there would also wrongly claim filter/sort support.
+                //
+                // COUNT is the meaningful one (non-null count) and is what the SQL plugin's
+                // Lucene path supports today, i.e. `stats count(<object>)`. Without this the
+                // capability lookup for (COUNT, OBJECT) misses and the query fails at plan time
+                // with "Function [COUNT] is not currently supported as an aggregate function".
+                for (FieldType objectType : Set.of(FieldType.OBJECT)) {
+                    caps.add(new AggregateCapability(AggregateFunction.COUNT, Set.of(objectType), formats));
+                }
                 for (AggregateFunction func : AGG_FUNCTIONS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
                         // 3-arg constructor leaves decomposition=null so the

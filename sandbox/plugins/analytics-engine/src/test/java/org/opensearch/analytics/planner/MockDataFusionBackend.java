@@ -53,6 +53,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         SUPPORTED_TYPES.addAll(FieldType.keyword());
         SUPPORTED_TYPES.addAll(FieldType.date());
         SUPPORTED_TYPES.add(FieldType.BOOLEAN);
+        // Calcite ROW maps to FieldType.OBJECT — needed for make_struct's return type to
+        // resolve a capable backend in OpenSearchProjectRule.
+        SUPPORTED_TYPES.add(FieldType.OBJECT);
     }
 
     private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
@@ -206,7 +209,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         ScalarFunction.CONCAT,
         ScalarFunction.UPPER,
         ScalarFunction.SIN,
-        ScalarFunction.ABS
+        ScalarFunction.ABS,
+        // Object materialization: make_struct over the flat dotted leaves (ObjectStructMaterializer).
+        ScalarFunction.MAKE_STRUCT
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;

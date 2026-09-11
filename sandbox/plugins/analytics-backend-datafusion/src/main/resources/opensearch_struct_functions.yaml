@@ -1,0 +1,38 @@
+%YAML 1.2
+---
+# Substrait extension declaring DataFusion's native struct constructor.
+#
+# This file exists ONLY to give the function an extension anchor (URN + name) that the consumer
+# resolves by name. The argument list is attached by MakeStructCallConverter, which builds the
+# Expression.ScalarFunctionInvocation directly and therefore never goes through isthmus'
+# signature matcher — so the single impl below does NOT bound the number of struct fields.
+#
+# WHY THE MATCHER IS BYPASSED (and why this is not an enumeration of arities):
+# isthmus binds a variadic function via a SingularArgumentMatcher — it derives ONE type that every
+# variadic operand must satisfy (the same reason MakeArrayAdapter widens make_array's operands to a
+# common element type first). named_struct interleaves `string` field names with values of
+# unrelated types, so no such type exists. Verified against isthmus 0.89.1: a variadic impl matches
+# neither as `value: any1` nor as unconstrained `value: any`, with
+# `parameterConsistency: INCONSISTENT` in both cases. Enumerating one impl per field count DOES
+# match but is bounded, and an object's width is data-dependent (an OTel span's `attributes`
+# carries ~55 sub-fields and grows), so enumeration is not a shippable answer.
+#
+# Substrait models struct construction natively as Expression.NestedStruct, which would need no
+# declaration at all, but DataFusion's substrait consumer rejects it at execution:
+# "This feature is not implemented: Nested struct expressions are not yet supported".
+# DataFusion does implement `named_struct` as a scalar function at any arity, so the
+# function-invocation form is the one that executes.
+urn: extension:org.opensearch:struct_functions
+scalar_functions:
+  - name: named_struct
+    description: >-
+      Construct a struct from interleaved (field-name, value) pairs:
+      named_struct('f0', v0, 'f1', v1, ...). Anchor declaration only — see the header. The real
+      arguments are attached by MakeStructCallConverter and are not limited to this arity.
+    impls:
+      - args:
+          - value: string
+            name: "name"
+          - value: any1
+            name: "value"
+        return: any
