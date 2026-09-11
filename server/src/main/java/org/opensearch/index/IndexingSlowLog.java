@@ -223,7 +223,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(
                 prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog),
-                message(index, doc, tookInNanos, reformat, maxSourceCharsToLog)
+                message(index, doc, tookInNanos, reformat, maxSourceCharsToLog),
+                messageArgs(doc, reformat, maxSourceCharsToLog)
             );
         }
 
@@ -279,19 +280,20 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
                 return sb.toString();
             }
+            sb.append(", source[").append("{}").append("], ");
+            return sb.toString();
+        }
+
+        private static Object[] messageArgs(ParsedDocument doc, boolean reformat, int maxSourceCharsToLog) {
+            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+                return null;
+            }
             try {
                 String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getMediaType());
-                sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog).trim()).append("]");
+                return new Object[] { Strings.cleanTruncate(source, maxSourceCharsToLog).trim() };
             } catch (IOException e) {
-                sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
-                /*
-                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-                 * will be logged at the warn level.
-                 */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
-                throw new UncheckedIOException(message, e);
+                return new Object[] { "_failed_to_convert_[" + e.getMessage() + "]" };
             }
-            return sb.toString();
         }
     }
 
