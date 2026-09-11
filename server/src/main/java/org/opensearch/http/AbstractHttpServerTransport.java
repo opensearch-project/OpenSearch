@@ -101,7 +101,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
-    private final NamedXContentRegistry xContentRegistry;
+    private volatile NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
@@ -503,5 +503,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     @SuppressWarnings("unchecked")
     private static <Values extends Collection<String>> Map<String, Collection<String>> extractHeaders(Map<String, Values> headers) {
         return (Map<String, Collection<String>>) headers;
+    }
+
+    /**
+     * Update the XContent registry (for search plugin hot reload)
+     * @param newRegistry the new registry to use
+     */
+    public synchronized void updateXContentRegistry(NamedXContentRegistry newRegistry) {
+        logger.info("Updating AbstractHttpServerTransport NamedXContentRegistry for search plugin hot reload");
+        this.xContentRegistry = newRegistry;
     }
 }
