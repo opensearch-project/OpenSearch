@@ -36,6 +36,8 @@ public class CryptoMetadata implements Writeable {
     static final public String SETTINGS_KEY = "settings";
     static final private String KMS_KEY_ARN_SETTING = "kms.key_arn";
     static final private String KMS_ENCRYPTION_CONTEXT_SETTING = "kms.encryption_context";
+    static final private String INDEX_STORE_TYPE_SETTING = "index.store.type";
+    static final private String CRYPTO_STORE_TYPE = "cryptofs";
     private final String keyProviderName;
     private final String keyProviderType;
     private final Settings settings;
@@ -112,6 +114,10 @@ public class CryptoMetadata implements Writeable {
     }
 
     public static CryptoMetadata fromIndexSettings(Settings indexSettings) {
+        if (CRYPTO_STORE_TYPE.equals(indexSettings.get(INDEX_STORE_TYPE_SETTING)) == false) {
+            return null;
+        }
+
         String keyProviderName = indexSettings.get("index.store.crypto.key_provider");
         if (keyProviderName == null) {
             return null;
