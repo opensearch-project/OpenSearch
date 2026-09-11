@@ -1571,7 +1571,16 @@ final class DocumentParser {
             return;
         }
         Mapper leaf = getMapper(context, mapper, lastFieldName, paths);
-        if (leaf instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isMultiValued()) {
+        if (leaf instanceof ParametrizedFieldMapper fieldMapper && fieldMapper.fieldType().isMultiValueSupported()) {
+            if (fieldMapper.fieldType().isMultiValued() == false) {
+                if (fieldMapper.fieldType().multiValueState() == MappedFieldType.MultiValueState.AUTO
+                    && fieldMapper.fieldType().isMultiValueAutoPromotionEnabled() == false) {
+                    return;
+                }
+                fieldMapper.addMultiValueMappingUpdate(context);
+            }
+            context.documentInput().addField(fieldMapper.fieldType(), List.of());
+        } else if (leaf instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isMultiValued()) {
             context.documentInput().addField(fieldMapper.fieldType(), List.of());
         }
     }

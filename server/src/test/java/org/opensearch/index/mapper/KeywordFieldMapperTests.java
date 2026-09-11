@@ -603,18 +603,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testRawSourceCompanionMatchesFixedMultiValueShape() throws IOException {
+    public void testRawSourceCompanionSupportsDynamicPromotion() throws IOException {
         Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(
             settings,
-            mapping(
-                b -> b.startObject("field").field("type", "keyword").field("normalizer", "lowercase").field("multi_value", true).endObject()
-            )
+            mapping(b -> b.startObject("field").field("type", "keyword").field("normalizer", "lowercase").endObject())
         );
         KeywordFieldMapper fieldMapper = (KeywordFieldMapper) mapper.mappers().getMapper("field");
 
         assertNotNull(fieldMapper.getRawValueFieldType());
-        assertTrue(fieldMapper.getRawValueFieldType().isMultiValued());
+        assertTrue(fieldMapper.getRawValueFieldType().isMultiValueSupported());
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
@@ -632,35 +630,40 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatScalarEmptyArrayIsAbsent() throws IOException {
-        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-        DocumentMapper mapper = createDocumentMapper(
-            pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
-        );
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), docInput);
+    public void testPluggableDataFormatEmptyArrayPromotesKeywordWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+            DocumentMapper mapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), docInput);
 
-        assertEquals(0L, docInput.getFieldCount("field"));
-        assertNull(parsed.dynamicMappingsUpdate());
+            assertNotNull(parsed.dynamicMappingsUpdate());
+            Mapper update = parsed.dynamicMappingsUpdate().root().getMapper("field");
+            assertThat(update, instanceOf(KeywordFieldMapper.class));
+            assertTrue(((KeywordFieldMapper) update).fieldType().isMultiValued());
+        });
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatScalarRejectsSecondValue() throws IOException {
-        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-        DocumentMapper mapper = createDocumentMapper(
-            pluggableSettings,
-            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
-        );
+    public void testPluggableDataFormatPromotesKeywordWhenExperimentalFlagEnabled() throws Exception {
+        FeatureFlags.TestUtils.with(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, () -> {
+            Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+            DocumentMapper mapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            ParsedDocument parsed = mapper.parse(source(b -> b.array("field", "one", "two")), docInput);
 
-        MapperParsingException error = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "one", "two")), new CapturingDocumentInput())
-        );
-        assertThat(
-            org.opensearch.ExceptionsHelper.stackTrace(error),
-            containsString("declare [multi_value: true] when creating the field mapping")
-        );
+            assertEquals(2L, docInput.getFieldCount("field"));
+            assertNotNull(parsed.dynamicMappingsUpdate());
+            Mapper update = parsed.dynamicMappingsUpdate().root().getMapper("field");
+            assertThat(update, instanceOf(KeywordFieldMapper.class));
+            assertTrue(((KeywordFieldMapper) update).fieldType().isMultiValued());
+        });
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)

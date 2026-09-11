@@ -53,7 +53,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
@@ -178,10 +177,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
 
         /**
-         * Declares this field multi-valued for columnar data formats. The value is fixed when the
-         * field mapping is created and cannot be changed by later mapping updates.
+         * Declares this field multi-valued for columnar data formats. Lucene is inherently
+         * multi-valued, so the flag matters only to pluggable formats whose column type is
+         * fixed per file. A scalar field can promote to multi-valued when indexing first
+         * encounters a second stored value. The transition is one-way because existing LIST
+         * files cannot be interpreted as scalar columns.
          */
-        private final Parameter<Explicit<Boolean>> multiValue = multiValueParameter(m -> toType(m).multiValue);
+        private final Parameter<MappedFieldType.MultiValueState> multiValue = multiValueParameter();
 
         private final IndexAnalyzers indexAnalyzers;
         private final boolean canConsumeRawValueForSource;
@@ -370,7 +372,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             setIndexAnalyzer(normalizer);
             setBoost(builder.boost.getValue());
-            setMultiValued(builder.multiValue.getValue().value());
+            setMultiValueState(builder.multiValue.getValue());
+            setMultiValueSupported(true);
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.useSimilarity = builder.useSimilarity.getValue();
@@ -858,7 +861,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
-    private final Explicit<Boolean> multiValue;
+    private final MappedFieldType.MultiValueState multiValueState;
     private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
@@ -887,7 +890,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
-        this.multiValue = builder.multiValue.getValue();
+        this.multiValueState = builder.multiValue.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
         this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
@@ -934,8 +937,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 fieldType().meta()
             );
             // The companion carries the pre-normalization values for derived source, so it must
-            // use the same fixed shape as the parent field.
-            rawValueType.setMultiValued(multiValue.value());
+            // mirror the parent's multi-value state or source reconstruction would lose values.
+            rawValueType.setMultiValueState(multiValueState);
+            rawValueType.setMultiValueSupported(true);
             return rawValueType;
         }
         return null;

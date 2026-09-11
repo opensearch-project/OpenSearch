@@ -40,6 +40,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -128,27 +129,83 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
-    /**
-     * Creates the immutable {@code multi_value} mapping parameter. Omitted values preserve the
-     * existing mapping during merges, while an explicit attempt to change the field shape fails.
-     */
-    protected static Parameter<Explicit<Boolean>> multiValueParameter(Function<FieldMapper, Explicit<Boolean>> initializer) {
-        return Parameter.explicitBoolParam("multi_value", false, initializer, false)
-            .setMergeValueNormalizer((current, incoming) -> incoming.explicit() ? incoming : current)
-            .setMergeValidator((previous, next) -> Objects.equals(previous.value(), next.value()));
+    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
+        return new Parameter<>(
+            "multi_value",
+            true,
+            () -> MappedFieldType.MultiValueState.SCALAR,
+            (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
+                ? MappedFieldType.MultiValueState.LIST
+                : MappedFieldType.MultiValueState.SCALAR,
+            mapper -> mapper.fieldType().multiValueState())
+        .setSerializer(
+            (builder, name, mode) ->
+                builder.field(name, mode == MappedFieldType.MultiValueState.LIST),
+            mode -> switch (mode) {
+                case AUTO -> "auto";
+                case SCALAR -> "false";
+                case LIST -> "true";
+            })
+        .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+        .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+        .setMergeValidator((previous, next) -> previous == next 
+                    || (FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG) 
+                        && previous == MappedFieldType.MultiValueState.AUTO);
     }
 
-    /** Adds one parsed value after enforcing the mapping-time field cardinality. */
+    /**
+     * Adds one successfully parsed scalar value to the pluggable document input and requests a
+     * mapping promotion when this is the second value for a supported field.
+     */
     protected final void addFieldForPluggableFormat(ParseContext context, Object value) {
         MappedFieldType fieldType = fieldType();
-        if (fieldType.isMultiValued() == false && context.documentInput().getFieldCount(fieldType.name()) > 0) {
-            throw new MapperParsingException(
-                "Field ["
-                    + fieldType.name()
-                    + "] is single-valued; declare [multi_value: true] when creating the field mapping to accept multiple values"
-            );
+        if (fieldType.isMultiValued() == false
+            && fieldType.isMultiValueSupported()
+            && context.documentInput().getFieldCount(fieldType.name()) > 0) {
+            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+                throw new MapperParsingException(
+                    "Field [" + fieldType.name() + "] cannot accept multiple values: " + multiValueRejectionReason(fieldType)
+                );
+            }
+            addMultiValueMappingUpdate(context);
         }
         context.documentInput().addField(fieldType, value);
+    }
+
+    /** Publishes the idempotent scalar-to-multi-value mapping update for this mapper. */
+    final void addMultiValueMappingUpdate(ParseContext context) {
+        if (fieldType().isMultiValued()) {
+            return;
+        }
+        if (fieldType().isMultiValueSupported() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
+            );
+        }
+        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] cannot promote to multi-valued: " + multiValueRejectionReason(fieldType())
+            );
+        }
+        Builder updateBuilder = getMergeBuilder();
+        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
+        if (update.fieldType().isMultiValued() == false) {
+            throw new IllegalStateException(
+                "Mapper [" + fieldType().name() + "] advertises multi-value support but did not apply [multi_value]"
+            );
+        }
+        context.addDynamicMapper(update);
+    }
+
+    private static String multiValueRejectionReason(MappedFieldType fieldType) {
+        if (fieldType.multiValueState() == MappedFieldType.MultiValueState.AUTO) {
+            return "automatic promotion is disabled; declare [multi_value: true] when creating the field mapping or enable ["
+                + FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG
+                + "]";
+        }
+        return "the field is locked scalar by [multi_value: false]";
     }
 
     @Override

@@ -57,6 +57,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -88,6 +89,17 @@ import java.util.function.Supplier;
 @PublicApi(since = "1.0.0")
 public abstract class MappedFieldType {
 
+    /**
+     * Multi-value state for columnar mappings: omitted {@code multi_value} is AUTO, explicit
+     * {@code false} locks the field in SCALAR state, and explicit {@code true} selects LIST state.
+     */
+    @ExperimentalApi
+    public enum MultiValueState {
+        AUTO,
+        SCALAR,
+        LIST
+    }
+
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
@@ -97,7 +109,8 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
-    private boolean multiValued;
+    private MultiValueState multiValueState = MultiValueState.AUTO;
+    private boolean multiValueSupported;
 
     /**
      * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
@@ -482,19 +495,61 @@ public abstract class MappedFieldType {
     /**
      * Whether this field is declared to hold multiple values per document in columnar data
      * formats ({@code multi_value} mapping parameter). Lucene is inherently multi-valued, so
-     * this flag only matters to pluggable formats whose column type is fixed per file.
+     * this flag only matters to pluggable formats whose column type is fixed per file (e.g.
+     * Parquet, where a declared field is stored as {@code LIST<element>}).
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
     public boolean isMultiValued() {
-        return multiValued;
+        return multiValueState == MultiValueState.LIST;
     }
 
-    /** Sets the immutable mapping-time multi-value shape while building the field mapper. */
+    /**
+     * Compatibility setter for callers that only know scalar versus multi-valued. Setting false
+     * restores AUTO; mapping builders use {@link #setMultiValueState(MultiValueState)} to preserve
+     * explicit SCALAR intent.
+     */
     @ExperimentalApi
     public void setMultiValued(boolean multiValued) {
-        this.multiValued = multiValued;
+        this.multiValueState = multiValued ? MultiValueState.LIST : MultiValueState.AUTO;
+    }
+
+    /** Returns the durable multi-value state. */
+    @ExperimentalApi
+    public MultiValueState multiValueState() {
+        return multiValueState;
+    }
+
+    /** Sets the durable multi-value state. */
+    @ExperimentalApi
+    public void setMultiValueState(MultiValueState multiValueState) {
+        this.multiValueState = Objects.requireNonNull(multiValueState);
+    }
+
+    /** Whether an additional value may trigger an automatic mapping promotion. */
+    @ExperimentalApi
+    public boolean isMultiValueAutoPromotionEnabled() {
+        return multiValueState == MultiValueState.AUTO
+            && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG);
+    }
+
+    /**
+     * Whether this field type can represent multiple scalar values in a pluggable data format.
+     * This is a mapper capability, distinct from {@link #isMultiValued()}, which is the current
+     * one-way mapping state.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public boolean isMultiValueSupported() {
+        return multiValueSupported;
+    }
+
+    /** Sets whether this field type supports automatic scalar-to-multi-value promotion. */
+    @ExperimentalApi
+    public void setMultiValueSupported(boolean multiValueSupported) {
+        this.multiValueSupported = multiValueSupported;
     }
 
     @ExperimentalApi

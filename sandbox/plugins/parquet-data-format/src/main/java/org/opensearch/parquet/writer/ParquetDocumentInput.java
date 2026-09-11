@@ -10,6 +10,7 @@ package org.opensearch.parquet.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
@@ -78,12 +79,22 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             return;
         }
         if (existing.isMultiValued() == false) {
+            if (fieldType.isMultiValueSupported() && fieldType.isMultiValueAutoPromotionEnabled()) {
+                existing.promoteToMultiValued(value);
+                return;
+            }
+            String reason;
+            if (fieldType.isMultiValueSupported() == false) {
+                reason = "the field type does not support automatic multi-value promotion";
+            } else if (fieldType.multiValueState() == MappedFieldType.MultiValueState.AUTO) {
+                reason = "automatic promotion is disabled; declare [multi_value: true] when creating the field mapping or enable ["
+                    + FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG
+                    + "]";
+            } else {
+                reason = "the field is locked scalar by [multi_value: false]";
+            }
             throw new MapperParsingException(
-                "Cannot accept multiple values for field: ["
-                    + fieldType.name()
-                    + "] of type: ["
-                    + fieldType.typeName()
-                    + "]; declare [multi_value: true] when creating the field mapping"
+                "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]: " + reason
             );
         }
         existing.addValue(value);
@@ -117,9 +128,8 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         // O(1) via the name index: addField routes every value for a name into the single pair
         // registered under that name in `seen`, so `seen` and `collectedFields` always hold the
         // same pairs and the lookup is exact. This is on the per-value hot path — the mapper calls
-        // it before every scalar keyword value to reject a second value without scanning all
-        // collected fields, so a linear scan of collectedFields here would make document parsing
-        // quadratic in the field count.
+        // it before every AUTO-state keyword value to decide on scalar-to-LIST promotion — so a
+        // linear scan of collectedFields here made document parsing quadratic in the field count.
         FieldValuePair pair = seen.get(fieldName);
         return pair == null ? 0 : pair.valueCount();
     }
