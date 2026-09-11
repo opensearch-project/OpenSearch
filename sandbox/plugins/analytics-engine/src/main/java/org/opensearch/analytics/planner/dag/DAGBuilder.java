@@ -72,7 +72,7 @@ public class DAGBuilder {
 
     /**
      * {@code subplanReuseEnabled} shares a sub-plan this plan computes more than once instead of computing it twice —
-     * see {@link SharedSubplanReuse}, which explains why that is a correctness fix (TPC-H q15) and not only a
+     * see {@link SharedSubplanReuse}, which explains why that is a correctness fix and not only a
      * saving. Applies to the plan reached through {@code sever}; a root that is itself an exchange or a
      * late-materialization wrapper is cut before {@code sever} runs and is left alone.
      */
@@ -489,18 +489,11 @@ public class DAGBuilder {
         // extra columns. The walk stops at the first non-Project, so a Filter stays BELOW the gather.
         List<OpenSearchProject> hoisted = new ArrayList<>();
         RelNode belowExchange = RelNodeUtils.unwrapHep(reducer.getInput());
-        // ONLY for an aggregate consumer — the pass hoisted exactly here (`isAggregate ? gatherSinkingProjects
-        // : gatherIfNeeded`). Doing it for a JOIN consumer instead un-prunes the shard-side projection and
-        // ships every scan column across the gather for nothing (measured: 3 DAGShapeTests regress).
-        // Hoist ONLY for a SINGLE-mode aggregate consumer. That mirrors the pass exactly: it sank the reducer in
-        // its GATHER branch, which is the non-splittable (SINGLE) path — a FINAL aggregate goes through the
-        // PARTIAL/FINAL preservation branch and never gathered here.
-        //
-        // Hoisting under a FINAL is actively WRONG: the boundary then sits BETWEEN the two aggregate phases, so
-        // the child ships partial state (APPROX_COUNT_DISTINCT ships HLL as Binary) while rewriting the
-        // StageInputScan row type makes the parent declare the FINAL type. Measured: `DatafusionReduceSink:
-        // declared <u: Int(64)> vs batch <u: Binary not null>` — 3 IT failures across ShardBucketOversamplingIT
-        // and PplClickBenchIT.
+        // Hoist ONLY for a SINGLE-mode aggregate consumer. For a JOIN consumer it un-prunes the shard-side
+        // projection and ships every scan column across the gather for nothing. Under a FINAL it is actively
+        // wrong: the stage boundary would sit BETWEEN the two aggregate phases, so the child ships partial
+        // state (HLL as Binary) while the rewritten StageInputScan row type makes the parent declare the FINAL
+        // type, and the reduce sink rejects the mismatch.
         RelNode resolvedConsumer = RelNodeUtils.unwrapHep(consumer == null ? reducer : consumer);
         boolean aggregateConsumer = resolvedConsumer instanceof OpenSearchAggregate aggregate
             && aggregate.getMode() == AggregateMode.SINGLE;

@@ -190,18 +190,12 @@ public class OpenSearchDistribution implements RelDistribution {
             return this.locality == other.locality;
         }
         if (this.type == Type.HASH_DISTRIBUTED) {
-            // PRODUCED keys must be a SUBSET of DEMANDED keys (Spark's
-            // HashPartitioning.satisfies(ClusteredDistribution) direction). Partitioning on hash(k1) keeps
-            // every (k1,k2) group whole, so HASH[k1] satisfies a demand for HASH[k1,k2] — coarser satisfies
-            // finer. NOT the reverse: rows sharing k1 but differing in k2 hash to DIFFERENT buckets, so
-            // HASH[k1,k2] colocates nothing a consumer keyed on k1 alone needs.
-            //
-            // This direction was inverted (`isPrefix(demanded, produced)`, justified as "rows colocated by
-            // hash(k1,k2) are also colocated by hash(k1)", which is false of hashing a tuple). It was masked:
-            // a JOIN is a tier boundary by default and forces its shuffle without consulting satisfies(), and
-            // no unary operator demanded HASH until OpenSearchAggregate began asking for HASH(groupKeys) — at
-            // which point the aggregate would have ridden a child partitioned on [k1,k2] while grouping by
-            // [k1], aggregating groups split across partitions.
+            // PRODUCED keys must be a SUBSET of DEMANDED keys (Spark's HashPartitioning.satisfies direction):
+            // hash(k1) keeps every (k1,k2) group whole, so HASH[k1] satisfies a demand for HASH[k1,k2] —
+            // coarser satisfies finer. NOT the reverse, because hashing a TUPLE scatters rows that share k1 but
+            // differ in k2, so HASH[k1,k2] co-locates nothing a consumer keyed on k1 alone needs. Inverting
+            // this lets an aggregate grouping by [k1] ride a child partitioned on [k1,k2] and aggregate groups
+            // that are split across partitions.
             if (!other.keys.containsAll(this.keys)) return false;
             // Partition counts must match exactly: HASH(k, 4) and HASH(k, 8) place rows in
             // entirely different buckets, so neither satisfies the other regardless of keys.

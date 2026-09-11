@@ -233,7 +233,7 @@ public class PlannerImpl {
         }
         // Exclude plans carrying a Correlate or a non-INNER join. JOIN_TO_MULTI_JOIN flattens inner joins
         // into a MultiJoin, but MULTI_JOIN_OPTIMIZE_BUSHY only re-expands a MultiJoin it can fully reorder;
-        // an EXISTS/NOT-EXISTS subquery (LogicalCorrelate, or a semi/anti join once decorrelated — TPC-H
+        // an EXISTS/NOT-EXISTS subquery (LogicalCorrelate, or a semi/anti join once decorrelated —
         // q21/q11) leaves a residual MultiJoin that no bushy match consumes, and marking then rejects the
         // unmarked MultiJoin ("Filter rule encountered unmarked child [MultiJoin]"). Skip those shapes.
         if (!RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Correlate.class).isEmpty()
@@ -401,7 +401,8 @@ public class PlannerImpl {
      */
     /**
      * Factors a shared equi conjunct out of an OR'd join condition so {@code JoinInfo.analyzeCondition} can
-     * see it — without this a TPC-H q19-shaped join reads as pure theta and is forced coordinator-centric.
+     * see it — without this a join whose equi key is hidden inside an OR reads as pure theta and is forced
+     * coordinator-centric.
      * Runs pre-marking so every downstream split rule sees the normalised condition. See
      * {@link OpenSearchJoinConditionFactorRule}.
      */
@@ -435,22 +436,15 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Transposes (filter-into-*) cascade together within one fixpoint, alongside
-            // PROJECT_MERGE which collapses adjacent Projects. FILTER_MERGE runs as its own
-            // instruction so it only fires after the transposes have settled — that way any
-            // auto-injected NOT NULL collapses with the user's WHERE on the post-pushdown filter,
-            // not on a half-pushed intermediate.
+            // Transposes cascade in one fixpoint with PROJECT_MERGE. FILTER_MERGE is a separate instruction
+            // so it fires only after they settle, letting an auto-injected NOT NULL collapse with the user's
+            // WHERE on the fully pushed filter rather than a half-pushed one.
             //
-            // SORT_PROJECT_TRANSPOSE is intentionally omitted: lifting Project above Sort puts it
-            // above the Exchange, defeating projection pushdown. Keeping it below lets DataFusion
-            // prune the scan. QTF relocates the below-Sort Project above its wrapper itself.
+            // SORT_PROJECT_TRANSPOSE is omitted deliberately: lifting Project above Sort puts it above the
+            // Exchange and defeats projection pushdown.
             //
-            // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
-            // within the limit (e.g. a collation-less `head N` or a sort over a scalar
-            // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
-            // special-case. Runs here, pre-marking, on plain Logical* so marking stays a pure
-            // Logical* -> OpenSearch* conversion. Cascades with LIMIT_MERGE in the same
-            // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
+            // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably within the limit, pre-marking
+            // on plain Logical* so marking stays a pure Logical* -> OpenSearch* conversion.
             .addRuleCollection(
                 List.of(
                     new OpenSearchValuesCharNormalizeRule(),

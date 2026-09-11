@@ -144,7 +144,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertDoesNotContainShuffleExchange("modest asymmetry must not shuffle a tiny dim", result);
     }
 
-    // ── Mixed equi + residual non-equi (TPC-H q14 shape) ───────────────────
+    // ── Mixed equi + residual non-equi ─────────────────────────────────────
 
     /**
      * A join with an equi key AND a residual non-equi predicate (q14: l_partkey=p_partkey AND
@@ -221,11 +221,11 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertDoesNotContainShuffleExchange("theta join must NOT shuffle (only coord-centric is legal)", result);
     }
 
-    // ── Outer joins (TPC-H q13 shape) ──────────────────────────────────────
+    // ── Outer joins ────────────────────────────────────────────────────────
 
     /**
      * A LEFT OUTER equi-join over two large sides must hash-shuffle, NOT gather to the coordinator
-     * (TPC-H q13: customer LEFT JOIN orders → ReduceSizeExceeded when coord-centric at scale). The
+     * (a large LEFT JOIN exceeds the coordinator's reduce buffer at scale). The
      * split rules carry no INNER-only gate, and hash-partitioning a LEFT equi-join on the join key is
      * correct: each preserved-side row and its matches land in one partition, so null-fill is
      * partition-local (standard Spark/Presto behavior). The worker join keeps joinType=LEFT verbatim;
@@ -281,10 +281,9 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
      *
      * <p><b>This is precisely why {@code OpenSearchLargeJoinDistributionRewriter} exists.</b> It is a POSITIVE
      * force-distribute policy above {@code analytics.mpp.distribute.min_rows}, overriding this cost preference —
-     * and this test asserts the END of the pipeline, so it sees the promoted (shuffled) shape. Measured on the
-     * analytics-bench sf=10 cluster with only that policy removed: 14/22 instead of 18/22, every regression
-     * failing with {@code ReduceSizeExceededException} — the coordinator-reduce buffer blown by exactly the
-     * gather this cost comparison prefers.
+     * and this test asserts the END of the pipeline, so it sees the promoted (shuffled) shape. Removing that
+     * policy makes large joins fail with {@code ReduceSizeExceededException} — the coordinator-reduce buffer
+     * blown by exactly the gather this cost comparison prefers.
      *
      * <p>Promoting FULL is safe even though its null-extended rows carry NULL keys on both sides: the rewriter
      * re-gathers with {@code buildReducer} immediately, so the join's partitioning is never exposed to a parent.
@@ -305,11 +304,11 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         );
     }
 
-    // ── Aggregate ABOVE a join (TPC-H q2/q11 shape) ───────────────────────
+    // ── Aggregate ABOVE a join ────────────────────────────────────────────
 
     /**
      * DIAGNOSTIC (#32): a large-fact × small-dim INNER equi-join FEEDING an aggregate
-     * ({@code … join … | stats sum(x) by key}) — the TPC-H q11 bottom-join shape. At sf=10 this
+     * ({@code … join … | stats sum(x) by key}) — the bottom-join-of-a-cascade shape. At scale this
      * gathers the 8M-row fact to the coordinator (ReduceSizeExceeded). The bare join (no agg) picks
      * BROADCAST; this test checks whether the aggregate ABOVE the join suppresses that.
      */
@@ -335,7 +334,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
     }
 
     /**
-     * DIAGNOSTIC (#32): a 3-way fact ⋈ dim1 ⋈ dim2 INNER join feeding an aggregate — the TPC-H q11
+     * DIAGNOSTIC (#32): a 3-way fact ⋈ dim1 ⋈ dim2 INNER join feeding an aggregate — the
      * structure (partsupp ⋈ supplier ⋈ nation | stats sum by key). Checks whether the multi-way shape
      * (vs the 2-way above) is what stops the bottom join distributing on the cluster.
      */
@@ -378,8 +377,8 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
     /**
      * An aggregate over a DISTRIBUTED join must split PARTIAL(worker) / FINAL(coord) in CBO ALONE — no
      * post-CBO pass. This is the shape that decides whether {@code DistributionEnforcementPass} is needed:
-     * without the PARTIAL, the coordinator gathers the RAW join output, and at sf=10 TPC-H q3/q5/q7/q11/q21
-     * all die with {@code ReduceSizeExceededException} (measured: 14/22 vs 18/22 with the pass).
+     * without the PARTIAL, the coordinator gathers the RAW join output and large joins die with
+     * {@code ReduceSizeExceededException}.
      *
      * <p>Uses a TWO-way large×large join, which gets its {@code HASH+WORKER} alternative from
      * {@code OpenSearchHashJoinSplitRule} with no input-gate relaxation, so this isolates the AGGREGATE
@@ -405,10 +404,9 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
      *       remaining work.</li>
      * </ol>
      *
-     * <p>Consequence, measured on analytics-bench sf=10: with the post-CBO pass supplying this split, 18/22;
-     * without it, 14/22, and q3/q5/q7/q11/q21 all fail with {@code ReduceSizeExceededException} because the
-     * coordinator gathers raw join output. So this is the single capability keeping
-     * {@code DistributionEnforcementPass} alive.
+     * <p>Consequence: without the post-CBO pass supplying this split, large aggregate-over-join queries fail
+     * with {@code ReduceSizeExceededException} because the coordinator gathers raw join output. So this is the
+     * single capability keeping {@code DistributionEnforcementPass} alive.
      */
     public void testAggregateOverDistributedJoin_splitsPartialFinal() {
         PlannerContext context = buildMppContext(
@@ -429,7 +427,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertContainsShuffleExchange("the join must hash-shuffle from traits alone", result);
         // But the aggregate above it stays SINGLE over the gather. When this flips to PARTIAL+FINAL,
         // DistributionEnforcementPass loses its last reason to exist — update this test and re-run the
-        // sf=10 A/B on analytics-bench (expect the unwired arm to go 14/22 -> 18/22).
+        // scale A/B (expect the unwired arm to stop failing on large aggregate-over-join queries).
         assertTrue(
             "agg over a distributed join must be split PARTIAL/FINAL (got modes " + modes + "):\n" + plan,
             modes.contains(org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL)
@@ -438,16 +436,16 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
     }
 
     /**
-     * TPC-H q19 shape: the join condition is an OR of three AND-branches that each REPEAT the same equi
+     * Hidden-equi-key shape: the join condition is an OR of AND-branches that each REPEAT the same equi
      * conjunct ({@code p_partkey = l_partkey}) beside a different residual filter. Such a join must still
      * distribute.
      *
      * <p>{@code JoinInfo.analyzeCondition} only finds equi keys among TOP-LEVEL AND conjuncts, so as written
      * this yields {@code leftKeys=[]} and reads as PURE THETA — every MPP split rule declines and the join is
-     * forced coordinator-centric, gathering both inputs. At sf=10 that gathers {@code lineitem ⋈ part} and dies
+     * forced coordinator-centric, gathering both inputs. At scale that gather dies
      * with {@code ReduceSizeExceededException} (~1.36 GB vs a ~1.36 GB budget).
      * {@code OpenSearchJoinConditionFactorRule} factors the shared conjunct out pre-marking, producing
-     * {@code AND(=(..), OR(..))} — the equi-key-plus-residual shape already supported (TPC-H q14).
+     * {@code AND(=(..), OR(..))} — the equi-key-plus-residual shape already supported.
      */
     public void testOrOfAndsSharingEquiKeyStillDistributes() {
         PlannerContext context = buildMppContext(
@@ -527,7 +525,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
     }
 
     /** Build an INNER join whose condition is an equi key AND a residual non-equi predicate:
-     *  {@code AND(left.col0 = right.col0, left.col1 < right.col1)}. This is the TPC-H q14 shape
+     *  {@code AND(left.col0 = right.col0, left.col1 < right.col1)}. This is the mixed equi+residual shape
      *  (l_partkey=p_partkey AND l_shipdate BETWEEN …). JoinInfo.analyzeCondition() yields non-empty
      *  leftKeys but isEqui()=false; the MPP split rules must still fire on the equi key. */
     private RelNode makeMixedEquiResidualJoin(PlannerContext context, String leftIdx, String rightIdx) {

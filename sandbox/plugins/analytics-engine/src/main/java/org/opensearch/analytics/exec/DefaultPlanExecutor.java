@@ -290,23 +290,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ActionListener<ProfiledResult> outerListener,
         boolean broadcastDisabled
     ) {
-        // Broadcast→shuffle retry: on the FIRST attempt, intercept a terminal failure whose cause
-        // chain holds a BroadcastSizeExceededException (the build overflowed the runtime cap — a
-        // pre-flight under-estimate of filter/semijoin selectivity) and re-plan once with broadcast
-        // made ineligible. The broadcastDisabled flag bounds it to a single retry. Mirrors
-        // Presto-on-Spark's DISABLE_BROADCAST_JOIN retry.
-        //
-        // Broadcast→shuffle retry, in two halves so it is both ORDERING-safe and EXCEPTION-safe:
-        // 1) The wrapper below only DETECTS the overflow and stashes it in retryOverflow; it does
-        // NOT submit the retry. This keeps the outer listener un-fired on the overflow path.
-        // 2) The actual retry is submitted from a runAfter installed on the terminal batches
-        // listener (see below), which runs strictly AFTER attempt-1's QueryContext/allocator
-        // teardown completes — so attempt 2 never overlaps attempt 1's allocator under the
-        // shared pool. It is dispatched on the SEARCH executor (off the callback thread, with a
-        // fresh THREAD_PROVIDERS) and guarded by try/catch so a synchronous planning/conversion
-        // throw in attempt 2 still reaches outerListener instead of being lost on a worker.
-        // retryOverflow is non-null only on the first attempt's overflow; broadcastDisabled bounds
-        // it to a single retry.
+        // Broadcast→shuffle retry (mirrors Presto-on-Spark's DISABLE_BROADCAST_JOIN): a
+        // BroadcastSizeExceededException in the first attempt's cause chain means the build overflowed the
+        // runtime cap, so re-plan once with broadcast ineligible. Split in two halves for safety: the wrapper
+        // below only DETECTS the overflow and stashes it in retryOverflow, leaving the outer listener unfired;
+        // the retry itself is submitted from a runAfter on the terminal-batches listener, so it starts strictly
+        // after attempt 1's allocator teardown and never overlaps it under the shared pool. It runs on the
+        // SEARCH executor and is try/catch-guarded so a synchronous throw still reaches outerListener.
+        // broadcastDisabled bounds this to a single retry.
         final AtomicReference<BroadcastSizeExceededException> retryOverflow = new AtomicReference<>();
         final ActionListener<ProfiledResult> listener;
         if (broadcastDisabled) {
@@ -425,7 +416,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // MPP-GENERAL-SCHEDULING-DESIGN.md.
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         // Deliberately NOT gated on MPP_ENABLED: a plan that computes the same aggregate twice returns the wrong
-        // answer coordinator-centric too (TPC-H q15), so the sharing has to apply either way.
+        // answer coordinator-centric too, so the sharing has to apply either way.
         QueryDAG dag = DAGBuilder.build(
             plan,
             capabilityRegistry,

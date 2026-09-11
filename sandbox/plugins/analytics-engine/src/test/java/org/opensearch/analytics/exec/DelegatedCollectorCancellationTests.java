@@ -18,7 +18,7 @@ import org.opensearch.transport.stream.StreamException;
 import java.util.HashMap;
 
 /**
- * Regression tests for the observed sf=10 failure where a delegated-filter fragment on an
+ * Regression tests for the failure where a delegated-filter fragment on an
  * ALREADY-CANCELLED query reported a hard native error instead of a clean cancellation:
  *
  * <pre>

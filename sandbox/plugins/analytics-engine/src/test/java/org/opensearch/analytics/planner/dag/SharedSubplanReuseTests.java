@@ -35,7 +35,7 @@ import java.util.Set;
  *
  * <p>Why this matters beyond saving work: a plan that computes the same aggregate twice returns the WRONG
  * ANSWER when the two copies are compared for exact equality, because {@code SUM(double)} is not associative
- * and the copies' partial sums merge in different orders. That is TPC-H q15, which returns 1 row or 0 rows at
+ * and the copies' partial sums merge in different orders, so the query returns 1 row or 0 rows at
  * random. Sharing one evaluation makes the comparison hold by construction. See {@link SharedSubplanReuse}.
  */
 public class SharedSubplanReuseTests extends BasePlannerRulesTests {
@@ -126,7 +126,7 @@ public class SharedSubplanReuseTests extends BasePlannerRulesTests {
     }
 
     /**
-     * {@code Join(Join(otherScan, sharedAgg), sharedAgg)} — the q15 skeleton. The consumer keeps a second input
+     * {@code Join(Join(otherScan, sharedAgg), sharedAgg)}. The consumer keeps a second input
      * (the other scan's gather) besides the shared aggregate, so it buffers its inputs and sharing is sound.
      */
     private RelNode joinKeepingAnotherInputBesideTheSharedAggregate() {

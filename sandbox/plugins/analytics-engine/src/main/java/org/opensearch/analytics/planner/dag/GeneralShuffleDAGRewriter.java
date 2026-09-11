@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  *
  * <p><b>Outer joins.</b> Promotes a join of ANY type over two shuffles — the enforcement pass already
  * established that a hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local
- * (standard Spark/Presto). Worker-side execution of non-INNER tiered hash joins is validated at sf=10.
+ * (standard Spark/Presto).
  *
  * @opensearch.internal
  */
@@ -315,7 +315,7 @@ public final class GeneralShuffleDAGRewriter {
         // shuffle-input cut, so even a self-join (a ⋈ a) yields two stages. A shared id would make
         // enrichLevels enrich one producer under two slots against a single sink → the worker's awaitReady
         // never completes for one slot → hang. Fail loud (tripwire) rather than hang if a future DAG-shape
-        // change ever collapses them. (codex round-3 review.)
+        // change ever collapses them.
         Set<Integer> distinctProducers = new HashSet<>();
         for (ShuffleInput in : inputs) {
             if (!distinctProducers.add(in.producerStageId())) {

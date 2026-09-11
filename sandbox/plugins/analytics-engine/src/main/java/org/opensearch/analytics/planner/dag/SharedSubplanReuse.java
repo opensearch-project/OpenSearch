@@ -27,13 +27,12 @@ import java.util.regex.Pattern;
 /**
  * Repeated-sub-plan detection for a plan that computes the SAME complete aggregate more than once.
  *
- * <p><b>The correctness problem this solves.</b> A query may inline one subquery twice — TPC-H q15 is
- * {@code supplier ⋈ revenue0} plus {@code where total_revenue = [ … max(total_revenue) ]} over the same
- * {@code revenue0}, because the spec's {@code revenue0} VIEW has no PPL equivalent. Each copy is aggregated
- * independently, and {@code SUM(double)} is not associative, so the two copies' partial sums are merged in
- * different orders and disagree in the last bits. The exact {@code =} then matches nothing and the row
- * vanishes: q15 returns 1 row or 0 rows at random (measured ~9/20 correct, in every distribution
- * configuration — coordinator-centric included, so this is not an MPP artifact).
+ * <p><b>The correctness problem this solves.</b> A query may inline one subquery twice — joining an aggregate
+ * subquery and then filtering on {@code = [ … max(…) ]} over that same subquery, which is what a SQL VIEW with
+ * no PPL equivalent turns into. Each copy is aggregated independently, and {@code SUM(double)} is not
+ * associative, so the two copies' partial sums are merged in different orders and disagree in the last bits.
+ * The exact {@code =} then matches nothing and the row vanishes at random. This happens in every distribution
+ * configuration, coordinator-centric included, so it is not an MPP artifact.
  *
  * <p>Making float summation order-independent would be one cure; computing the shared relation ONCE is the
  * other, and it is correct by construction rather than by numeric luck — both consumers then read the very
@@ -63,7 +62,7 @@ final class SharedSubplanReuse {
 
     /**
      * Annotation ids are a per-query sequential counter ({@code ANNOTATED_PREDICATE(id=0, …)}), so two
-     * semantically identical subtrees carry DIFFERENT ids — in q15 one copy has {@code id=0,1,4,5} and the
+     * semantically identical subtrees carry DIFFERENT ids — one copy may have {@code id=0,1,4,5} and the
      * other {@code id=2,3,6,7}. They must not defeat the match, and dropping them is safe: the surviving copy
      * keeps its own annotations, and the eliminated copy's are simply no longer referenced.
      */

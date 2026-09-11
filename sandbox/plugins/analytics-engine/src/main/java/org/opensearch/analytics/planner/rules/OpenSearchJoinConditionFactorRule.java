@@ -25,14 +25,12 @@ import org.opensearch.analytics.planner.JoinKeyAnalysis;
  * (they all require a non-empty {@code leftKeys}) and the join is forced coordinator-centric, gathering both
  * inputs in full.
  *
- * <p>TPC-H q19 is exactly this shape: three OR'd branches that each repeat {@code p_partkey = l_partkey}
- * alongside a different brand/container/quantity/size filter. Measured at sf=10 it gathers
- * {@code lineitem ⋈ part} and dies with
- * {@code ReduceSizeExceededException} (~1.36 GB against a ~1.36 GB budget). Verified with a probe:
- * as written {@code leftKeys=[]}; after factoring, {@code leftKeys=[0]} and the condition becomes
- * {@code AND(=($0,$2), OR(...))} — precisely the equi-key-plus-residual shape
- * {@link OpenSearchHashJoinSplitRule} already supports (the TPC-H q14 case), so the join can hash-shuffle or
- * broadcast and the gather disappears.
+ * <p>The shape is several OR'd branches that each repeat the same equality — {@code p_partkey = l_partkey}
+ * alongside a different brand/container/quantity/size filter, say. As written {@code leftKeys} is empty, so the
+ * join looks like a pure theta join, gathers both fact tables and can exceed the coordinator's buffer. After
+ * factoring, {@code leftKeys=[0]} and the condition becomes {@code AND(=($0,$2), OR(...))} — the
+ * equi-key-plus-residual shape {@link OpenSearchHashJoinSplitRule} already supports, so the join can
+ * hash-shuffle or broadcast and the gather disappears.
  *
  * <p>Purely a predicate normalisation: {@link RexUtil#pullFactors} is semantics-preserving, so this cannot
  * change results — only which plans become available. Applied to any {@link Join} whose condition actually

@@ -156,7 +156,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      *   <li>A {@code perPartition} Sort is a shard-local top-N deliberately placed BELOW the gather by
      *       {@code OpenSearchSortPushdownRewriter} / {@code OpenSearchTopKRewriter}. It must RIDE its
      *       child's distribution — demanding SINGLETON here would hoist it above the gather and leave the
-     *       shard fragment streaming every row (measured: 51ms → 5391ms over 10M rows).</li>
+     *       shard fragment streaming every row instead of its top N.</li>
      *   <li>A Sort with no collation AND no fetch/offset is a no-op, so it imposes nothing and rides.</li>
      * </ul>
      */

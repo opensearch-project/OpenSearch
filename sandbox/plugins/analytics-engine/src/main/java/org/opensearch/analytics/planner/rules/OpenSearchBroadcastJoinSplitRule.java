@@ -88,7 +88,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         OpenSearchJoin join = call.rel(0);
         JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Require at least one EQUI key, but do NOT require info.isEqui(): a join may carry equi keys
-        // AND a residual non-equi predicate (e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate
+        // AND a residual non-equi predicate (e.g. e.g. l_partkey=p_partkey AND l_shipdate
         // BETWEEN …). emitBroadcastAlternative copies the FULL join condition (equi + residual) onto
         // the worker join, so the probe-side HashJoinExec applies the residual as a join filter after
         // the equi match. A PURE-theta / cross join (no equi key) still bails (empty leftKeys) and
@@ -154,7 +154,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * expected post-filter estimate — NOT the selectivity-ignoring {@code getMaxRowCount} upper
      * bound. This mirrors Spark's plan-time {@code canBroadcastBySize}, which compares the
      * filter-reduced {@code stats.sizeInBytes} against {@code autoBroadcastJoinThreshold}: a build
-     * behind a selective filter (e.g. TPC-H q17's {@code part WHERE p_brand=… AND p_container=…})
+     * behind a selective filter (e.g. {@code part WHERE p_brand=… AND p_container=…})
      * estimates small and is allowed to broadcast, even though the unfiltered table is huge. A
      * conservative max-bound would suppress those legitimate broadcasts. The cost of trusting the
      * estimate — a build that filters less than predicted and overflows the runtime cap — is caught

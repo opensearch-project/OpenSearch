@@ -189,18 +189,14 @@ public final class ShuffleEnrichment {
             // scan subtree.
             Stage buildProducer = level.inputs().getLast().producer();
             long buildRows = subtreeMaxScanRows(buildProducer.getFragment());
-            // Compare BYTES, not rows: the constraint is the operator pool, and the same row count spans
-            // more than an order of magnitude of footprint depending on column count and type widths. Width
-            // comes from the row type, so it needs no statistics — it is the reliable half of the estimate,
-            // and reusing the broadcast gate's heuristic keeps one definition of "how wide is a row".
+            // Compare BYTES, not rows: the constraint is the operator pool, and one row count spans an order
+            // of magnitude of footprint depending on column widths. Width comes from the row type, so it needs
+            // no statistics.
             //
-            // 0 rows means NO REACHABLE SCAN, i.e. UNKNOWN — never "small". Treating it as small picks the
-            // hash join, whose build has no escape to disk, for exactly the builds we know least about: an
-            // upper worker tier whose build is a derived relation (a lower join or aggregate) has no table
-            // scan beneath it and so always estimates 0. Those are the largest builds in a multi-tier plan,
-            // and the failure is a hard allocation error rather than a spill. An unknown build therefore
-            // takes the SPILLABLE join: the cost of sorting a build that turns out small is bounded, while
-            // the cost of hash-building one that turns out huge is the query.
+            // 0 rows means NO REACHABLE SCAN, i.e. UNKNOWN — never "small". An upper worker tier whose build is
+            // a derived relation always estimates 0, and those are the LARGEST builds in a multi-tier plan.
+            // Unknown therefore takes the SPILLABLE join: sorting a build that turns out small costs a bounded
+            // amount, while hash-building one that turns out huge costs the query.
             long buildBytes = estimatedBuildBytes(buildProducer, buildRows);
             boolean preferHashJoin = buildRows > 0 && buildBytes > 0 && buildBytes < sortMergeJoinMinBytes;
 

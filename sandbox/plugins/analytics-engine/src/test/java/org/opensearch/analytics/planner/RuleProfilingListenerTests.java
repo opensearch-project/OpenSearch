@@ -37,7 +37,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         "subquery-remove",
         "literal-agg-extract",
         // Factors a shared equi conjunct out of an OR'd join condition so analyzeCondition can see it
-        // (TPC-H q19 shape) — must run before marking so every split rule sees the normalised predicate.
+        // (equi key hidden inside an OR) — must run before marking so every split rule sees it normalised.
         "factor-join-conditions",
         "reduce-expressions",
         "pushdown-rules",
@@ -102,10 +102,9 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                // 8, not 1: the marking phase now seeds the aggregate UNRESOLVED, so this rule matches once
-                // per (aggregate, input-subset) pair the memo forms rather than once against a single
-                // pre-stamped trait. The extra firings are search-space, not extra plan nodes — the chosen
-                // plan is unchanged, and the sf=10 TPC-H sweep showed no latency change (+0.7% P50 total).
+                // 8, not 1: the marking phase seeds the aggregate UNRESOLVED, so this rule matches once per
+                // (aggregate, input-subset) pair the memo forms rather than once against a pre-stamped trait.
+                // The extra firings are search space, not extra plan nodes — the chosen plan is unchanged.
                 Map.entry("OpenSearchAggregateSplitRule", 8L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 // OpenSearchDistributionDeriveRule is GONE (deleted with the move to top-down traits —

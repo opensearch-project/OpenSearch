@@ -90,8 +90,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * shared key. Dropping that redundant shuffle is strictly better, and the N-ary shuffle transport
      * ({@code ShuffleSlots}) delivers one slot per leaf.
      *
-     * <p>Validated by measurement: this shape scores 18/22 on the analytics-bench sf=10 cluster — identical
-     * to the old pass — with q3/q5/q7/q11 (the multi-way and aggregate-over-join shapes) all correct.
+     * <p>Validated at scale: this shape matches the old pass on the multi-way and aggregate-over-join cases.
      */
     public void testEnforcementPass_threeWayJoinFusesCoPartitionedLevels() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -103,7 +102,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         // Co-partitioned levels FUSE: the top join consumes the bottom join DIRECTLY (no redundant same-key
         // reshuffle), and the only exchanges are one leaf shuffle per scan. The deleted enforcement pass forced
-        // a binary tier here; the fused shape drops a shuffle and is what scores 18/22 at sf=10.
+        // a binary tier here; the fused shape drops a redundant same-key reshuffle.
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins in the 3-way plan", 2, joins.size());
         OpenSearchJoin top = joins.get(0);
@@ -119,7 +118,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Option B: agg over a 3-way cascade (q5/q10 class). The enforcement pass must split the SINGLE
+     * Option B: agg over a 3-way cascade. The enforcement pass must split the SINGLE
      * aggregate into PARTIAL (over the distributed cascade) + FINAL (over a coordinator gather), and
      * the cascade below must still form. Asserts: exactly one PARTIAL + one FINAL aggregate, a cascade
      * of 2 joins, and the FINAL gathers (ER above PARTIAL).
@@ -330,8 +329,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * {@code OpenSearchLargeJoinDistributionRewriter} produces now, because {@code buildShuffleExchange} is
      * satisfies-gated for the same-key case.
      *
-     * <p>Validated by measurement, not just shape: on the analytics-bench sf=10 cluster this shape scores
-     * 18/22, matching the old pass exactly, with q3/q5/q7/q11 (the multi-way + aggregate shapes) all correct.
+     * <p>Validated at scale, not just by shape: this matches the old pass on the multi-way + aggregate cases.
      * The N-ary shuffle transport ({@code ShuffleSlots}) delivers one slot per leaf.
      */
     public void testGeneralShuffle_threeWayJoinFusesIntoOneWorkerTier() {
@@ -472,7 +470,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Empty-group aggregate over a large join must STILL distribute (the TPC-H q2/q11 scalar-subquery shape:
+     * Empty-group aggregate over a large join must STILL distribute (the scalar-subquery shape:
      * {@code stats sum(x)} with NO {@code by}). The aggregate OUTPUT is one row, but the JOIN OUTPUT feeding
      * it is huge — gathering the whole join to the coordinator before the SINGLE aggregate runs is the OOM
      * surface. So the pass must split: PARTIAL on the worker (per-partition), FINAL on the coordinator. Ported
@@ -506,7 +504,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Storage-completeness regression (the sf=10 q5/q10 "RexInputRef[N] has no matching FieldStorageInfo
+     * Storage-completeness regression (the "RexInputRef[N] has no matching FieldStorageInfo
      * entry" crash): every {@link org.opensearch.analytics.planner.rel.OpenSearchRelNode} in the enforced
      * agg-over-join plan must report one {@code FieldStorageInfo} per output column. The original bug was a
      * leaf returning {@code List.of()} that truncated the storage union, throwing at fragment conversion.
@@ -577,8 +575,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * {@code OpenSearchLargeJoinDistributionRewriter} produces now, because {@code buildShuffleExchange} is
      * satisfies-gated for the same-key case.
      *
-     * <p>Validated by measurement, not just shape: on the analytics-bench sf=10 cluster this shape scores
-     * 18/22, matching the old pass exactly, with q3/q5/q7/q11 (the multi-way + aggregate shapes) all correct.
+     * <p>Validated at scale, not just by shape: this matches the old pass on the multi-way + aggregate cases.
      * The N-ary shuffle transport ({@code ShuffleSlots}) delivers one slot per leaf.
      */
     public void testGeneralShuffle_bushyTreeFusesIntoOneWorkerTier() {
@@ -688,7 +685,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Codex BLOCKER 2 regression: a decomposable aggregate grouped on a NON-join-key column over a
+     * Regression: a decomposable aggregate grouped on a NON-join-key column over a
      * multi-way join ({@code A⋈B⋈C on col0 | stats count() by col1}). The aggregate's group key (col1)
      * differs from the join partitioning (col0). The pass must NOT insert a group-key re-shuffle (that
      * would be a non-join shuffle edge GeneralShuffleDAGRewriter can't wire → hang) — instead the PARTIAL
@@ -738,7 +735,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Codex BLOCKER 1 regression: a window function ({@code RexOver}) over a distributed multi-way join.
+     * Regression: a window function ({@code RexOver}) over a distributed multi-way join.
      * The window-bearing {@code OpenSearchProject} requires {@code COORDINATOR+SINGLETON} input (a global
      * window frame can't run per-partition). Over a distributed join the pass MUST insert a gather (ER)
      * before the window — the bug was that the SINGLETON requirement went through the satisfies()-gated
@@ -777,7 +774,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * sf=10 q3 BLOCKER regression: a filtered scan feeding a join must stay a SHARD producer, not become a
+     * BLOCKER regression: a filtered scan feeding a join must stay a SHARD producer, not become a
      * coordinator reduce. CBO gathers the scan (ER) under the filter; the pass peels that ER, and the filter
      * (transparent, shard-local child) must RIDE on the shards — so the join's shuffle wraps
      * {@code Shuffle(Filter(scan))} with NO ExchangeReducer between the filter and the scan. The bug: the
@@ -850,7 +847,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Codex re-review BLOCKER regression: a NON-decomposable SINGLE aggregate ({@code COUNT(DISTINCT col1)})
+     * Regression: a NON-decomposable SINGLE aggregate ({@code COUNT(DISTINCT col1)})
      * over a distributed multi-way join. A non-decomposable aggregate is split-ineligible
      * ({@code shouldSkipPartialFinalSplit} true for DISTINCT) so {@code requiredInputDistribution} is null —
      * but it must NOT ride on the join worker per-partition (that would compute per-partition distinct
@@ -881,8 +878,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * sf=10 bucket-A BLOCKER regression: a JOIN whose input is a GATHERED sub-stage (a decorrelated
-     * subquery's aggregate — TPC-H q4 `exists`→SEMI, q22 `not exists`→ANTI, q2/q15 scalar subqueries) must
+     * BLOCKER regression: a JOIN whose input is a GATHERED sub-stage (a decorrelated subquery's aggregate —
+     * `exists`→SEMI, `not exists`→ANTI, or a scalar subquery) must
      * NOT be distributed. {@code Join(Aggregate(Join(A,B)), C)} — the top join's left input is an aggregate
      * over a join, which the pass gathers to COORDINATOR+SINGLETON (a ReduceStageExecution at DAG time). A
      * reduce stage emits to its parent sink and CANNOT ship a hash shuffle, so distributing the top join
@@ -917,8 +914,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
     /**
      * A join whose input is a GATHERED AGGREGATE sub-stage IS distributed — the aggregate's coordinator-reduce
-     * stage acts as the hash-shuffle PRODUCER. This is the decorrelated-subquery shape (TPC-H q4
-     * {@code exists}→SEMI, q22 {@code not exists}→ANTI, q2/q15 scalar subqueries, and q21's
+     * stage acts as the hash-shuffle PRODUCER. This is the decorrelated-subquery shape
+     * ({@code exists}→SEMI, {@code not exists}→ANTI, scalar subqueries, and the
      * exists/not-exists over lineitem).
      *
      * <p>Shuffle production is INSTRUCTION-driven: when a reduce stage's own instruction chain carries a
@@ -931,7 +928,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * entirely inside the deleted post-CBO enforcement pass; the RUNTIME half survived the deletion, so
      * {@code OpenSearchLargeJoinDistributionRewriter.canProduceShuffle} admits an {@code Aggregate} below the
      * cut. Rejecting it left every join above a decorrelated subquery coordinator-centric, which is what made
-     * q21 gather and trip {@code ReduceSizeExceededException} at sf=10.
+     * gather and trip {@code ReduceSizeExceededException} at scale.
      */
     public void testEnforcementPass_joinOverGatheredAggregateDistributes() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -1095,7 +1092,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Codex round-3 BLOCKER (a SELF-JOIN must produce TWO distinct producer stages, not one shared id that
+     * (a SELF-JOIN must produce TWO distinct producer stages, not one shared id that
      * enrichLevels would enrich as both left and right → only one sink → hang). Verifies the binary shuffle
      * transport is safe for {@code a ⋈ a on k}: DAGBuilder cuts each shuffle input into its OWN stage (one
      * id per shuffle-input cut), so the two producers have distinct ids even when both scan the same table.
@@ -1240,7 +1237,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * DAG-cut regression for broadcast-under-shuffle (the q3/q8/q9 fix): when a shuffle producer's fragment
+     * DAG-cut regression for broadcast-under-shuffle: when a shuffle producer's fragment
      * is {@code Join(BroadcastScan(build), shardScan)} — a broadcast nested under a shuffle tier — the
      * producer stage must be cut as a {@link StageExecutionType#SHARD_FRAGMENT} with a
      * {@link ShardTargetResolver} (it scans a shard table and ships its hash partition), NOT a
@@ -1344,7 +1341,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /** Builds Aggregate(Join(Join(a,b), c) by col0, count) — an Aggregate ABOVE the top join (the
-     *  TPC-H q3 shape). The agg runs on the coordinator after the worker join, so cascade detection
+     *  shape). The agg runs on the coordinator after the worker join, so cascade detection
      *  must NOT be blocked by it. */
     private RelNode makeAggregateOverThreeWayJoin(PlannerContext context) {
         RelNode join = makeThreeWayJoin(context);
@@ -1413,7 +1410,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
     }
 
-    /** {@code stats sum(size)} (empty group) over the 3-way join — the q2/q11 scalar-subquery shape. SUM
+    /** {@code stats sum(size)} (empty group) over the 3-way join — the scalar-subquery shape. SUM
      *  over an empty group infers NULLABLE (no rows → null), unlike the grouped case. */
     private RelNode makeEmptyGroupSumOverThreeWayJoin(PlannerContext context) {
         RelNode join = makeThreeWayJoin(context);
@@ -1597,7 +1594,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Codex-review MUST-FIX (correctness): {@code RelFieldTrimmer} rewrites the WHOLE plan, so the trim
+     * (correctness): {@code RelFieldTrimmer} rewrites the WHOLE plan, so the trim
      * gate requires ALL joins to be equi-joins — a single CROSS JOIN anywhere (e.g. PPL {@code transpose}
      * beside a real join) must DISABLE the trim, because the trimmer would silently mis-rewrite the
      * cross-join branch. Here: an aggregate (drops {@code size}) over an equi-join whose left input is a
@@ -1627,7 +1624,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /** {@code COUNT() GROUP BY col0} over {@code equiJoin( crossJoin(a,b), c )} — mixes a cross-join with
-     *  a real equi-join in one tree (the Codex Q4 shape). */
+     *  a real equi-join in one tree. */
     private RelNode makeAggregateOverCrossThenEquiJoin(PlannerContext context) {
         RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
         RelNode bScan = stubScan(mockTable("b_idx", "status", "size"));

@@ -124,9 +124,9 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
      * distribution — it runs in HEP, where {@code convert()} is a no-op, so it cannot demand anything of
      * its inputs — and a parent's own legality then depends on reading that claim. Seeding the join
      * UNRESOLVED instead does not help: a demand for {@code Type.ANY} is satisfied by anything
-     * ({@link OpenSearchDistribution#satisfies}), so an ANY input subset makes every parent's check skip
-     * and a {@code SINGLE} aggregate over partitioned input wins on tiny cost (measured: 15 plan
-     * regressions, one of them a per-partition aggregate concatenated by the root gather with no merge).
+     * ({@link OpenSearchDistribution#satisfies}), so an ANY input subset makes every parent's check skip and a
+     * {@code SINGLE} aggregate over partitioned input wins on tiny cost — its groups then arrive at the root
+     * gather per-partition and are concatenated without being merged.
      * So this gate is the join's requirement DECLARATION, and it stays until Logical/Physical join nodes
      * are split apart — then the seed carries no distribution and every alternative comes from
      * {@link #passThroughTraits}/{@link #deriveTraits}, which set self and input traits together.
@@ -214,20 +214,10 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
             return planner.getCostFactory().makeInfiniteCost();
         }
-        // Beyond the legality gate above, charge the join for the work it does — DIVIDED by the
-        // parallelism its distribution buys. This is what makes a distributed plan win on its own merit:
-        // the same rows are processed, but across N workers instead of one coordinator.
-        //
-        // Previously every legal shape returned makeTinyCost(), so parallelism was not modelled ANYWHERE
-        // and a coordinator join looked exactly as cheap as an N-way distributed one — only the exchanges
-        // differed. Under bottom-up Volcano that was masked (the coordinator alternative was only
-        // reachable via a split rule that self-suppresses when an MPP rule fires), but top-down can
-        // synthesize the coordinator plan directly, so the missing credit made it win every time.
-        //
-        // Parallelism comes from real cluster facts, not a tuned constant: the shuffle partition count
-        // for a worker-tier hash join, or the probe-node estimate for a broadcast (the same value the
-        // broadcast exchange's own cost model scales by, carried in the REPLICATED input's
-        // partitionCount slot).
+        // Charge the join for its work DIVIDED by the parallelism its distribution buys — without this a
+        // coordinator join prices the same as an N-way distributed one and always wins. The divisor comes
+        // from cluster facts: the shuffle partition count for a worker-tier hash join, or the probe-node
+        // estimate for a broadcast (carried in the REPLICATED input's partitionCount slot).
         double inputRows = mq.getRowCount(getLeft()) + mq.getRowCount(getRight());
         int parallelism = 1;
         if (isHashWorker && selfDist.getPartitionCount() != null) {
@@ -263,13 +253,10 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             return null;
         }
         OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
-        // Answers a SINGLETON demand with the COORDINATOR shape, deliberately, even when the demand is
-        // locality-agnostic and two co-located 1-shard inputs could satisfy it where they sit. Passing the
-        // demand through instead saves one gather on a single-shard join but costs q8 SEVEN TIMES its runtime
-        // at sf=10 (0.4s to 2.8s): the join stops seeing a coordinator-gathered pair, and its BROADCAST
-        // alternative (`shuf x12, gather x2, bcast x1`) loses to a pure shuffle (`shuf x14, gather x2`).
-        // Measured on the analytics-bench cluster with the shard layout pinned; reverting restores both the
-        // 0.4s and the broadcast shape, and fixes no test on its own.
+        // Answers a SINGLETON demand with the COORDINATOR shape deliberately, even for a locality-agnostic
+        // demand that two co-located 1-shard inputs could satisfy where they sit. Passing the demand through
+        // saves one gather on a single-shard join, but the join then never sees a coordinator-gathered pair,
+        // and its broadcast alternative loses to a plain shuffle on much larger inputs — a bad trade.
         OpenSearchDistribution singleton = traitDef.coordSingleton();
         return Pair.of(
             getTraitSet().replace(singleton),

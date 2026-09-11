@@ -73,7 +73,7 @@ import java.util.function.Function;
  *       consumes it.</li>
  * </ol>
  *
- * <p>This composes broadcast with shuffle at ANY nesting (a small build under a shuffle cascade — TPC-H
+ * <p>This composes broadcast with shuffle at ANY nesting (a small build under a shuffle cascade —
  * q3/q8/q9; a shuffle join above a broadcast — q17; a standalone broadcast — q12) because the broadcast
  * is resolved away into an instruction before the shuffle promotion ever runs.
  *

@@ -324,41 +324,22 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         // defined cost or a defined correctness. This ONE invariant does the work that a shape-by-shape
         // legality table used to — the marking phase's seed lives in the ANY subset, and only the concrete
         // alternatives its passThrough/derive hooks produce are consumable.
+        // No distribution trait at all is not the same as an unresolved one — it carries no placement claim
+        // either way, so it costs what it did before distribution became a search dimension.
         if (inputDistribution == null) {
-            // No distribution trait at all is NOT the same as an unresolved one, and stays tinyCost: the
-            // pre-existing code reached that by skipping non-distribution traits. Folding it into the
-            // infinite branch would be an unmotivated cost change.
             return planner.getCostFactory().makeTinyCost();
         }
         if (inputDistribution.getType() == RelDistribution.Type.ANY) {
             return planner.getCostFactory().makeInfiniteCost();
         }
-        // PARTIAL over already-gathered input STAYS PRICED, not asserted: OpenSearchAggregateSplitRule builds
-        // its PARTIAL at child.getTraitSet(), and at match time that child can still be unresolved, so the
-        // rule cannot check its own legality and registers OPTIMISTICALLY. The combination therefore really is
-        // constructed (an assertion here fires on 34 tests), and cost is what keeps it from being chosen.
-        // Retiring this needs a "partitioned, specification irrelevant" value in OpenSearchDistribution, so
-        // the split can be formed against what the input can actually DELIVER rather than against the trait
-        // already stamped on it. Modelling that value is not enough on its own: demanding it via convert()
-        // makes the PARTIAL itself carry a wildcard trait, which is a demand-side value and corrupts every
-        // downstream trait (measured: 48 test failures). It needs a consumer that pushes the demand DOWN.
         assert assertPlacementIsLegal(inputDistribution);
 
-        // FINAL pays a merge cost proportional to its input row count. Coord-centric merges serially
-        // (partitionCount=1); HASH+WORKER merges in parallel across N workers (partitionCount=N). That /N
-        // discount is what lets the shuffle path beat the coord-centric path on high-cardinality GROUP BY
-        // despite paying an extra gather ER on top — and only when the savings exceed the gather's setup, so
-        // tiny inputs still route coord-centric. This is REAL cost, not a placement gate.
+        // FINAL merges its input rows, divided by the parallelism the input supplies: a coordinator gather
+        // merges serially, a worker-tier shuffle merges across N partitions. That /N is what lets the shuffle
+        // path win on high-cardinality GROUP BY despite the extra gather above it. Real cost, not a gate.
         if (mode == AggregateMode.FINAL) {
             boolean hashWorker = inputDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
                 && inputDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
-            // STAYS PRICED, like the PARTIAL branch, and for a reason that an assertion cannot see: the
-            // assertion below skips a node whose OWN distribution is unresolved, but this gate does not — and
-            // a FINAL that has not yet committed to a placement, sitting over some other concrete
-            // distribution, is exactly what it prices out. Asserting instead never fires (no COMMITTED FINAL
-            // reaches an illegal input) yet still costs q8 a 7x regression at sf=10: 0.4s -> 3.1s, because the
-            // alternatives this used to make unaffordable start competing and displace q8's broadcast
-            // (shape `shuf x12, gather x2, bcast x1` becomes `shuf x14, gather x2`).
             int partitionCount = hashWorker && inputDistribution.getPartitionCount() != null
                 ? Math.max(1, inputDistribution.getPartitionCount())
                 : 1;
@@ -369,19 +350,20 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
     }
 
     /**
-     * The placement invariants each aggregate mode implies. ASSERTED, not priced.
-     *
-     * <p>These were three {@code makeInfiniteCost()} branches — legality expressed through the cost channel,
-     * which exists for ranking. They are unreachable now that the requirements are stated where they belong:
+     * The placement invariants each aggregate mode implies. ASSERTED, not priced — these were three
+     * {@code makeInfiniteCost()} branches, i.e. legality expressed through the cost channel, which exists for
+     * ranking. Each is unreachable because the requirement is now stated in the trait hooks instead:
      * <ul>
-     *   <li>{@code SINGLE} needs gathered input (per-shard aggregates would never merge) and
-     *       {@link #passThroughTraits} DEMANDS it, so the illegal pair is not constructible;</li>
-     *   <li>{@code PARTIAL} is NOT covered here — it is still priced, see the branch above;</li>
-     *   <li>{@code FINAL} is NOT covered here either — also still priced, see the branch above.</li>
+     *   <li>{@code SINGLE} needs gathered input, and {@link #passThroughTraits} demands SINGLETON;</li>
+     *   <li>{@code PARTIAL} needs partitioned input, and BOTH hooks decline a singleton — the demand side in
+     *       {@link #passThroughTraits} and the derive side in {@link #deriveTraits}. Volcano builds
+     *       alternatives from either direction, so closing only one leaves the other able to produce the
+     *       illegal pair;</li>
+     *   <li>{@code FINAL} runs over a coordinator gather or a worker shuffle, and every builder sets that
+     *       trait explicitly.</li>
      * </ul>
-     * Kept as an assertion rather than deleted because a violation is silently WRONG RESULTS, not a slow plan:
-     * it would under-count. Assertions are on in the test suites, so a future builder that breaks one fails
-     * loudly there instead of shipping.
+     * Asserted rather than deleted because a violation is silently wrong results — an under-count — not a slow
+     * plan. Assertions are on in the suites, so a builder that breaks one fails there instead of shipping.
      *
      * @return always {@code true}, so this reads as {@code assert assertPlacementIsLegal(...)}
      * @throws IllegalStateException when a mode meets input it cannot correctly consume

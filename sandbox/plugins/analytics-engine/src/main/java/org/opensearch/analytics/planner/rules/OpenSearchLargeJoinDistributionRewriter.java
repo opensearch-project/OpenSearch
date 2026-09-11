@@ -50,9 +50,8 @@ import java.util.Optional;
  *       that fits.</li>
  * </ol>
  *
- * <p><b>Measured worth (analytics-bench sf=10, one variable):</b> without this promotion q3/q5/q7/q11/q21 all
- * fail with {@code ReduceSizeExceededException} — the coordinator gathering raw upper-join input at ~1.3 GB —
- * and the sweep scores 14/22 instead of 18/22.
+ * <p><b>Why it is load-bearing.</b> Without the promotion the coordinator gathers raw upper-join input, which
+ * exceeds its buffer on large inputs.
  *
  * <p><b>Exit condition.</b> Delete this class once exchange cost carries a memory/spill term (so reason 2
  * disappears) and the hash-join input gate is relaxed (so reason 1 disappears). Both are CBO-side changes;
@@ -122,23 +121,12 @@ public final class OpenSearchLargeJoinDistributionRewriter {
         if (selfDist == null || selfDist.getLocality() != OpenSearchDistribution.Locality.COORDINATOR) {
             return join;
         }
-        // Which join types may be promoted. The requirement is only that hash-partitioning EACH INPUT on its
-        // own equi keys co-locates every row that could match — true for INNER, LEFT, RIGHT, SEMI and ANTI, and
-        // exactly what OpenSearchHashJoinSplitRule already does for a two-way join (it carries no join-type
-        // filter, and HashShuffleJoinIT covers the LEFT/RIGHT cases end-to-end). SEMI/ANTI project only the
-        // left side and emit no null-extension, so they are safe here too — needed for the decorrelated
-        // subquery shapes, e.g. TPC-H q21, which otherwise gathers and trips ReduceSizeExceededException.
-        //
-        // FULL is included too. The usual objection — its null-extended rows carry NULL keys on BOTH sides, so a
-        // parent cannot rely on the output partitioning (why OpenSearchJoin.advertisesLeftKeyHash declines
-        // RIGHT/FULL) — does not apply HERE, because promote() always wraps the result in buildReducer(): the
-        // join's partitioning is re-gathered immediately and never exposed to a parent. What matters for the
-        // join itself is only that each input is hash-partitioned on its own equi keys, so every pair that
-        // could match co-locates and unmatched rows are null-extended by whichever partition holds them.
-        // HashShuffleJoinIT covers FULL end-to-end.
-        //
-        // ASOF/LEFT_ASOF stay out: they are temporal nearest-match joins whose matching is not equi on the
-        // hash keys, so co-partitioning does not guarantee a match lands in the same partition.
+        // Promotable when hash-partitioning EACH INPUT on its own equi keys co-locates every row that could
+        // match: INNER, LEFT, RIGHT, SEMI, ANTI and FULL all qualify. FULL is safe here despite its
+        // null-extended rows carrying NULL keys on both sides — the usual reason to decline it is that a PARENT
+        // cannot trust the output partitioning, and promote() re-gathers via buildReducer() immediately, so no
+        // parent ever sees it. ASOF/LEFT_ASOF stay out: their matching is not equi on the hash keys, so
+        // co-partitioning does not guarantee a match lands in the same partition.
         switch (join.getJoinType()) {
             case INNER, LEFT, RIGHT, FULL, SEMI, ANTI -> {
             }
@@ -299,8 +287,7 @@ public final class OpenSearchLargeJoinDistributionRewriter {
         // instruction-driven and ungated, and it fails LOUDLY (IllegalStateException "its partitions would never
         // be shipped and the consuming worker would hang") rather than hanging if the sender deps are missing.
         // Rejecting this shape is what kept every join above a decorrelated subquery coordinator-centric —
-        // measured: TPC-H q21 (exists/not-exists over lineitem) then gathers and trips
-        // ReduceSizeExceededException at sf=10.
+        // an exists/not-exists subquery over a large table then gathers and exceeds the coordinator buffer.
         if (n instanceof OpenSearchJoin || n instanceof OpenSearchAggregate) {
             return RelNodeUtils.subtreeMaxScanRows(n) > 0;
         }

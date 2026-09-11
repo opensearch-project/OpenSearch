@@ -37,7 +37,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
  * ABOVE the join, and that reducer charges {@code getRowCount(join)}. The inflated 1.2e11
  * therefore poisons ONLY the distributed plans, so the cost model always falls back to
  * coordinator-centric for large×small joins — which then gathers the whole fact table to the
- * coordinator and trips {@code ReduceSizeExceededException} (TPC-H q2/q11). Correcting the join
+ * coordinator and trips {@code ReduceSizeExceededException}. Correcting the join
  * estimate lets the distributed shapes (and, with a PARTIAL aggregate pushed below the gather,
  * the distributed-agg-over-join shape) compete on realistic costs.
  *

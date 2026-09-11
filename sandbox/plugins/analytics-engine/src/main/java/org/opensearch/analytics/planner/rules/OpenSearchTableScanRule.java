@@ -83,30 +83,15 @@ public class OpenSearchTableScanRule extends RelOptRule {
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.SCAN);
         List<String> viableBackends = new ArrayList<>(registry.scanCapableBackends());
 
-        // Two-phase field coverage check:
-        // 1. Value-producing backends (DocValues / StoredFields) must cover EVERY field —
-        // downstream ops can need any column's actual value, so a value-driver must be
-        // able to deliver all of them. Original strict invariant.
-        // 2. Metadata-only drivers (today: only Lucene via inverted index) stay viable if
-        // they cover SOME field. Downstream ops that need a column the metadata driver
-        // can't reach (e.g. Project on a numeric field) self-restrict and PlanForker's
-        // chain-agreement filter drops the driver from the surviving alternatives. The
-        // only chain that makes it through end-to-end is the count fast-path shape:
-        // count(*) / count(col) over filters touching only Lucene-indexable fields.
+        // Two-phase field coverage. A VALUE-producing backend (DocValues/StoredFields) must cover EVERY field,
+        // since any column's value may be needed downstream. A METADATA-ONLY driver stays viable if it covers
+        // SOME field: an op needing a column it cannot reach self-restricts, and PlanForker's chain-agreement
+        // filter then drops the driver, leaving only the count fast-path shape end-to-end. Without the split, a
+        // single non-indexable field in the row type would disqualify Lucene from every query on the index.
         //
-        // Without the split, a single non-keyword field in the scan's row type (e.g.
-        // `amount`) would disqualify Lucene from every query against the index, even
-        // queries that never reference it.
-        //
-        // TODO: today {@code "lucene"} is the only metadata-only driver, identified by
-        // membership in the per-field {@code FieldStorageInfo.getIndexFormats()}. When a
-        // second metadata-only backend (e.g. Tantivy) lands — or worse, a backend that
-        // declares both Index AND DocValues — replace this hardcoded id with a
-        // first-class identifier on {@code BackendCapabilityProvider} (e.g. a "metadata
-        // driver" marker) so the planner can tell them apart from value-producing peers
-        // that happen to also have an inverted index. See
-        // CapabilityRegistry.metadataOnlyScanBackends history for the prior precomputed
-        // set; collapsed for now to keep the registry surface small.
+        // TODO: replace the hardcoded id with a first-class "metadata driver" marker on
+        // BackendCapabilityProvider once a second such backend exists, or one declaring both Index and
+        // DocValues.
         final String metadataOnlyDriver = "lucene";
         // When the cluster setting analytics.planner.prefer_metadata_driver is off, skip the
         // permissive metadata-only gate entirely — the metadata driver runs the strict

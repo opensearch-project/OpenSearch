@@ -327,20 +327,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        // OpenSearchProjectRule.annotateExpr recurses into operands when validating viable
-        // backends, so a top-level call like COALESCE(num0, CEIL(num1)) ends up with the inner
-        // CEIL also wrapped. The supplied annotationResolver controls how each top-level
-        // wrapper is unwrapped (defaults to OperatorAnnotation::unwrap, returning the original
-        // RexNode); a RexShuttle then sweeps the resolver's result to strip any remaining
-        // nested wrappers. Substrait conversion only recognizes the underlying RexCall shape,
-        // so every wrapper at every depth must be removed before the plan is handed to a
-        // backend's FragmentConvertor.
-        //
-        // Top-level baseline operators (BASELINE_SCALAR_OPS — COALESCE, CASE, CAST, arithmetic,
-        // IS_NULL, …) bypass the AnnotatedProjectExpression wrap at the call site, but their
-        // operands still go through annotation. The shuttle therefore runs on every project
-        // expression — including plain ones — to catch annotated operands nested inside a
-        // baseline-op root.
+        // Annotation recurses into operands, so COALESCE(num0, CEIL(num1)) wraps the inner CEIL too, and
+        // substrait only recognises the underlying RexCall — every wrapper at every depth must go. The
+        // resolver unwraps each top-level wrapper; a RexShuttle then sweeps its result for nested ones. The
+        // shuttle runs on EVERY project expression, including plain ones, because a baseline-op root
+        // (COALESCE, CASE, CAST, …) skips the wrap itself while its operands do not.
         RexShuttle nestedAnnotationStripper = new RexShuttle() {
             @Override
             public RexNode visitCall(RexCall call) {
@@ -363,24 +354,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
             }
         }
 
-        // Lift nested RexOver expressions out of scalar calls into a child LogicalProject.
-        // PPL's `bin` command lowers `bins=N` / `minspan=N` / `start=… end=…` to a single
-        // top-level scalar call whose operands embed RexOver: e.g.
-        // width_bucket(f, N, MAX(f) OVER () - MIN(f) OVER (), MAX(f) OVER ())
-        // DataFusion's substrait consumer auto-lifts *top-level* WindowFunction project
-        // expressions into a LogicalWindow (datafusion-substrait
-        // `from_project_rel`), but the nested RexOvers inside `width_bucket(...)` stay
-        // where they are and reach DataFusion's physical planner — which then errors
-        // with "Physical plan does not support logical expression WindowFunction(...)".
-        //
-        // Pre-substrait fix: walk every project expression, hoist each unique RexOver
-        // into a child Project as its own top-level expression, and rewrite the original
-        // expression to reference the hoisted column via RexInputRef. The child Project
-        // becomes:
-        // [input_field_0, input_field_1, ..., input_field_(n-1), MAX(f) OVER (), MIN(f) OVER ()]
-        // and the outer Project's expressions reference those new columns by index.
-        // DataFusion sees the WindowFunctions at the top level of the inner Project and
-        // wraps them in a LogicalWindow as expected.
+        // Hoist RexOver nested inside a scalar call into a child Project, referenced by RexInputRef.
+        // DataFusion's substrait consumer only auto-lifts TOP-LEVEL WindowFunction project expressions into
+        // a LogicalWindow; a RexOver buried in e.g. width_bucket(f, N, MAX(f) OVER () …) reaches its
+        // physical planner and fails with "Physical plan does not support logical expression
+        // WindowFunction". PPL's `bin` command produces exactly that shape.
         Project lifted = liftNestedRexOver(strippedChildren.getFirst(), strippedExprs);
         if (lifted != null) {
             return lifted;

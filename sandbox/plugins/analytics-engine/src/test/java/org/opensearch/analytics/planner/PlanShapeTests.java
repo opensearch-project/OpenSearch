@@ -352,15 +352,12 @@ public class PlanShapeTests extends PlanShapeTestBase {
         // Both sides scan the same 1-shard index → co-location fast path even though the group keys differ,
         // so the Join itself needs no exchange and there is no top ER.
         //
-        // KNOWN SINGLE-SHARD REGRESSION (accepted, documented): each aggregate now sits over a gather it does
-        // not need. A SINGLE aggregate DECLARES a SINGLETON requirement of its input through
-        // passThroughTraits, and the only concrete singleton alternative offered to it is coordSingleton, so
-        // a 1-shard scan's SINGLETON(SHARD) does not satisfy it and an ER is inserted. The data was already
-        // on one node, so the gather buys nothing. Removing it needs locality-agnostic ("any singleton")
-        // demands to be honoured end to end by the aggregate's alternatives — four attempts at that each
-        // moved the extra gather somewhere else instead of removing it. Multi-shard plans are unaffected
-        // (verified on the sf=10 TPC-H sweep: 17/22 both before and after, exchange shapes identical in
-        // 21 of 22 queries).
+        // KNOWN SINGLE-SHARD REGRESSION (accepted): each aggregate sits over a gather it does not need. A
+        // SINGLE aggregate declares a SINGLETON requirement via passThroughTraits, and the only concrete
+        // singleton alternative offered to it is coordSingleton — which a 1-shard scan's SINGLETON(SHARD)
+        // does not satisfy, so an ER is inserted for data already on one node. Removing it needs a
+        // locality-agnostic singleton demand honoured end to end by the aggregate's alternatives.
+        // Multi-shard plans are unaffected.
         RelNode plan = buildJoinWithDifferentGroupKeys();
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape(

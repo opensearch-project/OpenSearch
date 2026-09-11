@@ -79,7 +79,7 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         // Hash-shuffle requires at least one EQUI key to define the partitioning expression — without
         // it, distTraitDef.hash() would receive an empty key list and produce a partitioning that
         // doesn't actually partition. We do NOT require info.isEqui(): a join may carry equi keys AND a
-        // residual non-equi predicate (e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate BETWEEN …).
+        // residual non-equi predicate (e.g. e.g. l_partkey=p_partkey AND l_shipdate BETWEEN …).
         // We hash-partition on info.leftKeys only; onMatch copies the FULL join condition (equi +
         // residual) onto the worker join, so DataFusion's HashJoinExec applies the residual as a join
         // filter after the equi-partition match. A PURE-theta join (no equi key) still bails here

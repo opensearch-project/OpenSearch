@@ -78,7 +78,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      *   <li>{@link #perQueryMaxBytes} — hard ceiling on a SINGLE query's footprint
      *       ({@link #perQueryBytes}). A query whose own shuffle exceeds this can never fit even on an
      *       idle node, so it fails FAST and NON-retryably ({@link ShuffleBufferExceededException}).
-     *       This is the q17 case (one side wants ~7.4GB).</li>
+     *       This is the case where one side alone wants multiple GB.</li>
      * </ul>
      * Default disabled ({@code Long.MAX_VALUE}) until wired from settings at plugin startup.
      *
@@ -126,7 +126,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * here. The per-query dir sweep ({@link #deleteQuerySpillDir}) consults this map: when it succeeds
      * in deleting an orphaned path, it releases exactly those bytes (once) — otherwise a transient
      * delete failure would permanently inflate {@code spilledTotalBytes} → a false {@code spill.max_bytes}
-     * ceiling until JVM restart. (codex review round-4 SHOULD-FIX #2.)
+     * ceiling until JVM restart.
      */
     private final Map<Path, Long> orphanedSpillBytes = new ConcurrentHashMap<>();
 
@@ -166,8 +166,8 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * RTTs ≈ 15s worst case). {@link #TOMBSTONE_TTL_NANOS} (120s) is an ~8× margin over that, so the
      * tombstone is guaranteed present whenever a late RPC can still arrive. A COUNT-based FIFO cap
      * (the prior design) is unsafe: under a high query rate, N other clears can evict a still-in
-     * -window tombstone within the 15s producer window, re-opening the recreate-and-leak race (codex
-     * review: tombstoned-admit-budget-leak via eviction). TTL eviction is also self-bounding in memory
+     * -window tombstone within the 15s producer window, re-opening the recreate-and-leak race. TTL
+     * eviction is also self-bounding in memory
      * (live tombstones ≈ clear-rate × TTL) and needs no separate ordering structure or lock — the
      * concurrent map's per-key atomicity suffices; expired entries are purged opportunistically in
      * {@code clearForQuery}.
@@ -276,23 +276,16 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         if (size == 0) {
             return AdmitResult.ACCEPTED; // nothing to store/reserve (isLast markers carry no data)
         }
-        // Resolve the buffer, reserve the bytes, AND store the chunk together under admitLock, keyed
-        // on a SINGLE tombstone read. Doing the buffer lookup lock-free (the old getOrCreateBuffer
-        // call) BEFORE the locked re-check left a leak: getOrCreateBuffer could hand back an unstored
-        // throwaway for a tombstoned query, the tombstone could then be evicted, and the locked
-        // re-check would see a clean set and reserve bytes into that throwaway — which no removeBuffer
-        // /clearForQuery would ever release (codex review: tombstoned-admit-budget-leak via eviction).
+        // Resolve the buffer, reserve the bytes and store the chunk together under admitLock, off a SINGLE
+        // tombstone read. Looking the buffer up lock-free first leaked budget: the lookup could hand back an
+        // unstored throwaway for a tombstoned query, the tombstone could then be evicted, and the locked
+        // re-check would reserve into that throwaway, which nothing ever releases.
         //
-        // No-leak proof vs a concurrent clearForQuery (which does aborted.put on a ConcurrentHashMap,
-        // NOT under admitLock, then sweeps + releases UNDER admitLock):
-        // - If the put has linearized before our isTombstoned read: we see tombstoned, bail, reserve
-        // nothing. Safe.
-        // - If the put has NOT yet linearized: we miss it, reserve + store under admitLock, then
-        // release the lock. clearForQuery's sweep can only ENTER admitLock after we exit, so it is
-        // ordered strictly after our store and its perQueryBytes.remove + buffers sweep releases
-        // exactly what we reserved. Safe. (The locked sweep — not the tombstone — is what reclaims
-        // a reservation made in the put-not-yet-visible window; the tombstone only short-circuits
-        // the EARLIER admits so the common case never stores into a doomed buffer.)
+        // Safe against a concurrent clearForQuery (which tombstones outside admitLock, then sweeps under it):
+        // if the tombstone is visible we bail and reserve nothing; if it is not, we reserve and store under the
+        // lock, and clearForQuery's sweep can only enter the lock afterwards, so it releases exactly what we
+        // reserved. The locked sweep is what reclaims the reservation; the tombstone only short-circuits
+        // earlier admits so the common case never stores into a doomed buffer.
         synchronized (admitLock) {
             if (isTombstoned(queryId)) {
                 // Cleared query: drop the payload, reserve nothing, store nothing. Ack rather than
@@ -307,7 +300,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // snapshotted the in-memory tail, so this chunk would be silently dropped (lost rows).
             // The producer's two-phase close (DatafusionPartitionedSink: drain all data sends before
             // any isLast) makes this unreachable in the normal path, but a buggy/reordered late RPC
-            // must FAIL LOUD here rather than under-deliver. (codex round-5 BLOCKER #2.) Checked under
+            // must FAIL LOUD here rather than under-deliver. Checked under
             // admitLock, the same lock beginDrain flips `draining` under, so this read can't race a
             // half-started drain.
             if (buffer.isDraining()) {
@@ -350,7 +343,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // with node==perQuery the un-freed resident leaves no node headroom, so the admit
                     // returns REJECT_RETRY and the producer retries — succeeding once the draining
                     // sibling's removeBuffer frees its budget. Self-correcting, never over-commits heap
-                    // against a draining buffer. (codex review round-4 BLOCKER #1.)
+                    // against a draining buffer.
                 } else {
                     buffer.recordRejected();
                     // Hard: this query alone can't fit — waiting never helps. Fail fast, non-retryable.
@@ -401,8 +394,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // in-memory tail or opened the spill file for read, so mutating its lists/spill file here would
         // drop/duplicate rows or NPE in SpilledSide.append. `draining` is flipped under admitLock
         // (beginDrain), which we hold here, so these reads can't race a half-started drain. A draining
-        // buffer also no longer accepts evictions, so it simply contributes nothing to `freed`. (codex
-        // review round-4 BLOCKER #1: cross-partition spill could race a draining sibling.)
+        // buffer also no longer accepts evictions, so it simply contributes nothing to `freed`.
         long freed = 0L;
         // 1. Spill the RECEIVING buffer first — its incoming-side chunks, then its other side. Each
         // spillOldest releases the spilled bytes from THAT buffer's own currentBytes so removeBuffer
@@ -487,7 +479,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * {@code Files.exists} check runs INSIDE the atomic {@code compute}, so if the sweep already removed
      * the file (its {@code remove(path)} returned null because we hadn't recorded yet), we release the
      * bytes here and store nothing instead of leaving a phantom orphan entry that never gets swept →
-     * permanent {@code spilledTotalBytes} inflation. (codex round-5 SHOULD-FIX #3.)
+     * permanent {@code spilledTotalBytes} inflation.
      */
     private void recordOrphanedSpill(Path path, long bytes) {
         if (bytes <= 0) {
@@ -523,7 +515,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // computeIfAbsent, so a producer that read not-tombstoned can still insert a key AFTER
         // clearForQuery's removal sweep already passed it. clearForQuery sets the tombstone BEFORE
         // sweeping, so any such late insert is guaranteed to observe the tombstone here — remove our
-        // own entry and return a throwaway, closing the recreate race. (codex review: tombstone race.)
+        // own entry and return a throwaway, closing the recreate race.
         if (isTombstoned(queryId)) {
             discardRacedBuffer(queryId, k, buffer);
             return new ShuffleBuffer();
@@ -538,7 +530,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * have returned a PRE-EXISTING buffer that already admitted data and SPILLED; a lock-free
      * {@code buffers.remove} would skip releasing its spill bytes (released only by
      * {@code deleteSpillFiles}), so {@link #spilledTotalBytes} would stay permanently inflated → a false
-     * spill ceiling for later queries. (codex review round-3 BLOCKER #2.) Package-private for a
+     * spill ceiling for later queries. Package-private for a
      * deterministic unit test of the cleanup (the live branch only fires in a narrow concurrent window).
      */
     void discardRacedBuffer(String queryId, String k, ShuffleBuffer buffer) {
@@ -570,7 +562,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // non-null buffers.remove) releases its bytes — a second remove of the same key, or a
         // concurrent clearForQuery that already swept it, sees null and releases nothing. This is
         // what makes per-buffer release (normal drain) and whole-query release (clearForQuery)
-        // compose without double-subtracting (codex review: shuffle-budget-double-release).
+        // compose without double-subtracting
         ShuffleBuffer removed;
         synchronized (admitLock) {
             removed = buffers.remove(key(queryId, targetStageId, partitionIndex));
@@ -655,7 +647,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // reservation; removeBuffer likewise can't be mid-release on one of these buffers. perQueryBytes
         // is the single source of truth — we drop its entry and subtract WHATEVER REMAINS (already net
         // of any prior per-buffer removeBuffer decrements), so the same bytes are never subtracted
-        // twice (codex review: shuffle-budget-double-release).
+        // twice
         synchronized (admitLock) {
             // Iterate the entry set and remove matching entries. ConcurrentHashMap's iterator is weakly
             // consistent — safe to remove through it; concurrent producer/consumer activity for a still
@@ -732,7 +724,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // still charged), the dir sweep just reclaimed the disk — release those bytes exactly
                     // once. Use compute (not remove) so this is atomic vs a concurrent recordOrphanedSpill
                     // on the same path: whichever runs first removes the entry + releases; the other sees
-                    // null and does nothing. (round-4 #2 / codex round-5 SHOULD-FIX #3.)
+                    // null and does nothing.
                     orphanedSpillBytes.compute(p, (path, orphanBytes) -> {
                         if (orphanBytes != null) {
                             releaseSpillBytes(orphanBytes);
@@ -802,7 +794,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * never spills a buffer that is concurrently draining. Without this, a late cross-partition
          * admit could spill a sibling whose drain iterator has already snapshotted its tail or closed
          * its append stream, dropping/duplicating rows or NPEing in {@code SpilledSide.append}.
-         * (codex review round-4 BLOCKER #1.) volatile so the spill path sees a set made under the lock.
+         * volatile so the spill path sees a set made under the lock.
          */
         private volatile boolean draining;
 
@@ -910,7 +902,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     chunk = list.get(0);
                     int len = chunk == null ? 0 : chunk.length;
                     // Disk footprint includes the 4-byte frame header append() writes, so the on-disk
-                    // total can't silently grow past the ceiling by 4×chunkCount. (codex round-2.)
+                    // total can't silently grow past the ceiling by 4×chunkCount.
                     long diskBytes = len + SPILL_FRAME_HEADER_BYTES;
                     // Reserve disk budget BEFORE removing from memory — if the ceiling is hit we
                     // leave the chunk resident and fail (it's still safely in memory/accounted).
@@ -930,7 +922,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // terminal cleanup (which releases bytesOnDisk) would NOT reclaim them → a
                     // permanent spilledTotalBytes leak that shrinks the node's effective spill
                     // ceiling for later queries. Release the reserved-but-unwritten bytes here.
-                    // (codex review BLOCKER: reserved-but-not-written disk-byte leak.)
+                    //
                     owner.releaseSpillBytes(diskBytes);
                     throw ShuffleBufferExceededException.forDiskCeiling(owner.getSpilledTotalBytes(), owner.spillMaxBytes);
                 }
@@ -974,7 +966,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // Release the disk-budget reservation ONLY if the file was actually removed (or was never
             // written). If deletion fails (disk/IO error) the bytes still occupy disk, so dropping the
             // counter would let later queries admit past spill.max_bytes — keep them charged instead.
-            // (codex review round-3 SHOULD-FIX.)
+            //
             boolean deleted = spill.closeAndDelete();
             if (owner != null) {
                 if (deleted) {
@@ -1044,7 +1036,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * {@code spillToMakeRoom}: once this returns, no concurrent or subsequent spill will evict from
          * this buffer (the sibling-spill loop skips {@code draining} buffers). Called at the head of
          * every drain entry point, BEFORE any list snapshot or spill-file open. A throwaway buffer
-         * (no owner) just sets the flag. (codex review round-4 BLOCKER #1.)
+         * (no owner) just sets the flag.
          */
         private void beginDrain() {
             if (owner != null) {
@@ -1312,7 +1304,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 }
                 out.flush();
                 // Include the frame header so bytesOnDisk (released on cleanup) matches the framed size
-                // reserved in spillOldest — else cleanup under-releases by 4×chunkCount. (codex round-2.)
+                // reserved in spillOldest — else cleanup under-releases by 4×chunkCount.
                 bytesOnDisk += len + SPILL_FRAME_HEADER_BYTES;
             }
 

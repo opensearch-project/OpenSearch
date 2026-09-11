@@ -110,7 +110,7 @@ public final class AnalyticsSettings {
      * Arrow-IPC {@code byte[]} chunks. Those chunks live ON the JVM heap, and a node's live shuffle
      * bytes are the SUM across every buffer it holds (all queries/stages/partitions). Without a bound
      * a large shuffle accumulates its whole input on-heap and OOMs the node (observed: 7.4 GB of
-     * {@code byte[]} on an 8 GB heap for TPC-H q17 at sf=10). A PER-BUFFER cap can't bound the sum
+     * {@code byte[]} on an 8 GB heap for one heavy query). A PER-BUFFER cap can't bound the sum
      * (N partitions each under the cap still OOM in aggregate), so the budget is per-NODE.
      *
      * <p>{@code ShuffleBufferManager} admits a chunk only if the node total stays under
@@ -142,7 +142,7 @@ public final class AnalyticsSettings {
      * regardless). Below the floor the operator stays coordinator-centric, matching CBO's cheap choice for
      * small joins — distribution adds shuffle overhead that only pays off at scale.
      *
-     * <p>Default {@code 1_000_000}: well below any TPC-H fact table that needs distributing (partsupp 8M,
+     * <p>Default {@code 1_000_000}: well below any fact table that needs distributing (tens of millions
      * lineitem 60M) and well above trivial joins that gather cheaply. Exposed as a setting so the floor is
      * tunable per workload AND so integration tests on small datasets can lower it to exercise the
      * distributed path (the JVM tests use {@code minRows=1}; the cluster ITs set this to a small value).
@@ -237,14 +237,12 @@ public final class AnalyticsSettings {
      * Compute a sub-plan that the query evaluates MORE THAN ONCE only once, feeding every consumer from that
      * one result.
      *
-     * <p>This is a CORRECTNESS fix before it is an optimization. A query that inlines the same aggregate
-     * subquery twice — TPC-H q15 joins {@code revenue0} and then filters
-     * {@code where total_revenue = [ … max(total_revenue) ]} over the same {@code revenue0}, because the
-     * spec's VIEW has no PPL equivalent — aggregates each copy independently. {@code SUM(double)} is not
-     * associative, so the copies' partial sums merge in different orders, disagree in the last bits, and the
-     * exact {@code =} matches nothing: q15 then returns 1 row or 0 rows at random (measured 11/20 correct
-     * without this, 20/20 with it). Sharing one evaluation makes both consumers read identical rows, so the
-     * comparison holds whatever order the sum ran in — and halves the work.
+     * <p>This is a CORRECTNESS fix before it is an optimization. When a query inlines the same aggregate
+     * subquery twice — joining it and then filtering on {@code = [ … max(…) ]} over the same subquery — each
+     * copy is aggregated independently. {@code SUM(double)} is not associative, so the copies' partial sums
+     * merge in different orders, disagree in the last bits, and the exact {@code =} matches nothing: the row
+     * is returned or dropped at random. Sharing one evaluation makes both consumers read identical rows, so
+     * the comparison holds whatever order the sum ran in — and halves the work.
      *
      * <p><b>Not an MPP setting</b>, despite living alongside them historically: sharing is done by
      * {@code DAGBuilder} for every analytics query and is deliberately NOT gated on {@link #MPP_ENABLED} — the
@@ -271,8 +269,8 @@ public final class AnalyticsSettings {
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
-     * {@code ShuffleBufferExceededException}. This lets multi-GB shuffle intermediates (TPC-H q5/q10
-     * at sf=10) RUN: the per-query on-heap footprint is bounded by the budget, the rest lives on disk,
+     * {@code ShuffleBufferExceededException}. This lets multi-GB shuffle intermediates RUN: the per-query
+     * on-heap footprint is bounded by the budget, the rest lives on disk,
      * and the consumer drains spilled chunks back (in arrival order) followed by the in-memory tail —
      * preserving the proven buffer-all consumer contract.
      *
@@ -339,7 +337,7 @@ public final class AnalyticsSettings {
      * Pre-marking column pruning for the distributed path: drop columns no operator references
      * before the plan is cut into stages, so a hash-shuffle carries only the join keys plus the
      * downstream-referenced columns rather than the full join-output width. On wide fact-table joins
-     * (TPC-H) this shrinks the shuffled payload several-fold — the single biggest driver of the
+     * this shrinks the shuffled payload several-fold — the single biggest driver of the
      * distributed-join latency, and it keeps more queries under the on-heap shuffle budget without
      * spilling. Scoped to plans whose joins are all equi-joins (a cross-join — e.g. what PPL
      * {@code transpose} lowers to — is left untouched). Default {@code true}; disable only to isolate a

@@ -190,18 +190,10 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getCallAnnotations()
         );
 
-        // Exchange placement is deterministic on partitioning, not cost: a SINGLE aggregate over
-        // partitioned (RANDOM) input is incorrect — each shard would aggregate in isolation and the
-        // results would never merge. So when the input is partitioned and the aggregate is
-        // splittable, emit ONLY the PARTIAL/FINAL split; don't also register the gather-everything
-        // singleOnSingleton alternative for Volcano to cost-compare against (that comparison is what
-        // streamed the whole table to the coordinator, and biasing it back via row-count estimates
-        // perturbs the global cost model for unrelated query shapes). For unpartitioned input
-        // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
-        // correct and only choice.
-        // Split into PARTIAL/FINAL only when the input is genuinely partitioned AND no operator
-        // below forces a gather (a gather-forced input is already singleton — a PARTIAL over it
-        // would be invalid). Otherwise emit the single coordinator aggregate.
+        // Split only over genuinely partitioned input with no gather-forcing operator below (a gather-forced
+        // input is already singleton, so a PARTIAL over it would be invalid). Where the split applies, emit
+        // ONLY it and not the gather-everything alternative: letting the two compete on cost is what streamed
+        // whole tables to the coordinator.
         boolean partitioned = isPartitioned(child);
         if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate) || splitSuppressedBySubToggle()) {
             call.transformTo(singleOnSingleton);

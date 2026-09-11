@@ -74,25 +74,11 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         OpenSearchJoin join = call.rel(0);
         if (joinAlreadyResolved(join)) return false;
-        // Contract: this rule produces COORDINATOR_CENTRIC. Suppress it only when at least
-        // one MPP rule (broadcast or hash) will actually produce a viable alternative for
-        // this join — otherwise Volcano has no plan to satisfy the root SINGLETON demand
-        // and throws CannotPlanException.
-        //
-        // Concretely we suppress coord only if:
-        // - mpp.enabled=true (gate on broadcast + hash rules)
-        // - join is equi (theta is structurally ineligible for both MPP rules)
-        // - AND at least one of broadcast/hash will fire and produce a non-empty alt:
-        // broadcast: probeNodes > 1 AND joinType not FULL OUTER (FULL has no eligible
-        // build side; broadcast emits zero alternatives)
-        // hash: partitionCount > 1
-        // - both inputs are multi-shard SHARD scans (the structural check both MPP rules
-        // impose; otherwise neither fires)
-        //
-        // Single-node clusters (probeNodes=1) still get coord-centric for all equi joins:
-        // broadcast bails on probeNodes <= 1, and hash bails on partitionCount <= 1 (a
-        // single-node cluster's defaultShuffleParallelism is 1). With neither MPP rule
-        // viable, coord-rule suppression doesn't kick in.
+        // This rule produces COORDINATOR_CENTRIC, so suppress it ONLY when a broadcast or hash rule will
+        // actually produce a viable alternative — otherwise nothing satisfies the root SINGLETON demand and
+        // Volcano throws CannotPlanException. That needs all of: MPP on, an equi join, both inputs multi-shard
+        // SHARD scans, and either probeNodes > 1 with a broadcastable build side or partitionCount > 1. A
+        // single-node cluster satisfies neither, so it keeps coord-centric for every equi join.
         if (!shouldSuppressCoord(join)) {
             return true;
         }
@@ -109,7 +95,7 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Mirror the MPP rules' eligibility EXACTLY: they require at least one equi key (non-empty
         // leftKeys) but tolerate a residual non-equi predicate (they no longer require info.isEqui()
-        // — e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate BETWEEN …). So coord suppresses itself
+        // — e.g. e.g. l_partkey=p_partkey AND l_shipdate BETWEEN …). So coord suppresses itself
         // whenever there is ≥1 equi key (then a broadcast/hash alternative will be produced). With NO
         // equi key (pure theta / cross), neither MPP rule fires, so coord must stay enabled or Volcano
         // can't satisfy the root SINGLETON demand.

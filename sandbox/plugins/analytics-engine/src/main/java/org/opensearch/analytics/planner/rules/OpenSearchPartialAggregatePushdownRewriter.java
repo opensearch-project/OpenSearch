@@ -51,9 +51,8 @@ import java.util.Optional;
  * "partitioned-unspecified" required distribution would let {@code OpenSearchAggregateSplitRule} form this
  * during search and make this rewriter deletable.
  *
- * <p><b>Measured worth (analytics-bench, sf=10, one variable):</b> with this split 18/22; without it 14/22,
- * where q3/q5/q7/q11/q21 all fail with {@code ReduceSizeExceededException} because the coordinator gathers
- * RAW join output instead of aggregated groups.
+ * <p><b>Why it is load-bearing.</b> Without the split, an aggregate over a distributed join gathers RAW join
+ * output instead of aggregated groups, and large inputs then exceed the coordinator's buffer.
  *
  * @opensearch.internal
  */
