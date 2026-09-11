@@ -20,9 +20,9 @@
     "  LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'test\\*file\\?name\\\\end'))])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price"],
+  "mockResultFieldNames": ["name", "price", "_id"],
   "mockResultRows": [
-    ["test*file?name\\end", 100]
+    ["test*file?name\\end", 100, "id-1"]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -38,7 +38,8 @@
             "name": "test*file?name\\end",
             "price": 100
           },
-          "_score": null
+          "_score": null,
+          "_id": "id-1"
         }
       ]
     }

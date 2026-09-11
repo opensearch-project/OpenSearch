@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "price"
+    "price",
+    "_id"
   ],
   "mockResultRows": [
     [
       "item1",
-      150
+      150,
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "item1",
             "price": 150
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
