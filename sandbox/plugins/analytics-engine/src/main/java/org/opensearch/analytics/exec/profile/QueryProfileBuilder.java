@@ -14,6 +14,7 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageMetrics;
 import org.opensearch.analytics.exec.stage.StageTask;
+import org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecution;
 import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -76,6 +77,11 @@ public final class QueryProfileBuilder {
             long tasksCompleted = taskProfiles.stream().filter(t -> "FINISHED".equals(t.state())).count();
             long tasksFailed = taskProfiles.stream().filter(t -> "FAILED".equals(t.state())).count();
 
+            // can_match only runs on shard-fragment stages; null everywhere else (and when the
+            // probe was skipped for this stage). The stage assembles it lazily so top-N skips
+            // that accrued after the probe returned are included.
+            CanMatchProfile canMatch = exec instanceof ShardFragmentStageExecution shardExec ? shardExec.canMatchProfile() : null;
+
             stageProfiles.add(
                 new StageProfile(
                     exec.getStageId(),
@@ -91,7 +97,8 @@ public final class QueryProfileBuilder {
                     fragment,
                     chosenBackend,
                     treeShape,
-                    taskProfiles
+                    taskProfiles,
+                    canMatch
                 )
             );
         }
