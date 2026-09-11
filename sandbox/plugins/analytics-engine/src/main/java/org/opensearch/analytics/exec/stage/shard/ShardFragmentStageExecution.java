@@ -351,9 +351,11 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     }
 
     /**
-     * Runs inline on the per-stream virtual thread driving handleStreamResponse — must NOT
-     * offload: reordering would let isLast race ahead and drop earlier batches via the
-     * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
+     * Runs inline on the thread driving handleStreamResponse (a platform thread from
+     * {@code AnalyticsPlugin.STREAM_THREAD_POOL_NAME}) — must NOT offload: reordering would let
+     * isLast race ahead and drop earlier batches via the stage-terminal short-circuit. Inline also
+     * preserves end-to-end backpressure. Both reasons are independent of which kind of thread this
+     * is; the no-offload rule did not relax when the drain moved off virtual threads.
      */
     StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ShardStageTask task, ActionListener<Void> listener) {
         final int sourceOrdinal = ((ShardExecutionTarget) task.target()).ordinal();

@@ -77,6 +77,9 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
+                // virtual-thread scheduler headroom, so a blocked-and-pinned virtual thread cannot
+                // starve every carrier -- see virtualThreadSchedulerParallelism()
+                virtualThreadSchedulerParallelism(),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
@@ -88,6 +91,30 @@ final class SystemJvmOptions {
         } else {
             return "";
         }
+    }
+
+    /**
+     * Carriers for the default virtual-thread scheduler: four per CPU, floor 64.
+     *
+     * <p>The JDK default is one carrier per CPU, which is only sufficient while every virtual thread
+     * can unmount when it blocks. One that blocks while a native frame is on its stack cannot, and so
+     * holds its carrier for as long as it blocks. Enough of those at once occupy every carrier, and
+     * whichever thread has to run to release what they are waiting for is then unschedulable: the
+     * node stops making progress while looking idle. Extra carriers do not remove that hazard; they
+     * raise the number of simultaneously pinned threads needed to reach it, so an isolated pinning
+     * call site costs throughput instead of the node.
+     *
+     * <p>The floor matters more than the multiplier: a small host has too few CPUs for the ratio
+     * alone to clear the number of threads a single subsystem can block at once.
+     *
+     * <p>An operator can override this. {@link JvmOptionsParser} appends the system options
+     * <em>before</em> {@code jvm.options}, {@code jvm.options.d/*.options} and
+     * {@code OPENSEARCH_JAVA_OPTS}, and for a {@code -D} the last occurrence on the command line
+     * wins.
+     */
+    private static String virtualThreadSchedulerParallelism() {
+        final int parallelism = Math.max(64, Runtime.getRuntime().availableProcessors() * 4);
+        return "-Djdk.virtualThreadScheduler.parallelism=" + parallelism;
     }
 
     private static String javaLocaleProviders() {

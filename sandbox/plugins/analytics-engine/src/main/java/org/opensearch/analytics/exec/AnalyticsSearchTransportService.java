@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -362,9 +363,14 @@ public class AnalyticsSearchTransportService {
                 return true;
             }
 
+            // NOT SAME: the drain must not inherit the transport's virtual thread. See
+            // AnalyticsPlugin.STREAM_THREAD_POOL_NAME — feeding a batch into the native sink leaves a
+            // native frame on this thread, which pins a virtual thread to its carrier and deadlocks
+            // the node against the Netty allocator locks. Backpressure is unchanged: the drain still
+            // blocks here before asking for the next batch, it just blocks a platform thread.
             @Override
             public String executor() {
-                return ThreadPool.Names.SAME;
+                return AnalyticsPlugin.STREAM_THREAD_POOL_NAME;
             }
 
             @Override
@@ -507,9 +513,12 @@ public class AnalyticsSearchTransportService {
                 return true;
             }
 
+            // NOT SAME — see the sibling handler in dispatchWorkerFragmentStreaming and
+            // AnalyticsPlugin.STREAM_THREAD_POOL_NAME: draining on the transport's virtual thread
+            // pins it via the native sink feed and deadlocks the node on the Netty allocator locks.
             @Override
             public String executor() {
-                return ThreadPool.Names.SAME;
+                return AnalyticsPlugin.STREAM_THREAD_POOL_NAME;
             }
 
             @Override
