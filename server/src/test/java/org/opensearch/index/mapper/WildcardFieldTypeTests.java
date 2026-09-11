@@ -38,7 +38,14 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     public void testIndexedTermsMatchDocValues() {
         // wildcard indexes trigram tokens, so its postings term dictionary differs from its doc values
-        assertFalse(new WildcardFieldMapper.WildcardFieldType("field").indexedTermsMatchDocValues());
+        MappedFieldType wildcard = new WildcardFieldMapper.WildcardFieldType("field");
+        assertFalse(wildcard.indexedTermsMatchDocValues());
+        assertFalse(new FilterFieldType(wildcard) {
+            @Override
+            public String typeName() {
+                return wildcard.typeName();
+            }
+        }.indexedTermsMatchDocValues());
         assertTrue(new KeywordFieldMapper.KeywordFieldType("field").indexedTermsMatchDocValues());
     }
 
