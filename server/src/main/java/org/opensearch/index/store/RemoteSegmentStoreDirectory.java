@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -586,6 +587,34 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         } else {
             throw new NoSuchFileException(name);
         }
+    }
+
+    /**
+     * Opens a stream that downloads an existing file as multiple byte-range parts in parallel while presenting the
+     * bytes sequentially, and returns a {@link RemoteIndexInput} enclosing the stream. Intended for bulk transfers
+     * of large files by {@link RemoteStoreFileDownloader}; see {@link ParallelPartInputStream}.
+     *
+     * @param name       the name of an existing file
+     * @param fileLength length of the file, as known from the remote segment metadata
+     * @param context    desired {@link IOContext} context
+     * @param partSize   size of each byte-range part
+     * @param executor   executor on which prefetch tasks run
+     * @param permits    node-wide budget bounding the number of prefetched parts in flight
+     * @throws NoSuchFileException if the file does not exist in the remote segment store
+     */
+    public IndexInput openParallelInput(
+        String name,
+        long fileLength,
+        IOContext context,
+        long partSize,
+        Executor executor,
+        ParallelDownloadPermits permits
+    ) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(name);
+        if (remoteFilename == null) {
+            throw new NoSuchFileException(name);
+        }
+        return remoteDataDirectory.openParallelInput(remoteFilename, fileLength, context, partSize, executor, permits);
     }
 
     /**
