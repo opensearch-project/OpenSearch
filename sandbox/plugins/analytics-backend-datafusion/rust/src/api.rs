@@ -2135,14 +2135,11 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+    // arrow-59 `from_ffi` aligns buffers internally on import (arrow-rs #10028), so the manual
+    // align_buffers() previously needed for Java Flight/IPC 8-byte-aligned buffers is now redundant.
+    let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
-
-    // Buffers from Java's Flight RPC deserialization may not meet Rust's
-    // native alignment requirements. align_buffers() is a no-op for
-    // already-aligned buffers; only misaligned ones are reallocated.
-    array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
     // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
@@ -3132,15 +3129,11 @@ pub unsafe fn register_memtable(
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
         let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
-        let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+        // arrow-59 `from_ffi` aligns buffers internally on import (arrow-rs #10028), so the manual
+        // align_buffers() the build-side IPC payload previously required is now redundant.
+        let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
             DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
         })?;
-        // The build-side IPC payload arrives via Java's ArrowStreamReader, which produces
-        // batches whose buffers are 8-byte-aligned slices into the IPC body (per spec) but
-        // not the 64-byte alignment DataFusion's SIMD kernels require. align_buffers() is
-        // a no-op for already-aligned buffers and reallocates only the misaligned ones —
-        // mirrors the streaming sink path in attach_input_batch() above.
-        array_data.align_buffers();
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
         let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
@@ -3293,18 +3286,15 @@ pub unsafe fn register_memtable_on_session_context(
 
     let table_schema = schema_from_ipc_bytes(schema_ipc)?;
 
-    // Same import-and-align pattern as register_memtable above. Java's ArrowStreamReader
-    // produces 8-byte-aligned slices into the IPC body (per spec) but DataFusion's SIMD
-    // kernels require 64-byte alignment; align_buffers() reallocates only the misaligned
-    // ones (no-op for already-aligned).
+    // Same import pattern as register_memtable above. arrow-59 `from_ffi` aligns buffers
+    // internally on import (arrow-rs #10028), so no manual align_buffers() is needed.
     let mut batches = Vec::with_capacity(array_ptrs.len());
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
         let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
-        let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+        let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
             DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
         })?;
-        array_data.align_buffers();
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
         let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
@@ -3386,7 +3376,7 @@ pub unsafe fn partition_batch_by_hash(
     // by value (zeroing its release fn pointer to take ownership); we have to undo that
     // for the input not to leak / double-free. The simplest way: convert the ArrayData
     // we just got back to FFI again and write the result back into the input pointers.
-    let mut array_data = array_data_result.map_err(|e| {
+    let array_data = array_data_result.map_err(|e| {
         DataFusionError::Execution(format!("Failed to import input Arrow C Data: {}", e))
     })?;
     // Re-export so the caller's Java-side close on the input wrappers still has a release
@@ -3399,9 +3389,7 @@ pub unsafe fn partition_batch_by_hash(
     std::ptr::write(input_array_ptr as *mut FFI_ArrowArray, re_array);
     std::ptr::write(input_schema_ptr as *mut FFI_ArrowSchema, re_schema);
 
-    // Align buffers — Java IPC produces 8-byte alignment but DataFusion's SIMD paths want
-    // 64-byte. Mirror the same align_buffers dance the broadcast injection uses.
-    array_data.align_buffers();
+    // arrow-59 `from_ffi` aligned the buffers on import (arrow-rs #10028); no manual align needed.
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);
 

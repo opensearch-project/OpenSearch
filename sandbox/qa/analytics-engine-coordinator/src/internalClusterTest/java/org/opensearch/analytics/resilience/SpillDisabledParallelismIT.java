@@ -178,6 +178,10 @@ public class SpillDisabledParallelismIT extends OpenSearchIntegTestCase {
      * the simpler non-reduce path and ensures the disabled DiskManager doesn't break plain
      * memory-only queries.
      */
+    // TODO [df55-followup]: flaky ONLY under -PrustDebug (debug Rust + arrow.memory.debug.allocator +
+    // TieredStopAtLevel=1) — intermittent mid-stream "Query <id> cancelled" from NativeBridge.streamNext
+    // (a Flight-streaming cancel timing race, not a schema/plan bug). Green in release + CI gradle-check
+    // and on rerun. Revisit to root-cause the debug-only race.
     public void testSimpleAggregateSucceedsWithSpillDisabled() throws Exception {
         createIndexAndIngest();
         PPLResponse response = executePPL("source = " + INDEX_NAME + " | stats count()");

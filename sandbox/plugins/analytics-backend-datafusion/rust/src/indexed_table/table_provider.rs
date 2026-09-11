@@ -442,6 +442,9 @@ impl TableProvider for IndexedTableProvider {
         }))
     }
 
+    // TODO [df55-perf]: return real stats (num_rows + sort-col min/max from SegmentFileInfo) via DF55
+    // statistics_from_inputs (datafusion#21815/#23051), and answer targeted ScanArgs::with_statistics_requests from scan_with_args
+    // (B-5/B-6 in ../../implementation/df55-new-api-adoption-tasklist.md; OPT-2/PERF-A). Plan-changing → benchmark first.
     fn statistics(&self) -> Option<Statistics> {
         None
     }

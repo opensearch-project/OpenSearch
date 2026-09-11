@@ -145,6 +145,9 @@ impl DynamicRgPruner {
     /// Refresh the cached `PruningPredicate` if the dynamic filter has changed
     /// since the last call. Cheap when unchanged (just an atomic generation
     /// read). Returns the current generation.
+    // TODO [df55-perf]: replace this hand-rolled snapshot_generation diff with DF55
+    // DynamicFilterTracking::classify/changed() (datafusion#22460; deprecates is_dynamic_physical_expr) (B-7 in ../../implementation/df55-new-api-adoption-tasklist.md;
+    // OPT-4/PERF-C) — short-circuits Static/AllComplete filters + enables page-level re-pruning as TopK tightens.
     fn refresh(&mut self) -> u64 {
         let generation = snapshot_generation(&self.filter);
         if generation == self.cached_generation && self.pruning_predicate.is_some() {

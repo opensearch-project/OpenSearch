@@ -118,6 +118,8 @@ pub async fn load_parquet_metadata_with_meta(
     let pq_meta = match pq_meta {
         Some(m) => m,
         None => {
+            // TODO [df55-followup]: ParquetObjectReader is deprecated in parquet-59; migrate to
+            // implementing AsyncFileReader directly (M-4 in ../../implementation/df55-new-api-adoption-tasklist.md).
             let mut reader = ParquetObjectReader::new(Arc::clone(&store), location.clone());
             let fetched = Arc::new(
                 ParquetMetaDataReader::new()
@@ -235,6 +237,9 @@ fn create_stream_with_access_plan(
         Arc::clone(&config.io_stats),
     )) as Arc<dyn ParquetFileReaderFactory>;
 
+    // TODO [df55-perf]: evaluate ParquetSource predicate cache (with_max_predicate_cache_size) to avoid
+    // re-decoding predicate columns for surviving rows (B-1 in ../../implementation/df55-new-api-adoption-tasklist.md).
+    // Highest read lever (safe to adopt since parquet-59 #9982/#9983 fixed the predicate-cache panic/silent-row-drop); needs benchmarking + interaction with our collector-bitset (page index disabled below).
     let mut parquet_source = ParquetSource::new(config.full_schema.clone())
         .with_parquet_file_reader_factory(reader_factory)
         // cannot use page index because we have collector bitset matches that are not visible
