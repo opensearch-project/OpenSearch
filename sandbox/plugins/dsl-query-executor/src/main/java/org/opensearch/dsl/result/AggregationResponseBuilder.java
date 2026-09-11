@@ -114,9 +114,11 @@ public final class AggregationResponseBuilder {
     }
 
     /**
-     * Builds a metric aggregation by extracting the computed value from execution results.
-     * Metrics ride in their enclosing bucket aggregation's plan, so the lookup uses the
-     * enclosing aggregation-name path; parent filters locate the specific row.
+     * Builds a metric aggregation from execution results. Metrics ride in their enclosing
+     * bucket aggregation's plan, so the lookup uses the enclosing aggregation-name path;
+     * parent filters locate the specific row, whose translator output columns (several for
+     * multi-column metrics like stats) are assembled into a values map keyed by
+     * {@code getAggregateFieldNames}.
      */
     private InternalAggregation buildMetric(
         MetricTranslator<AggregationBuilder> translator,
@@ -138,16 +140,21 @@ public final class AggregationResponseBuilder {
         }
 
         Map<String, Integer> colIndex = buildColumnIndex(result);
-        Integer colIdx = colIndex.get(agg.getName());
+        Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
 
-        if (colIdx == null) {
-            throw new ConversionException("Metric column '" + agg.getName() + "' not found in aggregation result columns");
+        if (matchingRow == null) {
+            return buildEmptyMetric(translator, agg);
         }
 
-        Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
-        Object value = (matchingRow != null) ? matchingRow[colIdx] : null;
-        InternalAggregation metric = translator.toInternalAggregation(agg.getName(), value, AggregationTranslator.userMetadata(agg));
-        return metric;
+        Map<String, Object> values = new HashMap<>();
+        for (String fieldName : translator.getAggregateFieldNames(agg)) {
+            Integer colIdx = colIndex.get(fieldName);
+            if (colIdx == null) {
+                throw new ConversionException("Metric column '" + fieldName + "' not found in aggregation result columns");
+            }
+            values.put(fieldName, matchingRow[colIdx]);
+        }
+        return translator.toInternalAggregation(agg, values);
     }
 
     /**
@@ -164,7 +171,7 @@ public final class AggregationResponseBuilder {
      * Builds an empty metric aggregation with no computed value.
      */
     private static InternalAggregation buildEmptyMetric(MetricTranslator<AggregationBuilder> translator, AggregationBuilder agg) {
-        return translator.toInternalAggregation(agg.getName(), null, AggregationTranslator.userMetadata(agg));
+        return translator.toInternalAggregation(agg, null);
     }
 
     /**

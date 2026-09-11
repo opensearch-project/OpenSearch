@@ -10,9 +10,12 @@ package org.opensearch.dsl.aggregation;
 
 import org.opensearch.dsl.aggregation.bucket.TermsBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.AvgMetricTranslator;
+import org.opensearch.dsl.aggregation.metric.ExtendedStatsMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.MaxMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.MinMetricTranslator;
+import org.opensearch.dsl.aggregation.metric.StatsMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.SumMetricTranslator;
+import org.opensearch.dsl.aggregation.metric.ValueCountMetricTranslator;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.function.Supplier;
@@ -33,12 +36,14 @@ public class AggregationRegistryFactory {
      */
     public static AggregationRegistry create(Supplier<MapperService> mapperServiceSupplier) {
         AggregationRegistry registry = new AggregationRegistry();
-        registry.register(new AvgMetricTranslator());
-        registry.register(new SumMetricTranslator());
-        registry.register(new MinMetricTranslator());
-        registry.register(new MaxMetricTranslator());
+        registry.register(new AvgMetricTranslator(mapperServiceSupplier));
+        registry.register(new SumMetricTranslator(mapperServiceSupplier));
+        registry.register(new MinMetricTranslator(mapperServiceSupplier));
+        registry.register(new MaxMetricTranslator(mapperServiceSupplier));
+        registry.register(new StatsMetricTranslator(mapperServiceSupplier));
+        registry.register(new ExtendedStatsMetricTranslator(mapperServiceSupplier));
+        registry.register(new ValueCountMetricTranslator(mapperServiceSupplier));
         registry.register(new TermsBucketTranslator(mapperServiceSupplier));
-        // TODO: add other aggregation translators
         return registry;
     }
 
