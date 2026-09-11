@@ -6,49 +6,26 @@
  * compatible open source license.
  */
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, RecordBatch};
-use arrow::datatypes::Schema as ArrowSchema;
-use parquet::basic::Repetition;
+use arrow::array::{ArrayRef, Int64Array, ListArray, RecordBatch};
+use arrow::buffer::OffsetBuffer;
+use arrow::datatypes::{DataType, Schema as ArrowSchema};
+use parquet::arrow::ArrowSchemaConverter;
 use parquet::schema::types::Type;
 
-use super::error::MergeResult;
+use super::error::{MergeError, MergeResult};
 
 /// Reserved column name for the synthetic row identifier added during merge.
 pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
 
-/// Builds the output Parquet schema as the union of pre-read schema descriptors.
+/// Builds the output Parquet schema from the canonical Arrow merge schema.
 ///
-/// The output schema contains every column seen across all inputs, except:
-/// - Any existing `__row_id__` column is removed.
-/// - A fresh `__row_id__` INT64 REQUIRED column is appended at the end.
-pub fn build_parquet_root_schema(
-    schema_descriptors: &[parquet::schema::types::SchemaDescriptor],
-) -> MergeResult<Arc<Type>> {
-    let mut seen_names: HashSet<String> = HashSet::new();
-    let mut parquet_fields: Vec<Arc<Type>> = Vec::new();
-
-    for descr in schema_descriptors {
-        let root = descr.root_schema();
-        for field in root.get_fields() {
-            if field.name() != ROW_ID_COLUMN_NAME && seen_names.insert(field.name().to_string()) {
-                parquet_fields.push(Arc::new(field.as_ref().clone()));
-            }
-        }
-    }
-
-    let row_id_type = Type::primitive_type_builder(ROW_ID_COLUMN_NAME, parquet::basic::Type::INT64)
-        .with_repetition(Repetition::REQUIRED)
-        .build()?;
-    parquet_fields.push(Arc::new(row_id_type));
-
-    let parquet_root = Type::group_type_builder("schema")
-        .with_fields(parquet_fields)
-        .build()?;
-
-    Ok(Arc::new(parquet_root))
+/// The canonical schema has already promoted compatible scalar/LIST field pairs to LIST, so
+/// deriving the Parquet schema from it avoids selecting an arbitrary first input file's shape.
+pub fn build_parquet_root_schema(schema: &ArrowSchema) -> MergeResult<Arc<Type>> {
+    let descriptor = ArrowSchemaConverter::new().convert(schema)?;
+    Ok(descriptor.root_schema_ptr())
 }
 
 /// Returns column indices that exclude `__row_id__`, for use as a projection mask.
@@ -101,7 +78,10 @@ impl ColumnMapping {
         for (target_idx, field) in target_schema.fields().iter().enumerate() {
             match source_schema.index_of(field.name()) {
                 Ok(src_idx) => {
-                    if is_identity && src_idx != target_idx {
+                    if is_identity
+                        && (src_idx != target_idx
+                            || source_schema.field(src_idx).data_type() != field.data_type())
+                    {
                         is_identity = false;
                     }
                     mapping.push(Some(src_idx));
@@ -130,7 +110,37 @@ impl ColumnMapping {
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(self.mapping.len());
         for (i, entry) in self.mapping.iter().enumerate() {
             match entry {
-                Some(src_idx) => columns.push(batch.column(*src_idx).clone()),
+                Some(src_idx) => {
+                    let source = batch.column(*src_idx);
+                    let target_field = &self.target_schema.fields()[i];
+                    if source.data_type() == target_field.data_type() {
+                        columns.push(source.clone());
+                    } else if let DataType::List(child) = target_field.data_type() {
+                        if source.data_type() != child.data_type() {
+                            return Err(MergeError::Logic(format!(
+                                "Cannot promote field '{}' from {:?} to {:?}",
+                                target_field.name(),
+                                source.data_type(),
+                                target_field.data_type()
+                            )));
+                        }
+                        let offsets =
+                            OffsetBuffer::new((0..=num_rows as i32).collect::<Vec<_>>().into());
+                        columns.push(Arc::new(ListArray::new(
+                            Arc::clone(child),
+                            offsets,
+                            source.clone(),
+                            source.nulls().cloned(),
+                        )));
+                    } else {
+                        return Err(MergeError::Logic(format!(
+                            "Cannot adapt field '{}' from {:?} to {:?}",
+                            target_field.name(),
+                            source.data_type(),
+                            target_field.data_type()
+                        )));
+                    }
+                }
                 None => {
                     let field = &self.target_schema.fields()[i];
                     columns.push(arrow::array::new_null_array(field.data_type(), num_rows));

@@ -11,7 +11,6 @@ use std::fs::File;
 use arrow::array::RecordBatchReader;
 use arrow::datatypes::Schema as ArrowSchema;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
-use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
 
@@ -65,7 +64,6 @@ pub fn merge_unsorted_with_pool(
 
     // Single pass: collect schemas and build readers.
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
-    let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
     let mut readers: Vec<ParquetRecordBatchReader> = Vec::with_capacity(input_files.len());
     let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
     let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
@@ -74,7 +72,6 @@ pub fn merge_unsorted_with_pool(
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
-        let parquet_descr = builder.parquet_schema().clone();
         let num_rows = builder.metadata().file_metadata().num_rows() as usize;
         let generation = crate::writer_properties_builder::read_writer_generation(
             builder.metadata().file_metadata(),
@@ -82,7 +79,8 @@ pub fn merge_unsorted_with_pool(
         );
 
         let projection_indices = projection_indices_excluding_row_id(&schema);
-        let projection = parquet::arrow::ProjectionMask::roots(&parquet_descr, projection_indices);
+        let projection =
+            parquet::arrow::ProjectionMask::roots(builder.parquet_schema(), projection_indices);
         let reader = builder
             .with_batch_size(batch_size)
             .with_projection(projection)
@@ -90,7 +88,6 @@ pub fn merge_unsorted_with_pool(
 
         // The reader's schema is the projected schema (__row_id__ excluded).
         arrow_schemas.push(reader.schema().as_ref().clone());
-        parquet_descriptors.push(parquet_descr);
         readers.push(reader);
         file_row_counts.push(num_rows);
         file_generations.push(generation);
@@ -99,7 +96,6 @@ pub fn merge_unsorted_with_pool(
     let ctx_reservation = reservation.child("merge:flush");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
-        &parquet_descriptors,
         output_path,
         index_name,
         output_flush_rows,
