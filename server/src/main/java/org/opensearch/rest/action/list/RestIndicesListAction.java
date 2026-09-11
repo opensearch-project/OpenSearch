@@ -14,6 +14,7 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 
@@ -38,6 +39,10 @@ public class RestIndicesListAction extends RestIndicesAction {
 
     public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings) {
         super(responseLimitSettings);
+    }
+
+    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings, final SystemIndices systemIndices) {
+        super(responseLimitSettings, systemIndices);
     }
 
     @Override

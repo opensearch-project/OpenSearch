@@ -50,6 +50,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Table;
 import org.opensearch.common.breaker.ResponseLimitBreachedException;
 import org.opensearch.common.breaker.ResponseLimitSettings;
@@ -63,6 +64,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -106,10 +109,16 @@ public class RestIndicesAction extends AbstractListAction {
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
+    private final @Nullable SystemIndices systemIndices;
     private final ResponseLimitSettings responseLimitSettings;
 
     public RestIndicesAction(ResponseLimitSettings responseLimitSettings) {
+        this(responseLimitSettings, null);
+    }
+
+    public RestIndicesAction(ResponseLimitSettings responseLimitSettings, @Nullable SystemIndices systemIndices) {
         this.responseLimitSettings = responseLimitSettings;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -397,7 +406,7 @@ public class RestIndicesAction extends AbstractListAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(asList("local", "health"));
+        final Set<String> responseParams = new HashSet<>(asList("local", "health", "system"));
         responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -429,6 +438,13 @@ public class RestIndicesAction extends AbstractListAction {
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
+
+        final String systemColumnDefault = request.hasParam("system") ? "" : "default:false;";
+        table.addCell("system", "alias:sys;" + systemColumnDefault + "desc:whether the index is a system index");
+        table.addCell(
+            "system.description",
+            "alias:sysdesc;" + systemColumnDefault + "desc:description from the matching system index descriptor"
+        );
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -899,6 +915,7 @@ public class RestIndicesAction extends AbstractListAction {
         final PageToken pageToken
     ) {
         final String healthParam = request.param("health");
+        final Boolean systemParam = request.hasParam("system") ? request.paramAsBoolean("system", false) : null;
         final Table table = getTableWithHeader(request, pageToken);
 
         while (tableIterator.hasNext()) {
@@ -942,6 +959,10 @@ public class RestIndicesAction extends AbstractListAction {
                 }
             }
 
+            if (systemParam != null && systemParam != indexMetadata.isSystem()) {
+                continue;
+            }
+
             final CommonStats primaryStats;
             final CommonStats totalStats;
 
@@ -970,6 +991,12 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
+
+            table.addCell(indexMetadata.isSystem());
+            SystemIndexDescriptor descriptor = indexMetadata.isSystem() && systemIndices != null
+                ? systemIndices.findMatchingDescriptor(indexName)
+                : null;
+            table.addCell(descriptor == null ? null : descriptor.getDescription());
 
             table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
             table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
