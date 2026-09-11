@@ -24,6 +24,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -142,11 +143,13 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         }
         // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
+        List<ValuesSource> rawValuesSources = configs.stream().map(config -> config.v1().getValuesSource()).toList();
+        MultiTermsBucketOrds ordinalBucketOrds = selectOrdinalStrategy(rawValuesSources, searchContext, cardinality);
         return new MultiTermsAggregator(
             name,
             factories,
             showTermDocCountError,
-            configs.stream().map(config -> config.v1().getValuesSource()).toList(),
+            rawValuesSources,
             configs.stream()
                 .map(config -> queryShardContext.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v1()).build(config))
                 .collect(Collectors.toList()),
@@ -158,12 +161,47 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             searchContext,
             parent,
             cardinality,
-            metadata
+            metadata,
+            ordinalBucketOrds
         );
     }
 
     public List<String> getRequestFields() {
         return requestFields;
+    }
+
+    /**
+     * Returns the optimal {@link MultiTermsBucketOrds} for the given sources, or {@code null}
+     * to fall back to the default byte-key path (star-tree active, non-ordinal sources, or
+     * ordinal bit count exceeds the supported range).
+     */
+    private static MultiTermsBucketOrds selectOrdinalStrategy(
+        List<ValuesSource> rawValuesSources,
+        SearchContext searchContext,
+        CardinalityUpperBound cardinality
+    ) throws IOException {
+        // Star-tree path writes directly to BytesKeyedBucketOrds; skip ordinal path to avoid split storage.
+        if (StarTreeQueryHelper.getSupportedStarTree(searchContext.getQueryShardContext()) != null) {
+            return null;
+        }
+        for (ValuesSource vs : rawValuesSources) {
+            if ((vs instanceof ValuesSource.Bytes.WithOrdinals) == false) {
+                return null;
+            }
+        }
+        int numFields = rawValuesSources.size();
+        long[] maxOrds = new long[numFields];
+        for (int i = 0; i < numFields; i++) {
+            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(i)).globalMaxOrd(searchContext.searcher());
+        }
+        if (PackedOrdinalBucketOrds.fitsInSingleLong(maxOrds)) {
+            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
+        }
+        // LongLongHash has no owning-bucket concept, so the two-long path is only safe at the top level.
+        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds) && cardinality == CardinalityUpperBound.ONE) {
+            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
+        }
+        return null;
     }
 
     @Override
