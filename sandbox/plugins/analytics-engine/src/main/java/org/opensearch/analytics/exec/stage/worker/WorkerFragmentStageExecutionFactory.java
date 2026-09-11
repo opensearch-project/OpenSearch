@@ -24,14 +24,16 @@ import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
 import org.opensearch.cluster.service.ClusterService;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
  * Builds a {@link WorkerFragmentStageExecution} that fans out one fragment request per
- * resolved {@link WorkerExecutionTarget}. Each per-task request carries only the two
+ * resolved {@link WorkerExecutionTarget}. Each per-task request carries only the
  * {@link ShuffleScanInstructionNode}s for that target's partition — the consumer-stage's
- * full instruction list (with all 2N partition-side scans appended) is filtered down so
+ * full instruction list (with every partition × slot scan appended) is filtered down so
  * each worker session registers only its own per-partition streaming tables.
  *
  * @opensearch.internal
@@ -62,37 +64,27 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
      * Filters every {@link StagePlan}'s instruction list to keep only the ShuffleScan
      * instructions for {@code partitionIndex}. Replaces the partition-agnostic
      * {@link ShuffleWorkerSetupInstructionNode} placeholder with a partition-specific copy so
-     * the setup handler can eagerly register both sides' expected sender counts on the buffer
+     * the setup handler can eagerly declare EVERY slot's expected sender count on the buffer
      * BEFORE any ShuffleScanHandler calls awaitReady.
      *
      * <p>The returned alternatives are the wire payload sent to the worker task; the
-     * data-node-side handler chain runs setup → register-left-stream → register-right-stream →
-     * execute.
+     * data-node-side handler chain runs setup → one register-stream per slot → execute.
      */
     private static List<FragmentExecutionRequest.PlanAlternative> filterPlanAlternativesForPartition(Stage stage, int partitionIndex) {
         List<FragmentExecutionRequest.PlanAlternative> alts = new ArrayList<>();
         for (StagePlan plan : stage.getPlanAlternatives()) {
-            // Compute per-partition setup parameters from the partition's own scan instructions
-            // (left + right). The expected sender counts come from the ShuffleScan instructions
-            // (each scan carries the count for its side); the placeholder setup at the head
-            // doesn't have them yet because it was added before per-partition info was known.
-            // Default to -1 ("leave unchanged" in setExpectedSenders) and let the placeholder's
-            // own value be the fallback for sides with no ShuffleScan — that's how the M3
-            // single-side aggregate path tells the worker buffer that the right side has zero
-            // expected senders (placeholder carries rightExpectedSenders=0).
-            int leftExpected = -1;
-            int rightExpected = -1;
+            // Compute per-partition setup parameters from the partition's own scan instructions —
+            // one per slot the consumer reads. The expected sender counts come from the ShuffleScan
+            // instructions (each carries the count for its own slot); the placeholder setup at the
+            // head doesn't have them yet because it was added before per-partition info was known.
+            Map<String, Integer> expectedBySlot = new LinkedHashMap<>();
             String queryId = null;
             int targetStageId = -1;
             boolean preferHashJoin = true;
             ShuffleWorkerSetupInstructionNode placeholderSetup = null;
             for (InstructionNode node : plan.instructions()) {
                 if (node instanceof ShuffleScanInstructionNode scan && scan.getShufflePartitionIndex() == partitionIndex) {
-                    if ("left".equals(scan.getSide())) {
-                        leftExpected = scan.getExpectedSenders();
-                    } else if ("right".equals(scan.getSide())) {
-                        rightExpected = scan.getExpectedSenders();
-                    }
+                    expectedBySlot.put(scan.getSide(), scan.getExpectedSenders());
                     if (queryId == null) {
                         queryId = scan.getQueryId();
                         targetStageId = scan.getTargetStageId();
@@ -101,12 +93,12 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                     placeholderSetup = setup;
                 }
             }
-            // For sides with no ShuffleScan instruction (M3 agg shuffle has only "left" scans),
-            // fall back to the placeholder's stored value so a configured "rightExpected=0"
-            // pre-fires the right-side latch and doesn't get clobbered to -1.
+            // Merge in any slot the placeholder declares that has NO ShuffleScan instruction. That is
+            // how the M3 agg-shuffle path (only a "left" scan) tells the worker buffer the right slot
+            // has zero expected senders, pre-firing its latch. putIfAbsent so a slot's own scan
+            // instruction always wins over the placeholder's pre-partition estimate.
             if (placeholderSetup != null) {
-                if (leftExpected < 0) leftExpected = placeholderSetup.getLeftExpectedSenders();
-                if (rightExpected < 0) rightExpected = placeholderSetup.getRightExpectedSenders();
+                placeholderSetup.getExpectedSendersBySlot().forEach(expectedBySlot::putIfAbsent);
                 if (queryId == null) {
                     queryId = placeholderSetup.getQueryId();
                     targetStageId = placeholderSetup.getTargetStageId();
@@ -123,18 +115,11 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                         filtered.add(scan);
                     }
                 } else if (node instanceof ShuffleWorkerSetupInstructionNode) {
-                    // Replace the placeholder setup with a partition-specific copy carrying
-                    // both sides' expected counts.
+                    // Replace the placeholder setup with a partition-specific copy carrying every
+                    // slot's expected count.
                     if (queryId != null) {
                         filtered.add(
-                            new ShuffleWorkerSetupInstructionNode(
-                                queryId,
-                                targetStageId,
-                                partitionIndex,
-                                leftExpected,
-                                rightExpected,
-                                preferHashJoin
-                            )
+                            new ShuffleWorkerSetupInstructionNode(queryId, targetStageId, partitionIndex, expectedBySlot, preferHashJoin)
                         );
                     } else {
                         filtered.add(node);

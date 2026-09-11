@@ -401,19 +401,14 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         // Stitcher constructor already allocated that VSR on the coordinator allocator, so any window
         // where the field is still null but output exists would leak it on a racing terminal.
         this.stitcher = stitcher;
-        // Close the publication race: if a terminal transition already fired while we were between
-        // Stitcher construction and the assignment above, its onTerminalTransition saw a null field
-        // and skipped the close. Re-check here and release output now that the field is published.
-        // state is an AtomicReference, so this read pairs with the CAS in transitionTo: either that
-        // CAS-then-read-stitcher saw our published field (and closed output), or our set-then-read-state
-        // sees the terminal here — output is freed exactly once on this racing-cancel path.
+        // Close the publication race: a terminal transition firing between Stitcher construction and the
+        // assignment above saw a null field and skipped the close. state is an AtomicReference, so this read
+        // pairs with the CAS in transitionTo — either that CAS saw our published field, or we see the terminal
+        // here, and output is freed exactly once.
         //
-        // We must also settle outerListener: the task body owns firing the per-task listener (see
-        // LocalStageTask), and a stage cancel does NOT fire it independently — so returning without
-        // firing would strand the task. This mirrors the K==0 branch below, which likewise settles
-        // the listener directly. onComplete (which also fires outerListener) can no longer run here
-        // because no shards are dispatched, and LocalTaskRunner wraps outerListener in a
-        // NotifyOnceListener regardless, so this can never double-fire.
+        // outerListener must be settled here too: the task body owns firing it and a stage cancel does not, so
+        // returning without firing would strand the task. Double-firing is impossible — no shards are
+        // dispatched, and LocalTaskRunner wraps the listener in a NotifyOnceListener.
         if (getState().isTerminal()) {
             stitcher.close();
             outerListener.onFailure(new TaskCancelledException("late materialization stage terminated before fetch dispatch"));

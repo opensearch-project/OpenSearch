@@ -123,7 +123,7 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
 
     /**
      * True when this reducer carries a QTF-declared {@link #overrideRowType} (the coord-side
-     * {@code ___ugsi} column). {@code DistributionEnforcementPass} must NOT peel such a reducer and
+     * {@code ___ugsi} column). CBO's trait enforcement must NOT peel such a reducer and
      * rebuild it via {@code buildReducer()}: that goes through the 4-arg constructor and drops both the
      * override row type and its {@code overrideStorage}, after which the reduce sink's schema validation
      * rejects the runtime batch (declared schema is missing {@code ___ugsi}).
@@ -185,20 +185,15 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         double rows = mq.getRowCount(getInput());
-        // Width term is ADDITIVE (per-column overhead), NOT rows × width. Two competing decisions key
-        // off this ER cost and pull in opposite directions:
-        // 1. Project placement (OpenSearchAggLiteralArgProjectSplitRule): the narrow vs wide project
-        // below the ER carry the SAME row count (a Project is 1:1), so only a width term lets CBO
-        // prefer gathering fewer columns — pushing the narrow project below the ER.
-        // 2. Broadcast vs coordinator-centric (BroadcastJoinIT): coord-centric pays 2× ER, broadcast
-        // pays 1× ER + a width-agnostic broadcast exchange. A rows × width ER term (what an
-        // upstream merge introduced) inflated the 2×ER plan and made CBO stop picking BROADCAST
-        // for modest size asymmetries (dim=5 × fact=30) — the regression.
-        // ADDITIVE width satisfies both: it breaks the equal-row project-placement tie, but stays a
-        // small constant when row counts differ, so it can't flip the row-dominated join-strategy
-        // race. WIDTH_COST weights each gathered column. Keep broadcast/shuffle width-agnostic — the
-        // join-strategy race must be decided on rows, not width.
+        // Width is ADDITIVE, not rows × width, because two decisions pull opposite ways: project placement
+        // needs SOME width term (a narrow and a wide Project below the ER carry equal rows, so only width
+        // breaks the tie), while broadcast-vs-coord-centric must stay row-dominated (a rows × width term
+        // inflates the 2×ER coord plan and stops CBO picking broadcast for modest asymmetries). Additive
+        // width does both. Broadcast and shuffle stay width-agnostic for the same reason.
         double widthCost = WIDTH_COST * getRowType().getFieldCount();
         return planner.getCostFactory().makeCost(SETUP_COST + rows + widthCost, SETUP_COST + rows + widthCost, 0);
     }

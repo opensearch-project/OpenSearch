@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.exec.shuffle.ShuffleProducerSinkBuilder;
 import org.opensearch.analytics.exec.stage.coordinator.LateMaterializationStageExecutionFactory;
 import org.opensearch.analytics.exec.stage.coordinator.LocalComputeStageExecutionFactory;
 import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
@@ -25,6 +26,8 @@ import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,11 +63,34 @@ public class StageExecutionBuilder {
      * Guice-injected constructor. Registers default factories for every value
      * of {@link StageExecutionType}.
      */
-    @Inject
+    /**
+     * Without the shuffle-sender deps. A {@code COORDINATOR_REDUCE} stage can then still REDUCE, but cannot act
+     * as a hash-shuffle producer — if one of its instructions asks it to, {@link ReduceStageExecutionFactory}
+     * fails loudly rather than silently dropping the partitions. Kept for callers (and tests) that never build
+     * a producing reduce stage.
+     */
     public StageExecutionBuilder(ClusterService clusterService, AnalyticsSearchTransportService dispatcher) {
+        this(clusterService, dispatcher, null, null);
+    }
+
+    @Inject
+    public StageExecutionBuilder(
+        ClusterService clusterService,
+        AnalyticsSearchTransportService dispatcher,
+        // Feature-branch (MPP step 5) additions — appended last so upstream constructor extensions don't
+        // collide. Needed so a COORDINATOR_REDUCE stage can also be a hash-shuffle PRODUCER: the sender that
+        // routes its partitions to worker nodes is built from these.
+        NodeClient client,
+        ThreadPool threadPool
+    ) {
         this.factories = new HashMap<>();
         registerFactory(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageExecutionFactory(clusterService, dispatcher));
-        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new ReduceStageExecutionFactory());
+        registerFactory(
+            StageExecutionType.COORDINATOR_REDUCE,
+            new ReduceStageExecutionFactory(
+                client == null || threadPool == null ? null : new ShuffleProducerSinkBuilder(client, threadPool, clusterService)
+            )
+        );
         registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, config, sink));
         registerFactory(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageExecutionFactory());
         registerFactory(StageExecutionType.WORKER_FRAGMENT, new WorkerFragmentStageExecutionFactory(clusterService, dispatcher));

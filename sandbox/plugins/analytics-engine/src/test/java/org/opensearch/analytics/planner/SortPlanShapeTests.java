@@ -20,7 +20,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
  * <p>Two flavors:
  * <ul>
  *   <li><b>Collated Sort</b> (ORDER BY) — needs SINGLETON input. Volcano's
- *       {@code OpenSearchSortSplitRule} fires {@code convert(input, COORDINATOR)} which
+ *       {@code OpenSearchSort.passThroughTraits} demands COORDINATOR+SINGLETON, which
  *       inserts an ER under the Sort. Sort runs at coord.</li>
  *   <li><b>Pure-LIMIT Sort</b> (no collation, just {@code fetch}) — partition-local
  *       fetch is correct. ER goes above the Sort to gather to coord.</li>
