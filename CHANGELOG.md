@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Update Jackson to 2.18.9 and Log4j to 2.25.5 ([#22990](https://github.com/opensearch-project/OpenSearch/pull/22990))
-- Updated Netty to 4.1.137.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491), [#21968](https://github.com/opensearch-project/OpenSearch/pull/21968), [#22692](https://github.com/opensearch-project/OpenSearch/pull/22692))
+- Updated Netty to 4.1.138.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491), [#21968](https://github.com/opensearch-project/OpenSearch/pull/21968), [#22692](https://github.com/opensearch-project/OpenSearch/pull/22692), [#23003](https://github.com/opensearch-project/OpenSearch/pull/23003))
 - Update bundled JDK to 21.0.12.1+1 ([#22572](https://github.com/opensearch-project/OpenSearch/issues/22572), [#22809](https://github.com/opensearch-project/OpenSearch/issues/22809))
 
 ### Deprecated
