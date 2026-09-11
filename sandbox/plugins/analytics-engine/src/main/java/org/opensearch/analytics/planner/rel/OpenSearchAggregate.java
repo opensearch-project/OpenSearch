@@ -324,7 +324,13 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         // defined cost or a defined correctness. This ONE invariant does the work that a shape-by-shape
         // legality table used to — the marking phase's seed lives in the ANY subset, and only the concrete
         // alternatives its passThrough/derive hooks produce are consumable.
-        if (inputDistribution == null || inputDistribution.getType() == RelDistribution.Type.ANY) {
+        if (inputDistribution == null) {
+            // No distribution trait at all is NOT the same as an unresolved one, and stays tinyCost: the
+            // pre-existing code reached that by skipping non-distribution traits. Folding it into the
+            // infinite branch would be an unmotivated cost change.
+            return planner.getCostFactory().makeTinyCost();
+        }
+        if (inputDistribution.getType() == RelDistribution.Type.ANY) {
             return planner.getCostFactory().makeInfiniteCost();
         }
         // PARTIAL over already-gathered input STAYS PRICED, not asserted: OpenSearchAggregateSplitRule builds
@@ -336,9 +342,6 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         // already stamped on it. Modelling that value is not enough on its own: demanding it via convert()
         // makes the PARTIAL itself carry a wildcard trait, which is a demand-side value and corrupts every
         // downstream trait (measured: 48 test failures). It needs a consumer that pushes the demand DOWN.
-        if (mode == AggregateMode.PARTIAL && inputDistribution.getType() == RelDistribution.Type.SINGLETON) {
-            return planner.getCostFactory().makeInfiniteCost();
-        }
         assert assertPlacementIsLegal(inputDistribution);
 
         // FINAL pays a merge cost proportional to its input row count. Coord-centric merges serially
@@ -347,8 +350,6 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         // despite paying an extra gather ER on top — and only when the savings exceed the gather's setup, so
         // tiny inputs still route coord-centric. This is REAL cost, not a placement gate.
         if (mode == AggregateMode.FINAL) {
-            boolean singletonCoord = inputDistribution.getType() == RelDistribution.Type.SINGLETON
-                && inputDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
             boolean hashWorker = inputDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
                 && inputDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
             // STAYS PRICED, like the PARTIAL branch, and for a reason that an assertion cannot see: the
@@ -358,9 +359,6 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             // reaches an illegal input) yet still costs q8 a 7x regression at sf=10: 0.4s -> 3.1s, because the
             // alternatives this used to make unaffordable start competing and displace q8's broadcast
             // (shape `shuf x12, gather x2, bcast x1` becomes `shuf x14, gather x2`).
-            if (!singletonCoord && !hashWorker) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
             int partitionCount = hashWorker && inputDistribution.getPartitionCount() != null
                 ? Math.max(1, inputDistribution.getPartitionCount())
                 : 1;
@@ -400,6 +398,19 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         boolean inputIsSingleton = inputDistribution.getType() == RelDistribution.Type.SINGLETON;
         if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
             throw new IllegalStateException("SINGLE aggregate over partitioned input [" + inputDistribution + "] would under-count");
+        }
+        if (mode == AggregateMode.PARTIAL && inputIsSingleton) {
+            throw new IllegalStateException("PARTIAL aggregate over already-gathered input [" + inputDistribution + "]");
+        }
+        if (mode == AggregateMode.FINAL) {
+            boolean coordGather = inputIsSingleton && inputDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
+            boolean workerShuffle = inputDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+                && inputDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
+            if (!coordGather && !workerShuffle) {
+                throw new IllegalStateException(
+                    "FINAL aggregate over neither a coordinator gather nor a worker shuffle [" + inputDistribution + "]"
+                );
+            }
         }
         if (mode == AggregateMode.FINAL) {
             boolean singletonCoord = inputIsSingleton && inputDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
@@ -478,6 +489,15 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         }
         OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
         if (childDistribution == null) {
+            return null;
+        }
+        // Decline an already-gathered child, mirroring passThroughTraits. A PARTIAL exists to aggregate
+        // per-partition; over a singleton it is pure overhead AND it is the shape whose FINAL would then read
+        // partial state where it expects raw rows. Deriving it anyway is what made the illegal pair reachable:
+        // Volcano calls derive for every child subset, so a SINGLETON one produced PARTIAL@SINGLETON over
+        // SINGLETON, and only cost stopped it from being chosen. Declining here closes that on the trait side,
+        // which is what lets the infinite-cost branch become an assertion.
+        if (childDistribution.getType() == RelDistribution.Type.SINGLETON) {
             return null;
         }
         return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
