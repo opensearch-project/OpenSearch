@@ -374,6 +374,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             return (IFD) accountable;
         }
 
+        @Override
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> boolean isCached(
+            DirectoryReader indexReader,
+            IFD indexFieldData
+        ) {
+            final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
+            if (cacheHelper == null) return false;
+            final ShardId shardId = ShardUtils.extractShardId(indexReader);
+            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
+            final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
+            return nodeLevelCache.getCache().get(key) != null;
+        }
+
         private void notifyOnCache(ShardId shardId, Accountable accountable) {
             try {
                 nodeListener.onCache(shardId, fieldName, accountable);
