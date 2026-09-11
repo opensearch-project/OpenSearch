@@ -1189,6 +1189,35 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression test: {@code DataFormatAwareEngine.currentMappingVersion()} must read
+     * {@code IndexMetadata.getMappingVersion()}, the same counter pluggable writers (e.g.
+     * Parquet) are seeded from — not {@code DocumentMapper.getVersion()}, an unrelated
+     * per-mapper-instance counter. Wires a {@code DocumentMapper} version and an
+     * {@code IndexMetadata} mapping version that diverge, then asserts the version threaded
+     * through to the writer via {@code updateMappingVersion} is the {@code IndexMetadata} one.
+     */
+    public void testCurrentMappingVersionUsesIndexMetadataMappingVersion() throws Exception {
+        long documentMapperVersion = 5L;
+        long indexMetadataMappingVersion = 20L;
+        MappingVersionCapturingWriter capturingWriter = new MappingVersionCapturingWriter(0L);
+
+        EngineConfig config = buildEngineConfigWithDivergentMappingVersions(
+            createTempDir(),
+            documentMapperVersion,
+            indexMetadataMappingVersion,
+            capturingWriter
+        );
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+            assertEquals(
+                "writer must be reconciled against IndexMetadata's mapping version, not DocumentMapper's",
+                indexMetadataMappingVersion,
+                capturingWriter.lastMappingVersion()
+            );
+        }
+    }
+
+    /**
      * Covers the preIndex happy path: a writer in the flushQueue is successfully flushed
      * by the write thread during preIndex, producing a pending segment.
      */
@@ -2406,6 +2435,95 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Builds an engine config whose {@code DocumentMapper} version and {@code IndexMetadata}
+     * mapping version are set independently, wired to a single pre-built writer. Used to
+     * prove which of the two counters {@link DataFormatAwareEngine#currentMappingVersion()}
+     * actually reads.
+     */
+    private EngineConfig buildEngineConfigWithDivergentMappingVersions(
+        Path translogPath,
+        long documentMapperVersion,
+        long indexMetadataMappingVersion,
+        org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> writer
+    ) throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                    .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .mappingVersion(indexMetadataMappingVersion)
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(documentMapperVersion);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+
+        MockDataFormatPlugin plugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return new SingleWriterIndexingExecutionEngine(mockDataFormat, writer);
+            }
+        };
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
+        );
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(c -> {
+                try {
+                    return new InMemoryCommitter(store);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            })
+            .eventListener(new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .build();
+    }
+
+    /**
      * A committer wrapper that can inject failures on commit. Tragic exceptions are now
      * surfaced via {@link MockIndexingExecutionEngine#setTragicException} instead.
      */
@@ -3320,6 +3438,87 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         @Override
         public void close() {
             state = WriterState.CLOSED;
+        }
+    }
+
+    /**
+     * A writer that records every value passed to {@link #updateMappingVersion}, used to
+     * prove which counter {@link DataFormatAwareEngine#currentMappingVersion()} feeds into
+     * writer/pool reconciliation.
+     */
+    private static final class MappingVersionCapturingWriter implements org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> {
+        private final long writerGeneration;
+        private volatile WriterState state = WriterState.ACTIVE;
+        private volatile long mappingVersion;
+
+        MappingVersionCapturingWriter(long writerGeneration) {
+            this.writerGeneration = writerGeneration;
+        }
+
+        long lastMappingVersion() {
+            return mappingVersion;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriteResult addDoc(MockDocumentInput d) {
+            return new org.opensearch.index.engine.dataformat.WriteResult.Success(1L, 1L, 0L);
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput) {
+            return org.opensearch.index.engine.dataformat.FileInfos.empty();
+        }
+
+        @Override
+        public long generation() {
+            return writerGeneration;
+        }
+
+        @Override
+        public WriterState state() {
+            return state;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return true;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return mappingVersion;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {
+            if (newVersion > mappingVersion) {
+                mappingVersion = newVersion;
+            }
+        }
+
+        @Override
+        public void close() {
+            state = WriterState.CLOSED;
+        }
+    }
+
+    /** An indexing execution engine that always hands out the same pre-built writer. */
+    private static final class SingleWriterIndexingExecutionEngine extends MockIndexingExecutionEngine {
+        private final org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> writer;
+
+        SingleWriterIndexingExecutionEngine(
+            MockDataFormat dataFormat,
+            org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> writer
+        ) {
+            super(dataFormat);
+            this.writer = writer;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> createWriter(
+            org.opensearch.index.engine.dataformat.WriterConfig config
+        ) {
+            return writer;
         }
     }
 
