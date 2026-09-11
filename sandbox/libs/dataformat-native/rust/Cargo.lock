@@ -2861,6 +2861,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "opensearch-block-cache",
+ "opensearch-parquet-format",
  "opensearch-tiered-storage",
  "parking_lot",
  "parquet",

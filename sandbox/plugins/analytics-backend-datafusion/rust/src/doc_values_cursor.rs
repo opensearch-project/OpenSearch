@@ -41,6 +41,7 @@ use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
 use once_cell::sync::Lazy;
+use opensearch_parquet_format::writer_properties_builder::read_format_version_encoded;
 use opensearch_tiered_storage::tiered_object_store::MetadataCachingStore;
 use parking_lot::Mutex;
 use parquet::arrow::{parquet_to_arrow_schema_by_columns, ProjectionMask};
@@ -364,24 +365,24 @@ unsafe fn write_out(ptr: *mut i64, value: i64) {
 #[repr(i64)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum BorrowKind {
-    Long = 1,     // i64 / u64 raw bits
-    Int = 2,      // i32 / date32, sign-extended
-    UintBits = 3, // u32 raw bits, zero-extended
-    Short = 4,    // i16, sign-extended
-    Ushort = 5,   // u16, zero-extended
-    Byte = 6,     // i8, sign-extended
-    Ubyte = 7,    // u8, zero-extended
-    Double = 8,   // f64 raw bits; Java re-encodes to a Lucene sortable long
-    Float = 9,    // f32 raw bits; Java re-encodes to a sign-extended sortable int
+    Long = 1,       // i64 / u64 raw bits
+    Int = 2,        // i32 / date32, sign-extended
+    UintBits = 3,   // u32 raw bits, zero-extended
+    Short = 4,      // i16, sign-extended
+    Ushort = 5,     // u16, zero-extended
+    Byte = 6,       // i8, sign-extended
+    Ubyte = 7,      // u8, zero-extended
+    Double = 8,     // f64 raw bits; Java re-encodes to a Lucene sortable long
+    Float = 9,      // f32 raw bits; Java re-encodes to a sign-extended sortable int
+    Bool = 10, // one bit per row, not one byte; read via `value_bit_offset` like the validity bitmap
+    HalfFloat = 11, // f16 raw bits; Java re-encodes to the sortable short Lucene stores for half_float
 }
 
 impl BorrowKind {
     /// Keyed on the Arrow type, which is the decode output: Parquet INT32 arrives as
     /// Int8/Int16/Int32/Date32 depending on its logical type.
     ///
-    /// TODO: boolean needs a bit-packed values buffer with a value bit offset, mirroring the
-    /// validity bitmap. Binary and variable-width columns come after that. `Float16`
-    /// (OpenSearch `half_float`) needs a kind whose Java side re-encodes to a sortable short.
+    /// TODO: binary and variable-width columns are not borrowable yet.
     fn for_arrow(data_type: &DataType) -> Option<Self> {
         match data_type {
             DataType::Int64 | DataType::UInt64 | DataType::Date64 | DataType::Timestamp(_, _) => {
@@ -395,23 +396,28 @@ impl BorrowKind {
             DataType::UInt16 => Some(Self::Ushort),
             DataType::Int8 => Some(Self::Byte),
             DataType::UInt8 => Some(Self::Ubyte),
+            DataType::Boolean => Some(Self::Bool),
+            DataType::Float16 => Some(Self::HalfFloat),
             _ => None,
         }
     }
 
-    /// Bytes per row. Mirrors `ParquetColumnReader.widthForKind`.
-    fn width(self) -> usize {
+    /// Bytes per row, or `None` for a bit-packed kind that has no whole-byte width.
+    /// Mirrors `ParquetColumnReader.valuesByteLength`.
+    fn width(self) -> Option<usize> {
         match self {
-            Self::Long | Self::Double => 8,
-            Self::Int | Self::UintBits | Self::Float => 4,
-            Self::Short | Self::Ushort => 2,
-            Self::Byte | Self::Ubyte => 1,
+            Self::Long | Self::Double => Some(8),
+            Self::Int | Self::UintBits | Self::Float => Some(4),
+            Self::Short | Self::Ushort | Self::HalfFloat => Some(2),
+            Self::Byte | Self::Ubyte => Some(1),
+            Self::Bool => None,
         }
     }
 }
 
 struct BorrowedBuffers {
     values_addr: usize,
+    value_bit_offset: usize,
     validity_addr: usize,
     validity_bit_offset: usize,
     kind: i64,
@@ -426,20 +432,28 @@ struct BorrowedBuffers {
 /// between open and read.
 fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     let kind = BorrowKind::for_arrow(array.data_type())?;
-    let width = kind.width();
-    debug_assert_eq!(array.data_type().primitive_width(), Some(width));
     let data = array.to_data();
     let buffer = data.buffers().first()?; // buffer 0 holds the values for a primitive array
-                                          // Fold the array offset into the pointer so it addresses row 0. Zero for primitive arrays, whose
-                                          // window Arrow folds into the buffer pointer, but not for `BooleanArray`.
-    let values_addr = buffer.as_ptr() as usize + data.offset() * width;
+    let (values_addr, value_bit_offset) = match kind.width() {
+        Some(width) => {
+            debug_assert_eq!(array.data_type().primitive_width(), Some(width));
+            // Fold the array offset into the pointer so it addresses row 0. Zero for primitive
+            // arrays, whose window Arrow folds into the buffer pointer.
+            (buffer.as_ptr() as usize + data.offset() * width, 0)
+        }
+        // Bit-packed values (`BooleanArray`): the offset is a bit index, not a byte count, so it
+        // cannot be folded into the pointer. Hand it over separately and let Java apply it exactly
+        // as it already applies `validity_bit_offset`.
+        None => (buffer.as_ptr() as usize, data.offset()),
+    };
     let (validity_addr, validity_bit_offset) = match data.nulls() {
         None => (0, 0),
         Some(nulls) => (nulls.buffer().as_ptr() as usize, nulls.offset()),
     };
     Some(BorrowedBuffers {
         values_addr,
-        validity_addr, // start of the null-bitmap buffer; the bit offset is applied separately
+        value_bit_offset, // bit index of row 0 within the values buffer; 0 for byte-addressed kinds
+        validity_addr,    // start of the null-bitmap buffer; the bit offset is applied separately
         validity_bit_offset, // bit index of row 0 within that bitmap (bitmaps are bit-addressable)
         kind: kind as i64,
     })
@@ -552,6 +566,57 @@ pub unsafe extern "C" fn parquet_df_open_iter(
     .map_err(|e| e.to_string())
 }
 
+/// Reads a Parquet file's row count and stamped OpenSearch format version through the same store and
+/// footer cache a cursor over that file would use.
+///
+/// Exists alongside the writer crate's `parquet_get_file_metadata`, which opens the path as a local
+/// `File` and so cannot see a warm shard's Parquet files at all. This one reads through
+/// `store_ptr`, and on the local path still costs no extra IO once a cursor has been opened, because
+/// both share the global footer cache.
+///
+/// Writes `out_num_rows` and `out_format_version` only on success; a caller that gets a negative
+/// return must not read them.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_df_file_metadata(
+    file_ptr: *const u8,
+    file_len: i64,
+    // 0 for a local (hot) shard; a warm shard passes its TieredObjectStore box pointer.
+    store_ptr: i64,
+    out_num_rows: *mut i64,
+    out_format_version: *mut i64,
+) -> i64 {
+    static FN: &str = "parquet_df_file_metadata";
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("{FN} file: {e}"))?;
+    if out_num_rows.is_null() || out_format_version.is_null() {
+        return Err(format!("{FN}: null out-parameter"));
+    }
+    let runtime = io_runtime().map_err(|e| format!("{FN}: {e}"))?;
+    let location = ObjectPath::from(filename);
+    let store: Arc<dyn ObjectStore> =
+        store_from_ptr(store_ptr).unwrap_or_else(|| Arc::new(LocalFileSystem::new()));
+    let cache = runtime_env()
+        .map_err(|e| format!("{FN}: {e}"))?
+        .cache_manager
+        .get_file_metadata_cache();
+    let footer = runtime.block_on(async {
+        let object_meta = store
+            .head(&location)
+            .await
+            .map_err(|e| format!("{FN} head {filename}: {e}"))?;
+        load_parquet_metadata_with_meta(store, &location, object_meta, cache)
+            .await
+            .map(|(_schema, _size, footer)| footer)
+            .map_err(|e| format!("{FN} {filename}: {e}"))
+    })?;
+    let file_metadata = footer.file_metadata();
+    // Delegated to the writer crate so the key and encoding cannot drift from what stamped the file.
+    let format_version = read_format_version_encoded(file_metadata);
+    *out_num_rows = file_metadata.num_rows();
+    *out_format_version = format_version;
+    Ok(RC_OK)
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_df_close_iter(handle: i64) -> i64 {
@@ -595,6 +660,9 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     out_validity_addr: *mut i64,
     out_validity_bit_offset: *mut i64,
     out_value_kind: *mut i64,
+    // Appended rather than grouped next to `out_values_addr` so the existing slot indices Java
+    // already reads stay put; a shifted slot would hand Java the wrong native address.
+    out_value_bit_offset: *mut i64,
 ) -> i64 {
     static FN: &str = "parquet_df_next_batch";
     let cursor = cursor_for(handle, FN).map_err(|e| e.to_string())?;
@@ -623,7 +691,7 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     let borrow = {
         let array = batch.column(0); // single projected column
         borrowable_buffers(array.as_ref())
-            .ok_or_else(|| format!("{FN}: unsupported non-numeric array {}", array.data_type()))?
+            .ok_or_else(|| format!("{FN}: unsupported array type {}", array.data_type()))?
     };
 
     // Written only once the export is known good, so a failed call leaves them untouched.
@@ -633,6 +701,7 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     write_out(out_validity_addr, borrow.validity_addr as i64);
     write_out(out_validity_bit_offset, borrow.validity_bit_offset as i64);
     write_out(out_value_kind, borrow.kind);
+    write_out(out_value_bit_offset, borrow.value_bit_offset as i64);
     cursor.borrowed_batch = Some(batch);
     Ok(RC_OK)
 }
@@ -1362,7 +1431,7 @@ mod tests {
     /// The kind is the whole of the Rust-to-Java type contract: Java picks a byte width and a
     /// sign-extension rule from it alone, so a wrong mapping here reads the right bytes as the
     /// wrong numbers. Mirrors the `KIND_*` constants in `DecodedBatch.java` and the widths in
-    /// `ParquetColumnReader.widthForKind`.
+    /// `ParquetColumnReader.valuesByteLength`.
     #[test]
     fn each_borrowable_arrow_type_maps_to_the_kind_java_expects() {
         use arrow::array::{
@@ -1394,7 +1463,7 @@ mod tests {
             );
             assert_eq!(
                 expected_kind.width(),
-                array.data_type().primitive_width().unwrap(),
+                array.data_type().primitive_width(),
                 "width for {}",
                 array.data_type()
             );
@@ -1460,6 +1529,23 @@ mod tests {
         );
     }
 
+    /// Half precision is byte-addressed like the other numerics - only Java's re-encode differs - so it
+    /// shares the two-byte buffer path already covered by the Int16/UInt16 cases. Asserted on the type
+    /// mapping rather than a built array, because `half::f16` is only a transitive dependency here.
+    #[test]
+    fn float16_maps_to_the_half_float_kind_at_two_bytes() {
+        assert_eq!(
+            BorrowKind::for_arrow(&DataType::Float16).map(|k| k as i64),
+            Some(11),
+            "half_float must borrow as wire value 11 (DecodedBatch.KIND_HALF_FLOAT)"
+        );
+        assert_eq!(
+            BorrowKind::HalfFloat.width(),
+            Some(2),
+            "fp16 is two whole bytes, so it must not be treated as bit-packed"
+        );
+    }
+
     /// Rejected rather than exported as raw bytes Java would silently misread.
     #[test]
     fn a_type_with_no_borrow_kind_is_not_borrowable() {
@@ -1470,12 +1556,50 @@ mod tests {
 
         let strings = arrow::array::StringArray::from(vec!["a", "b"]);
         assert!(borrowable_buffers(&strings).is_none(), "Utf8");
+    }
 
-        let booleans = arrow::array::BooleanArray::from(vec![true, false]);
-        assert!(
-            borrowable_buffers(&booleans).is_none(),
-            "Boolean is bit-packed, so it needs a value bit offset before it can be exported"
+    /// Boolean is bit-packed, so its offset is a bit index that cannot be folded into the pointer
+    /// the way a byte-addressed kind's is.
+    #[test]
+    fn a_boolean_array_is_borrowed_with_a_zero_value_bit_offset() {
+        let booleans = arrow::array::BooleanArray::from(vec![true, false, true]);
+        let borrow = borrowable_buffers(&booleans).expect("Boolean must be borrowable");
+        // 10 is the wire value Java reads as DecodedBatch.KIND_BOOL; renumbering is a silent break.
+        assert_eq!(borrow.kind, 10);
+        assert_eq!(
+            borrow.value_bit_offset, 0,
+            "an unsliced array starts at bit 0"
         );
+        assert_ne!(borrow.values_addr, 0);
+    }
+
+    /// The offset must survive as a bit index. Slicing mid-byte is the case a byte-only contract
+    /// would silently get wrong, shifting every value Java reads.
+    #[test]
+    fn slicing_a_boolean_array_reports_the_offset_as_a_bit_index() {
+        let booleans = arrow::array::BooleanArray::from(vec![
+            true, false, true, false, true, false, true, false, true,
+        ]);
+        let full = borrowable_buffers(&booleans).expect("Boolean must be borrowable");
+
+        let sliced = booleans.slice(3, 5);
+        let borrow = borrowable_buffers(&sliced).expect("a sliced Boolean must be borrowable");
+        assert_eq!(borrow.value_bit_offset, 3, "offset is bits, not bytes");
+        assert_eq!(
+            borrow.values_addr, full.values_addr,
+            "the pointer must stay at the buffer start; the offset carries the window"
+        );
+    }
+
+    /// A byte-addressed kind folds its window into the pointer, so it must report no bit offset -
+    /// otherwise Java would apply the shift twice.
+    #[test]
+    fn a_sliced_numeric_array_reports_no_value_bit_offset() {
+        let numbers = arrow::array::Int64Array::from(vec![1_i64, 2, 3, 4]);
+        let sliced = numbers.slice(2, 2);
+        let borrow = borrowable_buffers(&sliced).expect("Int64 must be borrowable");
+        assert_eq!(borrow.kind, BorrowKind::Long as i64);
+        assert_eq!(borrow.value_bit_offset, 0);
     }
 }
 
@@ -1568,6 +1692,7 @@ mod ffm_tests {
         values_addr: i64,
         validity_addr: i64,
         value_kind: i64,
+        value_bit_offset: i64,
     }
 
     /// Reads values back out of an exported buffer the way Java does, via
@@ -1587,6 +1712,7 @@ mod ffm_tests {
         let mut validity_addr = 0i64;
         let mut validity_bit_offset = -1i64;
         let mut value_kind = -1i64;
+        let mut value_bit_offset = -1i64;
         let rc = unsafe {
             parquet_df_next_batch(
                 handle,
@@ -1597,6 +1723,7 @@ mod ffm_tests {
                 &mut validity_addr,
                 &mut validity_bit_offset,
                 &mut value_kind,
+                &mut value_bit_offset,
             )
         };
         Batch {
@@ -1606,6 +1733,7 @@ mod ffm_tests {
             values_addr,
             validity_addr,
             value_kind,
+            value_bit_offset,
         }
     }
 
@@ -1881,6 +2009,26 @@ mod ffm_tests {
         let store_ptr = leak_store_pointer(store);
 
         let column = "value";
+        let metadata = unsafe {
+            let mut num_rows = -1i64;
+            let mut format_version = -1i64;
+            let rc = parquet_df_file_metadata(
+                path.as_ptr(),
+                path.len() as i64,
+                store_ptr,
+                &mut num_rows,
+                &mut format_version,
+            );
+            assert_eq!(rc, RC_OK, "{}", error_message(rc));
+            (num_rows, format_version)
+        };
+        assert_eq!(
+            metadata.0,
+            (ROWS_PER_PAGE * 8) as i64,
+            "row count must come back through the store"
+        );
+        // The Arrow writer these fixtures use stamps no opensearch.format_version.
+        assert_eq!(metadata.1, 0, "an unstamped fixture reads as unknown");
 
         let handle = unsafe {
             parquet_df_open_iter(

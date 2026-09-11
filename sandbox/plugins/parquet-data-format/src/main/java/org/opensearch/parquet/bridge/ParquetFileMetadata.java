@@ -20,6 +20,9 @@ package org.opensearch.parquet.bridge;
  * @param createdBy    creator string from the Parquet file footer metadata
  * @param crc32        whole-file CRC32 checksum (computed by the Rust writer during write)
  * @param numRowGroups number of row groups in the file
+ * @param opensearchFormatVersion the {@code opensearch.format_version} footer stamp, long-encoded as {@code major*1_000_000 + minor*1_000 + patch}, or {@link #FORMAT_VERSION_UNKNOWN} if unstamped
  */
-public record ParquetFileMetadata(int version, long numRows, String createdBy, long crc32, int numRowGroups) {
+public record ParquetFileMetadata(int version, long numRows, String createdBy, long crc32, int numRowGroups, long opensearchFormatVersion) {
+    /** Value of {@link #opensearchFormatVersion} when the footer carries no parseable stamp. */
+    public static final long FORMAT_VERSION_UNKNOWN = 0L;
 }

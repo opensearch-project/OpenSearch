@@ -8,15 +8,13 @@
 
 package org.opensearch.be.datafusion.docvalues.bridge;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -37,8 +35,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
-import org.opensearch.parquet.bridge.RustBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,41 +45,12 @@ import java.util.List;
  * with {@link NativeParquetWriter}, then walks it through the FFM zero-copy borrow path
  * (Java -> native Rust cursor -> Arrow decode -> borrowed buffers read back in Java).
  *
- * <p>Opening a cursor needs the DataFusion runtime manager and the global file-metadata cache the
- * analytics-backend-datafusion plugin owns, so each test starts a runtime rather than the reader
- * falling back to a private pool and cache of its own. Thread-leak detection is off because the
- * Tokio runtime manager is a per-JVM singleton whose threads outlive any one test class.
+ * <p>The DataFusion runtime and Arrow allocator a cursor needs come from
+ * {@link DataFusionBackedTestCase}.
  */
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class ParquetColumnReaderTests extends OpenSearchTestCase {
+public class ParquetColumnReaderTests extends DataFusionBackedTestCase {
 
     private static final String COLUMN = "value";
-
-    private BufferAllocator allocator;
-    private long globalRuntimePtr;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        RustBridge.initLogger();
-        // Idempotent: the manager is a OnceLock, so another test class may already have started it.
-        // Deliberately never shut down - doing so kills the shared executor for the rest of the JVM.
-        DataFusionRuntimeFixture.initRuntimeManager(2);
-        globalRuntimePtr = DataFusionRuntimeFixture.createGlobalRuntime(createTempDir("datafusion-spill"));
-        assertNotEquals("global runtime must start before a cursor can be opened", 0L, globalRuntimePtr);
-        allocator = new RootAllocator();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        if (allocator != null) {
-            allocator.close();
-        }
-        if (globalRuntimePtr != 0L) {
-            DataFusionRuntimeFixture.closeGlobalRuntime(globalRuntimePtr);
-        }
-        super.tearDown();
-    }
 
     private static long expected(long row) {
         return row * 7 + 1;
@@ -329,6 +296,168 @@ public class ParquetColumnReaderTests extends OpenSearchTestCase {
             DecodedBatch batch = loadRow(reader, 0);
             assertTrue("negative float must sort below positive (sign-extended)", batch.valueAt(0) < batch.valueAt(5));
         }
+    }
+
+    /**
+     * Boolean is the only bit-packed kind: one bit per row rather than a whole byte, so a wrong bit
+     * order or a byte-width assumption would surface as shifted values. The pattern is deliberately
+     * not alternating and spans several bytes, so an off-by-one bit would change a read value.
+     */
+    public void testBooleanColumnReadsBitPackedValues() throws Exception {
+        int rowCount = 20; // spans 3 bytes, so the read cannot stay inside a single byte
+        Path file = createTempDir().resolve("booleans.parquet");
+        writeBooleanColumn(file, rowCount, -1);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < rowCount; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_BOOL, batch.valueKind());
+                assertTrue("row " + row + " should be present", batch.isPresent(row));
+                // BooleanFieldMapper stores doc values as 0 or 1, so that is what valueAt must yield.
+                assertEquals("value at row " + row, expectedBoolean(row) ? 1L : 0L, batch.valueAt(row));
+            }
+        }
+    }
+
+    /** A null boolean has both a bit-packed values buffer and a bit-packed presence bitmap. */
+    public void testBooleanColumnWithNullsUsesPresenceBitmap() throws Exception {
+        int rowCount = 24;
+        int nullEvery = 5;
+        Path file = createTempDir().resolve("booleans-nulls.parquet");
+        writeBooleanColumn(file, rowCount, nullEvery);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < rowCount; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_BOOL, batch.valueKind());
+                if (row % nullEvery == 0) {
+                    assertFalse("row " + row + " should be null", batch.isPresent(row));
+                } else {
+                    assertTrue("row " + row + " should be present", batch.isPresent(row));
+                    assertEquals("value at row " + row, expectedBoolean(row) ? 1L : 0L, batch.valueAt(row));
+                }
+            }
+        }
+    }
+
+    /** Forces several batch reloads, so the borrow is re-established repeatedly for a bit-packed column. */
+    public void testBooleanColumnAcrossManyBatches() throws Exception {
+        int rowCount = 500;
+        Path file = createTempDir().resolve("booleans-many.parquet");
+        writeBooleanColumn(file, rowCount, -1);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < rowCount; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_BOOL, batch.valueKind());
+                assertEquals("value at row " + row, expectedBoolean(row) ? 1L : 0L, batch.valueAt(row));
+            }
+        }
+    }
+
+    /** Deliberately not an alternating pattern, so a shifted bit read changes a value. */
+    private static boolean expectedBoolean(long row) {
+        return row % 3 == 0 || row % 7 == 2;
+    }
+
+    private void writeBooleanColumn(Path file, int rowCount, int nullEvery) throws Exception {
+        FieldType fieldType = nullEvery > 0 ? FieldType.nullable(new ArrowType.Bool()) : FieldType.notNullable(new ArrowType.Bool());
+        Schema schema = new Schema(List.of(new Field(COLUMN, fieldType, null)));
+        NativeParquetWriter writer = new NativeParquetWriter(file.toString());
+        try (ArrowExport schemaExport = exportSchema(schema)) {
+            writer.initialize("test-index", schemaExport.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+        }
+        try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            BitVector vector = (BitVector) root.getVector(COLUMN);
+            vector.allocateNew(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                if (nullEvery > 0 && i % nullEvery == 0) {
+                    vector.setNull(i);
+                } else {
+                    vector.setSafe(i, expectedBoolean(i) ? 1 : 0);
+                }
+            }
+            vector.setValueCount(rowCount);
+            root.setRowCount(rowCount);
+
+            ArrowArray array = ArrowArray.allocateNew(allocator);
+            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
+            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
+            try (ArrowExport dataExport = new ArrowExport(array, arrowSchema)) {
+                writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());
+            }
+        }
+        writer.flush();
+    }
+
+    /**
+     * half_float is stored as raw fp16 bits but must come back as the sortable short Lucene holds, so
+     * {@code HalfFloatPoint.sortableShortToHalfFloat} has to recover the original value. Negatives are
+     * the case a missing sign flip would break, so they must sort below positives.
+     */
+    public void testHalfFloatColumnUsesSortableShortEncoding() throws Exception {
+        float[] values = { -100.5f, -0.5f, 0.0f, 3.25f, -2.75f, 42.0f, 1.0f, -1.0f };
+        Path file = createTempDir().resolve("halffloats.parquet");
+        writeHalfFloatColumn(file, values);
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_HALF_FLOAT, batch.valueKind());
+                short sortable = (short) batch.valueAt(row);
+                // The sign flip is an involution, so applying it again recovers the raw fp16 bits.
+                short rawBits = (short) (sortable ^ ((sortable >> 15) & 0x7fff));
+                assertEquals("value at row " + row, values[row], Float.float16ToFloat(rawBits), 0.0f);
+            }
+            // Sign-flipped, so a negative's encoded short compares below a positive's.
+            DecodedBatch batch = loadRow(reader, 0);
+            assertTrue("negative half_float must sort below positive", batch.valueAt(0) < batch.valueAt(5));
+        }
+    }
+
+    /**
+     * Pins the half_float encoding to Lucene's, not merely to itself: the round-trip above holds
+     * for ANY involution, so it cannot detect the encode drifting from what
+     * {@code HalfFloatPoint.sortableShortToHalfFloat} expects. The expected shorts are
+     * {@code HalfFloatPoint.halfFloatToSortableShort} outputs, hard-coded to avoid a lucene-sandbox
+     * dependency: fp16 bits with the sign-flip transform applied.
+     */
+    public void testHalfFloatSortableShortsMatchLucene() throws Exception {
+        float[] values = { 1.0f, -1.0f, 0.0f, 42.0f };
+        short[] expectedSortable = { 15360, -15361, 0, 20800 };
+        Path file = createTempDir().resolve("halffloat-lucene.parquet");
+        writeHalfFloatColumn(file, values);
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                assertEquals("sortable short for " + values[row], expectedSortable[row], (short) loadRow(reader, row).valueAt(row));
+            }
+        }
+    }
+
+    private void writeHalfFloatColumn(Path file, float[] values) throws Exception {
+        Schema schema = new Schema(
+            List.of(new Field(COLUMN, FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.HALF)), null))
+        );
+        NativeParquetWriter writer = new NativeParquetWriter(file.toString());
+        try (ArrowExport schemaExport = exportSchema(schema)) {
+            writer.initialize("test-index", schemaExport.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+        }
+        try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            Float2Vector vector = (Float2Vector) root.getVector(COLUMN);
+            vector.allocateNew(values.length);
+            for (int i = 0; i < values.length; i++) {
+                vector.setSafeWithPossibleTruncate(i, values[i]);
+            }
+            vector.setValueCount(values.length);
+            root.setRowCount(values.length);
+
+            ArrowArray array = ArrowArray.allocateNew(allocator);
+            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
+            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
+            try (ArrowExport dataExport = new ArrowExport(array, arrowSchema)) {
+                writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());
+            }
+        }
+        writer.flush();
     }
 
     private static DecodedBatch loadRow(ParquetColumnReader reader, long row) throws java.io.IOException {
