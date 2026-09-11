@@ -21,13 +21,14 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record RefreshInput(List<Segment> existingSegments, List<Segment> writerFiles, long nextAvailableGeneration) {
+public record RefreshInput(List<Segment> existingSegments, List<Segment> writerFiles, long nextAvailableGeneration,
+    boolean deletesApplied) {
 
     /** Sentinel indicating no spare generation was allocated. */
     public static final long NO_GENERATION = -1L;
 
     public RefreshInput(List<Segment> existingSegments, List<Segment> writerFiles) {
-        this(existingSegments, writerFiles, NO_GENERATION);
+        this(existingSegments, writerFiles, NO_GENERATION, false);
     }
 
     public RefreshInput {
@@ -61,6 +62,7 @@ public record RefreshInput(List<Segment> existingSegments, List<Segment> writerF
         private List<Segment> existingSegments = new ArrayList<>();
         private List<Segment> segments = new ArrayList<>();
         private long nextAvailableGeneration = NO_GENERATION;
+        private boolean deletesApplied = false;
 
         private Builder() {}
 
@@ -95,8 +97,16 @@ public record RefreshInput(List<Segment> existingSegments, List<Segment> writerF
             return this;
         }
 
+        /**
+         * Sets whether this refresh cycle applied any delete.
+         */
+        public Builder deletesApplied(boolean deletesApplied) {
+            this.deletesApplied = deletesApplied;
+            return this;
+        }
+
         public RefreshInput build() {
-            return new RefreshInput(existingSegments, segments, nextAvailableGeneration);
+            return new RefreshInput(existingSegments, segments, nextAvailableGeneration, deletesApplied);
         }
     }
 }

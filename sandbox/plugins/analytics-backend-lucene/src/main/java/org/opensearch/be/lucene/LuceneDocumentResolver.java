@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
@@ -21,7 +22,9 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
 
@@ -47,7 +50,23 @@ public final class LuceneDocumentResolver implements DocumentMetadataResolver {
         }
         LeafReader leaf = located.leaf().reader();
         int localDocId = located.localDocId();
-        return new DocumentMetadata(id, readRowId(leaf, localDocId), readWriterGeneration(leaf));
+        return new DocumentMetadata(
+            id,
+            readRowId(leaf, localDocId),
+            readWriterGeneration(leaf),
+            readMetadataValue(leaf, localDocId, VersionFieldMapper.NAME),
+            readMetadataValue(leaf, localDocId, SeqNoFieldMapper.NAME),
+            readMetadataValue(leaf, localDocId, SeqNoFieldMapper.PRIMARY_TERM_NAME)
+        );
+    }
+
+    /** Returns a version-metadata doc value, or {@link DocumentMetadataResolver#UNSET} when absent. */
+    private long readMetadataValue(LeafReader leaf, int localDocId, String field) throws IOException {
+        NumericDocValues dv = leaf.getNumericDocValues(field);
+        if (dv == null || dv.advanceExact(localDocId) == false) {
+            return UNSET;
+        }
+        return dv.longValue();
     }
 
     private long readRowId(LeafReader leaf, int localDocId) throws IOException {

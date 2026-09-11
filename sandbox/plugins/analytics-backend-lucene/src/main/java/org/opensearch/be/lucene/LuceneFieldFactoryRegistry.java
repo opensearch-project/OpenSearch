@@ -10,7 +10,8 @@ package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -21,6 +22,7 @@ import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.util.Map;
 import java.util.Set;
@@ -67,8 +69,16 @@ public final class LuceneFieldFactoryRegistry {
     };
 
     private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
-        // do nothing for now since we don't want to index seq no indexing without soft deletes enabled.
+        // Match SeqNoFieldMapper: add a point for range queries and NumericDocValues for fetch.
+        long seqNo = ((Number) value).longValue();
+        doc.add(new LongPoint(ft.name(), seqNo));
+        doc.add(new NumericDocValuesField(ft.name(), seqNo));
     };
+
+    /** Stores numeric metadata as doc values for version resolution. */
+    private static final LuceneFieldFactory NUMERIC_DOC_VALUES_FACTORY = (doc, ft, value, lft) -> doc.add(
+        new NumericDocValuesField(ft.name(), ((Number) value).longValue())
+    );
 
     // ── Registry ──
 
@@ -87,7 +97,8 @@ public final class LuceneFieldFactoryRegistry {
     private void registerMetaFields() {
         register(IdFieldMapper.CONTENT_TYPE, ID_FIELD_FACTORY);
         register(SeqNoFieldMapper.CONTENT_TYPE, SEQ_NO_FIELD_FACTORY);
-        register(SeqNoFieldMapper.PRIMARY_TERM_NAME, (d, ft, v, lft) -> d.add(new SortedNumericDocValuesField(ft.name(), (long) v)));
+        register(SeqNoFieldMapper.PRIMARY_TERM_NAME, NUMERIC_DOC_VALUES_FACTORY);
+        register(VersionFieldMapper.CONTENT_TYPE, NUMERIC_DOC_VALUES_FACTORY);
         register(SourceFieldMapper.CONTENT_TYPE, (d, ft, v, lft) -> d.add(new Field(ft.name(), (BytesRef) v, lft)));
         // pending routing and ignored field handling
     }

@@ -1287,7 +1287,8 @@ public final class IndexSettings {
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         pluggableDataFormatEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
             && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
-        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING) || pluggableDataFormatEnabled;
+        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING)
+            || (pluggableDataFormatEnabled && scopedSettings.get(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING));
         pluggedDataFormat = scopedSettings.get(PLUGGABLE_DATAFORMAT_VALUE_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);

@@ -239,6 +239,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         RefreshInput empty = RefreshInput.builder().build();
         assertTrue(empty.writerFiles().isEmpty());
         assertTrue(empty.existingSegments().isEmpty());
+        assertFalse("a refresh applies no delete unless told otherwise", empty.deletesApplied());
 
         Path dir = createTempDir();
         WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
@@ -249,9 +250,11 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             .addSegment(Segment.builder(0L).addSearchableFiles("mock", fs1).build())
             .addSegment(Segment.builder(1L).addSearchableFiles("mock", fs2).build())
             .existingSegments(List.of(seg))
+            .deletesApplied(true)
             .build();
         assertEquals(2, input.writerFiles().size());
         assertEquals(1, input.existingSegments().size());
+        assertTrue(input.deletesApplied());
     }
 
     /**
