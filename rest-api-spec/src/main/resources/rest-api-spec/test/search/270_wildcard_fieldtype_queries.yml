@@ -544,6 +544,65 @@ setup:
   - match: { hits.hits.0._id: "8" }
 
 ---
+"aggregations on wildcard field":
+  - skip:
+      version: " - 3.8.99"
+      reason: "aggregations on wildcard fields returned wrong results before 3.9.0"
+  # Each aggregation runs in its own request: a sibling aggregation disables the
+  # affected precompute paths and would mask the defect.
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values:
+              terms:
+                field: my_field
+                size: 20
+  - length: { aggregations.values.buckets: 8 }
+  - match: { aggregations.values.sum_other_doc_count: 0 }
+  - match: { aggregations.values.buckets.0.doc_count: 1 }
+  - match: { aggregations.values.buckets.7.doc_count: 1 }
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            distinct_count:
+              cardinality:
+                field: my_field
+  - match: { aggregations.distinct_count.value: 8 }
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            rare_values:
+              rare_terms:
+                field: my_field
+                max_doc_count: 1
+  - length: { aggregations.rare_values.buckets: 8 }
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values:
+              composite:
+                size: 20
+                sources:
+                  - v:
+                      terms:
+                        field: my_field
+  - length: { aggregations.values.buckets: 8 }
+  - match: { aggregations.values.buckets.0.doc_count: 1 }
+  - match: { aggregations.values.buckets.7.doc_count: 1 }
+
+---
 teardown:
   - do:
       indices.delete:

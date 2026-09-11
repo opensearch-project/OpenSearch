@@ -212,6 +212,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         document.add(new StringField(field, value, Field.Store.NO));
     };
 
+    // Mirrors WildcardFieldMapper's indexing: doc values hold the value, postings hold anchored trigram tokens
+    protected static final TriConsumer<Document, String, String> ADD_WILDCARD_FIELD_INDEXED = (document, field, value) -> {
+        document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        String padded = "\u0000\u0000" + value + "\u0000\u0000";
+        for (int i = 0; i + 3 <= padded.length(); i++) {
+            document.add(new StringField(field, padded.substring(i, i + 3), Field.Store.NO));
+        }
+    };
+
     static {
         List<String> denylist = new ArrayList<>();
         denylist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
