@@ -72,6 +72,22 @@ public class AverageUsageTrackerTests extends OpenSearchTestCase {
         assertUpdateWindowSize(averageIoUsageTracker);
     }
 
+    public void testWindowShorterThanPollingIntervalClampsToOneAndDoesNotThrow() {
+        // A window_duration shorter than the polling interval (500ms) would floor windowSize to 0 and make
+        // MovingAverage throw. Since setWindowSize runs as a settings-update consumer at apply time, it must not throw;
+        // it clamps the window size to a minimum of 1 instead. (Guards against the cluster-manager wedge this PR fixes.)
+        for (AbstractAverageUsageTracker tracker : new AbstractAverageUsageTracker[] {
+            averageMemoryUsageTracker,
+            averageCpuUsageTracker,
+            averageIoUsageTracker }) {
+            tracker.setWindowSize(new TimeValue(200, TimeUnit.MILLISECONDS));
+            tracker.recordUsage(7);
+            assertTrue(tracker.isReady());
+            assertEquals(1, tracker.getWindowSize());
+            assertEquals(7.0, tracker.getAverage(), 0.0);
+        }
+    }
+
     private void assertAverageUsageStats(AbstractAverageUsageTracker usageTracker) {
         usageTracker.recordUsage(1);
         assertFalse(usageTracker.isReady());
