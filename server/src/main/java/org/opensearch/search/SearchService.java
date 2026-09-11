@@ -79,6 +79,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -2018,6 +2019,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
         return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
+    }
+
+    /**
+     * Returns a new {@link QueryCoordinatorContext} whose async rewrite actions issue their requests as children of
+     * {@code parentTaskId}. Query rewriting can issue real requests (a terms lookup with a subquery runs a search), and
+     * parenting them lets per-request admission control tell a nested request from a fresh one.
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest, TaskId parentTaskId) {
+        return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis, parentTaskId), searchRequest);
     }
 
     /**

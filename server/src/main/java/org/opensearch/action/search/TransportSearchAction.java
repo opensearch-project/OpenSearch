@@ -59,6 +59,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
@@ -69,6 +70,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -110,6 +112,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.OriginSettingClient;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
@@ -191,6 +194,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final MetricsRegistry metricsRegistry;
 
     private TaskResourceTrackingService taskResourceTrackingService;
+    private final WorkloadGroupService workloadGroupService;
 
     private final SearchIndexPruningService searchIndexPruningService;
 
@@ -212,7 +216,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        WorkloadGroupService workloadGroupService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -240,6 +245,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterService.getClusterSettings(),
             new ClusterStateFieldDomainProvider()
         );
+        this.workloadGroupService = workloadGroupService;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -472,7 +478,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final Span requestSpan = tracer.startSpan(SpanBuilder.from(task, actionName));
         try (final SpanScope spanScope = tracer.withSpanInScope(requestSpan)) {
             SearchRequestOperationsListener.CompositeListener requestOperationsListeners;
-            final ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
+            ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
             requestOperationsListeners = searchRequestOperationsCompositeListenerFactory.buildCompositeListener(
                 originalSearchRequest,
                 logger,
@@ -483,13 +489,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
-            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                // Node-level throttle admission. Runs before onRequestStart so a rejection doesn't leak the request
+                // gauges (decremented only on request end/failure, which the early return skips). The principal is null
+                // unless the WLM auto-tagging filter set it from the security plugin's extractor.
+                try {
+                    Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject(
+                        (WorkloadGroupTask) task,
+                        parentAlreadyCounted(task)
+                    );
+                    if (throttlePermit != null) {
+                        // Give the slot back before notifying downstream, not after: a completion listener can synchronously
+                        // start new work in this same bucket, and an _msearch does exactly that. See
+                        // WorkloadGroupService#releaseThrottlePermitBeforeCompletion.
+                        updatedListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(updatedListener, throttlePermit);
+                    }
+                } catch (OpenSearchRejectedExecutionException e) {
+                    updatedListener.onFailure(e);
+                    return;
+                }
             }
+
+            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
@@ -517,13 +542,75 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
+                        // Parent the rewrite phase's searches (a terms lookup with a subquery issues one) on this task,
+                        // so throttle admission can recognise them as nested and not charge the request family twice.
+                        // See parentAlreadyCounted.
+                        //
+                        // Only when this request's work is actually counted. Otherwise there is nothing to inherit, and
+                        // EMPTY_TASK_ID leaves the rewrite client unwrapped -- so a search in a group without throttling
+                        // behaves exactly as before, rather than every search in the cluster gaining a parent task it
+                        // never had. A consequence worth naming: a nested search whose own group is throttled while its
+                        // parent's is not sees no parent here and is charged on its own merits, so the throttle applies to
+                        // the first eligible search in a nested chain and an unthrottled parent cannot launder work into a
+                        // throttled group.
+                        searchService.getRewriteContext(
+                            timeProvider::getAbsoluteStartMillis,
+                            searchRequest,
+                            isThrottleCounted(task) ? localTaskId(task) : TaskId.EMPTY_TASK_ID
+                        ),
                         rewriteListener
                     );
                 }
             }, listener::onFailure);
-            searchRequest.transformRequest(requestTransformListener);
+            try {
+                searchRequest.transformRequest(requestTransformListener);
+            } catch (Exception e) {
+                // Same listener the asynchronous failure path uses above, so a synchronous throw and an async failure
+                // are reported identically; it wraps updatedListener, so the throttle permit is still released.
+                listener.onFailure(e);
+            }
         }
+    }
+
+    /**
+     * Whether this request's parent task is already accounted for against a node-level throttle bucket, in which case
+     * admission charges this request nothing; see
+     * {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, boolean)}.
+     * <p>
+     * A coordinator search can issue a nested coordinator search on the same node while holding a permit -- a terms lookup
+     * with a subquery does this during the rewrite phase -- and charging the nested request again would make the request
+     * compete with itself.
+     * <p>
+     * Only the immediate parent is inspected, and that is sufficient rather than a simplification: the only thing that
+     * parents a coordinator search on another coordinator search is the rewrite client, and it is wrapped only when the
+     * parent itself was counted (see the {@code getRewriteContext} call in {@code executeRequest}). So a counted ancestor,
+     * when one exists at all, is always the immediate parent. Parents that are not coordinator searches -- an
+     * {@code _msearch}'s multi-search task, a reindex/by-query task -- never carry the flag, so their child searches are
+     * each charged, which is intended: they are independent units of client work.
+     * <p>
+     * Local parents only, which is exactly the right scope: the throttle is per node, so a parent on another node was
+     * counted against that node's budget rather than this one's. {@code TaskManager#getTask} is keyed by a node-local id,
+     * so skipping remote parents also avoids resolving a remote id to an unrelated local task.
+     */
+    private boolean parentAlreadyCounted(final Task task) {
+        TaskId parentTaskId = task.getParentTaskId();
+        if (parentTaskId == null || parentTaskId.isSet() == false) {
+            return false;
+        }
+        if (clusterService.localNode().getId().equals(parentTaskId.getNodeId()) == false) {
+            return false;
+        }
+        return isThrottleCounted(taskManager.getTask(parentTaskId.getId()));
+    }
+
+    /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */
+    private static boolean isThrottleCounted(final Task task) {
+        return task instanceof WorkloadGroupTask && ((WorkloadGroupTask) task).isThrottleCounted();
+    }
+
+    /** A {@link TaskId} addressing {@code task} on this node. */
+    private TaskId localTaskId(final Task task) {
+        return new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
     private Task extractParentTask(final SearchRequest searchRequest) {

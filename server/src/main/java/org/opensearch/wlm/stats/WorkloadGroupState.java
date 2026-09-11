@@ -39,6 +39,11 @@ public class WorkloadGroupState {
     public final CounterMetric totalCancellations = new CounterMetric();
 
     /**
+     * This will track the cumulative requests throttled (rejected by the node-level in-flight throttle) in the workload group since the OpenSearch start time
+     */
+    public final CounterMetric totalThrottled = new CounterMetric();
+
+    /**
      * This is used to store the resource type state both for CPU and MEMORY
      */
     private final Map<ResourceType, ResourceTypeState> resourceState;
@@ -78,6 +83,14 @@ public class WorkloadGroupState {
 
     public long getTotalCancellations() {
         return totalCancellations.count();
+    }
+
+    /**
+     *
+     * @return requests throttled in the workload group
+     */
+    public long getTotalThrottled() {
+        return totalThrottled.count();
     }
 
     /**
