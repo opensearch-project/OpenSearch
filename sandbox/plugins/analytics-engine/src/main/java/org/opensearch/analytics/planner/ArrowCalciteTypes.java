@@ -11,7 +11,11 @@ package org.opensearch.analytics.planner;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.calcite.rel.type.RelDataType;
+
+import java.util.List;
 
 /**
  * Bidirectional Arrow ↔ Calcite type converter for single types.
@@ -26,6 +30,20 @@ import org.apache.calcite.rel.type.RelDataType;
 public final class ArrowCalciteTypes {
 
     private ArrowCalciteTypes() {}
+
+    /**
+     * Convert a named Calcite field to a complete Arrow field, including LIST children.
+     */
+    public static Field toArrowField(String name, RelDataType type) {
+        if (type.getSqlTypeName() == org.apache.calcite.sql.type.SqlTypeName.ARRAY) {
+            RelDataType component = type.getComponentType();
+            if (component == null) {
+                throw new IllegalArgumentException("ARRAY type has no component: " + type);
+            }
+            return new Field(name, FieldType.nullable(ArrowType.List.INSTANCE), List.of(toArrowField("element", component)));
+        }
+        return Field.nullable(name, toArrow(type));
+    }
 
     /**
      * Convert a Calcite {@link RelDataType} to the corresponding Arrow type.
@@ -49,6 +67,7 @@ public final class ArrowCalciteTypes {
             // TODO: TIMESTAMP_WITH_LOCAL_TIME_ZONE, DATE, TIME, DECIMAL still missing.
             // precision 9 ⇒ date_nanos; else date — must match the wire unit shards emit (Stitcher copyFromSafe).
             case TIMESTAMP -> new ArrowType.Timestamp(t.getPrecision() == 9 ? TimeUnit.NANOSECOND : TimeUnit.MILLISECOND, null);
+            case ARRAY -> ArrowType.List.INSTANCE;
             default -> throw new IllegalArgumentException("Unsupported Calcite type: " + t.getSqlTypeName());
         };
     }

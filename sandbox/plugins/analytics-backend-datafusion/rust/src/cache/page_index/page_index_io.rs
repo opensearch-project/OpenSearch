@@ -945,6 +945,82 @@ mod tests {
         assert_eq!(pair_b, vec![0, 1]);
     }
 
+    /// A projected nested Arrow field must resolve to every Parquet leaf under
+    /// that root. `StatisticsConverter::parquet_column_index()` deliberately
+    /// returns `None` for nested types, so the resolver needs its own root-to-leaf
+    /// fallback. Without it, `tags` receives a placeholder OffsetIndex even though
+    /// the scan reads it, and the page reader treats a whole chunk as one page.
+    #[tokio::test]
+    async fn list_projection_resolves_to_its_parquet_leaf() {
+        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        clear_scoped_cache_for_test();
+        let list_field = Arc::new(Field::new("element", DataType::Utf8, true));
+        let tags = arrow::array::ListArray::new(
+            Arc::clone(&list_field),
+            arrow::buffer::OffsetBuffer::new(vec![0_i32, 2, 3, 5].into()),
+            Arc::new(arrow::array::StringArray::from(vec![
+                "a", "b", "c", "d", "e",
+            ])),
+            None,
+        );
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int32, false),
+            Field::new("tags", DataType::List(list_field), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int32Array::from(vec![1, 2, 3])), Arc::new(tags)],
+        )
+        .unwrap();
+        let props = WriterProperties::builder()
+            .set_data_page_row_count_limit(1)
+            .set_write_batch_size(1)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .build();
+        let mut buf = Vec::new();
+        let mut writer = ArrowWriter::try_new(&mut buf, Arc::clone(&schema), Some(props)).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+        let bytes = Bytes::from(buf);
+        let footer = footer_only(&bytes);
+        let file_schema = Arc::new(
+            parquet_to_arrow_schema(
+                footer.file_metadata().schema_descr(),
+                footer.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
+
+        let mut resolved = resolve_predicate_parquet_columns(
+            &schema,
+            &footer,
+            &["id".to_string(), "tags".to_string()],
+            &file_schema,
+        );
+        resolved.sort_unstable();
+        assert_eq!(
+            resolved,
+            vec![0, 1],
+            "both id and tags.list.element must receive real OffsetIndexes"
+        );
+
+        let full = full_index(&bytes);
+        let full_list_pages = full.offset_index().unwrap()[0][1].page_locations().len();
+        assert!(
+            full_list_pages > 1,
+            "fixture must contain multiple LIST pages"
+        );
+        let (store, location) = stage(bytes).await;
+        let scoped = load_scoped_page_index_cols(&store, &location, &footer, &[], &resolved)
+            .await
+            .unwrap();
+        assert_eq!(
+            scoped.offset_index().unwrap()[0][1].page_locations().len(),
+            full_list_pages,
+            "projected LIST leaf must use its real OffsetIndex, not a one-page placeholder"
+        );
+    }
+
     /// Regression: a match()-only query has NO residual predicate columns
     /// (`parquet_cols` empty) but DOES project columns (`offset_cols` non-empty).
     /// The scoped load must still build the OffsetIndex for the projected column
