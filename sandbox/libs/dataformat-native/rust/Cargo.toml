@@ -83,6 +83,15 @@ opensearch-repository-gcs = { path = "../../../plugins/native-repository-gcs/src
 opensearch-repository-azure = { path = "../../../plugins/native-repository-azure/src/main/rust" }
 opensearch-repository-fs = { path = "../../../plugins/native-repository-fs/src/main/rust" }
 
+[patch.crates-io]
+# parquet 58.3.0 plus forward-cursor APIs on ParquetRecordBatchReader (skip_rows /
+# read_next_batch), which require the crate's private internals. The patch is maintained at
+# patches/parquet-58.3.0-forward-cursor.patch and applied to the checksum-verified crates.io
+# tarball by :sandbox:libs:dataformat-native:preparePatchedParquet, which must run once before
+# invoking cargo directly. Remove once the APIs land upstream (apache/arrow-rs#10655) and
+# DataFusion's arrow pin includes them. See patches/README.md.
+parquet = { path = "build/patched/parquet-58.3.0" }
+
 [profile.release]
 lto = true
 codegen-units = 1

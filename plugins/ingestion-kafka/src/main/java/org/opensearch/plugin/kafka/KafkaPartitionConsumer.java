@@ -22,9 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
+import org.opensearch.secure_sm.AccessController;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +35,6 @@ import java.util.concurrent.TimeoutException;
 /**
  * Kafka consumer to read messages from a Kafka partition
  */
-@SuppressWarnings("removal")
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
     private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 
@@ -78,10 +76,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     void initialize() throws Exception {
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
-            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
-                topic,
-                Duration.ofMillis(config.getTopicMetadataFetchTimeoutMs())
-            )
+            () -> consumer.partitionsFor(topic, Duration.ofMillis(config.getTopicMetadataFetchTimeoutMs()))
         );
         if (partitionInfos == null) {
             throw new IllegalArgumentException("Topic " + topic + " does not exist");
@@ -131,11 +126,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         try {
             Thread.currentThread().setContextClassLoader(KafkaPlugin.class.getClassLoader());
             return AccessController.doPrivileged(
-                (PrivilegedAction<Consumer<byte[], byte[]>>) () -> new KafkaConsumer<>(
-                    consumerProp,
-                    new ByteArrayDeserializer(),
-                    new ByteArrayDeserializer()
-                )
+                () -> new KafkaConsumer<>(consumerProp, new ByteArrayDeserializer(), new ByteArrayDeserializer())
             );
         } finally {
             Thread.currentThread().setContextClassLoader(restore);
@@ -159,7 +150,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         int timeoutMillis
     ) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(offset.getOffset(), includeStart, timeoutMillis)
+            () -> fetch(offset.getOffset(), includeStart, timeoutMillis)
         );
         return records;
     }
@@ -174,7 +165,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     @Override
     public synchronized List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(lastFetchedOffset, false, timeoutMillis)
+            () -> fetch(lastFetchedOffset, false, timeoutMillis)
         );
         return records;
     }
@@ -182,8 +173,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     @Override
     public synchronized IngestionShardPointer earliestPointer() {
         long startOffset = AccessController.doPrivileged(
-            (PrivilegedAction<Long>) () -> consumer.beginningOffsets(Collections.singletonList(topicPartition))
-                .getOrDefault(topicPartition, 0L)
+            () -> consumer.beginningOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
         return new KafkaOffset(startOffset);
     }
@@ -191,14 +181,14 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     @Override
     public synchronized IngestionShardPointer latestPointer() {
         long endOffset = AccessController.doPrivileged(
-            (PrivilegedAction<Long>) () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
+            () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
         return new KafkaOffset(endOffset);
     }
 
     @Override
     public synchronized IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
-        long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
+        long offset = AccessController.doPrivileged(() -> {
             Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
                 Collections.singletonMap(topicPartition, timestampMillis)
             );
