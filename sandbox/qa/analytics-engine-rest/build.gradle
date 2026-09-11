@@ -33,6 +33,7 @@ configurations {
 }
 
 dependencies {
+    testImplementation project(path: ':sandbox:qa:analytics-qa-fixtures', configuration: 'testArtifacts')
     testImplementation project(':sandbox:plugins:analytics-engine')
     testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
     testImplementation project(':sandbox:plugins:analytics-backend-lucene')
