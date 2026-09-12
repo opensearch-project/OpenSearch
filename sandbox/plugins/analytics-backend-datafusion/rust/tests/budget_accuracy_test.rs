@@ -106,7 +106,6 @@ fn create_parquet_data(dir: &std::path::Path, num_rows: usize, num_files: usize)
 async fn build_substrait(dir: &str, sql: &str) -> Vec<u8> {
     let ctx = SessionContext::new();
     let url = ListingTableUrl::parse(dir).unwrap();
-    // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
     let opts = ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
     let schema = opts.infer_schema(&ctx.state(), &url).await.unwrap();
     let cfg = ListingTableConfig::new(url)
@@ -222,7 +221,6 @@ async fn validate_budget_accuracy_inner(
     let ctx = SessionContext::new_with_state(state);
 
     let url = ListingTableUrl::parse(dir).unwrap();
-    // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
     let opts = ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
     let inferred_schema = opts.infer_schema(&ctx.state(), &url).await.unwrap();
     let cfg = ListingTableConfig::new(url)

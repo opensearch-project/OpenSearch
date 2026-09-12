@@ -483,8 +483,6 @@ async fn run_single_collector_query(
     let df_schema = datafusion::common::DFSchema::try_from(loaded.schema.as_ref().clone()).unwrap();
     let execution_props = datafusion::execution::context::ExecutionProps::new();
     let pushdown_predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Some(
-        // DF55: `create_physical_expr` takes a trailing `&PhysicalPlanningContext`
-        // (empty here — no uncorrelated scalar subqueries in this fuzz residual).
         datafusion::physical_expr::create_physical_expr(
             &residual,
             &df_schema,

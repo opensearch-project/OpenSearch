@@ -310,14 +310,10 @@ impl CustomStatisticsCache {
         Ok(freed_size)
     }
 
-    /// Convenience method: put statistics with associated metadata.
-    ///
-    /// DF55's `CachedFileMetadata` requires a `SchemaFingerprint` (used by
-    /// `is_valid_for` when DataFusion validates a cache hit against the query's
-    /// `file_schema`). Callers that have the schema at hand should prefer
-    /// [`put_statistics_with_fingerprint`]; this convenience overload stores an
-    /// empty-schema fingerprint and is intended for direct-access callers/tests
-    /// that never route through DataFusion's validation path.
+    /// Put statistics with an empty-schema fingerprint. DataFusion requires a `SchemaFingerprint`
+    /// on `CachedFileMetadata` (checked by `is_valid_for` against the query's `file_schema`);
+    /// direct-access callers/tests that never hit DF's validation path use this. Callers with
+    /// the schema in hand should prefer [`put_statistics_with_fingerprint`].
     pub fn put_statistics(
         &self,
         k: &Path,
@@ -371,12 +367,11 @@ impl CustomStatisticsCache {
     }
 }
 
-// Path-keyed core operations. DF54 keys the FileStatisticsCache by
-// `TableScopedPath`; the convenience methods and tests in this module still use
-// bare `Path`, so the storage and bookkeeping stay Path-keyed and the
-// CacheAccessor<TableScopedPath> impl below delegates to these via `&key.path`.
-// These are inherent methods: for a `&Path` argument they take priority over the
-// trait's `&TableScopedPath` methods, so existing callers keep working unchanged.
+// Path-keyed core operations. The `FileStatisticsCache` is keyed by `TableScopedPath`,
+// but the convenience methods and tests in this module use bare `Path`, so storage and
+// bookkeeping stay Path-keyed and the `Cache<TableScopedPath>` impl below delegates to
+// these via `&key.path`. These are inherent methods: for a `&Path` argument they take
+// priority over the trait's `&TableScopedPath` methods, so existing callers keep working.
 impl CustomStatisticsCache {
     pub fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
         let result = self.inner_cache.get(k);
@@ -479,10 +474,8 @@ impl CustomStatisticsCache {
     }
 }
 
-// DF55 `FileStatisticsCache = dyn Cache<TableScopedPath, CachedFileMetadata>`.
-// Storage stays Path-keyed (see inherent methods above); this delegates via
-// `&key.path`. The table scope is not used by this cache. DF55 merged the DF54
-// `CacheAccessor` + `FileStatisticsCache` traits into this single `Cache` impl.
+// Keyed by `TableScopedPath`; storage stays Path-keyed (see inherent methods above), so
+// this delegates via `&key.path`. The table scope is not used by this cache.
 impl Cache<TableScopedPath, CachedFileMetadata> for CustomStatisticsCache {
     fn get(&self, k: &TableScopedPath) -> Option<CachedFileMetadata> {
         CustomStatisticsCache::get(self, &k.path)
@@ -560,7 +553,7 @@ pub fn compute_parquet_statistics_from_metadata(
 
 /// Compute statistics from a parquet file, returning both the `Statistics` and the
 /// arrow `file_schema` they were computed against. The schema is needed to build the
-/// DF55 `SchemaFingerprint` so `is_valid_for` validates cache hits against the query's
+/// `SchemaFingerprint` so `is_valid_for` validates cache hits against the query's
 /// file_schema (without it, DF-registered stats-cache lookups always miss).
 pub fn compute_parquet_statistics_with_schema(
     file_path: &str,

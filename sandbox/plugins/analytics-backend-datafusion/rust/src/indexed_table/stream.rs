@@ -446,7 +446,7 @@ impl ExecutionPlan for IndexedExec {
         vec![]
     }
     /// Expose the residual `predicate` and the accepted runtime `dynamic_filter`
-    /// (if any) as physical-expression roots so DF55 dynamic-filter producers can
+    /// (if any) as physical-expression roots so dynamic-filter producers can
     /// detect that this leaf still holds the pushed filter (statistics pruning).
     fn apply_expressions(
         &self,

@@ -305,8 +305,6 @@ impl CustomCacheManager {
             {
                 let path = Path::from(file_path.clone());
                 if let Some(cache) = &self.file_metadata_cache {
-                    // `inner` is now a `DefaultCache` (internally synchronized); call
-                    // its `Cache::remove` directly — no outer lock to acquire.
                     if cache.inner.remove(&path).is_some() {
                         any_removed = true;
                     } else {
@@ -758,8 +756,8 @@ impl CustomCacheManager {
             return Ok(true);
         }
 
-        // Compute statistics (+ the file_schema they were computed against, so the
-        // DF55 SchemaFingerprint lets `is_valid_for` validate cache hits — see below).
+        // Compute statistics (+ the file_schema they were computed against, for the
+        // cache-hit fingerprint set below).
         match compute_parquet_statistics_with_schema(file_path) {
             Ok((stats, schema)) => {
                 let meta = ObjectMeta {
@@ -825,7 +823,7 @@ impl CustomCacheManager {
         let stats = DFParquetMetadata::statistics_from_parquet_metadata(parquet_metadata, &schema)
             .map_err(|e| format!("failed to compute statistics for {}: {}", file_path, e))?;
 
-        // DF55: carry the file_schema fingerprint so DF's `is_valid_for` validates hits.
+        // Carry the file_schema fingerprint so DataFusion's cache-hit validation matches.
         cache.put_statistics_with_fingerprint(
             &path,
             Arc::new(stats),

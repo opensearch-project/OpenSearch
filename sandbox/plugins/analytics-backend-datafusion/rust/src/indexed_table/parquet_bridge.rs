@@ -239,7 +239,8 @@ fn create_stream_with_access_plan(
 
     // TODO [df55-perf]: evaluate ParquetSource predicate cache (with_max_predicate_cache_size) to avoid
     // re-decoding predicate columns for surviving rows (B-1 in ../../implementation/df55-new-api-adoption-tasklist.md).
-    // Highest read lever (safe to adopt since parquet-59 #9982/#9983 fixed the predicate-cache panic/silent-row-drop); needs benchmarking + interaction with our collector-bitset (page index disabled below).
+    // Highest read lever; safe since parquet-59 #9982/#9983 fixed its panic/silent-row-drop. Needs
+    // benchmarking + interaction check with our collector-bitset (page index disabled below).
     let mut parquet_source = ParquetSource::new(config.full_schema.clone())
         .with_parquet_file_reader_factory(reader_factory)
         // cannot use page index because we have collector bitset matches that are not visible

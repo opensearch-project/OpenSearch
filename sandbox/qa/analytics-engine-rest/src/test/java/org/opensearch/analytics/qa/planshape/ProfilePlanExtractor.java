@@ -53,24 +53,17 @@ public final class ProfilePlanExtractor {
     // input_partitions is deliberately NOT scrubbed: it equals the shard's segment count, which is a
     // controlled axis (captured per segment layout), so it's deterministic and worth asserting.
 
-    // DataSourceExec DynamicFilter predicate: the TopK optimization pushes a boundary filter down into
-    // DataSourceExec as `predicate=DynamicFilter [ <boundary expr> ]`, and DF55 also renders its derived
-    // `pruning_predicate=...` inline (plus the structural marker `, dynamic_rg_pruning=eligible`). The
-    // TopK boundary value is a runtime artifact (a per-partition heap max under preserve_partitioning),
-    // but it is DETERMINISTIC per test combo: fixed data + fixed target_partitions + fixed shard/segment
-    // layout => byte-stable. Verified empirically across 11 query shapes (50 runs each, back-to-back AND
-    // under concurrent load; v54==v55 to the digit) — see analysis/dynamic-filter-value-determinism-stress.md.
-    //
-    // We therefore KEEP the whole DynamicFilter body + pruning_predicate VERBATIM rather than scrubbing
-    // the boundary value. Keeping it (a) asserts the full planner signal — the dynamic filter fired, is
-    // wired to the right columns/operators, and `dynamic_rg_pruning` is eligible — and (b) avoids a
-    // value-scrubber that could over-scrub real structure on future shapes: DF renders string boundaries
-    // UNQUOTED (e.g. `SearchPhrase_min@5 < data fusion`, or a value with commas/parens), so any
-    // value-isolating regex is inherently fragile. A future DF bump that changes the boundary with
-    // identical structure is an ordinary re-bless, like any other plan line.
-    //
-    // (The SortExec inline `filter=[...]` carrying the same boundary is still stripped above — its
-    // PRESENCE flips with segment count — but the value is asserted on this DataSourceExec line instead.)
+    // DataSourceExec DynamicFilter predicate: TopK pushes a boundary filter down as
+    // `predicate=DynamicFilter [ <boundary expr> ]`; DF55 also renders the derived `pruning_predicate=...`
+    // inline (+ marker `, dynamic_rg_pruning=eligible`). The boundary value is a runtime artifact (per-
+    // partition heap max) but DETERMINISTIC per combo (fixed data + target_partitions + segment layout →
+    // byte-stable; verified 11 shapes × 50 runs, back-to-back and concurrent, v54==v55 — see
+    // analysis/dynamic-filter-value-determinism-stress.md). We KEEP the body + pruning_predicate VERBATIM
+    // (asserts the full planner signal — filter fired, wired to the right columns, rg-pruning eligible)
+    // rather than scrub: DF renders string boundaries UNQUOTED (commas/parens included), so any value-
+    // isolating regex is fragile. A future DF bump changing the boundary is an ordinary re-bless.
+    // (The SortExec inline `filter=[...]` with the same boundary is still stripped above — its PRESENCE
+    // flips with segment count — so the value is asserted on this DataSourceExec line instead.)
 
     // Constant-folded aggregates: when an aggregate (e.g. min/max) can be resolved at plan-time from
     // parquet metadata, DataFusion folds the entire subtree to a ProjectionExec of literal constants

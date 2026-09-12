@@ -549,7 +549,7 @@ impl ExecutionPlan for QueryShardExec {
         vec![]
     }
     /// Expose the residual `predicate` and any accepted runtime `dynamic_filters`
-    /// as physical-expression roots. Required (DF55) so dynamic-filter producers
+    /// as physical-expression roots. Required so dynamic-filter producers
     /// (e.g. a parent TopK `SortExec`) can discover — via `plan_contains_expression_id`
     /// — that this scan still holds the filter they pushed for statistics pruning.
     fn apply_expressions(

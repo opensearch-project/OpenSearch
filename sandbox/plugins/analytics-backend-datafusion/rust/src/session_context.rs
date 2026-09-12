@@ -253,7 +253,6 @@ pub async unsafe fn create_session_context(
             .skip_partial_aggregation_probe_ratio_threshold = 1.0;
     }
     config.options_mut().execution.target_partitions = effective_partitions;
-    // DF55: `execution.batch_size` is now `ConfigNonZeroUsize` (mirrors `SessionConfig::with_batch_size`).
     config.options_mut().execution.batch_size =
         datafusion::common::config::ConfigNonZeroUsize::try_new(effective_batch_size)
             .expect("batch size must be greater than zero");
@@ -305,17 +304,12 @@ pub async unsafe fn create_session_context(
     // effective partition count so the bin-packer produces up to N groups (one file per
     // group when min/max ranges can't chain). The session-state's `target_partitions`
     // controls EnforceDistribution; this one is independent.
-    // DF55 removed `ListingOptions::with_collect_stat`/`with_target_partitions`;
-    // `ListingTable` now reads both from the active `SessionConfig` at scan time.
-    // `target_partitions` (= `effective_partitions`) is already set on `config`
-    // above and `collect_statistics` defaults to `true`, so the sort-aware
-    // bin-packer and stats collection behave exactly as before.
     let mut listing_options =
         ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
 
-    // Advertise the index sort order (`index.sort.field`) to DataFusion via `with_file_sort_order`
-    // when present, so the scan reports `output_ordering` — enabling SortPreservingMerge, TopK
-    // `fetch` pushdown, and DF55 #22450 dynamic-filter row-group pruning. Unconditional (DF54 parity).
+    // Advertise the index sort order (`index.sort.field`) via `with_file_sort_order` when present,
+    // so the scan reports `output_ordering` — enabling SortPreservingMerge, TopK `fetch` pushdown,
+    // and dynamic-filter row-group pruning. Advertised unconditionally.
     if let Some(sort_exprs) =
         build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
     {
@@ -378,10 +372,8 @@ pub async unsafe fn create_session_context(
     // failing with "Cannot merge statistics with different number of columns". Non-widened
     // (single-index) scans keep full stats.
     // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
-    // DF55: `collect_stat` is no longer a per-table `ListingOptions` field — `ListingTable`
-    // reads `collect_statistics` from the session config at scan time. This `ctx` is scoped to
-    // this single shard scan, so disabling it on the session config here is equivalent to the
-    // old per-table `with_collect_stat(false)` and affects only this widened table.
+    // `ctx` is scoped to this single shard scan, so disabling stats collection on its session
+    // config affects only this widened table.
     if resolved_schema.fields().len() != inferred_field_count {
         ctx.state_ref()
             .write()
@@ -485,7 +477,6 @@ pub async unsafe fn create_worker_session_context(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.target_partitions = query_config.target_partitions;
-    // DF55: `execution.batch_size` is now `ConfigNonZeroUsize`.
     config.options_mut().execution.batch_size =
         datafusion::common::config::ConfigNonZeroUsize::try_new(query_config.batch_size)
             .expect("batch size must be greater than zero");
@@ -1049,8 +1040,6 @@ mod tests {
         // 1. NARROW read first: registers the table at the narrow (1-col) schema and, with
         //    collect_stat(true), seeds the shared cache with a 1-column Statistics for narrow.parquet.
         let ctx = SessionContext::new();
-        // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true,
-        // so `SessionContext::new()` above still seeds stats as this test expects).
         let narrow_opts =
             ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
         let narrow_cfg = ListingTableConfig::new(table_url.clone())
@@ -1075,10 +1064,8 @@ mod tests {
         //    without it, merging the cached 1-col Statistics against a 2-col one fails planning.
         let widened_opts =
             ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
-        // DF55: `collect_stat` moved off `ListingOptions` to the session config, read at scan
-        // time. Disable it on `ctx` before the widened scan below (the narrow read above already
-        // ran with the default `true`), mirroring create_session_context's widened-table fix so
-        // the cached 1-col Statistics isn't merged against the 2-col widened schema.
+        // Disable stats collection on `ctx` before the widened scan (mirrors create_session_context's
+        // widened-table fix) so the cached 1-col Statistics isn't merged against the 2-col schema.
         ctx.state_ref()
             .write()
             .config_mut()

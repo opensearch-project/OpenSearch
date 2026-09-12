@@ -64,11 +64,6 @@ fn strip_page_index(entry: CachedFileMetadataEntry) -> CachedFileMetadataEntry {
 
 // Wrapper around DataFusion's `DefaultCache` that adds hit/miss counters and
 // enforces the footer-only invariant (`strip_page_index`) on every `put`.
-//
-// DF55 collapsed the DF54 `CacheAccessor` + `FileMetadataCache` traits into a
-// single `Cache<Path, CachedFileMetadataEntry>` trait. `DefaultCache` is already
-// internally synchronized (its methods take `&self`), so the previous outer
-// `Mutex` wrapper is redundant and has been dropped.
 pub struct MutexFileMetadataCache {
     pub inner: DefaultCache<Path, CachedFileMetadataEntry>,
     hit_count: AtomicUsize,

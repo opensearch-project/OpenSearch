@@ -225,7 +225,7 @@ async fn build_column_index_cells(
     col_rg_matrix: &[(usize, usize)],
 ) -> Option<Vec<CiCell>> {
     // Load the full ColumnIndex (all columns) once, then keep only the requested
-    // (col, rg) cells. See `load_full_page_index_of_kind` for the v54 delta.
+    // (col, rg) cells. See `load_full_page_index_of_kind`.
     let full = load_full_page_index_of_kind(
         store,
         location,
@@ -420,7 +420,7 @@ async fn build_offset_index_columns(
     num_rgs: usize,
 ) -> Option<Vec<OiCell>> {
     // Load the full OffsetIndex (all columns) once, then keep only the requested
-    // columns across all RGs. See `load_full_page_index_of_kind` for the v54 delta.
+    // columns across all RGs. See `load_full_page_index_of_kind`.
     let full = load_full_page_index_of_kind(
         store,
         location,

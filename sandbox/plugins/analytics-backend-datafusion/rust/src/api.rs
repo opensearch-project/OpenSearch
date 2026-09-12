@@ -1571,7 +1571,6 @@ pub unsafe fn sql_to_substrait(
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
 
-        // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
         let listing_options =
             ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
         let schema = listing_options
@@ -2135,8 +2134,6 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    // arrow-59 `from_ffi` aligns buffers internally on import (arrow-rs #10028), so the manual
-    // align_buffers() previously needed for Java Flight/IPC 8-byte-aligned buffers is now redundant.
     let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
@@ -3129,8 +3126,6 @@ pub unsafe fn register_memtable(
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
         let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
-        // arrow-59 `from_ffi` aligns buffers internally on import (arrow-rs #10028), so the manual
-        // align_buffers() the build-side IPC payload previously required is now redundant.
         let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
             DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
         })?;
@@ -3286,8 +3281,7 @@ pub unsafe fn register_memtable_on_session_context(
 
     let table_schema = schema_from_ipc_bytes(schema_ipc)?;
 
-    // Same import pattern as register_memtable above. arrow-59 `from_ffi` aligns buffers
-    // internally on import (arrow-rs #10028), so no manual align_buffers() is needed.
+    // Same import pattern as register_memtable above.
     let mut batches = Vec::with_capacity(array_ptrs.len());
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
@@ -3389,7 +3383,6 @@ pub unsafe fn partition_batch_by_hash(
     std::ptr::write(input_array_ptr as *mut FFI_ArrowArray, re_array);
     std::ptr::write(input_schema_ptr as *mut FFI_ArrowSchema, re_schema);
 
-    // arrow-59 `from_ffi` aligned the buffers on import (arrow-rs #10028); no manual align needed.
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);
 
