@@ -10,7 +10,6 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.transport.TransportService;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -87,7 +86,9 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
-            this.legacyActionNames.addAll(validateLegacyActionNames(legacyActionNames));
+            if (legacyActionNames != null) {
+                this.legacyActionNames.addAll(legacyActionNames);
+            }
             return this;
         }
 
@@ -121,20 +122,6 @@ public class NamedRoute extends RestHandler.Route {
             if (method == null || path == null || uniqueName == null) {
                 throw new IllegalStateException("REST method, path and uniqueName are required.");
             }
-        }
-
-        private Set<String> validateLegacyActionNames(Set<String> legacyActionNames) {
-            if (legacyActionNames == null) {
-                return new HashSet<>();
-            }
-            for (String actionName : legacyActionNames) {
-                if (!TransportService.isValidActionName(actionName)) {
-                    throw new OpenSearchException(
-                        "Invalid action name [" + actionName + "]. It must start with one of: " + TransportService.VALID_ACTION_PREFIXES
-                    );
-                }
-            }
-            return legacyActionNames;
         }
 
     }
