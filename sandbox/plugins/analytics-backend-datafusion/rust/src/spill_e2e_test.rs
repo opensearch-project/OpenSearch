@@ -139,7 +139,9 @@ mod tests {
         // the aggregator is pushed to spill rather than failing outright.
         let mut config = SessionConfig::new();
         config.options_mut().execution.target_partitions = 2;
-        config.options_mut().execution.batch_size = 1024;
+        config.options_mut().execution.batch_size =
+            datafusion::common::config::ConfigNonZeroUsize::try_new(1024)
+                .expect("batch size must be greater than zero");
 
         let state = SessionStateBuilder::new()
             .with_config(config)

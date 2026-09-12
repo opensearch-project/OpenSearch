@@ -98,6 +98,17 @@ impl ExecutionPlan for RelabelExec {
         vec![&self.input]
     }
 
+    /// RelabelExec only retags the child's output column types; it holds no
+    /// physical expressions of its own (the child's are visited via `children`).
+    fn apply_expressions(
+        &self,
+        _f: &mut dyn FnMut(
+            &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+        ) -> Result<datafusion::common::tree_node::TreeNodeRecursion>,
+    ) -> Result<datafusion::common::tree_node::TreeNodeRecursion> {
+        Ok(datafusion::common::tree_node::TreeNodeRecursion::Continue)
+    }
+
     fn with_new_children(
         self: Arc<Self>,
         mut children: Vec<Arc<dyn ExecutionPlan>>,

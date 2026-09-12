@@ -76,8 +76,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "MobilePhoneModel", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, MobilePhoneModel@1 as MobilePhoneModel]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), MobilePhoneModel@0 as MobilePhoneModel]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), MobilePhoneModel@0 as MobilePhoneModel]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@1 DESC NULLS LAST], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([MobilePhoneModel@0], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
@@ -87,8 +87,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "MobilePhoneModel", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, MobilePhoneModel@1 as MobilePhoneModel]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), MobilePhoneModel@0 as MobilePhoneModel]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), MobilePhoneModel@0 as MobilePhoneModel]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@1 DESC NULLS LAST], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([MobilePhoneModel@0], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]

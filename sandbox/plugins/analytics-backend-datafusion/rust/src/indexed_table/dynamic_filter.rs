@@ -37,7 +37,9 @@ use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_expr_common::physical_expr::{
     snapshot_generation, snapshot_physical_expr,
 };
-use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
+use datafusion::physical_optimizer::pruning::{
+    PruningPredicate, PruningPredicateBuilder, PruningStatistics,
+};
 
 /// `PruningStatistics` over a single parquet row group (one container). Mirrors
 /// DataFusion's private `RowGroupPruningStatistics`
@@ -143,6 +145,9 @@ impl DynamicRgPruner {
     /// Refresh the cached `PruningPredicate` if the dynamic filter has changed
     /// since the last call. Cheap when unchanged (just an atomic generation
     /// read). Returns the current generation.
+    // TODO [df55-perf]: replace this hand-rolled snapshot_generation diff with DF55
+    // DynamicFilterTracking::classify/changed() (datafusion#22460; deprecates is_dynamic_physical_expr) (B-7 in ../../implementation/df55-new-api-adoption-tasklist.md;
+    // OPT-4/PERF-C) — short-circuits Static/AllComplete filters + enables page-level re-pruning as TopK tightens.
     fn refresh(&mut self) -> u64 {
         let generation = snapshot_generation(&self.filter);
         if generation == self.cached_generation && self.pruning_predicate.is_some() {
@@ -158,7 +163,9 @@ impl DynamicRgPruner {
         self.pruning_predicate = snapshot_physical_expr(Arc::clone(&self.filter))
             .ok()
             .and_then(|snap| {
-                PruningPredicate::try_new(snap, Arc::clone(&self.full_schema))
+                PruningPredicateBuilder::new()
+                    .with_file_schema(Arc::clone(&self.full_schema))
+                    .try_build(snap)
                     .ok()
                     .map(Arc::new)
             });
@@ -279,7 +286,12 @@ mod tests {
         let sev: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("severity", 1));
         let zero: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
         let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(sev, Operator::GtEq, zero));
-        let predicate = Arc::new(PruningPredicate::try_new(expr, table_schema.clone()).unwrap());
+        let predicate = Arc::new(
+            PruningPredicateBuilder::new()
+                .with_file_schema(table_schema.clone())
+                .try_build(expr)
+                .unwrap(),
+        );
         let file_arrow_schema = Arc::new(
             datafusion::parquet::arrow::parquet_to_arrow_schema(
                 md.file_metadata().schema_descr(),
