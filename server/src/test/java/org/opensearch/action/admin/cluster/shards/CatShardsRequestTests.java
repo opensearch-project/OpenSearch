@@ -110,7 +110,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
         }
     }
 
-    // --- Mixed-version wire-compatibility coverage for the indicesStatsRequired field (V_3_8_0 gate) ---
+    // --- Mixed-version wire-compatibility coverage for the indicesStatsRequired field (V_3_9_0 gate) ---
 
     /**
      * At a version on/after the gate (both nodes on a version that knows the field), the flag must
@@ -120,7 +120,7 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
         for (boolean flag : new boolean[] { true, false }) {
             CatShardsRequest request = new CatShardsRequest();
             request.setIndicesStatsRequired(flag);
-            assertTrue(Version.CURRENT.onOrAfter(Version.V_3_8_0));
+            assertTrue(Version.CURRENT.onOrAfter(Version.V_3_9_0));
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(Version.CURRENT);
                 request.writeTo(out);
@@ -141,8 +141,8 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
      * simply does not engage.
      */
     public void testIndicesStatsRequiredDefaultsTrueWhenPeerBeforeGate() throws Exception {
-        Version oldVersion = VersionUtils.getPreviousVersion(Version.V_3_8_0);
-        assertTrue(oldVersion.before(Version.V_3_8_0));
+        Version oldVersion = VersionUtils.getPreviousVersion(Version.V_3_9_0);
+        assertTrue(oldVersion.before(Version.V_3_9_0));
         CatShardsRequest request = new CatShardsRequest();
         request.setIndicesStatsRequired(false); // even if the coordinator wanted to skip stats...
         try (BytesStreamOutput out = new BytesStreamOutput()) {
