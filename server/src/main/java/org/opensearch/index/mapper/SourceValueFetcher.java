@@ -69,6 +69,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         this.nullValue = nullValue;
     }
 
+    protected SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
+        this.nullValue = nullValue;
+    }
+
     @Override
     public List<Object> fetchValues(SourceLookup lookup) {
         List<Object> values = new ArrayList<>();
