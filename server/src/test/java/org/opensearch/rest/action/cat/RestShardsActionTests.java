@@ -207,6 +207,42 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
     }
 
+    public void testStripSortDirectionHandlesSuffixesAndSpacing() {
+        // Bare column, no suffix.
+        assertEquals("index", RestShardsAction.stripSortDirection("index"));
+        // Standard suffixes.
+        assertEquals("index", RestShardsAction.stripSortDirection("index:desc"));
+        assertEquals("shard", RestShardsAction.stripSortDirection("shard:asc"));
+        // Case-insensitive direction.
+        assertEquals("index", RestShardsAction.stripSortDirection("index:DESC"));
+        assertEquals("shard", RestShardsAction.stripSortDirection("shard:Asc"));
+        // Whitespace around the token and around the direction is tolerated.
+        assertEquals("index", RestShardsAction.stripSortDirection("  index:desc  "));
+        assertEquals("index", RestShardsAction.stripSortDirection("index :desc"));
+        assertEquals("index", RestShardsAction.stripSortDirection("index: desc"));
+        // A non-direction suffix is left intact (it is not a sort direction).
+        assertEquals("index:foo", RestShardsAction.stripSortDirection("index:foo"));
+        // Direction-only and null tokens collapse to empty (→ conservative slow path).
+        assertEquals("", RestShardsAction.stripSortDirection(":desc"));
+        assertEquals("", RestShardsAction.stripSortDirection(null));
+    }
+
+    public void testIndicesStatsNotRequiredWhenSortSuffixHasSpaceAfterColon() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // Space after the colon must still resolve to a routing-only column.
+        req.params().put("s", "index: desc");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenSortIsDirectionOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // A malformed direction-only sort token forces the conservative slow path.
+        req.params().put("s", ":desc");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
     private void assertTable(Table table) {
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();

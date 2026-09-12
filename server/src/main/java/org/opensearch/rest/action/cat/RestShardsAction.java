@@ -209,12 +209,8 @@ public class RestShardsAction extends AbstractListAction {
         String sParam = request.param("s");
         if (sParam != null && sParam.isEmpty() == false) {
             for (String token : Strings.splitStringByCommaToArray(sParam)) {
-                // strip :asc / :desc suffix before checking (case-insensitive, whitespace-tolerant)
-                String col = token.trim();
-                String lower = col.toLowerCase(Locale.ROOT);
-                if (lower.endsWith(":desc")) col = col.substring(0, col.length() - 5);
-                else if (lower.endsWith(":asc")) col = col.substring(0, col.length() - 4);
-                if (isRoutingOnlyToken(col) == false) {
+                // strip :asc / :desc direction suffix before checking (case-insensitive, whitespace-tolerant)
+                if (isRoutingOnlyToken(stripSortDirection(token)) == false) {
                     return true;
                 }
             }
@@ -229,6 +225,31 @@ public class RestShardsAction extends AbstractListAction {
         // Wildcards conservatively force the slow path — we don't expand them here.
         if (trimmed.indexOf('*') >= 0 || trimmed.indexOf('?') >= 0) return false;
         return ROUTING_ONLY_COLUMNS.contains(trimmed);
+    }
+
+    /**
+     * Strip a trailing sort-direction suffix ({@code :asc} / {@code :desc}, case-insensitive and
+     * whitespace-tolerant) from a {@code s=} token, returning the bare column name. The cut point is
+     * derived from the token itself (the last {@code :}), so it never relies on the lower-cased copy
+     * having the same length as the original; {@code _cat} column names never contain {@code :}.
+     * Returns the trimmed token unchanged when no direction suffix is present, and an empty string
+     * for a null or direction-only token (which then conservatively forces the stats fetch).
+     *
+     * Package-private for testing.
+     */
+    static String stripSortDirection(String token) {
+        if (token == null) {
+            return "";
+        }
+        String trimmed = token.trim();
+        int colon = trimmed.lastIndexOf(':');
+        if (colon >= 0) {
+            String direction = trimmed.substring(colon + 1).trim().toLowerCase(Locale.ROOT);
+            if (direction.equals("asc") || direction.equals("desc")) {
+                return trimmed.substring(0, colon).trim();
+            }
+        }
+        return trimmed;
     }
 
     @Override
