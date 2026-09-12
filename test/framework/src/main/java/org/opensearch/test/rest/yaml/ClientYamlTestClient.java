@@ -110,6 +110,20 @@ public class ClientYamlTestClient implements Closeable {
     }
 
     /**
+     * Returns the spec-declared HTTP methods that are safe to randomize against a cluster whose minimum node version is
+     * {@code esVersion}. The QUERY method (RFC 10008) is only understood by nodes on or after 3.8.0, so in mixed-version
+     * clusters (BWC tests) a request could be routed to an older node that rejects QUERY. It is therefore only randomized
+     * when every node in the cluster supports it.
+     */
+    static List<String> supportedMethodsForVersion(String[] methods, Version esVersion) {
+        List<String> supportedMethods = Arrays.asList(methods);
+        if (esVersion.before(Version.V_3_8_0)) {
+            supportedMethods = supportedMethods.stream().filter(method -> "QUERY".equals(method) == false).collect(Collectors.toList());
+        }
+        return supportedMethods;
+    }
+
+    /**
      * Calls an api with the provided parameters and body
      */
     public ClientYamlTestResponse callApi(
@@ -180,7 +194,7 @@ public class ClientYamlTestClient implements Closeable {
             }
         }
 
-        List<String> supportedMethods = Arrays.asList(path.getMethods());
+        List<String> supportedMethods = supportedMethodsForVersion(path.getMethods(), esVersion);
         String requestMethod;
         if (entity != null) {
             if (false == restApi.isBodySupported()) {
