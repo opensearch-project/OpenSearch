@@ -92,6 +92,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.add(FieldType.BINARY);
         SUPPORTED_FIELD_TYPES.add(FieldType.IP);
         SUPPORTED_FIELD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
+        SUPPORTED_FIELD_TYPES.add(FieldType.NESTED);
     }
 
     // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
