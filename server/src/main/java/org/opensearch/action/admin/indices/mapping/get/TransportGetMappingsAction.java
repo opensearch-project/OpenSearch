@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
@@ -42,7 +43,9 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -61,6 +64,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     private final IndicesService indicesService;
 
+    private final CircuitBreaker circuitBreaker;
+
     @Inject
     public TransportGetMappingsAction(
         TransportService transportService,
@@ -68,7 +73,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             GetMappingsAction.NAME,
@@ -80,6 +86,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
             indexNameExpressionResolver
         );
         this.indicesService = indicesService;
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override
@@ -95,11 +102,38 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         final ActionListener<GetMappingsResponse> listener
     ) {
         logger.trace("serving getMapping request based on version {}", state.version());
+
+        // Estimate memory usage for the mappings response
+        long estimatedBytes = estimateMappingsMemoryUsage(state, concreteIndices);
+
+        boolean charged = false;
         try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedBytes, "get_mappings");
+            charged = true;
+
             final Map<String, MappingMetadata> result = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
+
             listener.onResponse(new GetMappingsResponse(result));
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
+        } finally {
+            if (charged && estimatedBytes != 0L) {
+                circuitBreaker.addWithoutBreaking(-estimatedBytes);
+            }
         }
+    }
+
+    private long estimateMappingsMemoryUsage(ClusterState state, String[] concreteIndices) {
+        long totalSize = 0;
+        for (String index : concreteIndices) {
+            MappingMetadata mm = state.metadata().index(index).mapping();
+            if (mm != null) {
+                final byte[] compressed = mm.source().compressed();
+                if (compressed != null) {
+                    totalSize += RamUsageEstimator.sizeOf(compressed);
+                }
+            }
+        }
+        return totalSize;
     }
 }
