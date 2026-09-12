@@ -161,7 +161,7 @@ public class WorkloadGroupPersistenceService {
         String groupName = workloadGroup.getName();
 
         // check if maxWorkloadGroupCount will breach
-        if (existingWorkloadGroups.size() == maxWorkloadGroupCount) {
+        if (existingWorkloadGroups.size() >= maxWorkloadGroupCount) {
             logger.warn("{} value exceeded its assigned limit of {}.", WORKLOAD_GROUP_COUNT_SETTING_NAME, maxWorkloadGroupCount);
             throw new IllegalStateException("Can't create more than " + maxWorkloadGroupCount + " WorkloadGroups in the system.");
         }
