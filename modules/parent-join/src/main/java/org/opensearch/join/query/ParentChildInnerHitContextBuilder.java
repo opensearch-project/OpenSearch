@@ -91,7 +91,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         if (joinFieldMapper != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(
-                name,
+                getName(),
                 context,
                 typeName,
                 fetchChildInnerHits,
@@ -122,6 +122,19 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
             this.joinFieldMapper = joinFieldMapper;
+        }
+
+        @Override
+        public InnerHitsContext.InnerHitSubContext copy() {
+            JoinFieldInnerHitSubContext copy = new JoinFieldInnerHitSubContext(
+                getName(),
+                context,
+                typeName,
+                fetchChildInnerHits,
+                joinFieldMapper
+            );
+            copyTo(copy);
+            return copy;
         }
 
         @Override
@@ -210,3 +223,4 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     }
 
 }
+
