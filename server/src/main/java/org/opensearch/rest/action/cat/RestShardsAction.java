@@ -197,7 +197,9 @@ public class RestShardsAction extends AbstractListAction {
      * Package-private for testing.
      */
     static boolean requestNeedsIndicesStats(RestRequest request) {
-        String hParam = request.param("h");
+        // Non-consuming read: this runs pre-dispatch, and h is consumed later during response
+        // rendering (buildDisplayHeaders). Matches the non-consuming access in RestTable.buildResponse.
+        String hParam = request.params().get("h");
         if (hParam == null || hParam.isEmpty()) {
             return true; // default headers include stats columns
         }
