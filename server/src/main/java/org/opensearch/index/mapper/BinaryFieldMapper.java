@@ -90,17 +90,29 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder(String name, boolean hasDocValues) {
+            this(name, hasDocValues, List.of());
+        }
+
+        /**
+         * Creates a builder that also carries the mapping parameters contributed by the index's data-format plugin,
+         * so they are parsed, serialized and merged alongside the core parameters.
+         */
+        public Builder(String name, boolean hasDocValues, List<Parameter<?>> pluginParameters) {
             super(name);
             this.hasDocValues.setValue(hasDocValues);
+            setPluginMappingParameters(pluginParameters);
         }
 
         @Override
         public List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, stored, hasDocValues);
+            List<Parameter<?>> parameters = new ArrayList<>(Arrays.asList(meta, stored, hasDocValues));
+            parameters.addAll(pluginMappingParameters());
+            return parameters;
         }
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             final BinaryFieldType bft = new BinaryFieldType(
                 buildFullName(context),
                 stored.getValue(),
@@ -111,7 +123,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null || c.mapperService() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, false, pluginParameters);
+    });
 
     /**
      * Binary field type
@@ -176,6 +193,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected BinaryFieldMapper(
         String simpleName,
@@ -187,6 +206,13 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     @Override
@@ -241,7 +267,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName()).init(this);
+        return new BinaryFieldMapper.Builder(simpleName(), false, mappingPluginParameters).init(this);
     }
 
     @Override
