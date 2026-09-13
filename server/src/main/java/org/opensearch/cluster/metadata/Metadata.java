@@ -52,7 +52,6 @@ import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -1609,7 +1608,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private void canonicalizeMappingsInPlace() {
-            final Map<CompressedXContent, MappingMetadata> pool = new HashMap<>();
+            final Map<MappingMetadata, MappingMetadata> pool = new HashMap<>();
 
             for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
                 final IndexMetadata indexMetadata = entry.getValue();
@@ -1618,7 +1617,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     continue;
                 }
 
-                final MappingMetadata canonicalMapping = pool.putIfAbsent(mapping.source(), mapping);
+                final MappingMetadata canonicalMapping = pool.putIfAbsent(mapping, mapping);
                 if (canonicalMapping != null && canonicalMapping != mapping) {
                     entry.setValue(IndexMetadata.builder(indexMetadata).putMapping(canonicalMapping).build());
                 }
