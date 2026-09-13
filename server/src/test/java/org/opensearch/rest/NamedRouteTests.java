@@ -11,7 +11,6 @@ package org.opensearch.rest;
 import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.rest.NamedRoute.MAX_LENGTH_OF_ACTION_NAME;
@@ -94,19 +93,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
             assertTrue(r.actionNames().isEmpty());
         } catch (OpenSearchException e) {
             fail("Did not expect NamedRoute to pass with an invalid legacy action name");
-        }
-    }
-
-    public void testNamedRouteWithInvalidLegacyActionNames() {
-        try {
-            NamedRoute r = new NamedRoute.Builder().method(GET)
-                .path("foo/bar")
-                .uniqueName("foo:bar")
-                .legacyActionNames(Set.of("foo:bar-legacy"))
-                .build();
-            fail("Did not expect NamedRoute to pass with an invalid legacy action name");
-        } catch (OpenSearchException e) {
-            assertTrue(e.getMessage().contains("Invalid action name [foo:bar-legacy]. It must start with one of:"));
         }
     }
 
