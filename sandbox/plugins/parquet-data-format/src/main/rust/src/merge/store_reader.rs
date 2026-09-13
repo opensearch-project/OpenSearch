@@ -154,8 +154,9 @@ impl Read for StoreTailRead {
                 return Ok(0);
             }
             let fetch_end = (self.pos + STORE_READ_CHUNK_BYTES).min(self.end);
-            let bytes = TieredChunkReader::store_get_range(&self.store, &self.path, self.pos, fetch_end)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            let bytes =
+                TieredChunkReader::store_get_range(&self.store, &self.path, self.pos, fetch_end)
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
             self.pos = fetch_end;
             self.current = bytes;
         }

@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use arrow::array::RecordBatchReader;
-use object_store::ObjectStore;
 use arrow::datatypes::Schema as ArrowSchema;
+use object_store::ObjectStore;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::schema::types::SchemaDescriptor;
 

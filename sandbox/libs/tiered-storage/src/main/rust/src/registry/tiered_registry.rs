@@ -537,11 +537,7 @@ mod upsert_tests {
         // Re-register as REMOTE (the upload flip).
         registry.register(
             "shard0/parquet/f1.parquet",
-            TieredFileEntry::with_size(
-                FileLocation::Remote,
-                Some(Arc::from("base/f1__uuid")),
-                100,
-            ),
+            TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("base/f1__uuid")), 100),
         );
 
         let guard = registry.get("shard0/parquet/f1.parquet").unwrap();

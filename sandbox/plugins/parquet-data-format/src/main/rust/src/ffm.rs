@@ -685,30 +685,33 @@ pub unsafe extern "C" fn parquet_merge_files(
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
-    let input_store: Option<std::sync::Arc<dyn object_store::ObjectStore>> = if input_store_box_ptr != 0 {
-        // Borrow the Box without taking ownership (the pointer is owned by the Java side
-        // and shared across calls); clone the Arc and upcast to ObjectStore.
-        //
-        // SAFETY / lifetime contract (upheld on the Java side):
-        // - The box pointer is owned by the NativeStoreHandle held by the shard's
-        //   ParquetDataFormatStoreHandler and is freed only at SHARD CLOSE, which is
-        //   strictly ordered after engine close, which happens only after in-flight
-        //   merges (the sole caller of this function) have completed or been aborted.
-        //   The pointer therefore cannot be freed while this call is executing.
-        // - NativeParquetMergeStrategy extracts the pointer via NativeStoreHandle
-        //   .getPointer(), which throws if the handle is already closed (liveness
-        //   check at the call boundary).
-        // - We clone the Arc out of the borrowed Box immediately below; the store
-        //   itself then outlives this merge via the Arc refcount regardless of the
-        //   box. Same idiom as ts_create_tiered_object_store / df_create_reader.
-        let boxed = unsafe {
-            &*(input_store_box_ptr
-                as *const std::sync::Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>)
+    let input_store: Option<std::sync::Arc<dyn object_store::ObjectStore>> =
+        if input_store_box_ptr != 0 {
+            // Borrow the Box without taking ownership (the pointer is owned by the Java side
+            // and shared across calls); clone the Arc and upcast to ObjectStore.
+            //
+            // SAFETY / lifetime contract (upheld on the Java side):
+            // - The box pointer is owned by the NativeStoreHandle held by the shard's
+            //   ParquetDataFormatStoreHandler and is freed only at SHARD CLOSE, which is
+            //   strictly ordered after engine close, which happens only after in-flight
+            //   merges (the sole caller of this function) have completed or been aborted.
+            //   The pointer therefore cannot be freed while this call is executing.
+            // - NativeParquetMergeStrategy extracts the pointer via NativeStoreHandle
+            //   .getPointer(), which throws if the handle is already closed (liveness
+            //   check at the call boundary).
+            // - We clone the Arc out of the borrowed Box immediately below; the store
+            //   itself then outlives this merge via the Arc refcount regardless of the
+            //   box. Same idiom as ts_create_tiered_object_store / df_create_reader.
+            let boxed = unsafe {
+                &*(input_store_box_ptr
+                    as *const std::sync::Arc<
+                        dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore,
+                    >)
+            };
+            Some(std::sync::Arc::clone(boxed) as std::sync::Arc<dyn object_store::ObjectStore>)
+        } else {
+            None
         };
-        Some(std::sync::Arc::clone(boxed) as std::sync::Arc<dyn object_store::ObjectStore>)
-    } else {
-        None
-    };
     let output_path = str_from_raw(output_ptr, output_len)
         .map_err(|e| format!("parquet_merge_files output: {}", e))?;
     let index_name = str_from_raw(index_name_ptr, index_name_len)
