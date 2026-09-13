@@ -22,7 +22,7 @@ public class TokenCountParquetField extends NumericParquetField {
     public TokenCountParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((IntVector) vector).setSafe(index, (Integer) value);
     }
 

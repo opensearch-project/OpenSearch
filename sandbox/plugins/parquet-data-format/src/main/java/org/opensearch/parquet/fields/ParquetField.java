@@ -52,7 +52,7 @@ public abstract class ParquetField {
      * @param value the value to write; never null (callers skip the call entirely for a null value,
      *              leaving the slot null)
      */
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         throw new UnsupportedOperationException("writeValue is not implemented for " + getClass().getSimpleName());
     }
 

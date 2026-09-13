@@ -11,7 +11,6 @@ package org.opensearch.composite;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
-import org.opensearch.index.engine.dataformat.NestedAwareDocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.Collections;
@@ -20,17 +19,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A composite {@link DocumentInput} that wraps one {@link DocumentInput} per registered
- * data format and broadcasts all field additions to every per-format input.
+ * A composite {@link DocumentInput} that wraps one {@link DocumentInput} per registered data format
+ * and broadcasts every operation — metadata and {@link #addField} alike — to all of them unconditionally.
  * <p>
- * Metadata operations ({@code setRowId}, {@code setVersion}, {@code setSeqNo},
- * {@code setPrimaryTerm}) and top-level field additions are broadcast to all per-format inputs.
- * <p>
- * Nested-scope signals ({@link #startNestedChild}/{@link #endNestedChild}/{@link #addMapEntry}), and
- * any {@link #addField} call made while inside a nested scope, are forwarded only to per-format inputs
- * that implement {@link NestedAwareDocumentInput} — this class owns the nesting-depth bookkeeping so a
- * format with no nested notion (e.g. Lucene) is never called into for any of it, and needs no bookkeeping
- * of its own.
+ * There is no nested-scope bookkeeping here: {@code nested} and {@code flat_object} data flow through
+ * the same {@link #addField} as everything else. Each per-format {@link DocumentInput} decides for
+ * itself whether and how to represent what it's given (see {@code ParquetDocumentInput}), and its own
+ * capability self-filter drops anything outside what it was assigned for the field's mapping scope.
  *
  * @opensearch.experimental
  */
@@ -41,7 +36,6 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
     private long rowId = -1L;
-    private int nestedDepth = 0;
 
     /**
      * Constructs a CompositeDocumentInput with a primary format input and secondary format inputs.
@@ -64,14 +58,9 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        boolean nested = nestedDepth > 0;
-        if (nested == false || primaryDocumentInput instanceof NestedAwareDocumentInput) {
-            addFieldTo(primaryDocumentInput, primaryFormat.name(), fieldType, value);
-        }
+        addFieldTo(primaryDocumentInput, primaryFormat.name(), fieldType, value);
         for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
-            if (nested == false || entry.getValue() instanceof NestedAwareDocumentInput) {
-                addFieldTo(entry.getValue(), entry.getKey().name(), fieldType, value);
-            }
+            addFieldTo(entry.getValue(), entry.getKey().name(), fieldType, value);
         }
     }
 
@@ -90,47 +79,6 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
             input.setRowId(rowIdFieldName, rowId);
         }
         this.rowId = rowId;
-    }
-
-    @Override
-    public void startNestedChild(String nestedPath) {
-        // Incremented before the broadcast below (not after) so depth reflects this open even if a
-        // per-format call throws partway through — DocumentParser's finally always calls the matching
-        // endNestedChild regardless, and that decrement must have a correct increment to pair against.
-        nestedDepth++;
-        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
-            nestedAware.startNestedChild(nestedPath);
-        }
-        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
-                nestedAware.startNestedChild(nestedPath);
-            }
-        }
-    }
-
-    @Override
-    public void endNestedChild() {
-        nestedDepth--;
-        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
-            nestedAware.endNestedChild();
-        }
-        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
-                nestedAware.endNestedChild();
-            }
-        }
-    }
-
-    @Override
-    public void addMapEntry(MappedFieldType mapField, String key, Object value) {
-        if (primaryDocumentInput instanceof NestedAwareDocumentInput<?> nestedAware) {
-            nestedAware.addMapEntry(mapField, key, value);
-        }
-        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            if (input instanceof NestedAwareDocumentInput<?> nestedAware) {
-                nestedAware.addMapEntry(mapField, key, value);
-            }
-        }
     }
 
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */

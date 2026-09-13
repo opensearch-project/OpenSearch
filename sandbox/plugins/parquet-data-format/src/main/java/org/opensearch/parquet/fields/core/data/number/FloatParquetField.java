@@ -23,7 +23,7 @@ public class FloatParquetField extends NumericParquetField {
     public FloatParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((Float4Vector) vector).setSafe(index, (Float) value);
     }
 

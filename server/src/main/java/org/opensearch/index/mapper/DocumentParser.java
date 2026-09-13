@@ -613,14 +613,6 @@ final class DocumentParser {
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
             context = nestedContext(context, mapper);
-            // Pluggable/composite mode: also signal the nested-child boundary to the pluggable
-            // DocumentInput(s) (e.g. Parquet begins a new LIST<STRUCT> element; a format with no
-            // nested notion can simply skip fields received in this scope). Gated so vanilla indices
-            // are unaffected. The signal stream mirrors the parse walk exactly, so every format sees
-            // children in identical order.
-            if (context.indexSettings().isPluggableDataFormatEnabled()) {
-                context.documentInput().startNestedChild(mapper.fullPath());
-            }
         }
 
         try {
@@ -634,13 +626,8 @@ final class DocumentParser {
             }
             innerParseObject(context, mapper, parser, currentFieldName, token);
         } finally {
-            // Run even on a parse failure, so the startNestedChild signal above always gets its
-            // matching close.
             if (nested.isNested()) {
                 nested(context, nested);
-                if (context.indexSettings().isPluggableDataFormatEnabled()) {
-                    context.documentInput().endNestedChild();
-                }
             }
         }
     }
@@ -883,6 +870,14 @@ final class DocumentParser {
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
         nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getIndexVersionCreated(), mapper.nestedTypePath()));
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Pluggable/composite mode: signal the nested-child boundary through the same generic
+            // addField every other field uses — see ParquetDocumentInput for how it's recognized.
+            // fullPath() (not nestedTypePath(), "__"-prefixed on pre-2.0 indices) keeps the value a
+            // clean dotted path.
+            MappedFieldType nestedPathFieldType = context.docMapper().metadataMapper(NestedPathFieldMapper.class).fieldType();
+            context.documentInput().addField(nestedPathFieldType, mapper.fullPath());
+        }
         return context;
     }
 

@@ -31,8 +31,8 @@ public class CoreDataFieldPluginTests extends OpenSearchTestCase {
     }
 
     public void testFieldCount() {
-        // 10 numeric + 2 temporal + 1 boolean + 4 text + 1 binary + 1 flat_object (MAP) = 19
-        assertEquals(19, fields.size());
+        // 10 numeric + 2 temporal + 1 boolean + 4 text + 1 binary + 1 flat_object (MAP) + 1 nested (LIST<STRUCT>) = 20
+        assertEquals(20, fields.size());
     }
 
     public void testAllNumericTypesPresent() {

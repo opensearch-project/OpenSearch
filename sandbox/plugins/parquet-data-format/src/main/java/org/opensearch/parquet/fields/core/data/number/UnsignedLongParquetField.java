@@ -22,7 +22,7 @@ public class UnsignedLongParquetField extends NumericParquetField {
     public UnsignedLongParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((UInt8Vector) vector).setSafe(index, ((Number) value).longValue());
     }
 

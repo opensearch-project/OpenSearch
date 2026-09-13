@@ -47,6 +47,7 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
+import org.opensearch.index.engine.dataformat.SchemaChangeRequiresWriterRotationException;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
@@ -701,13 +702,36 @@ public class DataFormatAwareEngine implements Indexer {
         boolean writerCheckedOut = false;
         long mappingVersion = currentMappingVersion();
         try {
-            lockedWriter = writerPool.getAndLock(h -> {
-                Writer<?> w = h.get();
-                if (w.state() != WriterState.ACTIVE) return false;
-                return w.isSchemaMutable() || w.mappingVersion() >= mappingVersion;
-            });
-            Writer currentWriter = lockedWriter.get();
-            currentWriter.updateMappingVersion(mappingVersion);
+            Writer currentWriter = null;
+            // Bounded to one retry: a freshly rotated generation's schema is always current, so it
+            // should never itself require rotation — if it does, that's a bug, not something to loop on.
+            for (int attempt = 0;; attempt++) {
+                lockedWriter = writerPool.getAndLock(h -> {
+                    Writer<?> w = h.get();
+                    if (w.state() != WriterState.ACTIVE) return false;
+                    return w.isSchemaMutable() || w.mappingVersion() >= mappingVersion;
+                });
+                currentWriter = lockedWriter.get();
+                try {
+                    currentWriter.updateMappingVersion(mappingVersion);
+                    break;
+                } catch (SchemaChangeRequiresWriterRotationException rotationNeeded) {
+                    if (attempt > 0) {
+                        throw new IllegalStateException(
+                            "writer generation [" + currentWriter.generation() + "] required rotation twice in a row",
+                            rotationNeeded
+                        );
+                    }
+                    logger.debug(
+                        "writer generation [{}] cannot absorb mapping update in place, rotating to a new generation: {}",
+                        currentWriter.generation(),
+                        rotationNeeded.getMessage()
+                    );
+                    // Ends the old generation as-is; the next loop iteration's getAndLock creates a fresh one.
+                    retireWriterForSchemaRotation(lockedWriter);
+                    lockedWriter = null;
+                }
+            }
             // Writer pool must never return null — it creates on demand via the supplier
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
@@ -1914,6 +1938,52 @@ public class DataFormatAwareEngine implements Indexer {
         }
         assert writerPool.isRegistered(lockedWriter) == false : "retired writer must not be in pool";
         return true;
+    }
+
+    /**
+     * Retires {@code lockedWriter} early because of an in-place-unsafe mapping update (see
+     * {@link SchemaChangeRequiresWriterRotationException}), not a per-doc failure — unlike
+     * {@link #retireWriterIfNeeded}, this doesn't check {@link WriterState}: the writer is still
+     * ACTIVE until this method checks it out.
+     * <p>
+     * Flushes whatever rows the writer already admitted using its current (unmodified) schema,
+     * records the resulting segment if non-empty, and closes it. The caller must obtain a
+     * replacement writer and retry the triggering document on it exactly once.
+     *
+     * @throws IllegalStateException if the flush fails, mirroring {@link #retireWriterIfNeeded}'s
+     *         RETIRED_FLUSHABLE path — the caller must {@link #failEngine} and let recovery replay
+     *         the translog.
+     */
+    private void retireWriterForSchemaRotation(DefaultLockableHolder<Writer<?>> lockedWriter) {
+        Writer<?> writer = lockedWriter.get();
+        try (Releasable ignored = writerPool.checkout(lockedWriter)) {
+            FileInfos retiredFileInfos;
+            try {
+                retiredFileInfos = writer.flush(FlushInput.EMPTY);
+            } catch (Exception flushEx) {
+                throw new IllegalStateException(
+                    "flush failed retiring writer generation ["
+                        + writer.generation()
+                        + "] for schema-change rotation; buffered acked docs lost",
+                    flushEx
+                );
+            }
+            Segment.Builder segBuilder = Segment.builder(writer.generation());
+            boolean hasFiles = false;
+            for (Map.Entry<DataFormat, WriterFileSet> entry : retiredFileInfos.writerFilesMap().entrySet()) {
+                segBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                hasFiles = true;
+            }
+            if (hasFiles) {
+                Segment retiredSegment = segBuilder.build();
+                assert retiredSegment.generation() == writer.generation() : "retired segment generation must match writer generation";
+                assert assertRetiredSegmentInvariants(writer, retiredFileInfos);
+                pendingSegments.add(retiredSegment);
+            }
+        } finally {
+            IOUtils.closeWhileHandlingException(writer);
+        }
+        assert writerPool.isRegistered(lockedWriter) == false : "retired writer must not be in pool";
     }
 
     /**

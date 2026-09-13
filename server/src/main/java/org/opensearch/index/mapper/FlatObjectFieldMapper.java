@@ -45,6 +45,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,7 +54,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -99,8 +99,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             Strings.isNullOrEmpty(key) ? this.name() : (this.name() + DOT_SYMBOL + key),
             this.name(),
             valueFieldType,
-            valueAndPathFieldType,
-            fieldType().pluggableDataFormatEnabled
+            valueAndPathFieldType
         );
     }
 
@@ -110,12 +109,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
 
-        private final boolean pluggableDataFormatEnabled;
-
-        public Builder(String name, boolean pluggableDataFormatEnabled) {
+        public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
             builder = this;
-            this.pluggableDataFormatEnabled = pluggableDataFormatEnabled;
         }
 
         @Override
@@ -129,23 +125,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 isSearchable,
                 hasDocValue
             );
-            FlatObjectFieldType fft = new FlatObjectFieldType(
-                buildFullName(context),
-                null,
-                valueFieldType,
-                valueAndPathFieldType,
-                pluggableDataFormatEnabled
-            );
+            FlatObjectFieldType fft = new FlatObjectFieldType(buildFullName(context), null, valueFieldType, valueAndPathFieldType);
 
             return new FlatObjectFieldMapper(name, Defaults.FIELD_TYPE, fft);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        boolean pluggableDataFormatEnabled = c.mapperService() != null
-            && c.mapperService().getIndexSettings().isPluggableDataFormatEnabled();
-        return new Builder(n, pluggableDataFormatEnabled);
-    });
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     /**
      * Creates a new TypeParser for flatObjectFieldMapper that does not use ParameterizedFieldMapper
@@ -174,15 +160,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         private final String rootFieldName;
         private final KeywordFieldType valueFieldType;
         private final KeywordFieldType valueAndPathFieldType;
-        private final boolean pluggableDataFormatEnabled;
 
         public FlatObjectFieldType(String name, String rootFieldName, boolean isSearchable, boolean hasDocValues) {
             this(
                 name,
                 rootFieldName,
                 getKeywordFieldType(rootFieldName == null ? name : rootFieldName, VALUE_SUFFIX, isSearchable, hasDocValues),
-                getKeywordFieldType(rootFieldName == null ? name : rootFieldName, VALUE_AND_PATH_SUFFIX, isSearchable, hasDocValues),
-                false
+                getKeywordFieldType(rootFieldName == null ? name : rootFieldName, VALUE_AND_PATH_SUFFIX, isSearchable, hasDocValues)
             );
         }
 
@@ -190,8 +174,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String name,
             String rootFieldName,
             KeywordFieldType valueFieldType,
-            KeywordFieldType valueAndPathFieldType,
-            boolean pluggableDataFormatEnabled
+            KeywordFieldType valueAndPathFieldType
         ) {
             super(
                 name,
@@ -207,7 +190,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.rootFieldName = rootFieldName;
             this.valueFieldType = valueFieldType;
             this.valueAndPathFieldType = valueAndPathFieldType;
-            this.pluggableDataFormatEnabled = pluggableDataFormatEnabled;
         }
 
         static KeywordFieldType getKeywordFieldType(String rootField, String suffix, boolean isSearchable, boolean hasDocValue) {
@@ -243,23 +225,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
-        }
-
-        /**
-         * On a pluggable-data-format index, no registered format represents flat_object's full-text
-         * search over {@code _value}/{@code _valueAndPath} (Lucene never represents flat_object data
-         * in that mode at all) — so don't request a capability nothing can serve. Classic (non-pluggable)
-         * indices are unaffected; their flat_object full-text search is real and unchanged.
-         */
-        @Override
-        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
-            Set<FieldTypeCapabilities.Capability> caps = super.requestedCapabilities();
-            if (pluggableDataFormatEnabled && caps.contains(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)) {
-                Set<FieldTypeCapabilities.Capability> narrowed = new HashSet<>(caps);
-                narrowed.remove(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
-                return Set.copyOf(narrowed);
-            }
-            return caps;
         }
 
         NamedAnalyzer normalizer() {
@@ -709,7 +674,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             final String leafPath = Strings.collectionToDelimitedString(path, ".");
             // Key relative to this flat_object field: strip the "<fieldName>." prefix.
             final String key = leafPath.substring(name().length() + 1);
-            context.documentInput().addMapEntry(fieldType(), key, value);
+            context.documentInput().addField(fieldType(), new AbstractMap.SimpleEntry<>(key, value));
             parser.nextToken();
         }
     }

@@ -6,36 +6,100 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.fields;
+package org.opensearch.parquet.fields.core.data;
 
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 import org.opensearch.parquet.writer.MismatchedInputException;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Writes a document's nested (LIST&lt;STRUCT&gt;) and map (MAP&lt;Utf8,Utf8&gt;) fields into the active
- * VSR, on behalf of {@link org.opensearch.parquet.vsr.VSRManager}. Kept separate so VSRManager's own
- * job stays "how the VSR is managed" rather than field-ingestion detail.
+ * Parquet field for {@code nested} — one repeating group (a {@code nested} array) stored as a single
+ * {@code LIST<STRUCT>} column, registered under content type {@code "nested"} (see
+ * {@link org.opensearch.index.mapper.ObjectMapper#NESTED_CONTENT_TYPE}).
  *
- * <p>Every leaf value is written through its registered {@link ParquetField#writeValue}, the same
- * conversion the top-level (non-nested) write path uses — one canonical implementation per type,
- * not a second one maintained here independently.
+ * <p>Unlike every other registered {@link ParquetField}, {@code nested} has no {@link MappedFieldType}
+ * of its own — an {@code ObjectMapper} is never a {@code FieldMapper}, so nothing ever looks this type up
+ * by {@code fieldType.typeName()}. Callers (schema building in {@code ArrowSchemaBuilder}, and document
+ * writing in {@code VSRManager}) look this handler up directly by the literal content-type string
+ * instead, once they've identified a nested object mapper by {@code ObjectMapper#nested()}.
+ *
+ * <p>{@link #buildField(String)} is unsupported: unlike a scalar leaf, a nested field's Arrow shape is
+ * never knowable from just its name — it always needs its struct children, supplied by the caller (which
+ * knows the mapper tree) via {@link #buildField(String, List)} instead.
  */
-public final class NestedFieldWriter {
+public class NestedParquetField extends ParquetField {
 
-    private NestedFieldWriter() {}
+    /** Creates a new NestedParquetField. */
+    public NestedParquetField() {}
+
+    @Override
+    protected void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
+        // nested values arrive as an element tree (ParquetDocumentInput#getNestedChildren), written via
+        // writeNestedChildren below, not through the scalar createField path.
+        throw new UnsupportedOperationException("nested [" + fieldType.name() + "] is written via writeNestedChildren, not addToGroup");
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return ArrowType.List.INSTANCE;
+    }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        // Nominal type only — the real LIST<STRUCT<...>> field (with its struct children) is built by
+        // buildField(String, List<Field>) below.
+        return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Field buildField(String name) {
+        throw new UnsupportedOperationException(
+            "nested field [" + name + "] has no fixed shape — use buildField(String, List<Field>) with its struct children"
+        );
+    }
+
+    /**
+     * Builds the {@code LIST<STRUCT<children>>} field for a nested object mapper named {@code name} —
+     * one element per array entry. Struct children are matched BY POSITION downstream (Substrait /
+     * DataFusion), so they're sorted deterministically by name to match whatever read schema the query
+     * engine builds (typically sorted, e.g. via a {@code TreeMap}) — the same reason
+     * {@code ArrowSchemaBuilder} sorts every other struct it builds.
+     *
+     * @param name     the nested field's name — a full dotted path at the document root, or a leaf name
+     *                 relative to its parent struct when nested inside another nested field
+     * @param children the struct's children: the mapper's own direct leaf/flat_object/nested-in-nested
+     *                 fields, already built by the caller
+     */
+    public Field buildField(String name, List<Field> children) {
+        List<Field> sorted = new ArrayList<>(children);
+        sorted.sort(Comparator.comparing(Field::getName));
+        Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), sorted);
+        return new Field(name, FieldType.nullable(getArrowType()), List.of(element));
+    }
 
     /**
      * Writes the document's buffered nested children into their LIST&lt;STRUCT&gt; vectors at
@@ -45,7 +109,7 @@ public final class NestedFieldWriter {
      * @throws MismatchedInputException if the active VSR is missing a vector {@code doc} needs —
      *         a schema-reconciliation bug, not a case to silently drop data for.
      */
-    public static void writeNestedChildren(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
+    public void writeNestedChildren(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
         if (doc.getNestedChildren().isEmpty()) {
             return;
         }
@@ -70,7 +134,7 @@ public final class NestedFieldWriter {
     }
 
     /** Writes one list of child elements at {@code rowIndex} of {@code listVector}, recursing into inner lists. */
-    private static void writeChildList(ListVector listVector, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
+    private void writeChildList(ListVector listVector, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
         int startOffset = listVector.startNewValue(rowIndex);
         StructVector structVector = (StructVector) listVector.getDataVector();
         for (int i = 0; i < children.size(); i++) {
@@ -107,7 +171,10 @@ public final class NestedFieldWriter {
             for (FieldVector childVector : structVector.getChildrenFromFields()) {
                 if (childVector instanceof MapVector mapVector) {
                     String mapFullName = path + "." + mapVector.getName();
-                    writeMapChild(mapVector, elemIndex, child.mapEntries.getOrDefault(mapFullName, List.of()));
+                    FlatObjectParquetField flatObjectField = (FlatObjectParquetField) ArrowFieldRegistry.getParquetField(
+                        FlatObjectFieldMapper.CONTENT_TYPE
+                    );
+                    flatObjectField.writeMapChild(mapVector, elemIndex, child.mapEntries.getOrDefault(mapFullName, List.of()));
                 }
             }
             // deeper nested elements (e.g. replies inside a comment), grouped by their path
@@ -134,44 +201,5 @@ public final class NestedFieldWriter {
             }
         }
         listVector.endValue(rowIndex, children.size());
-    }
-
-    /**
-     * Writes document-root MAP columns (a top-level {@code flat_object}) at {@code rowIndex}. Iterates
-     * every top-level MAP vector so each row's offset is set explicitly — empty when the document has no
-     * entries for that field — instead of leaving skipped rows to Arrow's implicit offset back-fill.
-     * <p>
-     * Consequence: a document that omits the field yields an EMPTY (non-null) map, which is
-     * indistinguishable from an explicit {@code "attributes": {}}. That is a deliberate simplification.
-     */
-    public static void writeTopLevelMaps(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
-        for (Field field : activeVSR.getSchema().getFields()) {
-            if (activeVSR.getVector(field.getName()) instanceof MapVector mapVector) {
-                writeMapChild(mapVector, rowIndex, doc.getTopLevelMapEntries().getOrDefault(mapVector.getName(), List.of()));
-            }
-        }
-    }
-
-    /**
-     * Writes one {@code MAP<Utf8,Utf8>} value at {@code index}: each buffered (key,value) becomes one map
-     * entry (a {@code key_value} struct). A null value leaves the entry's value null; an empty list writes
-     * an empty (non-null) map. Keys/values are stringified to UTF-8.
-     */
-    private static void writeMapChild(MapVector mapVector, int index, List<Map.Entry<String, Object>> entries) {
-        int start = mapVector.startNewValue(index);
-        StructVector entriesStruct = (StructVector) mapVector.getDataVector();
-        VarCharVector keyVector = (VarCharVector) entriesStruct.getChild(MapVector.KEY_NAME);
-        VarCharVector valueVector = (VarCharVector) entriesStruct.getChild(MapVector.VALUE_NAME);
-        for (int i = 0; i < entries.size(); i++) {
-            int pos = start + i;
-            entriesStruct.setIndexDefined(pos);
-            Map.Entry<String, Object> entry = entries.get(i);
-            keyVector.setSafe(pos, entry.getKey().getBytes(StandardCharsets.UTF_8));
-            Object value = entry.getValue();
-            if (value != null) {
-                valueVector.setSafe(pos, value.toString().getBytes(StandardCharsets.UTF_8));
-            }
-        }
-        mapVector.endValue(index, entries.size());
     }
 }

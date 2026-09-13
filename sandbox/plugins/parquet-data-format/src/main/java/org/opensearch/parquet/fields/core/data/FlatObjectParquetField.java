@@ -8,6 +8,9 @@
 
 package org.opensearch.parquet.fields.core.data;
 
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -15,8 +18,11 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
+import org.opensearch.parquet.writer.ParquetDocumentInput;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -25,9 +31,10 @@ import java.util.Set;
  *
  * <p>This registration exists so the parquet data format <em>advertises</em> that it can serve a
  * {@code flat_object} field (capability coverage in {@code CompositeDataFormatPlugin}; without it the
- * field's requested capabilities go unclaimed and index creation is rejected). Values are written via
- * the {@code addMapEntry} signal into a {@code MapVector} by {@code VSRManager} — NOT through
- * {@link #addToGroup}.
+ * field's requested capabilities go unclaimed and index creation is rejected). Values arrive as
+ * {@code Map.Entry}-valued {@code DocumentInput.addField} calls (see {@code FlatObjectFieldMapper}),
+ * buffered by {@code ParquetDocumentInput} and written into a {@code MapVector} by
+ * {@link #writeMapChild}/{@link #writeTopLevelMaps} below — NOT through {@link #addToGroup}.
  *
  * <p>{@link #addToGroup} is therefore never invoked on this field and throws defensively if it ever is.
  * It could not serve the nested case anyway: the struct-child write path resolves children itself and
@@ -40,10 +47,8 @@ public class FlatObjectParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        // flat_object values arrive as map entries (DocumentInput.addMapEntry) and are written to a
-        // MapVector by VSRManager, not through the scalar createField path.
         throw new UnsupportedOperationException(
-            "flat_object [" + mappedFieldType.name() + "] is written via addMapEntry/MapVector, not addToGroup"
+            "flat_object [" + mappedFieldType.name() + "] is written via writeMapChild/MapVector, not addToGroup"
         );
     }
 
@@ -81,5 +86,49 @@ public class FlatObjectParquetField extends ParquetField {
         Field value = new Field("value", FieldType.nullable(ArrowType.Utf8.INSTANCE), null);
         Field entries = new Field("key_value", new FieldType(false, ArrowType.Struct.INSTANCE, null), List.of(key, value));
         return new Field(name, FieldType.nullable(getArrowType()), List.of(entries));
+    }
+
+    /**
+     * Writes document-root MAP columns (a top-level {@code flat_object}) at {@code rowIndex}. Iterates
+     * every top-level MAP vector so each row's value is set explicitly — {@code null} when the document
+     * has no entries for that field — instead of leaving skipped rows to Arrow's implicit offset
+     * back-fill (which would otherwise leave the slot in whatever state a prior row's write left it in).
+     */
+    public void writeTopLevelMaps(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
+        for (Field field : activeVSR.getSchema().getFields()) {
+            if (activeVSR.getVector(field.getName()) instanceof MapVector mapVector) {
+                writeMapChild(mapVector, rowIndex, doc.getTopLevelMapEntries().getOrDefault(mapVector.getName(), List.of()));
+            }
+        }
+    }
+
+    /**
+     * Writes one {@code MAP<Utf8,Utf8>} value at {@code index}: each buffered (key,value) becomes one
+     * map entry; a null value leaves the entry's value null. An EMPTY entry list writes an explicit
+     * {@code null} for the whole map, not an empty non-null one — a flat_object with no entries must
+     * round-trip as absent, matching classic OpenSearch's {@code exists}/derived-source semantics. Also
+     * called directly by {@link NestedParquetField} to write a flat_object MAP child inside a nested
+     * element's struct.
+     */
+    public void writeMapChild(MapVector mapVector, int index, List<Map.Entry<String, Object>> entries) {
+        if (entries.isEmpty()) {
+            mapVector.setNull(index);
+            return;
+        }
+        int start = mapVector.startNewValue(index);
+        StructVector entriesStruct = (StructVector) mapVector.getDataVector();
+        VarCharVector keyVector = (VarCharVector) entriesStruct.getChild(MapVector.KEY_NAME);
+        VarCharVector valueVector = (VarCharVector) entriesStruct.getChild(MapVector.VALUE_NAME);
+        for (int i = 0; i < entries.size(); i++) {
+            int pos = start + i;
+            entriesStruct.setIndexDefined(pos);
+            Map.Entry<String, Object> entry = entries.get(i);
+            keyVector.setSafe(pos, entry.getKey().getBytes(StandardCharsets.UTF_8));
+            Object value = entry.getValue();
+            if (value != null) {
+                valueVector.setSafe(pos, value.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        mapVector.endValue(index, entries.size());
     }
 }

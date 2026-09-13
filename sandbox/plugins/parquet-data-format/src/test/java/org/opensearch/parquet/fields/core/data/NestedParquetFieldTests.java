@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.fields;
+package org.opensearch.parquet.fields.core.data;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -26,43 +26,59 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.Query;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
-import org.opensearch.parquet.fields.core.data.BinaryParquetField;
-import org.opensearch.parquet.fields.core.data.BooleanParquetField;
+import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.core.data.number.HalfFloatParquetField;
 import org.opensearch.parquet.fields.core.data.number.UnsignedLongParquetField;
 import org.opensearch.parquet.fields.core.data.text.IpParquetField;
 import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.reflect.Method;
 import java.net.InetAddress;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Tests {@link NestedFieldWriter}'s {@code writeChildList} (private static, invoked reflectively) and
- * the per-type {@link ParquetField#writeValue} dispatch it delegates every leaf write to (called
- * directly — same package). A {@code LIST<STRUCT>} vector is hand-built on a plain
- * {@link RootAllocator}, fed via a real {@link ParquetDocumentInput}, then read back to verify.
+ * Tests {@link NestedParquetField}'s {@code writeChildList} (private, invoked reflectively) and the
+ * per-type {@link ParquetField#writeValue} dispatch it delegates every leaf write to. A
+ * {@code LIST<STRUCT>} vector is hand-built on a plain {@link RootAllocator}, fed via a real
+ * {@link ParquetDocumentInput} using the marker-based {@code addField} signal, then read back to verify.
  */
-public class NestedFieldWriterTests extends OpenSearchTestCase {
+public class NestedParquetFieldTests extends OpenSearchTestCase {
 
     private RootAllocator testAllocator;
     private Method writeChildList;
+    private NestedParquetField nestedParquetField;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         testAllocator = new RootAllocator();
-        writeChildList = NestedFieldWriter.class.getDeclaredMethod("writeChildList", ListVector.class, int.class, String.class, List.class);
+        nestedParquetField = new NestedParquetField();
+        writeChildList = NestedParquetField.class.getDeclaredMethod(
+            "writeChildList",
+            ListVector.class,
+            int.class,
+            String.class,
+            List.class
+        );
         writeChildList.setAccessible(true);
     }
 
@@ -72,27 +88,22 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    /**
-     * A single-level list of two elements: correct offsets (start=0,end=2) and per-element struct-child
-     * values written into the right slots.
-     */
+    /** A single-level list of two elements: correct offsets and per-element struct-child values. */
     public void testWriteChildListTwoElements() throws Exception {
         KeywordFieldMapper.KeywordFieldType author = withParquetCapability(new KeywordFieldMapper.KeywordFieldType("comments.author"));
         NumberFieldMapper.NumberFieldType votes = withParquetCapability(
             new NumberFieldMapper.NumberFieldType("comments.votes", NumberFieldMapper.NumberType.INTEGER)
         );
 
-        // Build the buffered NestedChild tree via a real ParquetDocumentInput.
         ParquetDocumentInput doc = new ParquetDocumentInput();
-        doc.startNestedChild("comments");
+        doc.addField(nestedPathMarker(), "comments");
         doc.addField(author, "alice");
         doc.addField(votes, 3);
-        doc.endNestedChild();
-        doc.startNestedChild("comments");
+        doc.addField(nestedPathMarker(), "comments");
         doc.addField(author, "bob");
         doc.addField(votes, 7);
-        doc.endNestedChild();
 
+        flush(doc);
         try (ListVector list = newListOfStruct("comments", List.of(utf8("author"), int32("votes")))) {
             invokeWriteChildList(list, 0, "comments", doc.getNestedChildren());
             list.setValueCount(1); // cascade counts to struct + children for read-back
@@ -110,17 +121,14 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         }
     }
 
-    /**
-     * Writing a list at a non-zero row index leaves earlier rows empty and starts the new list at the
-     * right offset — proving per-row offset bookkeeping (row 0 empty, row 1 has one element).
-     */
+    /** Writing a list at a non-zero row index leaves earlier rows empty and starts at the right offset. */
     public void testWriteChildListAtNonZeroRow() throws Exception {
         KeywordFieldMapper.KeywordFieldType author = withParquetCapability(new KeywordFieldMapper.KeywordFieldType("comments.author"));
         ParquetDocumentInput doc = new ParquetDocumentInput();
-        doc.startNestedChild("comments");
+        doc.addField(nestedPathMarker(), "comments");
         doc.addField(author, "carol");
-        doc.endNestedChild();
 
+        flush(doc);
         try (ListVector list = newListOfStruct("comments", List.of(utf8("author")))) {
             // Row 0 left untouched (empty list); write the single element at row 1.
             invokeWriteChildList(list, 1, "comments", doc.getNestedChildren());
@@ -134,10 +142,7 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         }
     }
 
-    /**
-     * Nested-in-nested recursion: one comment carrying two replies. {@code writeChildList} must recurse
-     * into the inner {@code LIST<STRUCT<text>>} and write both reply values.
-     */
+    /** Nested-in-nested: one comment with two replies — recurses into the inner {@code LIST<STRUCT<text>>}. */
     public void testWriteChildListRecursesIntoInnerList() throws Exception {
         KeywordFieldMapper.KeywordFieldType author = withParquetCapability(new KeywordFieldMapper.KeywordFieldType("comments.author"));
         KeywordFieldMapper.KeywordFieldType replyText = withParquetCapability(
@@ -145,15 +150,12 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
-        doc.startNestedChild("comments");
+        doc.addField(nestedPathMarker(), "comments");
         doc.addField(author, "alice");
-        doc.startNestedChild("comments.replies");
+        doc.addField(nestedPathMarker(), "comments.replies");
         doc.addField(replyText, "first");
-        doc.endNestedChild();
-        doc.startNestedChild("comments.replies");
+        doc.addField(nestedPathMarker(), "comments.replies");
         doc.addField(replyText, "second");
-        doc.endNestedChild();
-        doc.endNestedChild();
 
         // comment struct = { author: utf8, replies: LIST<STRUCT<text>> }
         Field repliesChild = new Field(
@@ -161,6 +163,7 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
             FieldType.nullable(ArrowType.List.INSTANCE),
             List.of(structElement(List.of(utf8("text"))))
         );
+        flush(doc);
         try (ListVector comments = newListOfStructRaw("comments", List.of(utf8("author"), repliesChild))) {
             invokeWriteChildList(comments, 0, "comments", doc.getNestedChildren());
             comments.setValueCount(1);
@@ -178,11 +181,7 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         }
     }
 
-    /**
-     * Per-type {@code writeValue} dispatch — one canonical conversion per type, called directly here
-     * (same package as {@link ParquetField}), the same method {@code writeChildList} above calls into
-     * for every leaf. Covers every type nested leaves support, plus null (no-op).
-     */
+    /** Per-type {@code writeValue} dispatch, covering every type nested leaves support. */
     public void testWriteValueTypeDispatch() throws Exception {
         try (VarCharVector v = new VarCharVector("s", testAllocator)) {
             v.allocateNew();
@@ -258,35 +257,26 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
         field.writeValue(vector, index, value);
     }
 
-    /**
-     * MAP-in-STRUCT: three events whose {@code attributes} flat_object carries DIFFERENT dynamic keys —
-     * plus one event with NO attributes. Every key of every element must survive (the anti-regression for
-     * dropping keys under a frozen schema), and the empty-attributes element must write an empty,
-     * non-null map with contiguous offsets.
-     */
+    /** MAP-in-STRUCT: every dynamic key of every element survives, and a no-attributes element writes null. */
     public void testWriteChildListMapPreservesAllDynamicKeys() throws Exception {
         KeywordFieldMapper.KeywordFieldType name = withParquetCapability(new KeywordFieldMapper.KeywordFieldType("events.name"));
-        // addMapEntry only reads mapField.name(), so any MappedFieldType so named stands in for the
-        // flat_object field type.
-        KeywordFieldMapper.KeywordFieldType attrs = new KeywordFieldMapper.KeywordFieldType("events.attributes");
+        MappedFieldType attrs = flatObjectFieldType("events.attributes");
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         // e0: two keys
-        doc.startNestedChild("events");
+        doc.addField(nestedPathMarker(), "events");
         doc.addField(name, "e0");
-        doc.addMapEntry(attrs, "http.method", "GET");
-        doc.addMapEntry(attrs, "http.status", "200");
-        doc.endNestedChild();
+        doc.addField(attrs, mapEntry("http.method", "GET"));
+        doc.addField(attrs, mapEntry("http.status", "200"));
         // e1: a completely different key
-        doc.startNestedChild("events");
+        doc.addField(nestedPathMarker(), "events");
         doc.addField(name, "e1");
-        doc.addMapEntry(attrs, "db.system", "postgres");
-        doc.endNestedChild();
+        doc.addField(attrs, mapEntry("db.system", "postgres"));
         // e2: no attributes at all
-        doc.startNestedChild("events");
+        doc.addField(nestedPathMarker(), "events");
         doc.addField(name, "e2");
-        doc.endNestedChild();
 
+        flush(doc);
         try (ListVector events = newListOfStruct("events", List.of(utf8("name"), mapField("attributes")))) {
             invokeWriteChildList(events, 0, "events", doc.getNestedChildren());
             events.setValueCount(1);
@@ -308,7 +298,7 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
             assertEquals(3, mapVec.getElementEndIndex(1));
             assertEquals(3, mapVec.getElementStartIndex(2));
             assertEquals(3, mapVec.getElementEndIndex(2));
-            assertFalse("empty map is non-null, not null", mapVec.isNull(2));
+            assertTrue("no entries writes an explicit null map, not an empty one", mapVec.isNull(2));
 
             StructVector entries = (StructVector) mapVec.getDataVector();
             VarCharVector keys = (VarCharVector) entries.getChild(MapVector.KEY_NAME);
@@ -325,13 +315,13 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
 
     /** Duplicate keys are preserved: a parquet MAP is a repeated group, so {@code {"a":[1,2]}} keeps both. */
     public void testWriteChildListMapPreservesDuplicateKeys() throws Exception {
-        KeywordFieldMapper.KeywordFieldType attrs = new KeywordFieldMapper.KeywordFieldType("events.attributes");
+        MappedFieldType attrs = flatObjectFieldType("events.attributes");
         ParquetDocumentInput doc = new ParquetDocumentInput();
-        doc.startNestedChild("events");
-        doc.addMapEntry(attrs, "a", "1");
-        doc.addMapEntry(attrs, "a", "2");
-        doc.endNestedChild();
+        doc.addField(nestedPathMarker(), "events");
+        doc.addField(attrs, mapEntry("a", "1"));
+        doc.addField(attrs, mapEntry("a", "2"));
 
+        flush(doc);
         try (ListVector events = newListOfStruct("events", List.of(mapField("attributes")))) {
             invokeWriteChildList(events, 0, "events", doc.getNestedChildren());
             events.setValueCount(1);
@@ -357,14 +347,50 @@ public class NestedFieldWriterTests extends OpenSearchTestCase {
      */
     private static <T extends MappedFieldType> T withParquetCapability(T fieldType) {
         fieldType.setCapabilityMap(
-            java.util.Map.of(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE))
+            Map.of(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE))
         );
         return fieldType;
     }
 
+    /** A field type reporting {@code typeName() == "flat_object"}, still needing {@link #withParquetCapability}. */
+    private static MappedFieldType flatObjectFieldType(String name) {
+        return withParquetCapability(new FlatObjectFieldMapper.FlatObjectFieldType(name, null, true, true));
+    }
+
+    private static Map.Entry<String, Object> mapEntry(String key, Object value) {
+        return new AbstractMap.SimpleEntry<>(key, value);
+    }
+
+    /** A field type reporting {@code typeName() == NestedPathFieldMapper.NAME} — that has no public constructor. */
+    private static MappedFieldType nestedPathMarker() {
+        return new MappedFieldType(NestedPathFieldMapper.NAME, true, false, false, TextSearchInfo.NONE, Map.of()) {
+            @Override
+            public String typeName() {
+                return NestedPathFieldMapper.NAME;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
+            }
+        };
+    }
+
     private void invokeWriteChildList(ListVector list, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children)
         throws Exception {
-        writeChildList.invoke(null, list, rowIndex, path, children);
+        writeChildList.invoke(nestedParquetField, list, rowIndex, path, children);
+    }
+
+    /** Flushes still-open elements directly, since these tests skip {@code getFinalInput()}'s assertions. */
+    private static void flush(ParquetDocumentInput doc) throws Exception {
+        Method flushOpenElements = ParquetDocumentInput.class.getDeclaredMethod("flushOpenElements");
+        flushOpenElements.setAccessible(true);
+        flushOpenElements.invoke(doc);
     }
 
     private static Field utf8(String name) {

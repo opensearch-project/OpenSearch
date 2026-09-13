@@ -36,6 +36,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -306,13 +307,12 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
         for (Map.Entry<String, ParquetField> dataField : new CoreDataFieldPlugin().getParquetFields().entrySet()) {
-            // Skip flat_object: it is the one registered type that is NOT primitive. Its Arrow field is a
-            // MAP<Utf8,Utf8> whose children (the key_value struct) are built by
-            // ArrowSchemaBuilder.buildMapField — getFieldType() alone is a nominal type only, so building
-            // a Field from it with null children yields "Maps have one List child. Found: none". Its values
-            // also arrive via DocumentInput.addMapEntry rather than the scalar createField path these
-            // round-trip tests exercise.
-            if (FlatObjectFieldMapper.CONTENT_TYPE.equals(dataField.getKey())) {
+            // Skip flat_object and nested: the two non-primitive types. Their real Arrow shapes
+            // (MAP<Utf8,Utf8>; LIST<STRUCT<...>>) need children only their dedicated buildField overload
+            // builds — getFieldType() alone is nominal and yields e.g. "Maps have one List child. Found:
+            // none". They also don't go through the scalar createField path these round-trip tests exercise.
+            if (FlatObjectFieldMapper.CONTENT_TYPE.equals(dataField.getKey())
+                || ObjectMapper.NESTED_CONTENT_TYPE.equals(dataField.getKey())) {
                 continue;
             }
             fields.add(new Field(dataField.getKey() + "_field", dataField.getValue().getFieldType(), null));

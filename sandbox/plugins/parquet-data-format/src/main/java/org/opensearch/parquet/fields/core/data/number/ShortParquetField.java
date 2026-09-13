@@ -22,7 +22,7 @@ public class ShortParquetField extends NumericParquetField {
     public ShortParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((SmallIntVector) vector).setSafe(index, (Short) value);
     }
 

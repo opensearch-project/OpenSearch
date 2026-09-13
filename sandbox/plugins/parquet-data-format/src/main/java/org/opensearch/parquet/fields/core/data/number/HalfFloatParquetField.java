@@ -23,7 +23,7 @@ public class HalfFloatParquetField extends NumericParquetField {
     public HalfFloatParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((Float2Vector) vector).setSafeWithPossibleTruncate(index, ((Number) value).floatValue());
     }
 

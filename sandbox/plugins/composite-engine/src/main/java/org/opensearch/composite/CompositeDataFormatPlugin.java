@@ -35,6 +35,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -213,6 +214,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING,
             MERGE_ON_REFRESH_MAX_SIZE
         );
+    }
+
+    @Override
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
+        return List.of(new CompositeIndexCreationValidator());
     }
 
     @Override
@@ -402,6 +408,32 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      */
     @Override
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, false);
+    }
+
+    /**
+     * As {@link #assignCapabilities(MappedFieldType, IndexSettings, DataFormatRegistry)}, additionally
+     * restricting which sub-formats may claim capabilities when {@code insideNestedScope} is set.
+     * <p>
+     * Inside a nested scope, only the primary format represents the field at all (its
+     * {@code LIST<STRUCT>} column) — secondaries are excluded from the claiming loop entirely, even one
+     * that declares support for the type name in general.
+     * <p>
+     * A remaining unclaimed capability is fatal only if it's storage-shaped ({@link
+     * FieldTypeCapabilities.Capability#COLUMNAR_STORAGE}/{@link FieldTypeCapabilities.Capability#STORED_FIELDS})
+     * — losing that would silently drop data. A remaining search-shaped capability (e.g. {@link
+     * FieldTypeCapabilities.Capability#FULL_TEXT_SEARCH}) is dropped with a debug log instead: the field
+     * stays fully stored via whatever was claimed, just not searchable that way. This is what lets a
+     * {@code flat_object} field's {@code FULL_TEXT_SEARCH} request resolve gracefully here, where no
+     * configured format represents its inverted-index search.
+     */
+    @Override
+    public void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        boolean insideNestedScope
+    ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
@@ -418,10 +450,15 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Set<FieldTypeCapabilities.Capability> remaining = new HashSet<>(requested);
         Map<DataFormat, Set<FieldTypeCapabilities.Capability>> assigned = new HashMap<>();
 
-        for (DataFormat format : formats) {
+        for (int i = 0; i < formats.size(); i++) {
             if (remaining.isEmpty()) {
                 break;
             }
+            boolean isPrimary = i == 0;
+            if (insideNestedScope && isPrimary == false) {
+                continue;
+            }
+            DataFormat format = formats.get(i);
             Set<FieldTypeCapabilities.Capability> claimed = format.supportedFields()
                 .stream()
                 .filter(ftc -> ftc.fieldType().equals(typeName))
@@ -443,17 +480,35 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         }
 
         if (remaining.isEmpty() == false) {
-            throw new MapperParsingException(
-                "Field ["
-                    + fieldType.name()
-                    + "] of type ["
-                    + typeName
-                    + "] requires capabilities "
-                    + requested
-                    + " but configured data formats cannot collectively cover: "
-                    + remaining
-                    + ". Configured formats: "
-                    + formats.stream().map(DataFormat::name).collect(Collectors.toList())
+            boolean unclaimedStorageRemains = remaining.stream()
+                .anyMatch(
+                    cap -> cap == FieldTypeCapabilities.Capability.COLUMNAR_STORAGE || cap == FieldTypeCapabilities.Capability.STORED_FIELDS
+                );
+            if (unclaimedStorageRemains) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldType.name()
+                        + "] of type ["
+                        + typeName
+                        + "] requires capabilities "
+                        + requested
+                        + " but configured data formats cannot collectively cover: "
+                        + remaining
+                        + ". Configured formats: "
+                        + formats.stream().map(DataFormat::name).collect(Collectors.toList())
+                );
+            }
+            // Remaining capabilities here are all search-shaped, not storage — drop with a debug log
+            // instead of failing index creation.
+            logger.debug(
+                "Field [{}] of type [{}] requested capabilities {} that no configured data format claimed{}; "
+                    + "dropping them — the field is still stored via {}. Configured formats: {}",
+                fieldType.name(),
+                typeName,
+                remaining,
+                insideNestedScope ? " (inside a nested scope, where only the primary format is considered)" : "",
+                assigned,
+                formats.stream().map(DataFormat::name).collect(Collectors.toList())
             );
         }
         fieldType.setCapabilityMap(Map.copyOf(assigned));

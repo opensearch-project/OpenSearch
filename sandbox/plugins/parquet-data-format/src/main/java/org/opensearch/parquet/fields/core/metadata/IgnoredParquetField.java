@@ -30,7 +30,7 @@ public class IgnoredParquetField extends ParquetField {
     public IgnoredParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
     }
 

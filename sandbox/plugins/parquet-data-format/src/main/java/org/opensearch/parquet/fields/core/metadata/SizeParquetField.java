@@ -23,7 +23,7 @@ public class SizeParquetField extends ParquetField {
     public SizeParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((IntVector) vector).setSafe(index, (Integer) value);
     }
 

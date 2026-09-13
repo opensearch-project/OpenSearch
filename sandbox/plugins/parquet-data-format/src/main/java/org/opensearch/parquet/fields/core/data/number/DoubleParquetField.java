@@ -23,7 +23,7 @@ public class DoubleParquetField extends NumericParquetField {
     public DoubleParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((Float8Vector) vector).setSafe(index, (Double) value);
     }
 

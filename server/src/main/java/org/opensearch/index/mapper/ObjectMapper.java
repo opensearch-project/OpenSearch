@@ -327,11 +327,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (disableObjectsNode != null) {
                 parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
             }
-            // Same map-iteration-order reason: parse dynamic first so it's set before the check below runs.
-            Object dynamicNode = node.remove("dynamic");
-            if (dynamicNode != null) {
-                parseObjectOrDocumentTypeProperties("dynamic", dynamicNode, parserContext, builder);
-            }
             Object compositeField = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -350,22 +345,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // after parsing all other properties
             if (compositeField != null) {
                 parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
-            }
-            // Composite (pluggable data format) constraint: an undeclared nested leaf can silently vanish
-            // from Parquet while still reaching Lucene's coarse projection, diverging between formats.
-            // Requiring dynamic:false/strict keeps it from reaching either format at all — declare every
-            // leaf explicitly in [properties] instead.
-            if (builder.nested.isNested()
-                && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings())
-                && builder.dynamic != Dynamic.FALSE
-                && builder.dynamic != Dynamic.STRICT) {
-                throw new MapperParsingException(
-                    "Nested field ["
-                        + name
-                        + "] must set [dynamic: false] or [dynamic: strict] on composite (pluggable data "
-                        + "format) indices; a dynamically-mapped leaf inside nested cannot be reliably "
-                        + "represented in this storage mode."
-                );
             }
             return builder;
         }
@@ -657,65 +636,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                     }
 
-                    // Composite (pluggable data format) constraint: fields declared directly inside a
-                    // `nested` object are persisted as a coarse, doc-values-only projection (see
-                    // LuceneDocumentInput) and materialized as flat leaves / flat_object MAPs in Parquet.
-                    // Two mapping shapes cannot be honored in that model, so reject them at mapping time
-                    // instead of silently mis-indexing. Gated on nested scope + pluggable data format so
-                    // vanilla nested behavior is unchanged.
-                    boolean nestedPluggableScope = objBuilder.nested.isNested()
-                        && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings());
-                    if (nestedPluggableScope) {
-                        // (1) An explicit [index: true] inside nested cannot be served — no inverted index
-                        // is built for nested leaves in this mode. Checked on the raw property node (an
-                        // explicit setting only), NOT the field's resolved/default value — most nested
-                        // leaves are declared with no "index" key at all (the field type's own default,
-                        // e.g. keyword's is index:true), and that default-doc-values-only behavior is the
-                        // whole point of this storage mode, not a shape to reject.
-                        checkNoExplicitIndexTrue(propNode, fieldName, objBuilder);
-                        // (1b) The same explicit-only check applies to each of the field's multi-fields —
-                        // "fields" is a separate JSON sub-block parsed later by TypeParsers.parseMultiField,
-                        // a path this validation would otherwise never see.
-                        Object fieldsNode = propNode.get("fields");
-                        if (fieldsNode instanceof Map<?, ?> fieldsMap) {
-                            for (Map.Entry<?, ?> multiField : fieldsMap.entrySet()) {
-                                if (multiField.getValue() instanceof Map<?, ?> multiFieldNode) {
-                                    @SuppressWarnings("unchecked")
-                                    Map<String, Object> multiFieldPropNode = (Map<String, Object>) multiFieldNode;
-                                    checkNoExplicitIndexTrue(multiFieldPropNode, fieldName + "." + multiField.getKey(), objBuilder);
-                                }
-                            }
-                        }
-                        // (2) A plain [object] sub-field inside nested is not supported; use flat fields or a
-                        // [flat_object] field instead. (Implicit objects — a bare "properties" block with no
-                        // "type" — resolve to CONTENT_TYPE above, so they are caught here too.)
-                        if (ObjectMapper.CONTENT_TYPE.equals(type)) {
-                            throw new MapperParsingException(
-                                "Object field ["
-                                    + fieldName
-                                    + "] inside nested field ["
-                                    + objBuilder.name()
-                                    + "] is not supported on composite (pluggable data format) indices; "
-                                    + "use flat fields or a [flat_object] field instead."
-                            );
-                        }
-                        // (3) A dotted field name implicitly creates the same disallowed object wrapper as
-                        // (2) — e.g. "meta.name" builds an intermediate plain-object mapper for "meta" below
-                        // — so it must be rejected here too, regardless of the leaf's own type.
-                        // (disable_objects turns dots into literal names — no implicit wrapper — so it's exempt.)
-                        if (Boolean.TRUE.equals(objBuilder.disableObjects.value()) == false && fieldName.indexOf('.') >= 0) {
-                            throw new MapperParsingException(
-                                "Field ["
-                                    + fieldName
-                                    + "] inside nested field ["
-                                    + objBuilder.name()
-                                    + "] uses a dotted name, which implicitly creates an object sub-field; this is not "
-                                    + "supported on composite (pluggable data format) indices. Use flat fields or a "
-                                    + "[flat_object] field instead."
-                            );
-                        }
-                    }
-
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
@@ -761,29 +681,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 "DocType mapping definition has unsupported parameters: "
             );
 
-        }
-
-        /**
-         * Throws if {@code propNode} explicitly sets {@code index: true} — used both for a nested leaf
-         * itself and for each of its multi-fields (see the two call sites in {@link #parseProperties}).
-         * Deliberately checks the raw JSON property, not the field's resolved/default value: most nested
-         * leaves declare no "index" key at all and rely on their type's own default (e.g. keyword's is
-         * index:true) to get the doc-values-only behavior this storage mode already gives every nested
-         * leaf — that's the normal, expected shape, not one to reject.
-         */
-        private static void checkNoExplicitIndexTrue(Map<String, Object> propNode, String fieldName, ObjectMapper.Builder objBuilder) {
-            Object indexNode = propNode.get("index");
-            if (indexNode != null && XContentMapValues.nodeBooleanValue(indexNode, fieldName + ".index")) {
-                throw new MapperParsingException(
-                    "Field ["
-                        + fieldName
-                        + "] inside nested field ["
-                        + objBuilder.name()
-                        + "] sets [index: true], which is not supported on composite (pluggable data format) "
-                        + "indices; fields within a nested object are stored doc-values-only. "
-                        + "Set [index: false] or remove the parameter."
-                );
-            }
         }
 
     }

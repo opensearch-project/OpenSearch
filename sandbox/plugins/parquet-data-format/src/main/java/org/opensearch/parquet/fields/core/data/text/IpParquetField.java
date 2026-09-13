@@ -29,7 +29,7 @@ public class IpParquetField extends ParquetField {
     public IpParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         BytesRef bytesRef = new BytesRef(InetAddressPoint.encode((InetAddress) value));
         ((VarBinaryVector) vector).setSafe(index, bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }

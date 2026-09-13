@@ -22,7 +22,7 @@ public class IntegerParquetField extends NumericParquetField {
     public IntegerParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((IntVector) vector).setSafe(index, (Integer) value);
     }
 

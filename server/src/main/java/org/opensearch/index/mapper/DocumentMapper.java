@@ -229,9 +229,14 @@ public class DocumentMapper implements ToXContentFragment {
         // Assign capabilities for dynamically merged mappers that bypass the Builder path.
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
-            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
+            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, false);
             for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
+                // NestedPathFieldMapper's field type doubles as the pluggable-format nested-element
+                // marker, so it's always treated as nested-scope — this keeps a secondary format (e.g.
+                // Lucene, which separately declares FULL_TEXT_SEARCH for this type for its own
+                // non-composite use) from claiming it and trying to represent the marker per element.
+                boolean insideNestedScope = metadataMapper instanceof NestedPathFieldMapper;
+                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings, insideNestedScope);
             }
         }
 
@@ -375,21 +380,32 @@ public class DocumentMapper implements ToXContentFragment {
 
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
+     *
+     * @param insideNestedScope whether {@code mapper} is inside a {@code nested} object's scope
+     *                          (transitively); becomes {@code true} once recursion passes through a
+     *                          nested {@link ObjectMapper} and stays {@code true} for its descendants.
      */
-    private void assignCapabilitiesRecursive(Mapper mapper, DataFormatRegistry registry, IndexSettings indexSettings) {
+    private void assignCapabilitiesRecursive(
+        Mapper mapper,
+        DataFormatRegistry registry,
+        IndexSettings indexSettings,
+        boolean insideNestedScope
+    ) {
         if (mapper instanceof FieldMapper) {
-            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings);
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings, insideNestedScope);
             // For derived source: keyword fields with ignore_above/normalizer use a separate
             // rawValueFieldType to store the raw value for source reconstruction.
             if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
                 KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
                 if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
-                    registry.assignCapabilities(rawValueFieldType, indexSettings);
+                    registry.assignCapabilities(rawValueFieldType, indexSettings, insideNestedScope);
                 }
             }
         }
+        boolean childInsideNestedScope = insideNestedScope
+            || (mapper instanceof ObjectMapper objectMapper && objectMapper.nested().isNested());
         for (Mapper child : mapper) {
-            assignCapabilitiesRecursive(child, registry, indexSettings);
+            assignCapabilitiesRecursive(child, registry, indexSettings, childInsideNestedScope);
         }
     }
 

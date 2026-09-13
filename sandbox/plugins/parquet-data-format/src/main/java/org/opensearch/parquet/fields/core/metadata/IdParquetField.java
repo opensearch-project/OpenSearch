@@ -26,7 +26,7 @@ public class IdParquetField extends ParquetField {
     public IdParquetField() {}
 
     @Override
-    protected void writeValue(FieldVector vector, int index, Object value) {
+    public void writeValue(FieldVector vector, int index, Object value) {
         ((VarBinaryVector) vector).setSafe(index, (byte[]) value);
     }
 

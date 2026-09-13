@@ -159,6 +159,31 @@ public class ManagedVSR implements AutoCloseable {
     }
 
     /**
+     * Rebuilds this VSR's {@link VectorSchemaRoot} so {@link #getSchema()} reflects a nested-child
+     * mutation already applied directly to a live struct/map/list vector (e.g.
+     * {@link VSRManager#reconcileSchema} patching a leaf into an active nested field). {@code
+     * VectorSchemaRoot#getSchema()} is a snapshot fixed at the last construction/rebuild — it doesn't
+     * track a struct's children afterward.
+     * <p>
+     * Re-derives the top-level field list via each top-level vector's own {@code getField()} rather
+     * than the (stale) cached schema: {@code ListVector}/{@code StructVector#getField()} self-heals,
+     * rebuilding from live children recursively, so calling it on every top-level vector picks up a
+     * nested addition at any depth. Only allowed in ACTIVE state, mirroring {@link #addFieldVector}.
+     */
+    public void refreshSchema() {
+        if (state.get() != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot refresh schema in VSR state: " + state.get());
+        }
+        List<FieldVector> vectors = vsr.getFieldVectors();
+        List<Field> refreshedFields = new ArrayList<>(vectors.size());
+        for (FieldVector vector : vectors) {
+            refreshedFields.add(vector.getField());
+        }
+        int rowCount = vsr.getRowCount();
+        vsr = new VectorSchemaRoot(refreshedFields, vectors, rowCount);
+    }
+
+    /**
      * Returns the current Arrow schema of this VSR.
      *
      * @return the schema
