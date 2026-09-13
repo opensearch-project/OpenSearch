@@ -80,7 +80,7 @@
       },
       "system":{
         "type":"boolean",
-        "description":"If specified, return only system indices when true or only non-system indices when false"
+        "description":"If specified, return only system indices when true or only non-system indices when false. When true, hidden indices are included in wildcard expansion by default unless expand_wildcards is specified"
       },
       "help":{
         "type":"boolean",

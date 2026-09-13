@@ -150,7 +150,7 @@ public class RestIndicesAction extends AbstractListAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
+        final IndicesOptions indicesOptions = getIndicesOptions(request);
         final boolean local = request.paramAsBoolean("local", false);
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         // Remove the if condition and statements inside after removing MASTER_ROLE.
@@ -262,6 +262,13 @@ public class RestIndicesAction extends AbstractListAction {
             );
         };
 
+    }
+
+    static IndicesOptions getIndicesOptions(final RestRequest request) {
+        final IndicesOptions defaultIndicesOptions = request.paramAsBoolean("system", false)
+            ? IndicesOptions.strictExpandHidden()
+            : IndicesOptions.strictExpand();
+        return IndicesOptions.fromRequest(request, defaultIndicesOptions);
     }
 
     private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {

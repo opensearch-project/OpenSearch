@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.pagination.PageToken;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -222,6 +223,36 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertThat(rows.get(0).get(2).value, equalTo(SYSTEM_INDEX_NAME));
         assertThat(rows.get(0).get(headerIndex(table, "system")).value, equalTo(true));
         assertThat(rows.get(0).get(headerIndex(table, "system.description")).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
+    }
+
+    public void testSystemTrueExpandsHiddenIndicesByDefault() {
+        final IndicesOptions indicesOptions = RestIndicesAction.getIndicesOptions(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true")).build()
+        );
+
+        assertTrue(indicesOptions.expandWildcardsHidden());
+    }
+
+    public void testSystemFalseDoesNotExpandHiddenIndicesByDefault() {
+        final IndicesOptions indicesOptions = RestIndicesAction.getIndicesOptions(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "false")).build()
+        );
+
+        assertFalse(indicesOptions.expandWildcardsHidden());
+    }
+
+    public void testSystemOmittedPreservesDefaultHiddenIndexExpansion() {
+        assertFalse(RestIndicesAction.getIndicesOptions(new FakeRestRequest()).expandWildcardsHidden());
+    }
+
+    public void testExplicitExpandWildcardsOverridesSystemDefault() {
+        final IndicesOptions indicesOptions = RestIndicesAction.getIndicesOptions(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true", "expand_wildcards", "open"))
+                .build()
+        );
+
+        assertFalse(indicesOptions.expandWildcardsHidden());
+        assertTrue(indicesOptions.expandWildcardsOpen());
     }
 
     public void testBuildTableWithSystemFalseParam() {
