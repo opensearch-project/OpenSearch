@@ -117,7 +117,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         when(resolver.resolveMetadata(reader, "doc1")).thenReturn(metadata("doc1", 0L, 7L));
         WriterFileSet fs = fileSet(7L, "0.parquet");
         when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
-        when(executor.executeSingleRow(0L, fs)).thenReturn(
+        when(executor.executeSingleRow(0L, fs, reader)).thenReturn(
             row("_id", "doc1", "_seq_no", 42L, "_primary_term", 2L, "_version", 5L, "__row_id__", 99L, "name", "alice", "age", 30)
         );
 
@@ -147,7 +147,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         WriterFileSet fs = fileSet(7L, "0.parquet");
         when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
         // "_custom" is not a registered metadata field, not _primary_term, not __row_id__ -> kept in _source.
-        when(executor.executeSingleRow(0L, fs)).thenReturn(row("_id", "doc1", "_seq_no", 1L, "_custom", "keepme", "name", "bob"));
+        when(executor.executeSingleRow(0L, fs, reader)).thenReturn(row("_id", "doc1", "_seq_no", 1L, "_custom", "keepme", "name", "bob"));
 
         DocumentLookupResult result = service.getById("doc1", reader, INDEX);
 
@@ -170,7 +170,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         when(resolver.resolveMetadata(reader, "doc1")).thenReturn(metadata("doc1", 0L, 7L));
         WriterFileSet fs = fileSet(7L, "0.parquet");
         when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
-        when(executor.executeSingleRow(0L, fs)).thenReturn(null);
+        when(executor.executeSingleRow(0L, fs, reader)).thenReturn(null);
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> service.getById("doc1", reader, INDEX));
         assertTrue(e.getMessage(), e.getMessage().contains("backend returned no row"));
@@ -193,7 +193,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         when(resolver.resolveMetadata(reader, "doc1")).thenReturn(metadata("doc1", 0L, 7L));
         WriterFileSet fs = fileSet(7L, "0.parquet");
         when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
-        when(executor.executeSingleRow(0L, fs)).thenReturn(row("_seq_no", 42L, "_primary_term", 2L, "_version", 5L, "name", "alice"));
+        when(executor.executeSingleRow(0L, fs, reader)).thenReturn(row("_seq_no", 42L, "_primary_term", 2L, "_version", 5L, "name", "alice"));
 
         DocumentLookupResult result = service.getVersionMetadata("doc1", reader, INDEX);
 
@@ -211,7 +211,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         WriterFileSet fs = fileSet(7L, "0.parquet");
         when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
         // row exists (found) but carries no version fields
-        when(executor.executeSingleRow(0L, fs)).thenReturn(row("name", "alice"));
+        when(executor.executeSingleRow(0L, fs, reader)).thenReturn(row("name", "alice"));
 
         DocumentLookupResult result = service.getVersionMetadata("doc1", reader, INDEX);
 
@@ -229,7 +229,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
 
         Map<String, Object> withId = row("_id", "d1", "_seq_no", 10L, "name", "alice");
         Map<String, Object> withoutId = row("_seq_no", 11L, "name", "bob");
-        when(executor.executeRowsAboveSeqNo(anyList(), eq(5L))).thenReturn(List.of(withId, withoutId));
+        when(executor.executeRowsAboveSeqNo(anyList(), eq(5L), eq(reader))).thenReturn(List.of(withId, withoutId));
 
         List<DocumentLookupResult> results = service.getDocsAboveSeqNo(5L, reader, INDEX);
 
@@ -250,7 +250,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<WriterFileSet>> captor = ArgumentCaptor.forClass(List.class);
-        when(executor.executeRowsAboveSeqNo(captor.capture(), eq(0L))).thenReturn(List.of());
+        when(executor.executeRowsAboveSeqNo(captor.capture(), eq(0L), eq(reader))).thenReturn(List.of());
 
         service.getDocsAboveSeqNo(0L, reader, INDEX);
 
@@ -261,7 +261,7 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
 
     public void testGetDocsAboveSeqNo_emptyWhenNoRows() throws Exception {
         when(snapshot.getSegments()).thenReturn(List.of());
-        when(executor.executeRowsAboveSeqNo(anyList(), anyLong())).thenReturn(List.of());
+        when(executor.executeRowsAboveSeqNo(anyList(), anyLong(), eq(reader))).thenReturn(List.of());
 
         assertTrue(service.getDocsAboveSeqNo(5L, reader, INDEX).isEmpty());
     }
