@@ -158,8 +158,13 @@ public abstract class Command implements Closeable {
 
     /** Allows subclasses to customize parsing while preserving the common command lifecycle. */
     protected void configureCommandLine(CommandLine commandLine) {
-        // Keep the established jopt-simple heading used by existing CLI help output.
-        commandLine.getCommandSpec().usageMessage().parameterListHeading("Non-option arguments:%n");
+        // Command prints its description and additional help itself. Suppress the
+        // annotation description to avoid duplicating that text in Picocli usage.
+        commandLine.getCommandSpec()
+            .usageMessage()
+            .description(new String[0])
+            .optionListHeading("Options:%n")
+            .parameterListHeading("Non-option arguments:%n");
     }
 
     /** Prints a help message for the command to the terminal. */

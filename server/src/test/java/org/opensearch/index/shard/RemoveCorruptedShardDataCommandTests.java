@@ -79,6 +79,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import picocli.CommandLine;
+
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -402,15 +404,27 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // close shard
         closeShards(indexShard);
 
-        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-
         // `--index index_name --shard-id 0` must resolve to indexPath
-        command.withIndex(shardId.getIndex().getName()).withShardId(shardId.id());
-        command.findAndProcessShardPath(environment, dataPaths, 0, clusterState, sp -> assertThat(sp.resolveIndex(), equalTo(indexPath)));
+        final RemoveCorruptedShardDataCommand indexCommand = new RemoveCorruptedShardDataCommand();
+        new CommandLine(indexCommand).parseArgs("--index", shardId.getIndex().getName(), "--shard-id", Integer.toString(shardId.id()));
+        indexCommand.findAndProcessShardPath(
+            environment,
+            dataPaths,
+            0,
+            clusterState,
+            sp -> assertThat(sp.resolveIndex(), equalTo(indexPath))
+        );
 
         // `--dir <indexPath>` must resolve to indexPath
-        command.withDir(indexPath.toAbsolutePath().toString()).withIndex(null).withShardId(null);
-        command.findAndProcessShardPath(environment, dataPaths, 0, clusterState, sp -> assertThat(sp.resolveIndex(), equalTo(indexPath)));
+        final RemoveCorruptedShardDataCommand directoryCommand = new RemoveCorruptedShardDataCommand();
+        new CommandLine(directoryCommand).parseArgs("--dir", indexPath.toAbsolutePath().toString());
+        directoryCommand.findAndProcessShardPath(
+            environment,
+            dataPaths,
+            0,
+            clusterState,
+            sp -> assertThat(sp.resolveIndex(), equalTo(indexPath))
+        );
     }
 
     public void testFailsOnCleanIndex() throws Exception {

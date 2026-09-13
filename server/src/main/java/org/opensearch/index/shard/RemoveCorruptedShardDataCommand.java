@@ -82,6 +82,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
 import static java.util.stream.StreamSupport.stream;
 
 /**
@@ -89,20 +92,25 @@ import static java.util.stream.StreamSupport.stream;
  *
  * @opensearch.internal
  */
+@Command(name = "remove-corrupted-shard-data", description = "Removes corrupted shard files", usageHelpAutoWidth = true)
 public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     private static final Logger logger = LogManager.getLogger(RemoveCorruptedShardDataCommand.class);
 
     /** CLI: --dir / -d : path to the shard’s dir (…/nodes/N/indices/UUID/SHARD-ID/{index,translog}) */
+    @Option(names = { "-d", "--dir" }, paramLabel = "PATH", description = "Index directory location on disk")
     private String dir;
 
     /** CLI: --index : index name (alternative to --dir) */
+    @Option(names = "--index", paramLabel = "NAME", description = "Index name")
     private String indexName;
 
     /** CLI: --shard-id : shard id (required with --index) */
+    @Option(names = "--shard-id", paramLabel = "ID", description = "Shard id")
     private Integer shardId;
 
     /** CLI: --truncate-clean-translog : force truncation even if not corrupt */
+    @Option(names = "--truncate-clean-translog", description = "Truncate the translog even if it is not corrupt")
     private boolean truncateCleanTranslog;
 
     static final String TRUNCATE_CLEAN_TRANSLOG_FLAG = "truncate-clean-translog";
@@ -116,27 +124,27 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         this.truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);
     }
 
-    // ------------------------------ Options wiring (simple setters) ------------------------------
+    // ------------------------------ Test helpers ------------------------------
 
-    /** Set via launcher/dispatcher before execute() */
+    /** Set the directory directly in tests that exercise shard processing without command-line parsing. */
     public RemoveCorruptedShardDataCommand withDir(String dir) {
         this.dir = dir;
         return this;
     }
 
-    /** Set via launcher/dispatcher before execute() */
+    /** Set the index directly in tests that exercise shard processing without command-line parsing. */
     public RemoveCorruptedShardDataCommand withIndex(String indexName) {
         this.indexName = indexName;
         return this;
     }
 
-    /** Set via launcher/dispatcher before execute() */
+    /** Set the shard ID directly in tests that exercise shard processing without command-line parsing. */
     public RemoveCorruptedShardDataCommand withShardId(Integer shardId) {
         this.shardId = shardId;
         return this;
     }
 
-    /** Set via launcher/dispatcher before execute() */
+    /** Set the truncation flag directly in tests that exercise shard processing without command-line parsing. */
     public RemoveCorruptedShardDataCommand withTruncateCleanTranslog(boolean truncate) {
         this.truncateCleanTranslog = truncate;
         return this;

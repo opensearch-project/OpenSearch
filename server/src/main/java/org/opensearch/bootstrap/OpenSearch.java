@@ -143,6 +143,13 @@ class OpenSearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + positionals);
         }
 
+        if (printVersion && (daemonize || pidFile != null || quiet)) {
+            throw new UserException(ExitCodes.USAGE, "Options are unavailable given other options on the command line");
+        }
+        if (daemonize && quiet) {
+            throw new UserException(ExitCodes.USAGE, "Options are unavailable given other options on the command line");
+        }
+
         if (printVersion) {
             final String versionOutput = String.format(
                 Locale.ROOT,
