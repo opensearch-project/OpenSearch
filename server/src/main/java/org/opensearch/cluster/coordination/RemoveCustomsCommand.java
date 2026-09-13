@@ -68,7 +68,7 @@ public class RemoveCustomsCommand extends OpenSearchNodeCommand {
         """;
 
     /** Positional arguments: one or more custom metadata names (supports simple globs) */
-    @Parameters(arity = "1..", paramLabel = "CUSTOM", description = "Custom metadata names to remove (supports simple globbing).")
+    @Parameters(arity = "0..*", paramLabel = "CUSTOM", description = "Custom metadata names to remove (supports simple globbing).")
     private List<String> customsToRemove = new ArrayList<>();
 
     public RemoveCustomsCommand() {

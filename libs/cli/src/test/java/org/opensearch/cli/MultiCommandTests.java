@@ -101,7 +101,7 @@ public class MultiCommandTests extends CommandTestCase {
 
     static class DummySettingsSubCommand extends DummySubCommand {
         // accepts "-E key=value" forwarded by MultiCommand
-        @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting")
+        @Option(names = "-E", paramLabel = "key=value", description = "Configure a setting")
         List<String> settings = new ArrayList<>();
 
         @Override

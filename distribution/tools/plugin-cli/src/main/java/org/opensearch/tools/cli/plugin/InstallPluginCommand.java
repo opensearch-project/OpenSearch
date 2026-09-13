@@ -131,7 +131,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @Option(names = { "--help-plugins" }, description = "Print the list of official plugins and extra help, then exit.")
     boolean helpPlugins;
 
-    @Parameters(arity = "0..*", paramLabel = "plugin", description = "plugin <name|Zip File|URL|groupId:artifactId:version>")
+    @Parameters(arity = "0..*", paramLabel = "plugin <name|Zip File|URL>")
     List<String> pluginIds = new ArrayList<>();
 
     // exit codes for install

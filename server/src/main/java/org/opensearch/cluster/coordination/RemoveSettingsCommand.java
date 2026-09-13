@@ -69,7 +69,7 @@ public class RemoveSettingsCommand extends OpenSearchNodeCommand {
         """;
 
     /** Positional arguments: one or more setting names (supports simple globbing) */
-    @Parameters(arity = "1..", paramLabel = "SETTING", description = "Persistent cluster setting keys to remove (supports simple globbing).")
+    @Parameters(arity = "0..*", paramLabel = "SETTING", description = "Persistent cluster setting keys to remove (supports simple globbing).")
     private List<String> settingsToRemove = new ArrayList<>();
 
     public RemoveSettingsCommand() {

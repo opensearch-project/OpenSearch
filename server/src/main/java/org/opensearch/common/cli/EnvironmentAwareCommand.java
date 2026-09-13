@@ -61,7 +61,7 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     public static final int MAX_PASSPHRASE_LENGTH = 128;
 
-    @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting (may be specified multiple times)")
+    @Option(names = "-E", paramLabel = "key=value", description = "Configure a setting (may be specified multiple times)")
     private List<String> settingPairs = new ArrayList<>();
 
     /**

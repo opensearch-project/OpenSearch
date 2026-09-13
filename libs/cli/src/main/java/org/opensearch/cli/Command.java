@@ -125,17 +125,22 @@ public abstract class Command implements Closeable {
      */
     protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         CommandLine cmd = new CommandLine(this);
+        configureCommandLine(cmd);
         // Route picocli usage to our Terminal writers
         cmd.setOut(new PrintWriter(terminal.getWriter(), true));
         cmd.setErr(new PrintWriter(terminal.getErrorWriter(), true));
 
         // Parse the args (this populates @Option/@Parameters fields on 'this')
-        CommandLine.ParseResult result = cmd.parseArgs(args);
+        cmd.parseArgs(args);
 
         // If help was requested via -h/--help, print help and return
         if (cmd.isUsageHelpRequested()) {
             printHelp(terminal, false, cmd);
             return;
+        }
+
+        if (silent && verbose) {
+            throw new CommandLine.ParameterException(cmd, "Options --silent and --verbose are mutually exclusive");
         }
 
         // Set terminal verbosity
@@ -151,21 +156,27 @@ public abstract class Command implements Closeable {
         execute(terminal);
     }
 
+    /** Allows subclasses to customize parsing while preserving the common command lifecycle. */
+    protected void configureCommandLine(CommandLine commandLine) {
+        // Keep the established jopt-simple heading used by existing CLI help output.
+        commandLine.getCommandSpec().usageMessage().parameterListHeading("Non-option arguments:%n");
+    }
+
     /** Prints a help message for the command to the terminal. */
     private void printHelp(Terminal terminal, boolean toStdError, CommandLine cmd) throws IOException {
+        if (cmd == null) {
+            cmd = new CommandLine(this);
+            configureCommandLine(cmd);
+        }
         if (toStdError) {
             terminal.errorPrintln(description);
             terminal.errorPrintln("");
-            if (cmd != null) {
-                cmd.usage(new PrintWriter(terminal.getErrorWriter(), true));
-            }
+            cmd.usage(new PrintWriter(terminal.getErrorWriter(), true));
         } else {
             terminal.println(description);
             terminal.println("");
             printAdditionalHelp(terminal);
-            if (cmd != null) {
-                cmd.usage(new PrintWriter(terminal.getWriter(), true));
-            }
+            cmd.usage(new PrintWriter(terminal.getWriter(), true));
         }
     }
 

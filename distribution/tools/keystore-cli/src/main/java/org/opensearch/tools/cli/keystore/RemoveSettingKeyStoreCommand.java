@@ -49,7 +49,7 @@ import picocli.CommandLine.Parameters;
 @Command(name = "remove", description = "Remove one or more settings from the keystore", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
 
-    @Parameters(arity = "1..*", paramLabel = "setting", description = "Setting names to remove from the keystore")
+    @Parameters(arity = "0..*", paramLabel = "setting", description = "Setting names to remove from the keystore")
     private List<String> settings;
 
     RemoveSettingKeyStoreCommand() {

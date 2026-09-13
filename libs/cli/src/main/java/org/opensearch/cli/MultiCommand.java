@@ -40,6 +40,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
@@ -67,7 +68,7 @@ public class MultiCommand extends Command {
     private List<String> remainingArgs = new ArrayList<>();
 
     /** -E key=value settings to forward to the subcommand */
-    @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting (may be specified multiple times)")
+    @Option(names = "-E", paramLabel = "key=value", description = "Configure a setting (may be specified multiple times)")
     private List<String> settings = new ArrayList<>();
 
     /**
@@ -78,6 +79,14 @@ public class MultiCommand extends Command {
      */
     public MultiCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
+    }
+
+    @Override
+    protected void configureCommandLine(CommandLine commandLine) {
+        super.configureCommandLine(commandLine);
+        // The first positional selects the child command. Everything after it,
+        // including option-looking arguments such as "-h", belongs to that child.
+        commandLine.setStopAtPositional(true);
     }
 
     @Override
