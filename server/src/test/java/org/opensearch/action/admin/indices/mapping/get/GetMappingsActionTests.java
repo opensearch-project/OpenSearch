@@ -141,6 +141,10 @@ public class GetMappingsActionTests extends OpenSearchTestCase {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
+    public void testExecutorIsManagement() {
+        assertEquals(ThreadPool.Names.MANAGEMENT, transportAction.executor());
+    }
+
     public void testGetTransportWithoutMatchingTerm() {
         transportAction.execute(null, new GetMappingsRequest(), ActionListener.wrap(Assert::assertNotNull, exception -> {
             throw new AssertionError(exception);

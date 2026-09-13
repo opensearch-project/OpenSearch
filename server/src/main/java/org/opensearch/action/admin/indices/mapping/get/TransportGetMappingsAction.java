@@ -83,6 +83,13 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
+    protected String executor() {
+        // Field-level security filtering parses and rebuilds mappings, which can be expensive on
+        // clusters with many indices. Keep that work off the Netty transport thread.
+        return ThreadPool.Names.MANAGEMENT;
+    }
+
+    @Override
     protected GetMappingsResponse read(StreamInput in) throws IOException {
         return new GetMappingsResponse(in);
     }
