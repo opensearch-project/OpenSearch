@@ -342,7 +342,45 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 return new DocValueFetcher(DocValueFormat.RAW, searchLookup.doc().getForField(this));
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.sourcePath(name()), nullValue, ignoreAbove, normalizer(), name());
+        }
+
+        /**
+         * Returns a supplier of the {@link ValueFetcher} that {@link WildcardMatchingQuery} uses to verify candidate
+         * documents. It fetches the same values {@link #valueFetcher} would for a query-phase lookup, but resolves
+         * everything it needs from {@code context} eagerly so that the returned supplier retains only index-level
+         * state: an {@link IndexFieldData} (itself cached per field by the index) or the set of source paths.
+         * <p>
+         * This matters because a {@link WildcardMatchingQuery} can outlive the request that built it — Lucene's
+         * {@code LRUQueryCache} keeps it alive as a cache key — so it must not hold onto the {@link QueryShardContext}
+         * or its {@link SearchLookup}, which transitively reference the shard's {@code IndexSearcher} and segment
+         * readers. See <a href="https://github.com/opensearch-project/OpenSearch/issues/22419">issue 22419</a>.
+         */
+        Supplier<ValueFetcher> valueFetcherSupplier(QueryShardContext context) {
+            if (hasDocValues()) {
+                final IndexFieldData<?> fieldData = context.getForField(this);
+                return () -> new DocValueFetcher(DocValueFormat.RAW, fieldData);
+            }
+            // Bind every value the fetcher needs to a local so the lambda below captures no reference to this
+            // field type or to the query shard context.
+            final Set<String> sourcePaths = context.sourcePath(name());
+            final String nullValue = this.nullValue;
+            final int ignoreAbove = this.ignoreAbove;
+            final NamedAnalyzer normalizer = normalizer();
+            final String fieldName = name();
+            return () -> sourceValueFetcher(sourcePaths, nullValue, ignoreAbove, normalizer, fieldName);
+        }
+
+        // Copied from KeywordFieldMapper.KeywordFieldType. Static so that the returned fetcher captures only the
+        // arguments handed to it — see valueFetcherSupplier.
+        private static SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            String nullValue,
+            int ignoreAbove,
+            NamedAnalyzer normalizer,
+            String fieldName
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -350,42 +388,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         return null;
                     }
 
-                    NamedAnalyzer normalizer = normalizer();
                     if (normalizer == null) {
                         return keywordValue;
                     }
 
                     try {
-                        return normalizeValue(normalizer, name(), keywordValue);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-            };
-        }
-
-        Supplier<ValueFetcher> valueFetcherSupplier(QueryShardContext context) {
-            if (hasDocValues()) {
-                IndexFieldData<?> ifd = context.getForField(this);
-                return () -> new DocValueFetcher(DocValueFormat.RAW, ifd);
-            }
-            Set<String> sourcePaths = context.sourcePath(name());
-            Object nv = nullValue;
-            int above = ignoreAbove;
-            NamedAnalyzer norm = normalizer();
-            String fieldName = name();
-            return () -> new SourceValueFetcher(sourcePaths, nv) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    String keywordValue = value.toString();
-                    if (keywordValue.length() > above) {
-                        return null;
-                    }
-                    if (norm == null) {
-                        return keywordValue;
-                    }
-                    try {
-                        return normalizeValue(norm, fieldName, keywordValue);
+                        return normalizeValue(normalizer, fieldName, keywordValue);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -480,7 +488,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             } else {
                 approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
             }
-            return new WildcardMatchingQuery(name(), approximation, matchPredicate, value, context, this);
+            return new WildcardMatchingQuery(
+                name(),
+                approximation,
+                matchPredicate,
+                value,
+                0,
+                caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0,
+                context,
+                this
+            );
         }
 
         // Package-private for testing
@@ -677,7 +694,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     }
                 }
             }
-            return new WildcardMatchingQuery(name(), approximation, regexpPredicate, "/" + finalValue + "/", context, this);
+            return new WildcardMatchingQuery(
+                name(),
+                approximation,
+                regexpPredicate,
+                "/" + finalValue + "/",
+                syntaxFlags,
+                matchFlags,
+                context,
+                this
+            );
         }
 
         /**
@@ -788,7 +814,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
                 pattern.append(stringVal);
             }
-            return new WildcardMatchingQuery(name(), builder.build(), expectedValues::contains, pattern.toString(), context, this);
+            return new WildcardMatchingQuery(name(), builder.build(), expectedValues::contains, pattern.toString(), 0, 0, context, this);
         }
 
         private static BooleanQuery matchAllTermsQuery(String fieldName, Set<String> terms, boolean caseInsensitive) {
@@ -822,14 +848,32 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      */
     static class WildcardMatchingQuery extends Query {
         private static final long MATCH_COST_ESTIMATE = 1000L;
+
+        /**
+         * Second-phase matcher used by queries built without a {@link QueryShardContext}, which cannot verify
+         * candidates because they have no way to fetch field values. Compared by identity in
+         * {@link #createWeight(IndexSearcher, ScoreMode, float)}.
+         */
+        private static final Predicate<String> MATCH_ALL_SECOND_PHASE = s -> true;
+
         private final String fieldName;
         private final Query firstPhaseQuery;
         private final Predicate<String> secondPhaseMatcher;
         private final String patternString; // For toString
+        /**
+         * {@link RegExp} syntax and match flags the {@link #secondPhaseMatcher} was compiled with. They take part in
+         * {@link #equals(Object)} because the matcher itself is a lambda that cannot be compared, and the pattern
+         * alone does not always pin down which documents the matcher accepts: a case-sensitive and a
+         * case-insensitive regexp {@code a|b}, for instance, both approximate with the field's exists query and
+         * share the pattern string, yet match different documents. Treating those two as equal would let the query
+         * cache answer one with the other's documents.
+         */
+        private final int syntaxFlags;
+        private final int matchFlags;
         private final Supplier<ValueFetcher> valueFetcherSupplier;
 
         WildcardMatchingQuery(String fieldName, Query firstPhaseQuery, String patternString) {
-            this(fieldName, firstPhaseQuery, s -> true, patternString, (QueryShardContext) null, null);
+            this(fieldName, firstPhaseQuery, MATCH_ALL_SECOND_PHASE, patternString, 0, 0, (QueryShardContext) null, null);
         }
 
         public WildcardMatchingQuery(
@@ -837,6 +881,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Query firstPhaseQuery,
             Predicate<String> secondPhaseMatcher,
             String patternString,
+            int syntaxFlags,
+            int matchFlags,
             QueryShardContext context,
             WildcardFieldType fieldType
         ) {
@@ -844,6 +890,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             this.firstPhaseQuery = Objects.requireNonNull(firstPhaseQuery);
             this.secondPhaseMatcher = Objects.requireNonNull(secondPhaseMatcher);
             this.patternString = Objects.requireNonNull(patternString);
+            this.syntaxFlags = syntaxFlags;
+            this.matchFlags = matchFlags;
             if (context != null) {
                 this.valueFetcherSupplier = fieldType.valueFetcherSupplier(context);
             } else {
@@ -856,12 +904,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Query firstPhaseQuery,
             Predicate<String> secondPhaseMatcher,
             String patternString,
+            int syntaxFlags,
+            int matchFlags,
             Supplier<ValueFetcher> valueFetcherSupplier
         ) {
             this.fieldName = fieldName;
             this.firstPhaseQuery = firstPhaseQuery;
             this.secondPhaseMatcher = secondPhaseMatcher;
             this.patternString = patternString;
+            this.syntaxFlags = syntaxFlags;
+            this.matchFlags = matchFlags;
             this.valueFetcherSupplier = valueFetcherSupplier;
         }
 
@@ -880,21 +932,31 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             WildcardMatchingQuery that = (WildcardMatchingQuery) o;
-            return Objects.equals(fieldName, that.fieldName)
+            return syntaxFlags == that.syntaxFlags
+                && matchFlags == that.matchFlags
+                && Objects.equals(fieldName, that.fieldName)
                 && Objects.equals(firstPhaseQuery, that.firstPhaseQuery)
                 && Objects.equals(patternString, that.patternString);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldName, firstPhaseQuery, patternString);
+            return Objects.hash(fieldName, firstPhaseQuery, patternString, syntaxFlags, matchFlags);
         }
 
         @Override
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             Query rewriteFirstPhase = firstPhaseQuery.rewrite(indexSearcher);
             if (rewriteFirstPhase != firstPhaseQuery) {
-                return new WildcardMatchingQuery(fieldName, rewriteFirstPhase, secondPhaseMatcher, patternString, valueFetcherSupplier);
+                return new WildcardMatchingQuery(
+                    fieldName,
+                    rewriteFirstPhase,
+                    secondPhaseMatcher,
+                    patternString,
+                    syntaxFlags,
+                    matchFlags,
+                    valueFetcherSupplier
+                );
             }
             return this;
         }
@@ -914,6 +976,20 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         public Scorer get(long leadCost) throws IOException {
                             Scorer approximateScorer = firstPhaseSupplier.get(leadCost);
                             DocIdSetIterator approximation = approximateScorer.iterator();
+                            if (valueFetcherSupplier == null) {
+                                // Only queries built without a QueryShardContext get here, and they cannot verify
+                                // candidates. That is only sound when the second phase accepts everything.
+                                if (secondPhaseMatcher != MATCH_ALL_SECOND_PHASE) {
+                                    throw new IllegalStateException(
+                                        "Cannot run the second phase of "
+                                            + WildcardMatchingQuery.this
+                                            + ": the query was built without a QueryShardContext, so field values cannot be fetched"
+                                    );
+                                }
+                                return new ConstantScoreScorer(score(), scoreMode, approximation);
+                            }
+                            // A fresh SourceLookup and ValueFetcher per scorer: ValueFetcher.setNextReader and
+                            // SourceLookup are not thread safe, and a scorer is confined to one slice.
                             SourceLookup sourceLookup = new SourceLookup();
                             final ValueFetcher valueFetcher = valueFetcherSupplier.get();
                             valueFetcher.setNextReader(context);
@@ -942,6 +1018,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         @Override
                         public long cost() {
                             long firstPhaseCost = firstPhaseSupplier.cost();
+                            if (valueFetcherSupplier == null) {
+                                // No second phase to pay for.
+                                return firstPhaseCost;
+                            }
                             if (firstPhaseCost >= Long.MAX_VALUE / MATCH_COST_ESTIMATE) {
                                 return Long.MAX_VALUE;
                             }
@@ -952,6 +1032,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
                 @Override
                 public boolean isCacheable(LeafReaderContext leafReaderContext) {
+                    // Safe because the query holds no request- or shard-scoped state: the value fetcher supplier
+                    // resolves index-level data up front (see WildcardFieldType#valueFetcherSupplier), and equal
+                    // queries select the same documents on a given segment (see #equals). Segments are immutable, so
+                    // a cached bitset stays valid for the life of the cache entry.
                     return true;
                 }
             };
