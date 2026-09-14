@@ -10,8 +10,8 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.ParametrizedFieldMapper;
