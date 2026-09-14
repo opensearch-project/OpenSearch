@@ -236,6 +236,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         private final Sort sort;
         private final boolean sortByScore;
         private final FieldDoc searchAfter;
+        private final int totalHitsThreshold;
 
         /**
          * Ctr
@@ -250,7 +251,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int numHits,
             boolean trackMaxScore
         ) {
-            this(collapseContext, sortAndFormats, numHits, trackMaxScore, null);
+            this(collapseContext, sortAndFormats, numHits, trackMaxScore, null, SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         }
 
         /**
@@ -260,13 +261,15 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
          * @param numHits The number of collapsed top hits to retrieve.
          * @param trackMaxScore True if max score should be tracked
          * @param searchAfter The search after value
+         * @param trackTotalHitsUpTo The total hit count up to which an accurate count is required
          */
         private CollapsingTopDocsCollectorContext(
             CollapseContext collapseContext,
             @Nullable SortAndFormats sortAndFormats,
             int numHits,
             boolean trackMaxScore,
-            FieldDoc searchAfter
+            FieldDoc searchAfter,
+            int trackTotalHitsUpTo
         ) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
@@ -275,7 +278,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.collapseContext = collapseContext;
             this.searchAfter = searchAfter;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, searchAfter);
+            this.totalHitsThreshold = trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED ? 0 : trackTotalHitsUpTo;
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, searchAfter, totalHitsThreshold);
             this.trackMaxScore = trackMaxScore;
             this.sortByScore = sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0]);
 
@@ -323,7 +327,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                         maxScoreCollector = new MaxScoreCollector();
                     }
 
-                    return MultiCollector.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
+                    return MultiCollector.wrap(
+                        collapseContext.createTopDocs(sort, numHits, searchAfter, totalHitsThreshold),
+                        maxScoreCollector
+                    );
                 }
 
                 @Override
@@ -862,7 +869,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 searchContext.sort(),
                 numDocs,
                 searchContext.trackScores(),
-                searchContext.searchAfter()
+                searchContext.searchAfter(),
+                searchContext.trackTotalHitsUpTo()
             );
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
