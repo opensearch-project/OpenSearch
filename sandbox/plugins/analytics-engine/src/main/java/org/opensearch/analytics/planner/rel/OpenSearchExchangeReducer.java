@@ -32,6 +32,24 @@ import java.util.List;
  * @opensearch.internal
  */
 public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSearchRelNode {
+    /**
+     * This node IS a trait enforcer — it exists only to move data so a demanded distribution is satisfied.
+     * Calcite's default is false, and neither {@code SingleRel} nor {@code rel.core.Exchange} overrides it, so
+     * every exchange we build was registering as a DELIVERED member of its set. Two consequences, both
+     * specific to top-down mode:
+     * <ol>
+     *   <li>{@code RelSet#add} passes {@code rel.isEnforcer()} as its {@code required} argument. An unmarked
+     *       exchange therefore lands in a DELIVERED subset, which lets {@code derive} build alternatives FROM
+     *       it — the circular claim "I inserted an exchange, therefore I natively have this distribution".</li>
+     *   <li>{@code TopDownRuleDriver}'s {@code OptimizeGroup} deprioritises enforcers so a finite upper bound
+     *       is obtained from real operators first ("Always apply O_INPUTS first so as to get a valid upper
+     *       bound"). Unmarked, that deprioritisation never happened.</li>
+     * </ol>
+     */
+    @Override
+    public boolean isEnforcer() {
+        return true;
+    }
 
     private final List<String> viableBackends;
     private final ExchangeInfo exchangeInfo;
