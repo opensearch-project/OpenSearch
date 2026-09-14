@@ -89,10 +89,11 @@ public enum OpenSearchConvention implements Convention {
         return false;
     }
 
-    @Override
-    public boolean useAbstractConvertersForConversion(RelTraitSet fromTraits, RelTraitSet toTraits) {
-        return true;
-    }
+    // useAbstractConvertersForConversion is deliberately NOT overridden. Calcite consults it from exactly one
+    // place, RelSet#addConverters, behind `useAbstractConverter && ...` — and under top-down mode that flag is
+    // `!planner.topDownOpt`, i.e. false. Since PlannerImpl calls setTopDownOpt(true) unconditionally, the
+    // method was never reached; it was a leftover from the bottom-up design. Removing it documents that the
+    // switch is complete. Restore it if a runtime fall-back to bottom-up is ever added.
 
     @Override
     public String toString() {
