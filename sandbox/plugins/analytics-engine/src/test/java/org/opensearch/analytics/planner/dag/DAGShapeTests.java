@@ -163,6 +163,19 @@ public class DAGShapeTests extends BasePlannerRulesTests {
         );
     }
 
+    /**
+     * Single-shard, DIFFERENT tables — so no co-location, and each arm is gathered.
+     *
+     * <p>The {@code Sort(fetch)} sits ABOVE its gather, matching
+     * {@link #testJoinDag_case2_multiShardSameTable}. On this fixture the two placements COST THE SAME:
+     * {@code mockTable} never stubs {@code getRowCount}, so every scan estimates ~0 rows and
+     * {@code Sort(fetch=50000)} therefore reports the same row count as its input — the reducer's
+     * {@code SETUP + rows + width} is identical whether it sits above or below the Sort. Which side wins is
+     * an arbitrary tie-break, and it settled on the above-gather side once {@code OpenSearchJoinRule} stopped
+     * seeding a concrete trait. Seed this fixture with real row counts if the below-gather placement (a
+     * shard-local limit capping the transport at 50000 rows) ever needs pinning on cost rather than on
+     * tie-break order.
+     */
     public void testJoinDag_case3_singleShardDifferentTables() {
         PlannerContext context = buildContextPerIndex("parquet", Map.of("left_idx", 1, "right_idx", 1));
         QueryDAG dag = buildDAG(context, buildJoinWithStatsShape("left_idx", "right_idx"));
@@ -174,15 +187,15 @@ public class DAGShapeTests extends BasePlannerRulesTests {
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                         OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                        OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
+                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                          OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
                   Stage 1 exchange=SINGLETON
-                    OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             dag
         );

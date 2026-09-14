@@ -119,17 +119,10 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
      *       an {@link OpenSearchShuffleExchange} on any input not already so distributed.</li>
      * </ul>
      *
-     * <p>Why the mismatch cases are priced rather than declared: this class is BOTH the HEP marking output
-     * and the physical operator. {@code OpenSearchJoinRule} has to give the seed node a concrete
-     * distribution — it runs in HEP, where {@code convert()} is a no-op, so it cannot demand anything of
-     * its inputs — and a parent's own legality then depends on reading that claim. Seeding the join
-     * UNRESOLVED instead does not help: a demand for {@code Type.ANY} is satisfied by anything
-     * ({@link OpenSearchDistribution#satisfies}), so an ANY input subset makes every parent's check skip and a
-     * {@code SINGLE} aggregate over partitioned input wins on tiny cost — its groups then arrive at the root
-     * gather per-partition and are concatenated without being merged.
-     * So this gate is the join's requirement DECLARATION, and it stays until Logical/Physical join nodes
-     * are split apart — then the seed carries no distribution and every alternative comes from
-     * {@link #passThroughTraits}/{@link #deriveTraits}, which set self and input traits together.
+     * <p>These are ASSERTED, not priced — see {@link #assertPlacementIsLegal}. Only two things remain real
+     * costs here: an input whose placement is still UNRESOLVED (no defined cost, and the marking phase
+     * legitimately registers such seeds), and the join's own execution cost divided by the parallelism its
+     * distribution buys.
      */
     @Override
     public org.apache.calcite.plan.RelOptCost computeSelfCost(
@@ -140,6 +133,18 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         if (selfDist == null) {
             return planner.getCostFactory().makeInfiniteCost();
         }
+        // The marking phase's UNRESOLVED seed. It claims no placement, so there is nothing to assert and no
+        // parallelism to price; it must not be consumable, which infinite cost secures. Its concrete
+        // alternatives come from passThroughTraits / deriveTraits and the split rules.
+        if (selfDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
+        // An UNRESOLVED INPUT cannot be consumed: its placement is undecided, so nothing above it has a
+        // defined cost or a defined correctness. This ONE invariant does the work the shape-by-shape legality
+        // table used to, and it cannot become an assertion for the reason above — seeds are legal nodes.
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
         OpenSearchDistribution.Locality selfLocality = selfDist.getLocality();
         // Three legal join shapes:
@@ -148,72 +153,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         // 2. HASH+WORKER: hash-shuffle. Inputs are both HASH+WORKER with the same N.
         // 3. RANDOM+SHARD: broadcast. Inputs are one BROADCAST+REPLICATED (build) and one
         // SHARD-localized (probe); the join runs alongside the probe scan.
-        boolean isSingleton = selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON;
         boolean isHashWorker = selfType == org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED
             && selfLocality == OpenSearchDistribution.Locality.WORKER;
         boolean isBroadcastShape = selfType == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
             && selfLocality == OpenSearchDistribution.Locality.SHARD;
-        if (!isSingleton && !isHashWorker && !isBroadcastShape) {
-            return planner.getCostFactory().makeInfiniteCost();
-        }
-        // For broadcast shape, exactly one input must be BROADCAST+REPLICATED (the build) and
-        // the other must be SHARD-localized matching the join's own SHARD+tableId.
-        int broadcastBuildSeen = 0;
-        int probeShardSeen = 0;
-        for (RelNode input : getInputs()) {
-            OpenSearchDistribution inputDist = distributionOf(input);
-            if (inputDist == null) continue;
-            // An UNRESOLVED input cannot be consumed — same invariant as OpenSearchAggregate. Skipping it
-            // here is what let a per-partition SINGLE aggregate reach a join as an ANY subset and win.
-            if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
-
-            if (isBroadcastShape) {
-                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
-                    && inputDist.getLocality() == OpenSearchDistribution.Locality.REPLICATED) {
-                    broadcastBuildSeen++;
-                    continue;
-                }
-                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
-                    && inputDist.getLocality() == OpenSearchDistribution.Locality.SHARD
-                    && selfDist.getTableId() != null
-                    && selfDist.getTableId().equals(inputDist.getTableId())) {
-                    probeShardSeen++;
-                    continue;
-                }
-                return planner.getCostFactory().makeInfiniteCost();
-            }
-
-            // Non-broadcast shapes: inputs must match join's distribution type.
-            if (inputDist.getType() != selfType) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
-            if (selfDist.getLocality() != inputDist.getLocality()) {
-                return planner.getCostFactory().makeInfiniteCost();
-            }
-            if (isSingleton) {
-                if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
-                    if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
-                        return planner.getCostFactory().makeInfiniteCost();
-                    }
-                    if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
-                        return planner.getCostFactory().makeInfiniteCost();
-                    }
-                }
-            } else {
-                // HASH+WORKER: partitionCount must agree on each input. Per-input keys may
-                // differ (left.k1 = right.k2), so we don't compare keys here — that's the
-                // exchange's job at trait conversion.
-                if (!Integer.valueOf(selfDist.getPartitionCount() == null ? -1 : selfDist.getPartitionCount())
-                    .equals(inputDist.getPartitionCount())) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
-            }
-        }
-        if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
-            return planner.getCostFactory().makeInfiniteCost();
-        }
+        assert assertPlacementIsLegal(selfDist, isHashWorker, isBroadcastShape);
         // Charge the join for its work DIVIDED by the parallelism its distribution buys — without this a
         // coordinator join prices the same as an N-way distributed one and always wins. The divisor comes
         // from cluster facts: the shuffle partition count for a worker-tier hash join, or the probe-node
@@ -235,6 +179,94 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         }
         double executionCost = inputRows / parallelism;
         return planner.getCostFactory().makeCost(executionCost, executionCost, 0);
+    }
+
+    /**
+     * The (self, left, right) placements a join can correctly execute at. ASSERTED, not priced — these were
+     * ten {@code makeInfiniteCost()} branches, i.e. legality expressed through the channel that exists for
+     * ranking. Each is now unreachable because every builder states self and input traits TOGETHER:
+     * {@link #passThroughTraits} declines any demand but SINGLETON, {@link #deriveTraits} emits only the
+     * three shapes, and the split rules construct each shape explicitly alongside the
+     * {@code convert(input, …)} that makes the inputs match. The marking rule no longer claims a placement at
+     * all, which is what removed the last builder able to register an illegal pair.
+     *
+     * <p>Asserted rather than deleted because a violation is a silently WRONG RESULT, not a slow plan — a
+     * hash join whose sides carry different partition counts joins rows that never co-locate, and a broadcast
+     * shape with no probe has no execution location. Assertions are on in the suites
+     * ({@code OpenSearchJoinCostGateTests} covers every branch), so a builder that breaks one fails there.
+     *
+     * @return always {@code true}, so this reads as {@code assert assertPlacementIsLegal(...)}
+     * @throws IllegalStateException when the join meets inputs it cannot correctly consume
+     */
+    private boolean assertPlacementIsLegal(OpenSearchDistribution selfDist, boolean isHashWorker, boolean isBroadcastShape) {
+        org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
+        boolean isSingleton = selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON;
+        if (!isSingleton && !isHashWorker && !isBroadcastShape) {
+            throw new IllegalStateException("Join at a shape it cannot execute at [" + selfDist + "]");
+        }
+        // For broadcast shape, exactly one input must be BROADCAST+REPLICATED (the build) and
+        // the other must be SHARD-localized matching the join's own SHARD+tableId.
+        int broadcastBuildSeen = 0;
+        int probeShardSeen = 0;
+        for (RelNode input : getInputs()) {
+            OpenSearchDistribution inputDist = distributionOf(input);
+            if (inputDist == null) continue;
+
+            if (isBroadcastShape) {
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.REPLICATED) {
+                    broadcastBuildSeen++;
+                    continue;
+                }
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.SHARD
+                    && selfDist.getTableId() != null
+                    && selfDist.getTableId().equals(inputDist.getTableId())) {
+                    probeShardSeen++;
+                    continue;
+                }
+                throw new IllegalStateException(
+                    "Broadcast join input is neither a REPLICATED build nor a matching SHARD probe [" + inputDist + "]"
+                );
+            }
+
+            // Non-broadcast shapes: inputs must match join's distribution type.
+            if (inputDist.getType() != selfType) {
+                throw new IllegalStateException("Join at [" + selfDist + "] over input of a different type [" + inputDist + "]");
+            }
+            if (selfDist.getLocality() != inputDist.getLocality()) {
+                throw new IllegalStateException("Join at [" + selfDist + "] over input of a different locality [" + inputDist + "]");
+            }
+            if (isSingleton) {
+                if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
+                    if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
+                        throw new IllegalStateException("Co-located join over an input from another table [" + inputDist + "]");
+                    }
+                    if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
+                        throw new IllegalStateException("Co-located join over a multi-shard input [" + inputDist + "]");
+                    }
+                }
+            } else {
+                // HASH+WORKER: partitionCount must agree on each input. Per-input keys may
+                // differ (left.k1 = right.k2), so we don't compare keys here — that's the
+                // exchange's job at trait conversion.
+                if (!Integer.valueOf(selfDist.getPartitionCount() == null ? -1 : selfDist.getPartitionCount())
+                    .equals(inputDist.getPartitionCount())) {
+                    throw new IllegalStateException(
+                        "Hash join whose partition count disagrees with its input's [" + selfDist + "] vs [" + inputDist + "]"
+                    );
+                }
+            }
+        }
+        if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
+            throw new IllegalStateException(
+                "Broadcast join needs exactly one REPLICATED build and one SHARD probe, saw "
+                    + broadcastBuildSeen
+                    + " and "
+                    + probeShardSeen
+            );
+        }
+        return true;
     }
 
     // ---- PhysicalNode (top-down trait propagation) ----

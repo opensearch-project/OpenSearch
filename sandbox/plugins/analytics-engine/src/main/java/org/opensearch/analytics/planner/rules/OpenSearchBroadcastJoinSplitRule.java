@@ -287,6 +287,16 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         if (probeDist == null) {
             return;
         }
+        // The probe must be genuinely PARTITIONED, not merely SHARD-localized. A single-shard scan is
+        // SHARD+SINGLETON: all its rows live on one node, so replicating the build "to every probe node"
+        // buys nothing — and copying that SINGLETON onto the join below produces
+        // Join(SINGLETON+SHARD) over a REPLICATED build, which is none of the three shapes the join can
+        // execute at. That alternative used to be registered and then priced at infinity, so it was invisible;
+        // OpenSearchJoin.assertPlacementIsLegal now reports it instead. Broadcast only applies over a
+        // partitioned probe, which is exactly legal shape #3 (RANDOM+SHARD).
+        if (probeDist.getType() != RelDistribution.Type.RANDOM_DISTRIBUTED) {
+            return;
+        }
 
         // Demand BROADCAST+REPLICATED on the build side. Volcano materializes an
         // OpenSearchBroadcastExchange via OpenSearchDistributionTraitDef.convert.

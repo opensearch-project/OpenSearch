@@ -140,9 +140,12 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 2L),
                 Map.entry("OpenSearchJoinRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                // 3, not 1: same cause as the sibling test — the UNRESOLVED aggregate seed makes this rule
-                // match once per (aggregate, input-subset) pair.
-                Map.entry("OpenSearchAggregateSplitRule", 3L),
+                // 9, not 1: same cause as the sibling test — the UNRESOLVED aggregate seed makes this rule
+                // match once per (aggregate, input-subset) pair — but compounded here, because the join below
+                // it is ALSO seeded UNRESOLVED, so its own shapes come from the search instead of from a
+                // stamped trait and the aggregate sees more distinct input subsets. Search space, not plan
+                // nodes: the chosen plan is unchanged.
+                Map.entry("OpenSearchAggregateSplitRule", 9L),
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 // OpenSearchDistributionDeriveRule is GONE (see the sibling test): with no SINGLETON spine

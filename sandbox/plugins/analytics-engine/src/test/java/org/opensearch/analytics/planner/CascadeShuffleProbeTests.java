@@ -761,16 +761,25 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             "window project must gather (ER) its distributed-join input before running the global window frame",
             unwrap(windowProject.getInput(0)) instanceof OpenSearchExchangeReducer
         );
-        // The cascade still distributes BELOW the gather (the join itself is two binary tiers).
+        // The cascade still distributes BELOW the gather.
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins distributed below the window gather", 2, joins.size());
+        // ONE binary tier, not two, and that is the CHEAPER plan. Both levels join on key 0, so the lower
+        // join already delivers HASH(0, N) and the upper join's left side is already co-partitioned —
+        // re-shuffling it on the same key moves every row for nothing. Measured on this fixture
+        // (3 × 10M rows): the fused plan costs 5.333e7 against 6.333e7 for the re-shuffled one, exactly one
+        // 10M-row shuffle saved. This is the same fusion {@link #testEnforcementPass_threeWayJoinFusesCoPartitionedLevels}
+        // asserts directly; it only became reachable here once OpenSearchJoinRule stopped seeding a concrete
+        // coordSingleton trait, because that seed made the upper join's shape a claim rather than a search.
         long binaryTiers = joins.stream()
             .filter(
                 j -> unwrap(j.getInput(0)) instanceof OpenSearchShuffleExchange
                     && unwrap(j.getInput(1)) instanceof OpenSearchShuffleExchange
             )
             .count();
-        assertEquals("both join levels are binary tiers below the gather", 2, binaryTiers);
+        assertEquals("the lower join is the binary tier; the upper one rides its co-partitioned output", 1, binaryTiers);
+        // Every scan still reaches its join through a shuffle — the cascade did not collapse to coord-centric.
+        assertEquals("three scans, each shuffled into the cascade", 3, findAll(enforced, OpenSearchShuffleExchange.class).size());
     }
 
     /**

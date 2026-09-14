@@ -655,17 +655,18 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, perIndexContext(Map.of("test_index", 1)));
-        assertPlanShape(
-            """
-                OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                    OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        // NO ExchangeReducer, and that is correct on ONE shard. The co-located join delivers
+        // SHARD+SINGLETON — all rows already on a single node — which is exactly what a global window frame
+        // needs, so there is nothing for a gather to move. The previous expectation had an ER here only
+        // because OpenSearchJoinRule seeded the join COORDINATOR+SINGLETON, making the gather a consequence
+        // of the seed's claim rather than of the window's actual requirement.
+        assertPlanShape("""
+            OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+              OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     /**
