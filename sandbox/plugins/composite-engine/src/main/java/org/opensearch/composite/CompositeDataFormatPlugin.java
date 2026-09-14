@@ -42,6 +42,7 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
@@ -408,12 +409,13 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      */
     @Override
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
-        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, false);
+        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, FieldScope.ROOT);
     }
 
     /**
      * As {@link #assignCapabilities(MappedFieldType, IndexSettings, DataFormatRegistry)}, additionally
-     * restricting which sub-formats may claim capabilities when {@code insideNestedScope} is set.
+     * restricting which sub-formats may claim capabilities when {@code fieldScope} is
+     * {@link FieldScope#NESTED}.
      * <p>
      * Inside a nested scope, only the primary format represents the field at all (its
      * {@code LIST<STRUCT>} column) — secondaries are excluded from the claiming loop entirely, even one
@@ -432,7 +434,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         MappedFieldType fieldType,
         IndexSettings indexSettings,
         DataFormatRegistry dataFormatRegistry,
-        boolean insideNestedScope
+        FieldScope fieldScope
     ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
@@ -455,7 +457,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                 break;
             }
             boolean isPrimary = i == 0;
-            if (insideNestedScope && isPrimary == false) {
+            if (fieldScope == FieldScope.NESTED && isPrimary == false) {
                 continue;
             }
             DataFormat format = formats.get(i);
@@ -506,7 +508,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                 fieldType.name(),
                 typeName,
                 remaining,
-                insideNestedScope ? " (inside a nested scope, where only the primary format is considered)" : "",
+                fieldScope == FieldScope.NESTED ? " (inside a nested scope, where only the primary format is considered)" : "",
                 assigned,
                 formats.stream().map(DataFormat::name).collect(Collectors.toList())
             );

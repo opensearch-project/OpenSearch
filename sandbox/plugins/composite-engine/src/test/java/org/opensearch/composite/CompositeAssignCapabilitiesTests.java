@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -363,7 +364,7 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
 
         MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author");
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
-        plugin.assignCapabilities(field, indexSettings, registry, true);
+        plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED);
 
         Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
         assertEquals(1, map.size());
@@ -398,7 +399,7 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> plugin.assignCapabilities(field, indexSettings, registry, true)
+            () -> plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED)
         );
         assertTrue(ex.getMessage().contains("COLUMNAR_STORAGE"));
     }

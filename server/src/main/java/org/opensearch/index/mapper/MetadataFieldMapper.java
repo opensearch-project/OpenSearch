@@ -36,6 +36,7 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -179,6 +180,11 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
         super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    /** Returns the data-format capability scope for this metadata field. */
+    FieldScope dataFormatFieldScope() {
+        return FieldScope.ROOT;
     }
 
     @Override
