@@ -70,7 +70,16 @@ public class OpenSearchUnionSplitRule extends RelOptRule {
             // SHARD→COORDINATOR converter on top — so a parent demanding COORDINATOR sees
             // a single gather ER above the SHARD Union (one transport instead of one-per-arm).
             RelTraitSet shardTraits = union.getTraitSet().replace(distTraitDef.shardSingleton(commonTableId, 1));
-            RelNode shardUnion = union.copy(shardTraits, union.getInputs(), union.all);
+            // DEMAND the shard trait of each arm rather than reusing the arm as-is. Every arm already
+            // satisfies it, so no exchange is inserted and the shape is unchanged — but an arm the marking
+            // phase seeded UNRESOLVED only gets a concrete subset by being asked, and reusing it verbatim
+            // leaves this alternative holding an unresolved input, which is priced at infinity. The
+            // co-located plan would then silently lose to the gather-every-arm one.
+            List<RelNode> shardArms = new ArrayList<>(union.getInputs().size());
+            for (RelNode input : union.getInputs()) {
+                shardArms.add(convert(input, shardTraits));
+            }
+            RelNode shardUnion = union.copy(shardTraits, shardArms, union.all);
             RelTraitSet coordTraits = union.getTraitSet().replace(distTraitDef.coordSingleton());
             // Register the SHARD→COORDINATOR converter; downstream consumers can use either.
             convert(shardUnion, coordTraits);
