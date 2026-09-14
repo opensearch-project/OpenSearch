@@ -14,6 +14,7 @@ import org.opensearch.dsl.aggregation.AggregationMetadata;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * One or more query plans produced by DSL to RelNode conversion.
@@ -92,6 +93,11 @@ public final class QueryPlans {
     /** Returns all plans. */
     public List<QueryPlan> getAll() {
         return plans;
+    }
+
+    /** Returns the first plan produced, or empty when conversion yielded none. */
+    public Optional<QueryPlan> first() {
+        return plans.isEmpty() ? Optional.empty() : Optional.of(plans.get(0));
     }
 
     /**
