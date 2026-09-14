@@ -444,6 +444,76 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    public static final String SETTING_REMOTE_STORE_FENCING_ENABLED = "index.remote_store.fencing.enabled";
+
+    /**
+     * Used to enable object-store-backed primary fencing for remote-store-backed indices. When enabled, every
+     * translog upload on the acknowledgement path performs a compare-and-swap on a per-shard fence blob in the
+     * translog repository, so a stale primary fails itself instead of acknowledging writes that would be lost on
+     * failover. Requires the translog repository to support conditional writes.
+     * <p>
+     * Must not be enabled for an index migrating between document replication and remote store: fencing assumes
+     * every writer acknowledges through the remote translog upload path, and a docrep-backed writer during
+     * migration never touches the fence, so it could not be fenced by it. Enable only on indices that are
+     * remote-store-backed end to end.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE_FENCING_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final String SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED = "index.remote_store.auto_restore.enabled";
+
+    /**
+     * Used to enable automatic restore of a remote-store-backed primary whose last copy was lost with the node that
+     * held it. When enabled, the allocator converts a primary it has proven unrecoverable from any live node's local
+     * store (the state that otherwise parks at {@code NO_VALID_SHARD_COPY}, RED) into a remote-store recovery on a
+     * live node, so the shard goes unassigned &rarr; recovering &rarr; started with no operator action.
+     * <p>
+     * Requires {@link #INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING}: the trigger fires on the cluster manager's
+     * membership view, and the departed primary is typically still alive behind a partition, still able to reach the
+     * object store. The fence's strictly-greater-term takeover is what makes acknowledging past the restored copy's
+     * restore point impossible; without it the trigger loses acknowledged writes
+     * ({@code FenceAutoRestore.tla} refutes the ungated design).
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                if (value) {
+                    final Boolean fencingEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING);
+                    if (fencingEnabled == null || fencingEnabled == false) {
+                        throw new IllegalArgumentException(
+                            "Setting "
+                                + SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED
+                                + " can only be enabled when "
+                                + SETTING_REMOTE_STORE_FENCING_ENABLED
+                                + " is enabled: the auto-restore trigger fires on the cluster manager's view of node"
+                                + " membership while the departed primary may still be alive, and only the fence"
+                                + " prevents it from acknowledging writes the restored copy will never see"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Used to specify if the bulk should use adaptive shard selection to select one shard.
      */

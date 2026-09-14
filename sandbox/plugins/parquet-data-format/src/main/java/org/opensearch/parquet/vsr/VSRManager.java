@@ -26,7 +26,6 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
-import org.opensearch.index.engine.dataformat.SchemaChangeRequiresWriterRotationException;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -199,9 +198,9 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Single-value semantics are enforced at the {@link ParquetDocumentInput} layer:
-     * if an array field produces multiple values for the same field type, only the
-     * last value is retained (last-value-wins).
+     * Field Shape is decided at the {@link ParquetDocumentInput} layer: fields mapped with
+     * {@code multi_value: true} accumulate every value into one list-valued pair,
+     * and all other fields still reject a second value.
      *
      * @param doc the document input containing field-value pairs
      */
@@ -388,12 +387,18 @@ public class VSRManager implements AutoCloseable {
             for (Field schemaField : newSchema.getFields()) {
                 FieldVector existingVector = activeVSR.getVector(schemaField.getName());
                 if (existingVector == null) {
-                    // Preserve children so LIST<STRUCT> fields keep their struct tree.
-                    Field field = new Field(schemaField.getName(), schemaField.getFieldType(), schemaField.getChildren());
-                    activeVSR.addFieldVector(field);
+                    // Pass the schema field through as-is: rebuilding it from name + FieldType alone
+                    // would drop getChildren(), leaving a LIST column with no element vector.
+                    activeVSR.addFieldVector(schemaField);
                     changed = true;
                 } else if (reconcileExistingChildren(existingVector, schemaField)) {
                     changed = true;
+                } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
+                    throw new SchemaChangeRequiresWriterRotationException(
+                        schemaField.getName(),
+                        existingVector.getField().getType(),
+                        schemaField.getType()
+                    );
                 }
             }
         } finally {
@@ -403,7 +408,7 @@ public class VSRManager implements AutoCloseable {
             // against a stale schema. Also updates the pool schema so a VSR rotated later in this same
             // generation includes the new fields.
             if (changed) {
-                activeVSR.refreshSchema();
+                activeVSR.refreshSchema(newSchema);
                 vsrPool.updateSchema(activeVSR.getSchema());
             } else {
                 logger.debug("no changes in schema despite change in mapping version");
@@ -503,6 +508,28 @@ public class VSRManager implements AutoCloseable {
      */
     private void addMissingChild(StructVector parentStruct, Field childField) {
         parentStruct.initializeChildrenFromFields(List.of(childField));
+    }
+
+    /**
+     * Compares the Arrow storage shape of two fields while ignoring field names. Arrow Java
+     * renames a {@code ListVector} child from {@code element} to {@code $data$} internally, so
+     * full {@link Field#equals(Object)} comparisons spuriously report a schema change.
+     */
+    private static boolean hasSameStorageShape(Field existingField, Field schemaField) {
+        if (existingField.getType().equals(schemaField.getType()) == false) {
+            return false;
+        }
+        List<Field> existingChildren = existingField.getChildren();
+        List<Field> schemaChildren = schemaField.getChildren();
+        if (existingChildren.size() != schemaChildren.size()) {
+            return false;
+        }
+        for (int i = 0; i < existingChildren.size(); i++) {
+            if (hasSameStorageShape(existingChildren.get(i), schemaChildren.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

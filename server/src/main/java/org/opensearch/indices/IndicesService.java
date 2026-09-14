@@ -1343,7 +1343,7 @@ public class IndicesService extends AbstractLifecycleComponent
             dataFormatAwareStoreDirectoryFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, dataFormatRegistry);
     }
 
     /**

@@ -229,14 +229,22 @@ public class DocumentMapper implements ToXContentFragment {
         // Assign capabilities for dynamically merged mappers that bypass the Builder path.
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
-            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, false);
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                // NestedPathFieldMapper's field type doubles as the pluggable-format nested-element
-                // marker, so it's always treated as nested-scope — this keeps a secondary format (e.g.
-                // Lucene, which separately declares FULL_TEXT_SEARCH for this type for its own
-                // non-composite use) from claiming it and trying to represent the marker per element.
-                boolean insideNestedScope = metadataMapper instanceof NestedPathFieldMapper;
-                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings, insideNestedScope);
+            try {
+                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, false);
+                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                    // NestedPathFieldMapper's field type doubles as the pluggable-format nested-element
+                    // marker, so it's always treated as nested-scope — this keeps a secondary format (e.g.
+                    // Lucene, which separately declares FULL_TEXT_SEARCH for this type for its own
+                    // non-composite use) from claiming it and trying to represent the marker per element.
+                    boolean insideNestedScope = metadataMapper instanceof NestedPathFieldMapper;
+                    registry.assignCapabilities(metadataMapper.fieldType(), indexSettings, insideNestedScope);
+                }
+            } catch (UnsupportedOperationException e) {
+                // A field type that declares no search capability (e.g. geo_point) cannot be backed by a
+                // pluggable data format. Surface this as a MapperParsingException (400) rather than letting a
+                // raw UnsupportedOperationException escape as a NotSerializableExceptionWrapper (500) on the
+                // put-mapping path, which parses directly and bypasses the merge path's exception wrapping.
+                throw new MapperParsingException(e.getMessage(), e);
             }
         }
 

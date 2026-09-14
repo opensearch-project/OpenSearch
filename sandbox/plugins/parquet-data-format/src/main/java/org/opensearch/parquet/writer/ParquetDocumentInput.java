@@ -24,8 +24,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +58,12 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
+    // Keyed by field name, not field-type identity: within a single document parse each logical
+    // field (including the derived-source `_ignored_source.*` companion) has a unique name, while
+    // identity would silently miss a match if the parser ever handed back a fresh wrapper per array
+    // element — degrading a multi_value field to last-value-wins or bypassing the scalar duplicate
+    // guard. Name keying makes accumulation robust to that.
+    private final Map<String, FieldValuePair> seen = new HashMap<>();
     private long rowId = -1;
     private boolean isClosed = false;
     // Nested support: children buffered hierarchically, in parse order. A stack tracks currently-open
@@ -159,8 +163,8 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         if (childStack.isEmpty() == false) {
             NestedChild current = childStack.peek();
             String relativeName = fieldType.name().substring(current.path.length() + 1);
-            for (NestedLeaf existing : current.fields) {
-                if (existing.name.equals(relativeName)) {
+            for (NestedLeaf existingLeaf : current.fields) {
+                if (existingLeaf.name.equals(relativeName)) {
                     throw new MapperParsingException(
                         "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
                     );
@@ -169,12 +173,37 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             current.fields.add(new NestedLeaf(relativeName, fieldType, value));
             return;
         }
-        if (dedup.add(fieldType) == false) {
+        FieldValuePair existing = seen.get(fieldType.name());
+        if (existing == null) {
+            // Fields declared `multi_value: true` in the mapping start out as a list of one so the
+            // value shape reaching the VSR is the same whether the document had one value or several.
+            // An explicit empty array (`"field": []`) is signalled by an empty List and seeds a
+            // zero-value pair, so its LIST cell is written empty-but-non-null rather than null.
+            final FieldValuePair pair;
+            if (fieldType.isMultiValued()) {
+                pair = value instanceof List<?> list && list.isEmpty()
+                    ? FieldValuePair.emptyMultiValued(fieldType)
+                    : FieldValuePair.multiValued(fieldType, value);
+            } else {
+                pair = new FieldValuePair(fieldType, value);
+            }
+            seen.put(fieldType.name(), pair);
+            collectedFields.add(pair);
+            return;
+        }
+        if (existing.isMultiValued() == false) {
+            if (fieldType.isMultiValueSupported() && fieldType.isMultiValueAutoPromotionEnabled()) {
+                existing.promoteToMultiValued(value);
+                return;
+            }
+            String reason = fieldType.isMultiValueSupported()
+                ? "the field is locked scalar by [multi_value: false]"
+                : "the field type does not support automatic multi-value promotion";
             throw new MapperParsingException(
-                "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
+                "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]: " + reason
             );
         }
-        collectedFields.add(new FieldValuePair(fieldType, value));
+        existing.addValue(value);
     }
 
     /**
@@ -232,7 +261,16 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     @Override
     public long getFieldCount(String fieldName) {
-        return collectedFields.stream().filter(fvp -> fvp.getFieldType().name().equals(fieldName)).count();
+        // Counts values, not entries: a multi-valued field is one entry holding N values, and
+        // callers (single-value assertions below, the data-stream @timestamp check) mean values.
+        //
+        // O(1) via the name index: addField routes every value for a name into the single pair
+        // registered under that name in `seen`, so `seen` and `collectedFields` always hold the
+        // same pairs and the lookup is exact. This is on the per-value hot path — the mapper calls
+        // it before every AUTO-state keyword value to decide on scalar-to-LIST promotion — so a
+        // linear scan of collectedFields here made document parsing quadratic in the field count.
+        FieldValuePair pair = seen.get(fieldName);
+        return pair == null ? 0 : pair.valueCount();
     }
 
     @Override
@@ -240,6 +278,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         flushOpenElements();
         isClosed = true;
         collectedFields.clear();
+        seen.clear();
         topLevelChildren.clear();
         childStack.clear();
         topLevelMapEntries.clear();

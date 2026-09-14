@@ -170,17 +170,31 @@ public class ManagedVSR implements AutoCloseable {
      * rebuilding from live children recursively, so calling it on every top-level vector picks up a
      * nested addition at any depth. Only allowed in ACTIVE state, mirroring {@link #addFieldVector}.
      */
-    public void refreshSchema() {
+    public void refreshSchema(Schema authoritative) {
         if (state.get() != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot refresh schema in VSR state: " + state.get());
         }
         List<FieldVector> vectors = vsr.getFieldVectors();
         List<Field> refreshedFields = new ArrayList<>(vectors.size());
         for (FieldVector vector : vectors) {
-            refreshedFields.add(vector.getField());
+            // Prefer the authoritative (mapping-derived) declaration for the field: a vector's own
+            // getField() reflects live children but also Arrow's internal child renames (a list's
+            // child becomes "$data$"), which must not leak into the declared schema — the native
+            // writer derives the Parquet leaf path (e.g. "tags.list.element") from declared names.
+            Field declared = findByName(authoritative, vector.getName());
+            refreshedFields.add(declared != null ? declared : vector.getField());
         }
         int rowCount = vsr.getRowCount();
         vsr = new VectorSchemaRoot(refreshedFields, vectors, rowCount);
+    }
+
+    private static Field findByName(Schema schema, String name) {
+        for (Field field : schema.getFields()) {
+            if (field.getName().equals(name)) {
+                return field;
+            }
+        }
+        return null;
     }
 
     /**

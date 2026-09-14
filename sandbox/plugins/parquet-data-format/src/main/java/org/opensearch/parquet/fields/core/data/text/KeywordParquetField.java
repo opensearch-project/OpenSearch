@@ -30,6 +30,16 @@ public class KeywordParquetField extends ParquetField {
     }
 
     @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        writeValue(vector, index, parseValue);
+    }
+
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
+    }
+
+    @Override
     public ArrowType getArrowType() {
         return new ArrowType.Utf8();
     }
