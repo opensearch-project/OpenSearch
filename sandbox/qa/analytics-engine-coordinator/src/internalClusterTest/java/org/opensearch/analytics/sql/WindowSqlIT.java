@@ -115,10 +115,10 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
 
     /** {@code COUNT(val) OVER ()} — unframed count of non-null vals over a 2-shard index.
      *  Should equal {@link #TOTAL_DOCS}. */
-    // TODO [df55-followup]: flaky ONLY under -PrustDebug (debug Rust + arrow.memory.debug.allocator +
-    // TieredStopAtLevel=1) — intermittent mid-stream "Query <id> cancelled" from NativeBridge.streamNext
-    // (a Flight-streaming cancel timing race, not a schema/plan bug). Green in release + CI gradle-check
-    // and on rerun. Revisit to root-cause the debug-only race.
+    // TODO [df55-followup]: intermittently flaky ONLY under -PrustDebug — a Flight-streaming cancel
+    // timing race ("Query <id> cancelled" / Connection refused mid-stream), NOT a schema/plan bug.
+    // Non-deterministic: passed 20/20 in isolation; green in release + CI (CI retries flaky tests 3×).
+    // Same cancellation-path class as the @AwaitsFix'd SearchCancellationIT. Revisit to root-cause.
     public void testCountOver_unframed_2shard() {
         createAndSeedIndex(2);
         SqlPlanRunner runner = sqlPlanRunner();
