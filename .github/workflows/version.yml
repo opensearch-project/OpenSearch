@@ -5,20 +5,16 @@ on:
     tags:
       - '*.*.*'
 
-permissions: {}
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   build:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
-      - name: GitHub App token
-        id: github_app_token
-        uses: tibdex/github-app-token@0af3325639c0a60612b2eeaf010f0f88e468e800 # v2.1.0
-        with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          installation_id: 22958780
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Fetch Tag and Version Information
         run: |
@@ -47,7 +43,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.BASE }}
-          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Increment Patch Version
         run: |
@@ -61,7 +56,10 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
+          token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
+          push-to-fork: opensearch-ci-bot/OpenSearch
+          committer: opensearch-ci-bot <opensearch-infra@amazon.com>
+          author: opensearch-ci-bot <opensearch-infra@amazon.com>
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
           commit-message: Increment version to ${{ env.NEXT_VERSION }}
@@ -76,7 +74,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.BASE_X }}
-          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Add bwc version to .X branch
         run: |
@@ -88,7 +85,10 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
+          token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
+          push-to-fork: opensearch-ci-bot/OpenSearch
+          committer: opensearch-ci-bot <opensearch-infra@amazon.com>
+          author: opensearch-ci-bot <opensearch-infra@amazon.com>
           base: ${{ env.BASE_X }}
           branch: 'create-pull-request/patch-${{ env.BASE_X }}'
           commit-message: Add bwc version ${{ env.NEXT_VERSION }}
@@ -103,7 +103,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: main
-          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Add bwc version to main branch
         run: |
@@ -116,7 +115,10 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
+          token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
+          push-to-fork: opensearch-ci-bot/OpenSearch
+          committer: opensearch-ci-bot <opensearch-infra@amazon.com>
+          author: opensearch-ci-bot <opensearch-infra@amazon.com>
           base: main
           branch: 'create-pull-request/patch-main'
           commit-message: Add bwc version ${{ env.NEXT_VERSION }}
