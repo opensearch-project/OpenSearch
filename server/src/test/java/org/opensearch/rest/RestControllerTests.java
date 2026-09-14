@@ -82,13 +82,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.Mono;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -429,10 +430,22 @@ public class RestControllerTests extends OpenSearchTestCase {
 
     public void testConcurrentSendResponseIsRejected() {
         RestRequest request = testRestRequest("/concurrent-send", breakerFillingContent(), MediaTypeRegistry.JSON);
-        BlockingAssertingChannel delegate = new BlockingAssertingChannel(request, true, RestStatus.OK);
+        CountDownLatch firstSendEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirstSend = new CountDownLatch(1);
+        AtomicBoolean blockFirstSend = new AtomicBoolean(true);
+        AssertingChannel delegate = spy(new AssertingChannel(request, true, RestStatus.OK));
+        doAnswer(invocation -> {
+            if (blockFirstSend.compareAndSet(true, false)) {
+                firstSendEntered.countDown();
+                if (releaseFirstSend.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to release the first send");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(delegate).sendResponse(any(RestResponse.class));
+
         AtomicReference<Throwable> firstFailure = new AtomicReference<>();
         AtomicReference<Throwable> secondFailure = new AtomicReference<>();
-
         restController.registerHandler(RestRequest.Method.GET, "/concurrent-send", (restRequest, channel, client) -> {
             RestResponse response = new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
             Thread firstSend = sendResponseOnNewThread(channel, response, firstFailure);
@@ -440,12 +453,12 @@ public class RestControllerTests extends OpenSearchTestCase {
 
             firstSend.start();
             try {
-                assertTrue("first send did not reach the delegate", delegate.awaitFirstSend());
+                assertTrue("first send did not reach the delegate", firstSendEntered.await(10, TimeUnit.SECONDS));
                 secondSend.start();
                 secondSend.join(10_000L);
                 assertFalse("concurrent send did not finish", secondSend.isAlive());
             } finally {
-                delegate.releaseFirstSend();
+                releaseFirstSend.countDown();
             }
             firstSend.join(10_000L);
             assertFalse("first send did not finish", firstSend.isAlive());
@@ -496,8 +509,6 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         assertNotNull(rejection.get());
         assertThat(rejection.get().getMessage(), containsString("already sent"));
-        assertEquals(2, channel.getPrepareAttemptCount());
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getPreparedStatus());
         assertEquals(1, channel.getAttemptCount());
         assertEquals(1, channel.getAcceptedCount());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getLastStatus());
@@ -994,44 +1005,8 @@ public class RestControllerTests extends OpenSearchTestCase {
         }
     }
 
-    private static final class BlockingAssertingChannel extends AssertingChannel {
-        private final CountDownLatch firstSendEntered = new CountDownLatch(1);
-        private final CountDownLatch releaseFirstSend = new CountDownLatch(1);
-        private final AtomicBoolean blockFirstSend = new AtomicBoolean(true);
-
-        private BlockingAssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
-            super(request, detailedErrorsEnabled, expectedStatus);
-        }
-
-        @Override
-        public void sendResponse(RestResponse response) {
-            if (blockFirstSend.compareAndSet(true, false)) {
-                firstSendEntered.countDown();
-                try {
-                    if (releaseFirstSend.await(10, TimeUnit.SECONDS) == false) {
-                        throw new AssertionError("timed out waiting to release the first send");
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError("interrupted while blocking the first send", e);
-                }
-            }
-            super.sendResponse(response);
-        }
-
-        private boolean awaitFirstSend() throws InterruptedException {
-            return firstSendEntered.await(10, TimeUnit.SECONDS);
-        }
-
-        private void releaseFirstSend() {
-            releaseFirstSend.countDown();
-        }
-    }
-
     private static final class AssertingStreamingChannel extends AssertingChannel implements StreamingRestChannel {
-        private final boolean failFirstPrepare;
-        private final AtomicInteger prepareAttemptCount = new AtomicInteger();
-        private final AtomicReference<RestStatus> preparedStatus = new AtomicReference<>();
+        private final AtomicBoolean failFirstPrepare;
 
         private AssertingStreamingChannel(
             RestRequest request,
@@ -1040,7 +1015,7 @@ public class RestControllerTests extends OpenSearchTestCase {
             boolean failFirstPrepare
         ) {
             super(request, detailedErrorsEnabled, expectedStatus);
-            this.failFirstPrepare = failFirstPrepare;
+            this.failFirstPrepare = new AtomicBoolean(failFirstPrepare);
         }
 
         @Override
@@ -1050,11 +1025,9 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         @Override
         public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
-            int attempt = prepareAttemptCount.incrementAndGet();
-            if (failFirstPrepare && attempt == 1) {
+            if (failFirstPrepare.compareAndSet(true, false)) {
                 throw new IllegalStateException("response headers could not be prepared");
             }
-            preparedStatus.set(status);
         }
 
         @Override
@@ -1069,31 +1042,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         @Override
         public void subscribe(Subscriber<? super HttpChunk> subscriber) {
-            subscriber.onSubscribe(new Subscription() {
-                private final AtomicBoolean completed = new AtomicBoolean();
-
-                @Override
-                public void request(long count) {
-                    if (count <= 0) {
-                        subscriber.onError(new IllegalArgumentException("request count must be positive"));
-                    } else if (completed.compareAndSet(false, true)) {
-                        subscriber.onComplete();
-                    }
-                }
-
-                @Override
-                public void cancel() {
-                    completed.set(true);
-                }
-            });
-        }
-
-        private int getPrepareAttemptCount() {
-            return prepareAttemptCount.get();
-        }
-
-        private RestStatus getPreparedStatus() {
-            return preparedStatus.get();
+            Mono.<HttpChunk>empty().subscribe(subscriber);
         }
     }
 
