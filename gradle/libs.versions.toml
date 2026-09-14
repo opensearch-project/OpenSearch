@@ -98,8 +98,8 @@ jzlib             = "1.1.3"
 resteasy          = "6.2.4.Final"
 
 # opentelemetry dependencies
-opentelemetry         = "1.65.0"
-opentelemetrysemconv  = "1.43.0"
+opentelemetry         = "1.66.0"
+opentelemetrysemconv  = "1.44.0"
 
 # arrow dependencies
 arrow                 = "18.1.0"
