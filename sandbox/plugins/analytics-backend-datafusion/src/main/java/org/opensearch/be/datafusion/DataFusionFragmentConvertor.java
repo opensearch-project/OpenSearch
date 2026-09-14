@@ -861,7 +861,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     MultiValueExpandSpec spec = new MultiValueExpandSpec(
                         expand.fieldIndex(),
                         null,
-                        false,
+                        true,
                         true,
                         typeConverter.toNamedStruct(expand.getRowType()).struct()
                     );
