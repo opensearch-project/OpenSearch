@@ -36,61 +36,39 @@ public abstract class ParquetField {
     public ParquetField() {}
 
     /**
-     * Writes the parsed field value into the appropriate vector in the managed VSR. Default looks
-     * up the field's own top-level vector and row and delegates to {@link #writeValue}, so a normal
-     * scalar type only needs to implement that one method. Overridden directly (bypassing
-     * {@link #writeValue} entirely) by types that are never actually written this way — e.g.
-     * {@code flat_object}, whose values arrive via a different signal.
+     * Writes the parsed field value into the appropriate vector in the managed VSR. Scalar and
+     * nested writes share the same {@link #addToVector} conversion hook.
      *
      * @param fieldType the mapped field type
      * @param managedVSR the managed vector schema root
      * @param parseValue the parsed value to write
      */
     protected void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
-        writeValue(managedVSR.getVector(fieldType.name()), managedVSR.getRowCount(), parseValue);
+        addToVector(managedVSR.getVector(fieldType.name()), managedVSR.getRowCount(), parseValue);
     }
 
     /**
-     * Writes {@code value} into {@code vector} at {@code index}. The single canonical conversion for
-     * this type, reused by both the top-level path (via {@link #addToGroup}'s default above) and
-     * nested-struct-leaf writing.
+     * Writes one scalar value at an explicit vector index. This is the format-internal conversion
+     * hook used for top-level fields, nested struct leaves, and LIST elements. Implementations stay
+     * protected; callers outside the field package use {@link #createField}.
      *
-     * @param vector the vector to write into — already the correct concrete type for this field
-     * @param index the row (top-level) or struct-element (nested) index to write at
-     * @param value the value to write; never null (callers skip the call entirely for a null value,
-     *              leaving the slot null)
+     * <p>{@link #supportsMultiValue()} independently controls whether this conversion may back a
+     * top-level LIST column. A type can support scalar nested placement without supporting
+     * multi-valued storage.
+     *
+     * @param vector the target vector
+     * @param index the position to write
+     * @param value the parsed non-null value
      */
-    public void writeValue(FieldVector vector, int index, Object value) {
-        throw new UnsupportedOperationException("writeValue is not implemented for " + getClass().getSimpleName());
+    protected void addToVector(FieldVector vector, int index, Object value) {
+        throw new UnsupportedOperationException("addToVector is not implemented for " + getClass().getSimpleName());
     }
 
     /**
-     * Writes a single parsed value at an explicit index in the given vector.
-     * <p>
-     * Scalar columns write at the row index, so {@link #addToGroup} can derive the position from
-     * the VSR's row count. List columns write several values per row at positions in the child
-     * vector that have nothing to do with the row number, so multi-value writes need this
-     * index-explicit form instead.
-     * <p>
-     * Subclasses must override this to support being declared multi-valued; the default throws.
-     * When overridden, {@link #addToGroup} should delegate to it so the scalar and list paths
-     * share one value-coercion implementation.
+     * Returns whether this field can be stored as a Parquet LIST column. This is independent of
+     * {@link #addToVector}: scalar types also use that hook for nested struct placement.
      *
-     * @param vector the target vector (the child data vector when writing into a list)
-     * @param index the position to write at
-     * @param parseValue the parsed value to write
-     */
-    protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
-        );
-    }
-
-    /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
-     *
-     * @return true if multi-valued storage is supported
+     * @return true if multi-valued LIST storage is supported
      */
     public boolean supportsMultiValue() {
         return false;

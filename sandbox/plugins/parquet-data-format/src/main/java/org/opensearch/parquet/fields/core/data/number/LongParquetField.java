@@ -30,7 +30,7 @@ public class LongParquetField extends NumericParquetField {
     }
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((BigIntVector) vector).setSafe(index, (Long) value);
     }
 

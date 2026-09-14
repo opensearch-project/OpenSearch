@@ -27,7 +27,7 @@ public class DateNanosParquetField extends ParquetField {
     public DateNanosParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((TimeStampNanoVector) vector).setSafe(index, (long) value);
     }
 

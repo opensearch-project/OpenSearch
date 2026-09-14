@@ -27,7 +27,7 @@ public class RoutingParquetField extends ParquetField {
     public RoutingParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
     }
 

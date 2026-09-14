@@ -127,13 +127,7 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
     }
 
     private static void flushOpenElements(ParquetDocumentInput input) {
-        try {
-            java.lang.reflect.Method method = ParquetDocumentInput.class.getDeclaredMethod("flushOpenElements");
-            method.setAccessible(true);
-            method.invoke(input);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
+        input.flushOpenElements();
     }
 
     /**

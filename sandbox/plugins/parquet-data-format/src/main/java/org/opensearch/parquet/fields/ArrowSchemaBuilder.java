@@ -26,7 +26,6 @@ import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.parquet.fields.core.data.NestedParquetField;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 
 import java.util.ArrayList;

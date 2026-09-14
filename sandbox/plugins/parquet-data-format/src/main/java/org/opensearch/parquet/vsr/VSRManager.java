@@ -35,9 +35,9 @@ import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.NestedParquetField;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
-import org.opensearch.parquet.fields.core.data.NestedParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.FieldValuePair;
@@ -501,7 +501,7 @@ public class VSRManager implements AutoCloseable {
      * {@code "element"} for a LIST's struct, {@code "key_value"} for a MAP's entries struct) — NOT
      * {@code addOrGetList}/{@code addOrGetMap}/{@code addOrGetVector(FieldType)}'s hardcoded internal
      * defaults ({@code "$data$"}/{@code "entries"}), which would silently diverge from the schema this
-     * same field gets when built fresh, e.g. by {@link org.opensearch.parquet.fields.core.data.NestedParquetField}.
+     * same field gets when built fresh, e.g. by {@link org.opensearch.parquet.fields.NestedParquetField}.
      * Safe to call for a field confirmed missing: it only ever creates new vectors, never touches an
      * existing child. Callers must have already verified (see {@link #requireSortedAppendPosition})
      * that appending preserves this struct's sorted-by-name invariant.

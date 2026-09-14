@@ -229,7 +229,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     }
 
     /** Closes out every still-open element — called once parsing is done and no further signal will arrive. */
-    private void flushOpenElements() {
+    void flushOpenElements() {
         while (childStack.isEmpty() == false) {
             closeTopElement();
         }

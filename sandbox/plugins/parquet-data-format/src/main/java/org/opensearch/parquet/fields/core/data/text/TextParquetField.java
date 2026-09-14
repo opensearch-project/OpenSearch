@@ -27,7 +27,7 @@ public class TextParquetField extends ParquetField {
     public TextParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
     }
 

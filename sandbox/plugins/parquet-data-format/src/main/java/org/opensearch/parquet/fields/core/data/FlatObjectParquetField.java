@@ -16,6 +16,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.fields.NestedParquetField;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 import org.opensearch.parquet.writer.ParquetDocumentInput;

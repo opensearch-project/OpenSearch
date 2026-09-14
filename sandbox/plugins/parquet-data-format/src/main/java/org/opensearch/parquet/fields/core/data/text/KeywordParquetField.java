@@ -25,13 +25,8 @@ public class KeywordParquetField extends ParquetField {
     public KeywordParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
-    @Override
-    protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        writeValue(vector, index, parseValue);
     }
 
     @Override

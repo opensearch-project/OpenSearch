@@ -22,7 +22,7 @@ public class ByteParquetField extends NumericParquetField {
     public ByteParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((TinyIntVector) vector).setSafe(index, ((Number) value).byteValue());
     }
 

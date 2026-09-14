@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.fields.core.data;
+package org.opensearch.parquet.fields;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -37,7 +37,8 @@ import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
-import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.BinaryParquetField;
+import org.opensearch.parquet.fields.core.data.BooleanParquetField;
 import org.opensearch.parquet.fields.core.data.number.HalfFloatParquetField;
 import org.opensearch.parquet.fields.core.data.number.UnsignedLongParquetField;
 import org.opensearch.parquet.fields.core.data.text.IpParquetField;
@@ -46,7 +47,6 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -56,15 +56,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Tests {@link NestedParquetField}'s {@code writeChildList} (private, invoked reflectively) and the
- * per-type {@link ParquetField#writeValue} dispatch it delegates every leaf write to. A
+ * Tests {@link NestedParquetField}'s package-visible {@code writeChildList} path and the per-type
+ * {@link ParquetField#addToVector} dispatch it delegates every leaf write to. A
  * {@code LIST<STRUCT>} vector is hand-built on a plain {@link RootAllocator}, fed via a real
  * {@link ParquetDocumentInput} using the marker-based {@code addField} signal, then read back to verify.
  */
 public class NestedParquetFieldTests extends OpenSearchTestCase {
 
     private RootAllocator testAllocator;
-    private Method writeChildList;
     private NestedParquetField nestedParquetField;
 
     @Override
@@ -72,14 +71,6 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         super.setUp();
         testAllocator = new RootAllocator();
         nestedParquetField = new NestedParquetField();
-        writeChildList = NestedParquetField.class.getDeclaredMethod(
-            "writeChildList",
-            ListVector.class,
-            int.class,
-            String.class,
-            List.class
-        );
-        writeChildList.setAccessible(true);
     }
 
     @Override
@@ -181,41 +172,41 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         }
     }
 
-    /** Per-type {@code writeValue} dispatch, covering every type nested leaves support. */
-    public void testWriteValueTypeDispatch() throws Exception {
+    /** Per-type {@code addToVector} dispatch, covering every type nested leaves support. */
+    public void testAddToVectorTypeDispatch() throws Exception {
         try (VarCharVector v = new VarCharVector("s", testAllocator)) {
             v.allocateNew();
-            writeValue(new KeywordParquetField(), v, 0, "hello");
+            addToVector(new KeywordParquetField(), v, 0, "hello");
             v.setValueCount(1);
             assertEquals("hello", v.getObject(0).toString());
         }
         try (IntVector v = new IntVector("i", testAllocator)) {
             v.allocateNew();
-            writeValue(new org.opensearch.parquet.fields.core.data.number.IntegerParquetField(), v, 0, 42);
+            addToVector(new org.opensearch.parquet.fields.core.data.number.IntegerParquetField(), v, 0, 42);
             v.setValueCount(1);
             assertEquals(42, v.get(0));
         }
         try (BigIntVector v = new BigIntVector("l", testAllocator)) {
             v.allocateNew();
-            writeValue(new org.opensearch.parquet.fields.core.data.number.LongParquetField(), v, 0, 42L);
+            addToVector(new org.opensearch.parquet.fields.core.data.number.LongParquetField(), v, 0, 42L);
             v.setValueCount(1);
             assertEquals(42L, v.get(0));
         }
         try (Float8Vector v = new Float8Vector("d", testAllocator)) {
             v.allocateNew();
-            writeValue(new org.opensearch.parquet.fields.core.data.number.DoubleParquetField(), v, 0, 3.5d);
+            addToVector(new org.opensearch.parquet.fields.core.data.number.DoubleParquetField(), v, 0, 3.5d);
             v.setValueCount(1);
             assertEquals(3.5d, v.get(0), 0.0);
         }
         try (Float4Vector v = new Float4Vector("f", testAllocator)) {
             v.allocateNew();
-            writeValue(new org.opensearch.parquet.fields.core.data.number.FloatParquetField(), v, 0, 2.5f);
+            addToVector(new org.opensearch.parquet.fields.core.data.number.FloatParquetField(), v, 0, 2.5f);
             v.setValueCount(1);
             assertEquals(2.5f, v.get(0), 0.0f);
         }
         try (BitVector v = new BitVector("b", testAllocator)) {
             v.allocateNew();
-            writeValue(new BooleanParquetField(), v, 0, Boolean.TRUE);
+            addToVector(new BooleanParquetField(), v, 0, Boolean.TRUE);
             v.setValueCount(1);
             assertEquals(1, v.get(0));
         }
@@ -223,14 +214,14 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         // there is only one implementation now, not a separate copy for nested).
         try (Float2Vector v = new Float2Vector("hf", testAllocator)) {
             v.allocateNew();
-            writeValue(new HalfFloatParquetField(), v, 0, 1.5f);
+            addToVector(new HalfFloatParquetField(), v, 0, 1.5f);
             v.setValueCount(1);
             assertEquals(1.5f, v.getValueAsFloat(0), 0.0f);
         }
         // unsigned_long
         try (UInt8Vector v = new UInt8Vector("ul", testAllocator)) {
             v.allocateNew();
-            writeValue(new UnsignedLongParquetField(), v, 0, 9_000_000_000L);
+            addToVector(new UnsignedLongParquetField(), v, 0, 9_000_000_000L);
             v.setValueCount(1);
             assertEquals(9_000_000_000L, v.get(0));
         }
@@ -238,7 +229,7 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         try (VarBinaryVector v = new VarBinaryVector("bin", testAllocator)) {
             v.allocateNew();
             byte[] raw = { 1, 2, 3 };
-            writeValue(new BinaryParquetField(), v, 0, raw);
+            addToVector(new BinaryParquetField(), v, 0, raw);
             v.setValueCount(1);
             assertArrayEquals(raw, v.get(0));
         }
@@ -246,15 +237,15 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         try (VarBinaryVector v = new VarBinaryVector("ip", testAllocator)) {
             v.allocateNew();
             InetAddress address = InetAddress.getByName("192.168.1.1");
-            writeValue(new IpParquetField(), v, 0, address);
+            addToVector(new IpParquetField(), v, 0, address);
             v.setValueCount(1);
             assertArrayEquals(InetAddressPoint.encode(address), v.get(0));
         }
     }
 
-    /** Calls {@link ParquetField#writeValue} against its base-class declaration (this test's own package). */
-    private static void writeValue(ParquetField field, FieldVector vector, int index, Object value) {
-        field.writeValue(vector, index, value);
+    /** Calls {@link ParquetField#addToVector} against its base-class declaration (this test's own package). */
+    private static void addToVector(ParquetField field, FieldVector vector, int index, Object value) {
+        field.addToVector(vector, index, value);
     }
 
     /** MAP-in-STRUCT: every dynamic key of every element survives, and a no-attributes element writes null. */
@@ -381,16 +372,13 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         };
     }
 
-    private void invokeWriteChildList(ListVector list, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children)
-        throws Exception {
-        writeChildList.invoke(nestedParquetField, list, rowIndex, path, children);
+    private void invokeWriteChildList(ListVector list, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
+        nestedParquetField.writeChildList(list, rowIndex, path, children);
     }
 
-    /** Flushes still-open elements directly, since these tests skip {@code getFinalInput()}'s assertions. */
-    private static void flush(ParquetDocumentInput doc) throws Exception {
-        Method flushOpenElements = ParquetDocumentInput.class.getDeclaredMethod("flushOpenElements");
-        flushOpenElements.setAccessible(true);
-        flushOpenElements.invoke(doc);
+    /** Closes open nested elements through the normal field-routing path. */
+    private static void flush(ParquetDocumentInput doc) {
+        doc.addField(withParquetCapability(new KeywordFieldMapper.KeywordFieldType("test_flush")), "flush");
     }
 
     private static Field utf8(String name) {

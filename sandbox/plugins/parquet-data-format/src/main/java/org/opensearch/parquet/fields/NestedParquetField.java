@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.fields.core.data;
+package org.opensearch.parquet.fields;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.complex.ListVector;
@@ -18,8 +18,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ArrowFieldRegistry;
-import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 import org.opensearch.parquet.writer.MismatchedInputException;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
@@ -134,7 +133,7 @@ public class NestedParquetField extends ParquetField {
     }
 
     /** Writes one list of child elements at {@code rowIndex} of {@code listVector}, recursing into inner lists. */
-    private void writeChildList(ListVector listVector, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
+    void writeChildList(ListVector listVector, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
         int startOffset = listVector.startNewValue(rowIndex);
         StructVector structVector = (StructVector) listVector.getDataVector();
         for (int i = 0; i < children.size(); i++) {
@@ -161,7 +160,7 @@ public class NestedParquetField extends ParquetField {
                             "No ParquetField mapping for field [" + leaf.fieldType.name() + "] of type [" + leaf.fieldType.typeName() + "]"
                         );
                     }
-                    parquetField.writeValue(leafVector, elemIndex, leaf.value);
+                    parquetField.addToVector(leafVector, elemIndex, leaf.value);
                 }
             }
             // map children of this element (e.g. a flat_object `attributes`). Write EVERY map child of

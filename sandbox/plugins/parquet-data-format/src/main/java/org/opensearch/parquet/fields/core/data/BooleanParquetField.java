@@ -26,7 +26,7 @@ public class BooleanParquetField extends ParquetField {
     public BooleanParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((BitVector) vector).setSafe(index, (Boolean) value ? 1 : 0);
     }
 

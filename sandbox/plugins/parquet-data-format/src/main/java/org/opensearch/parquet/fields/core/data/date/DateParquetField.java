@@ -27,7 +27,7 @@ public class DateParquetField extends ParquetField {
     public DateParquetField() {}
 
     @Override
-    public void writeValue(FieldVector vector, int index, Object value) {
+    protected void addToVector(FieldVector vector, int index, Object value) {
         ((TimeStampMilliVector) vector).setSafe(index, (long) value);
     }
 
