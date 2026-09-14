@@ -101,39 +101,45 @@ public class NestedParquetField extends ParquetField {
     }
 
     /**
-     * Writes the document's buffered nested children into their LIST&lt;STRUCT&gt; vectors at
-     * {@code rowIndex}. Children of the same path form one list; each child becomes one struct
-     * element in parse order. Rows without a nested field leave the list null.
+     * Groups the document's top-level nested elements by path and delegates each field value to
+     * {@link #addToVector}. Rows without nested elements leave their LIST columns null.
      *
-     * @throws MismatchedInputException if the active VSR is missing a vector {@code doc} needs —
-     *         a schema-reconciliation bug, not a case to silently drop data for.
+     * @throws MismatchedInputException if the active VSR is missing a nested LIST vector
      */
     public void writeNestedChildren(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
         if (doc.getNestedChildren().isEmpty()) {
             return;
         }
-        // Group top-level children by nested path, preserving parse order within each path.
         Map<String, List<ParquetDocumentInput.NestedChild>> byPath = new LinkedHashMap<>();
         for (ParquetDocumentInput.NestedChild child : doc.getNestedChildren()) {
             byPath.computeIfAbsent(child.path, k -> new ArrayList<>()).add(child);
         }
         for (Map.Entry<String, List<ParquetDocumentInput.NestedChild>> entry : byPath.entrySet()) {
-            FieldVector vector = activeVSR.getVector(entry.getKey());
-            if (vector instanceof ListVector listVector) {
-                writeChildList(listVector, rowIndex, entry.getKey(), entry.getValue());
-            } else {
-                throw new MismatchedInputException(
-                    "No LIST vector for nested path ["
-                        + entry.getKey()
-                        + "] — schema reconciliation must run via "
-                        + "updateMappingVersion before this document is written"
-                );
-            }
+            addToVector(activeVSR.getVector(entry.getKey()), rowIndex, entry.getValue());
         }
     }
 
-    /** Writes one list of child elements at {@code rowIndex} of {@code listVector}, recursing into inner lists. */
-    void writeChildList(ListVector listVector, int rowIndex, String path, List<ParquetDocumentInput.NestedChild> children) {
+    /**
+     * Writes one nested field value as a LIST of STRUCT elements at {@code rowIndex}. Recursive
+     * nested fields re-enter this same hook, so every Parquet field owns its vector write through
+     * {@link ParquetField#addToVector}.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    protected void addToVector(FieldVector vector, int rowIndex, Object value) {
+        List<ParquetDocumentInput.NestedChild> children = (List<ParquetDocumentInput.NestedChild>) value;
+        if (children.isEmpty()) {
+            throw new IllegalArgumentException("nested field value must contain at least one child element");
+        }
+        String path = children.getFirst().path;
+        if ((vector instanceof ListVector listVector) == false) {
+            throw new MismatchedInputException(
+                "No LIST vector for nested path ["
+                    + path
+                    + "] — schema reconciliation must run via updateMappingVersion before this document is written"
+            );
+        }
+
         int startOffset = listVector.startNewValue(rowIndex);
         StructVector structVector = (StructVector) listVector.getDataVector();
         for (int i = 0; i < children.size(); i++) {
@@ -163,10 +169,8 @@ public class NestedParquetField extends ParquetField {
                     parquetField.addToVector(leafVector, elemIndex, leaf.value);
                 }
             }
-            // map children of this element (e.g. a flat_object `attributes`). Write EVERY map child of
-            // the struct — even when this element has no entries for it — so each element's offset is
-            // written explicitly and deterministically rather than relying on Arrow's implicit
-            // back-fill for skipped indices.
+            // map children of this element (e.g. a flat_object `attributes`). Write every map child
+            // so each element's offset is explicit and deterministic.
             for (FieldVector childVector : structVector.getChildrenFromFields()) {
                 if (childVector instanceof MapVector mapVector) {
                     String mapFullName = path + "." + mapVector.getName();
@@ -176,7 +180,6 @@ public class NestedParquetField extends ParquetField {
                     flatObjectField.writeMapChild(mapVector, elemIndex, child.mapEntries.getOrDefault(mapFullName, List.of()));
                 }
             }
-            // deeper nested elements (e.g. replies inside a comment), grouped by their path
             if (child.children.isEmpty() == false) {
                 Map<String, List<ParquetDocumentInput.NestedChild>> innerByPath = new LinkedHashMap<>();
                 for (ParquetDocumentInput.NestedChild inner : child.children) {
@@ -184,18 +187,7 @@ public class NestedParquetField extends ParquetField {
                 }
                 for (Map.Entry<String, List<ParquetDocumentInput.NestedChild>> entry : innerByPath.entrySet()) {
                     String innerLeaf = entry.getKey().substring(path.length() + 1);
-                    FieldVector innerVector = structVector.getChild(innerLeaf);
-                    if (innerVector instanceof ListVector innerList) {
-                        writeChildList(innerList, elemIndex, entry.getKey(), entry.getValue());
-                    } else {
-                        throw new MismatchedInputException(
-                            "Struct ["
-                                + path
-                                + "] has no inner LIST child ["
-                                + innerLeaf
-                                + "] — schema reconciliation must run via updateMappingVersion before this document is written"
-                        );
-                    }
+                    addToVector(structVector.getChild(innerLeaf), elemIndex, entry.getValue());
                 }
             }
         }

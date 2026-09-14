@@ -16,13 +16,11 @@ import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -47,9 +45,8 @@ import java.util.Set;
  *   <li>a {@code flat_object} field whose value is a {@link Map.Entry} is one flattened (key, value)
  *       pair of that field's open key space, emitted per-leaf by {@code FlatObjectFieldMapper}.</li>
  * </ul>
- * Both signals feed the same element tree ({@link #childStack}/{@link #topLevelChildren}) that
- * {@link #addField} builds for ordinary nested leaves — see {@link #closeElementsNotOwning} for how
- * the tree closes as the parse walk moves between scopes, with no explicit "end of element" signal.
+ * Nested element ownership and scope finalization are delegated to {@link NestedFieldBuffer}; this
+ * class only recognizes format signals and routes root versus nested values.
  *
  * <p>Calling {@link #close()} clears all collected fields and resets the row ID,
  * allowing the instance to be discarded cleanly after use.
@@ -66,13 +63,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     private final Map<String, FieldValuePair> seen = new HashMap<>();
     private long rowId = -1;
     private boolean isClosed = false;
-    // Nested support: children buffered hierarchically, in parse order. A stack tracks currently-open
-    // elements so multi-level nesting (comments -> replies) attaches inner elements to their enclosing
-    // element instead of losing them. There is no explicit "close" signal — the stack is closed lazily,
-    // driven by the next marker/leaf/flush that no longer belongs to the open scope; see
-    // closeElementsNotOwning.
-    private final List<NestedChild> topLevelChildren = new ArrayList<>();
-    private final ArrayDeque<NestedChild> childStack = new ArrayDeque<>();
+    private final NestedFieldBuffer nestedFields = new NestedFieldBuffer();
     // Map support: entries of map-typed fields (e.g. a flat_object's attributes) emitted at the document
     // root (not inside any nested element). Keyed by the map field's full name; each entry is one
     // (key,value) pair, preserved in parse order.
@@ -114,7 +105,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     /** Returns the buffered top-level nested elements in parse order. */
     public List<NestedChild> getNestedChildren() {
-        return topLevelChildren;
+        return nestedFields.children();
     }
 
     /** Returns the document-root map fields (name -&gt; entries), for MAP columns not inside a nested field. */
@@ -131,9 +122,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         // doesn't special-case this field name just applies its own ordinary capability self-filter to
         // it, same as any other field.
         if (NestedPathFieldMapper.NAME.equals(fieldType.typeName())) {
-            String elementPath = (String) value;
-            closeElementsNotOwning(elementPath);
-            childStack.push(new NestedChild(elementPath));
+            nestedFields.startElement((String) value);
             return;
         }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap()
@@ -143,34 +132,15 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }
-        // Close out any open elements this field doesn't belong to (moving to a sibling/ancestor scope,
-        // or back out to the document root) before routing it. No-op while the stack is empty.
-        closeElementsNotOwning(fieldType.name());
         if (value instanceof Map.Entry<?, ?> && FlatObjectFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
-            // One flattened (key, value) pair of a flat_object's open key space. Lives in the innermost
-            // open element's map, or at the document root if none is open.
             @SuppressWarnings("unchecked")
             Map.Entry<String, Object> entry = (Map.Entry<String, Object>) value;
-            LinkedHashMap<String, List<Map.Entry<String, Object>>> target = childStack.isEmpty()
-                ? topLevelMapEntries
-                : childStack.peek().mapEntries;
-            target.computeIfAbsent(fieldType.name(), k -> new ArrayList<>()).add(entry);
+            if (nestedFields.addMapEntry(fieldType, entry) == false) {
+                topLevelMapEntries.computeIfAbsent(fieldType.name(), ignored -> new ArrayList<>()).add(entry);
+            }
             return;
         }
-        // Ordinary fields inside a nested scope route to the innermost open element. No dedup across
-        // different elements, but within the SAME element a repeated leaf must be rejected — the second
-        // writeValue would silently overwrite the first at the same struct index otherwise.
-        if (childStack.isEmpty() == false) {
-            NestedChild current = childStack.peek();
-            String relativeName = fieldType.name().substring(current.path.length() + 1);
-            for (NestedLeaf existingLeaf : current.fields) {
-                if (existingLeaf.name.equals(relativeName)) {
-                    throw new MapperParsingException(
-                        "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
-                    );
-                }
-            }
-            current.fields.add(new NestedLeaf(relativeName, fieldType, value));
+        if (nestedFields.addLeaf(fieldType, value)) {
             return;
         }
         FieldValuePair existing = seen.get(fieldType.name());
@@ -206,35 +176,6 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         existing.addValue(value);
     }
 
-    /**
-     * Closes open elements from the innermost outward until either the stack is empty or the new top's
-     * path is a proper dotted prefix of {@code name} — i.e. {@code name} is that element or something
-     * inside it. An element never owns itself, so a sibling/ancestor marker always closes at least the
-     * current element.
-     */
-    private void closeElementsNotOwning(String name) {
-        while (childStack.isEmpty() == false && name.startsWith(childStack.peek().path + ".") == false) {
-            closeTopElement();
-        }
-    }
-
-    /** Pops the innermost open element and attaches it to its parent (or to the top level if none). */
-    private void closeTopElement() {
-        NestedChild finished = childStack.pop();
-        if (childStack.isEmpty()) {
-            topLevelChildren.add(finished);
-        } else {
-            childStack.peek().children.add(finished);
-        }
-    }
-
-    /** Closes out every still-open element — called once parsing is done and no further signal will arrive. */
-    void flushOpenElements() {
-        while (childStack.isEmpty() == false) {
-            closeTopElement();
-        }
-    }
-
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         ensureOpen();
@@ -243,10 +184,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     @Override
     public List<FieldValuePair> getFinalInput() {
-        // No explicit "end of element" signal is emitted for the last-open element(s) of the document
-        // (unlike a leaf/marker arriving afterward, nothing arrives to drive closeElementsNotOwning) —
-        // flush them here, before the caller (VSRManager) reads getNestedChildren().
-        flushOpenElements();
+        nestedFields.finish();
         if (!isClosed) {
             assert rowId >= 0 : "Row ID must be set before calling getFinalInput";
             // assertions for parquet primary
@@ -275,12 +213,10 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     @Override
     public void close() {
-        flushOpenElements();
         isClosed = true;
         collectedFields.clear();
         seen.clear();
-        topLevelChildren.clear();
-        childStack.clear();
+        nestedFields.clear();
         topLevelMapEntries.clear();
         rowId = -1;
     }

@@ -126,8 +126,10 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertEquals("bob", input.getNestedChildren().get(1).fields.get(0).value);
     }
 
-    private static void flushOpenElements(ParquetDocumentInput input) {
-        input.flushOpenElements();
+    private void flushOpenElements(ParquetDocumentInput input) {
+        MappedFieldType sentinel = new KeywordFieldMapper.KeywordFieldType("test_flush");
+        assignTestCapabilities(sentinel, PARQUET_FORMAT);
+        input.addField(sentinel, "flush");
     }
 
     /**
