@@ -43,14 +43,14 @@ plans:
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], IS NOT NULL($74))], viableBackends=[[lucene, datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64 }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                 QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(SearchPhrase)", data_type: Int64 }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.SearchPhrase) as dc(SearchPhrase)]

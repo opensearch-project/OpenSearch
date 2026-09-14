@@ -67,7 +67,7 @@ plans:
               OpenSearchProject(RegionID=[$65], UserID=[$97], viableBackends=[[lucene, datafusion]])
                 OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64 }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
             ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
@@ -77,7 +77,7 @@ plans:
                     AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
                       DataSourceExec: file_groups={<scrubbed>}, projection=[RegionID, UserID], file_type=parquet
     shard_physical_nseg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64 }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
             ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]

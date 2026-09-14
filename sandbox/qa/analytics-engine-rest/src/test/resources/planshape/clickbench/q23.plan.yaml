@@ -67,7 +67,7 @@ plans:
                 OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($83, '%Google%', '\')), ANNOTATED_PREDICATE(id=1, backends=[lucene, datafusion], <>($74, '')), NOT(ANNOTATED_PREDICATE(id=2, backends=[lucene, datafusion], ILIKE($85, '%.google.%', '\'))))], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64 }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[count(Int64(1))@0 as c, approx_distinct(<scrubbed>.UserID)@1 as dc(UserID), SearchPhrase@2 as SearchPhrase]
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10
             ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]
@@ -78,7 +78,7 @@ plans:
                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                         QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64 }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[count(Int64(1))@0 as c, approx_distinct(<scrubbed>.UserID)@1 as dc(UserID), SearchPhrase@2 as SearchPhrase]
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10
             ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]

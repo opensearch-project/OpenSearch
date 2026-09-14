@@ -45,7 +45,7 @@ plans:
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], IS NOT NULL($97))], viableBackends=[[datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64 }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
@@ -53,7 +53,7 @@ plans:
                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                   DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 IS NOT NULL, pruning_predicate=UserID_null_count@1 != row_count@0, required_guarantees=[]
     shard_physical_nseg: |
-      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64, nullable: true }], metadata: {} }
+      RelabelExec: schema=Schema { fields: [Field { name: "dc(UserID)", data_type: Int64 }], metadata: {} }
         AggregateExec: mode=Final, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
           CoalescePartitionsExec
             AggregateExec: mode=Partial, gby=[], aggr=[approx_distinct(<scrubbed>.UserID) as dc(UserID)]
