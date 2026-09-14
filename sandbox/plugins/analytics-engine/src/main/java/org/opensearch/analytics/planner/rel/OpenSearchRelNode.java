@@ -89,8 +89,16 @@ public interface OpenSearchRelNode extends PhysicalNode {
         }
         // UNRESOLVED from here down. During Volcano an input is a RelSubset whose getInputs() is empty, so
         // resolve it to a concrete member first or the descent stops one hop short.
+        //
+        // getOriginal(), NOT getBestOrOriginal(). Two independent reasons, and the first is a hard
+        // constraint: `best` changes as the memo evolves, so a predicate built on it answers differently
+        // before and after a rule is queued, and Calcite asserts a rule's matches() is stable
+        // (`assert getRule().matches(this)` in VolcanoRuleCall#onMatch) — an unstable one fails there rather
+        // than merely planning oddly. Second, the original IS the member we want: it is the HEP-marked node
+        // whose input chain still carries the seeded scan traits, which is exactly the placement being
+        // asked about. Whatever currently wins on cost is a different question.
         if (current instanceof RelSubset subset) {
-            RelNode member = subset.getBestOrOriginal();
+            RelNode member = subset.getOriginal();
             if (member == null || member == current) {
                 return own;
             }

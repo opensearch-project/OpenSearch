@@ -222,11 +222,18 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
             // COORDINATOR) so a parent demanding COORDINATOR sees a single gather ER above
             // (one transport instead of two).
             RelTraitSet shardTraits = join.getTraitSet().replace(distTraitDef.shardSingleton(commonTableId, 1));
+            // DEMAND the shard trait of each side rather than reusing the side as-is. Both already satisfy
+            // it, so no exchange is inserted and the plan shape is unchanged — but an arm the marking phase
+            // seeded UNRESOLVED only gets a concrete subset by being asked. Reusing it verbatim leaves this
+            // alternative holding an unresolved input, which OpenSearchJoin costs at infinity, so the
+            // co-located plan silently loses to the gather-both-sides one.
+            RelNode shardLeft = convert(join.getLeft(), shardTraits);
+            RelNode shardRight = convert(join.getRight(), shardTraits);
             RelNode shardJoin = join.copy(
                 shardTraits,
                 join.getCondition(),
-                join.getLeft(),
-                join.getRight(),
+                shardLeft,
+                shardRight,
                 join.getJoinType(),
                 join.isSemiJoinDone()
             );
