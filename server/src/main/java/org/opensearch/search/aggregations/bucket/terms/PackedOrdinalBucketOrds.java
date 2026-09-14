@@ -94,6 +94,29 @@ public class PackedOrdinalBucketOrds implements MultiTermsBucketOrds {
         return true;
     }
 
+    /**
+     * Builds a packed-ordinal bucket store for the given per-field global-ordinal counts, or
+     * returns {@code null} when the ordinals cannot be packed for this aggregation and the caller
+     * must fall back to the byte-key path. The single-vs-two-long decision lives entirely here so
+     * callers stay agnostic of the packing layout:
+     * <ul>
+     *   <li>≤63 total bits → single-long path ({@link LongKeyedBucketOrds}), for any cardinality;</li>
+     *   <li>64–126 total bits → two-long path ({@link LongLongHash}), only when
+     *       {@code cardinality == ONE} — {@link LongLongHash} has no owning-bucket concept, so it is
+     *       unsafe under nested aggregations;</li>
+     *   <li>&gt;126 total bits → {@code null} (fall back).</li>
+     * </ul>
+     */
+    public static PackedOrdinalBucketOrds create(BigArrays bigArrays, CardinalityUpperBound cardinality, long[] maxOrds) {
+        if (fitsInSingleLong(maxOrds)) {
+            return new PackedOrdinalBucketOrds(bigArrays, cardinality, maxOrds);
+        }
+        if (fitsInTwoLongs(maxOrds) && cardinality == CardinalityUpperBound.ONE) {
+            return new PackedOrdinalBucketOrds(bigArrays, cardinality, maxOrds);
+        }
+        return null;
+    }
+
     long packSingleLong(long[] ordinals) {
         assert ordinals.length == numFields;
         long packed = 0;

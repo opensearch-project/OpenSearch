@@ -144,7 +144,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
         List<ValuesSource> rawValuesSources = configs.stream().map(config -> config.v1().getValuesSource()).toList();
-        MultiTermsBucketOrds ordinalBucketOrds = selectOrdinalStrategy(rawValuesSources, searchContext, cardinality);
+        MultiTermsBucketOrds ordinalBucketOrds = selectOrdinalStrategy(configs, searchContext, cardinality);
         return new MultiTermsAggregator(
             name,
             factories,
@@ -171,12 +171,17 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     }
 
     /**
-     * Returns the optimal {@link MultiTermsBucketOrds} for the given sources, or {@code null}
-     * to fall back to the default byte-key path (star-tree active, non-ordinal sources, or
-     * ordinal bit count exceeds the supported range).
+     * Returns the optimal {@link MultiTermsBucketOrds} for the given configs, or {@code null} to
+     * fall back to the default byte-key path. Falls back when a star-tree index is active, when any
+     * field is not backed by global ordinals, when any field carries an {@code include}/{@code exclude}
+     * filter (those filters are applied by the per-field {@code InternalValuesSource} collectors, which
+     * the ordinal collection path bypasses), or when {@link PackedOrdinalBucketOrds} cannot pack the
+     * ordinals for this aggregation. The choice of packed layout is delegated to
+     * {@link PackedOrdinalBucketOrds#create}, keeping this factory agnostic of the single- vs two-long
+     * implementation.
      */
     private static MultiTermsBucketOrds selectOrdinalStrategy(
-        List<ValuesSource> rawValuesSources,
+        List<Tuple<ValuesSourceConfig, IncludeExclude>> configs,
         SearchContext searchContext,
         CardinalityUpperBound cardinality
     ) throws IOException {
@@ -184,24 +189,21 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         if (StarTreeQueryHelper.getSupportedStarTree(searchContext.getQueryShardContext()) != null) {
             return null;
         }
-        for (ValuesSource vs : rawValuesSources) {
+        long[] maxOrds = new long[configs.size()];
+        for (int i = 0; i < configs.size(); i++) {
+            Tuple<ValuesSourceConfig, IncludeExclude> config = configs.get(i);
+            // include/exclude is enforced by the byte-key InternalValuesSource collectors, which the
+            // ordinal path does not run; fall back so the filter is still honored.
+            if (config.v2() != null) {
+                return null;
+            }
+            ValuesSource vs = config.v1().getValuesSource();
             if ((vs instanceof ValuesSource.Bytes.WithOrdinals) == false) {
                 return null;
             }
+            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) vs).globalMaxOrd(searchContext.searcher());
         }
-        int numFields = rawValuesSources.size();
-        long[] maxOrds = new long[numFields];
-        for (int i = 0; i < numFields; i++) {
-            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(i)).globalMaxOrd(searchContext.searcher());
-        }
-        if (PackedOrdinalBucketOrds.fitsInSingleLong(maxOrds)) {
-            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
-        }
-        // LongLongHash has no owning-bucket concept, so the two-long path is only safe at the top level.
-        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds) && cardinality == CardinalityUpperBound.ONE) {
-            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
-        }
-        return null;
+        return PackedOrdinalBucketOrds.create(searchContext.bigArrays(), cardinality, maxOrds);
     }
 
     @Override

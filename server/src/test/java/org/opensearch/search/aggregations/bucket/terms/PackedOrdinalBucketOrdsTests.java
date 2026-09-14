@@ -214,6 +214,42 @@ public class PackedOrdinalBucketOrdsTests extends OpenSearchTestCase {
         }
     }
 
+    public void testCreateSingleLongUsedUnderManyCardinality() {
+        // Tuples fitting in a single long use LongKeyedBucketOrds, which keys by owning bucket, so the
+        // single-long path is selected even for MANY (nested) aggregations — not just for ONE.
+        long[] maxOrds = { 1000, 1000 };
+        try (PackedOrdinalBucketOrds ords = PackedOrdinalBucketOrds.create(bigArrays, CardinalityUpperBound.MANY, maxOrds)) {
+            assertNotNull("single-long tuples must use the ordinal path under MANY", ords);
+            assertTrue(ords.isSingleLongPath());
+        }
+    }
+
+    public void testCreateTwoLongUnderOneCardinality() {
+        // 40 bits × 3 = 120 bits → two-long path, allowed at the top level (ONE).
+        long[] maxOrds = { 1L << 40, 1L << 40, 1L << 40 };
+        try (PackedOrdinalBucketOrds ords = PackedOrdinalBucketOrds.create(bigArrays, CardinalityUpperBound.ONE, maxOrds)) {
+            assertNotNull(ords);
+            assertFalse("64-126 bit tuples must use the two-long path", ords.isSingleLongPath());
+        }
+    }
+
+    public void testCreateTwoLongFallsBackUnderManyCardinality() {
+        // Same 120-bit tuples but MANY (nested): LongLongHash has no owning-bucket concept, so create()
+        // returns null and the caller falls back to the byte-key path.
+        long[] maxOrds = { 1L << 40, 1L << 40, 1L << 40 };
+        assertNull(
+            "two-long path must fall back under MANY cardinality",
+            PackedOrdinalBucketOrds.create(bigArrays, CardinalityUpperBound.MANY, maxOrds)
+        );
+    }
+
+    public void testCreateReturnsNullBeyond126Bits() {
+        // 43 bits × 3 = 129 bits → exceeds two-long capacity for any cardinality.
+        long[] maxOrds = { 1L << 43, 1L << 43, 1L << 43 };
+        assertNull(PackedOrdinalBucketOrds.create(bigArrays, CardinalityUpperBound.ONE, maxOrds));
+        assertNull(PackedOrdinalBucketOrds.create(bigArrays, CardinalityUpperBound.MANY, maxOrds));
+    }
+
     /** Helper: check if a list of long[] contains an array with matching content. */
     private static boolean containsArray(List<long[]> list, long[] target) {
         for (long[] item : list) {

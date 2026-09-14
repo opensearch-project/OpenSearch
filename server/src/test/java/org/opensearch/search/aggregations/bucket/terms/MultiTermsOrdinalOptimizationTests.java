@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -39,11 +40,9 @@ import java.util.Map;
 import static java.util.Arrays.asList;
 
 /**
- * End-to-end equivalence tests verifying that the ordinal-based path and the
- * bytes-based path produce identical aggregation results for the same data.
- *
- * <p><b>Property 7: Ordinal-bytes path equivalence</b></p>
- * <p><b>Validates: Requirements 5.3, 6.1, 6.2, 6.3</b></p>
+ * End-to-end tests for the packed-ordinal multi_terms path: correctness against the bytes-based
+ * path, strategy selection and fallback, and edge cases (multi-valued fields, min_doc_count=0,
+ * missing values, include/exclude).
  */
 public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
 
@@ -72,8 +71,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
      * Test with 2 keyword fields — exercises the PackedOrdinalBucketOrds (single-long) path.
      * Indexes random documents with 2 keyword fields, runs multi_terms aggregation,
      * and verifies results match expected bucket keys and doc counts.
-     *
-     * Validates: Requirements 5.3, 6.1, 6.2
      */
     public void testTwoKeywordFieldsPairPackingPath() throws IOException {
         int numDistinctValues = randomIntBetween(3, 15);
@@ -128,8 +125,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
      * Test with 3 keyword fields — exercises the PackedOrdinalBucketOrds (single-long) path.
      * Indexes random documents with 3 keyword fields, runs multi_terms aggregation,
      * and verifies results match expected bucket keys and doc counts.
-     *
-     * Validates: Requirements 5.3, 6.1, 6.2
      */
     public void testThreeKeywordFieldsPackedOrdinalsPath() throws IOException {
         int numDistinctValues = randomIntBetween(2, 8);
@@ -184,8 +179,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
     /**
      * Test with mixed keyword + numeric fields — exercises the BytesKeyedBucketOrds fallback path.
      * Verifies that when not all fields are WithOrdinals, the aggregation still produces correct results.
-     *
-     * Validates: Requirements 6.1, 6.2, 6.3
      */
     public void testMixedKeywordAndNumericFallbackPath() throws IOException {
         int numDistinctKw = randomIntBetween(3, 10);
@@ -239,8 +232,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
      * Test equivalence between ordinal path (2 keyword fields) and fallback path (keyword + int)
      * using the same underlying data. Indexes documents with both keyword and numeric representations,
      * then compares the sorted bucket results from both paths.
-     *
-     * Validates: Requirements 5.3, 6.1, 6.2
      */
     public void testOrdinalPathEquivalentToFallbackPath() throws IOException {
         // Use deterministic values so we can compare across paths
@@ -319,8 +310,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
     /**
      * Test with high-cardinality fields to exercise the ordinal path with many distinct values.
      * Verifies correct results regardless of which internal packing path is used.
-     *
-     * Validates: Requirements 5.3, 6.2
      */
     public void testHighCardinalityKeywordFields() throws IOException {
         // Generate enough distinct values to exercise the ordinal path with higher cardinality
@@ -375,8 +364,6 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
     /**
      * Test with multi-valued keyword fields (SortedSetDocValuesField) to verify
      * the cartesian product is correctly generated in the ordinal path.
-     *
-     * Validates: Requirements 5.3, 6.2
      */
     public void testMultiValuedKeywordFieldsOrdinalPath() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -446,6 +433,17 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
                 MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("test_agg").terms(
                     asList(kwConfig(KW_FIELD_1), kwConfig(KW_FIELD_2))
                 );
+
+                // Assert the packed-ordinal (single-long) strategy is actually selected — result
+                // correctness alone would also hold on the byte-key fallback path.
+                MultiTermsBucketOrds strategy = ((MultiTermsAggregator) createAggregator(builder, searcher, allFieldTypes()))
+                    .getOrdinalBucketOrds();
+                assertNotNull("two keyword fields should select the packed-ordinal path", strategy);
+                assertTrue(
+                    "low-cardinality fields should use the single-long path",
+                    ((PackedOrdinalBucketOrds) strategy).isSingleLongPath()
+                );
+
                 InternalMultiTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, allFieldTypes());
                 // Verify the ordinal path produced correct results (1 bucket with count 1)
                 assertEquals(1, result.getBuckets().size());
@@ -475,6 +473,15 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
                 MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("test_agg").terms(
                     asList(kwConfig(KW_FIELD_1), kwConfig(KW_FIELD_2), kwConfig(KW_FIELD_3))
                 );
+
+                MultiTermsBucketOrds strategy = ((MultiTermsAggregator) createAggregator(builder, searcher, allFieldTypes()))
+                    .getOrdinalBucketOrds();
+                assertNotNull("three keyword fields should select the packed-ordinal path", strategy);
+                assertTrue(
+                    "low-cardinality fields should use the single-long path",
+                    ((PackedOrdinalBucketOrds) strategy).isSingleLongPath()
+                );
+
                 InternalMultiTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, allFieldTypes());
                 assertEquals(1, result.getBuckets().size());
                 InternalMultiTerms.Bucket bucket = result.getBuckets().get(0);
@@ -503,6 +510,13 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
                 MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("test_agg").terms(
                     asList(kwConfig(KW_FIELD_1), intConfig())
                 );
+
+                // A non-ordinal (numeric) field must force the byte-key fallback: no ordinal strategy.
+                assertNull(
+                    "mixed keyword+numeric fields must fall back to the byte-key path",
+                    ((MultiTermsAggregator) createAggregator(builder, searcher, allFieldTypes())).getOrdinalBucketOrds()
+                );
+
                 InternalMultiTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, allFieldTypes());
                 assertEquals(1, result.getBuckets().size());
                 InternalMultiTerms.Bucket bucket = result.getBuckets().get(0);
@@ -514,22 +528,78 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
     }
 
     /**
-     * Test with min_doc_count=0 — exercises collectZeroDocOrdinals and the zero-doc fill path
-     * for the ordinal-based collection path.
+     * Regression test for the include/exclude gate: an all-keyword multi_terms carrying an
+     * {@code exclude} filter must fall back to the byte-key path (which applies the filter) instead of
+     * the ordinal path (which bypasses per-field filters). Asserts both the strategy fallback and that
+     * the excluded term is absent from the results.
+     */
+    public void testIncludeExcludeForcesByteKeyFallback() throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            for (String v1 : new String[] { "alpha", "beta" }) {
+                Document doc = new Document();
+                doc.add(new SortedDocValuesField(KW_FIELD_1, new BytesRef(v1)));
+                doc.add(new SortedDocValuesField(KW_FIELD_2, new BytesRef("x")));
+                iw.addDocument(doc);
+            }
+            iw.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader reader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                // Exclude "beta" on the first field.
+                MultiTermsValuesSourceConfig kw1WithExclude = new MultiTermsValuesSourceConfig.Builder().setFieldName(KW_FIELD_1)
+                    .setIncludeExclude(new IncludeExclude(null, "beta"))
+                    .build();
+                MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("test_agg").terms(
+                    asList(kw1WithExclude, kwConfig(KW_FIELD_2))
+                ).size(100);
+
+                // A field carrying include/exclude must not take the ordinal path.
+                assertNull(
+                    "include/exclude must force the byte-key fallback",
+                    ((MultiTermsAggregator) createAggregator(builder, searcher, allFieldTypes())).getOrdinalBucketOrds()
+                );
+
+                InternalMultiTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, allFieldTypes());
+                Map<String, Long> actualCounts = new HashMap<>();
+                for (InternalMultiTerms.Bucket bucket : result.getBuckets()) {
+                    actualCounts.put(bucket.getKey().get(0) + "|" + bucket.getKey().get(1), bucket.getDocCount());
+                }
+                // "beta|x" is filtered out; only "alpha|x" survives.
+                assertEquals("Excluded term must not appear", 1, actualCounts.size());
+                assertEquals(Long.valueOf(1), actualCounts.get("alpha|x"));
+                assertNull("beta must be excluded", actualCounts.get("beta|x"));
+            }
+        }
+    }
+
+    /**
+     * Test with min_doc_count=0 on the ordinal path. The {@code alpha|y} combination is indexed but
+     * excluded from the query, so it collects zero matching docs; {@code collectZeroDocOrdinals} must
+     * still surface it as an explicit zero-count bucket (the fill path scans every doc, ignoring the
+     * query).
      */
     public void testMinDocCountZeroOrdinalPath() throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            // Only add docs for some combinations; absent combos should appear with count=0
+            // Two docs that match the query (filter=1) and are counted normally.
             Document doc1 = new Document();
             doc1.add(new SortedDocValuesField(KW_FIELD_1, new BytesRef("alpha")));
             doc1.add(new SortedDocValuesField(KW_FIELD_2, new BytesRef("x")));
+            doc1.add(new IntPoint("filter", 1));
             iw.addDocument(doc1);
             Document doc2 = new Document();
             doc2.add(new SortedDocValuesField(KW_FIELD_1, new BytesRef("beta")));
             doc2.add(new SortedDocValuesField(KW_FIELD_2, new BytesRef("x")));
+            doc2.add(new IntPoint("filter", 1));
             iw.addDocument(doc2);
-            // Note: alpha|y and beta|y combos are never seen — should appear with count=0
+            // The alpha|y combination exists in the index but is excluded by the query (filter=0).
+            // With min_doc_count=0 it must still appear as a zero-count bucket via the zero-doc fill.
+            Document doc3 = new Document();
+            doc3.add(new SortedDocValuesField(KW_FIELD_1, new BytesRef("alpha")));
+            doc3.add(new SortedDocValuesField(KW_FIELD_2, new BytesRef("y")));
+            doc3.add(new IntPoint("filter", 0));
+            iw.addDocument(doc3);
             iw.close();
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader reader = wrapDirectoryReader(unwrapped)) {
@@ -538,31 +608,30 @@ public class MultiTermsOrdinalOptimizationTests extends AggregatorTestCase {
                     asList(kwConfig(KW_FIELD_1), kwConfig(KW_FIELD_2))
                 ).size(100).minDocCount(0);
 
-                InternalMultiTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, allFieldTypes());
+                // Query matches only filter=1 docs, so alpha|y collects no matching documents.
+                InternalMultiTerms result = searchAndReduce(searcher, IntPoint.newExactQuery("filter", 1), builder, allFieldTypes());
 
-                // Should have buckets for all cross products of observed values (alpha|x, beta|x at minimum;
-                // zero-doc fill adds alpha|y and beta|y if both values appeared on field 2 at all).
-                // Verify the two seen combinations have the right counts.
                 Map<String, Long> actualCounts = new HashMap<>();
                 for (InternalMultiTerms.Bucket bucket : result.getBuckets()) {
                     actualCounts.put(bucket.getKey().get(0) + "|" + bucket.getKey().get(1), bucket.getDocCount());
                 }
                 assertEquals(Long.valueOf(1), actualCounts.get("alpha|x"));
                 assertEquals(Long.valueOf(1), actualCounts.get("beta|x"));
-                // Zero-doc entries must have count 0 if present
-                for (Map.Entry<String, Long> entry : actualCounts.entrySet()) {
-                    assertTrue("Negative doc count for " + entry.getKey(), entry.getValue() >= 0);
-                }
+                // The excluded combination must be present as an explicit zero-count bucket.
+                assertTrue("Expected zero-doc bucket alpha|y to be present", actualCounts.containsKey("alpha|y"));
+                assertEquals("alpha|y must be a zero-count bucket", Long.valueOf(0), actualCounts.get("alpha|y"));
             }
         }
     }
 
     /**
-     * Test that nested multi_terms (inside a parent terms agg) falls back to the default
-     * byte-key path and produces correct per-parent-bucket results.
-     * CardinalityUpperBound is MANY for sub-aggregations, so the ordinal path is skipped entirely.
+     * Test that a nested multi_terms (inside a parent terms agg) produces correct per-parent-bucket
+     * results. Sub-aggregations have {@code CardinalityUpperBound.MANY}, but the single-long path uses
+     * {@link LongKeyedBucketOrds}, which keys by owning bucket, so low-cardinality fields still use the
+     * packed-ordinal path here — only the two-long path falls back under MANY (see
+     * {@code PackedOrdinalBucketOrdsTests#testCreateTwoLongFallsBackUnderManyCardinality}).
      */
-    public void testNestedMultiTermsFallsBackToByteKeyPath() throws IOException {
+    public void testNestedMultiTermsCorrectPerParentBucket() throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 

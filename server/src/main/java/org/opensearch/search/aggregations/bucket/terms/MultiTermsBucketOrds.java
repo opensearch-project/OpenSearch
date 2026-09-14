@@ -51,22 +51,5 @@ public interface MultiTermsBucketOrds extends Releasable {
 
         /** The ordinal tuple for the current bucket. */
         long[] ordinals();
-
-        BucketOrdsEnum EMPTY = new BucketOrdsEnum() {
-            @Override
-            public boolean next() {
-                return false;
-            }
-
-            @Override
-            public long ord() {
-                return 0;
-            }
-
-            @Override
-            public long[] ordinals() {
-                return new long[0];
-            }
-        };
     }
 }
