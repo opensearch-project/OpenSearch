@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -297,11 +296,13 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         return false;
     }
 
+    /**
+     * The arm's EFFECTIVE distribution. {@link OpenSearchRelNode#effectiveDistributionOf} sees through an
+     * operator the marking phase seeded UNRESOLVED, so the placement predicates above still read the
+     * distribution of the data below that operator. Reading the arm's own trait instead makes an UNRESOLVED
+     * seed look like "not co-located" and this rule stops registering the alternative altogether.
+     */
     private static OpenSearchDistribution distributionOf(RelNode rel) {
-        for (int i = 0; i < rel.getTraitSet().size(); i++) {
-            RelTrait trait = rel.getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution dist) return dist;
-        }
-        return null;
+        return OpenSearchRelNode.effectiveDistributionOf(rel);
     }
 }

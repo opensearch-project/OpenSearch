@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelDistribution;
@@ -30,6 +29,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.spi.AggregateFunction;
@@ -223,18 +223,20 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * trait is present yet (Volcano still exploring — the cost gate on SINGLE is the backstop).
      */
     private static boolean isPartitioned(RelNode input) {
-        for (int i = 0; i < input.getTraitSet().size(); i++) {
-            RelTrait trait = input.getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution dist) {
-                // RANDOM+SHARD: a multi-shard scan, the original case. HASH+WORKER: the output of a
-                // distributed join or a shuffle — also partitioned, and the shape the aggregate-over-join
-                // split (q5/q10) needs. Accepting only RANDOM made this rule and the post-CBO pass agree
-                // on NOTHING: the pass's own isPartitioned means HASH+WORKER exclusively, so the two
-                // predicates covered disjoint sets and the rule could never produce the agg-over-join split.
-                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED || dist.getType() == RelDistribution.Type.HASH_DISTRIBUTED;
-            }
+        // effectiveDistributionOf, not the input's own trait: an operator the marking phase seeded
+        // UNRESOLVED (Type.ANY) is neither RANDOM nor HASH, so reading its own trait reports "not
+        // partitioned" and this rule registers only the gather-everything alternative — the split is never
+        // offered at all, which no later costing can recover.
+        OpenSearchDistribution dist = OpenSearchRelNode.effectiveDistributionOf(input);
+        if (dist == null) {
+            return false;
         }
-        return false;
+        // RANDOM+SHARD: a multi-shard scan, the original case. HASH+WORKER: the output of a
+        // distributed join or a shuffle — also partitioned, and the shape a GROUP BY over a
+        // distributed join needs. Accepting only RANDOM made this rule and the post-CBO pass agree
+        // on NOTHING: the pass's own isPartitioned means HASH+WORKER exclusively, so the two
+        // predicates covered disjoint sets and the rule could never produce the agg-over-join split.
+        return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED || dist.getType() == RelDistribution.Type.HASH_DISTRIBUTED;
     }
 
     /**

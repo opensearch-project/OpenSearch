@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelDistribution;
@@ -25,6 +24,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 
 /**
@@ -212,11 +212,13 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
             && rd.getLocality() == OpenSearchDistribution.Locality.WORKER;
     }
 
+    /**
+     * The arm's EFFECTIVE distribution. {@link OpenSearchRelNode#effectiveDistributionOf} sees through an
+     * operator the marking phase seeded UNRESOLVED, so {@link #isShardScan} still reads the SHARD locality
+     * of the scan below it. Reading the arm's own trait instead makes an UNRESOLVED seed look non-SHARD and
+     * this rule stops registering the hash-shuffle alternative at all.
+     */
     private static OpenSearchDistribution distributionOf(RelNode rel) {
-        for (int i = 0; i < rel.getTraitSet().size(); i++) {
-            RelTrait trait = rel.getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution dist) return dist;
-        }
-        return null;
+        return OpenSearchRelNode.effectiveDistributionOf(rel);
     }
 }

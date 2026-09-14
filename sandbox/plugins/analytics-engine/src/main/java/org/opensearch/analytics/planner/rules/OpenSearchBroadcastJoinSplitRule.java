@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -25,6 +24,7 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 
 /**
  * Broadcast-join split rule (M2). Sibling of {@link OpenSearchJoinSplitRule} (coord-centric)
@@ -339,12 +339,15 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         return dist.getLocality() == OpenSearchDistribution.Locality.SHARD;
     }
 
+    /**
+     * The side's EFFECTIVE distribution. {@link OpenSearchRelNode#effectiveDistributionOf} sees through an
+     * operator the marking phase seeded UNRESOLVED. That matters twice here: {@link #isShardScan} would read
+     * an UNRESOLVED seed as non-SHARD and skip the broadcast alternative, and worse, {@code probeDist} feeds
+     * {@code distTraitDef.from(probeDist)} — an UNRESOLVED probe would stamp the join itself UNRESOLVED
+     * rather than bail, since the null guard there does not catch ANY.
+     */
     private static OpenSearchDistribution distributionOf(RelNode rel) {
-        for (int i = 0; i < rel.getTraitSet().size(); i++) {
-            RelTrait trait = rel.getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution dist) return dist;
-        }
-        return null;
+        return OpenSearchRelNode.effectiveDistributionOf(rel);
     }
 
     @SuppressWarnings("unused")

@@ -10,10 +10,13 @@ package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.PhysicalNode;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
@@ -41,6 +44,76 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public interface OpenSearchRelNode extends PhysicalNode {
+
+    /** Recursion cap for {@link #effectiveDistributionOf}, so a cyclic memo cannot spin. */
+    int EFFECTIVE_DISTRIBUTION_MAX_DEPTH = 64;
+
+    /**
+     * The distribution the data reaching {@code rel} actually lives at, seeing THROUGH the UNRESOLVED
+     * seeds the HEP marking phase leaves behind.
+     *
+     * <p>Why this exists rather than reading {@code rel.getTraitSet()} directly. The Volcano split rules
+     * ask a placement question about their input — "are both arms the same single-shard table?", "is this
+     * arm a shard-local scan?", "is this input partitioned?" — and they use the answer to decide whether to
+     * REGISTER an alternative at all. A marking rule that seeds {@code any()} answers that question with
+     * {@code locality=null, type=ANY}, which every one of those predicates reads as "no", so the
+     * alternative is never registered and the plan silently falls back to coordinator-gathering. That is
+     * not a costing question the search can recover from later: the alternative does not exist.
+     *
+     * <p>So an UNRESOLVED node is asked what it WOULD deliver over its input's effective distribution, via
+     * the same {@link #deriveTraits} hook the top-down search uses. Delegating keeps this resolver from
+     * drifting away from the hooks: an operator that changes its mind about what it delivers changes both
+     * answers at once. An operator that declines to derive (or is not single-input, or whose input is
+     * itself unresolved) keeps its UNRESOLVED answer, so callers stay as conservative as they were before.
+     *
+     * @return the effective distribution, or null when {@code rel} carries no distribution trait at all —
+     *         which is NOT the same as UNRESOLVED and callers already treat as "unknown, do not act"
+     */
+    static OpenSearchDistribution effectiveDistributionOf(RelNode rel) {
+        return effectiveDistributionOf(rel, EFFECTIVE_DISTRIBUTION_MAX_DEPTH);
+    }
+
+    private static OpenSearchDistribution effectiveDistributionOf(RelNode rel, int remainingDepth) {
+        if (rel == null || remainingDepth <= 0) {
+            return null;
+        }
+        RelNode current = RelNodeUtils.unwrapHep(rel);
+        // The node's OWN trait wins whenever it makes a claim, and that includes a RelSubset: a subset's
+        // trait set IS the placement its members deliver, so it must be read BEFORE resolving to a member.
+        // Resolving first and reading the member's traits reports something else entirely — the member may
+        // be the marking phase's UNRESOLVED seed, or sit at a different distribution than the subset — which
+        // silently changes every predicate built on this.
+        OpenSearchDistribution own = distributionOf(current.getTraitSet());
+        if (own == null || own.getType() != RelDistribution.Type.ANY) {
+            return own;
+        }
+        // UNRESOLVED from here down. During Volcano an input is a RelSubset whose getInputs() is empty, so
+        // resolve it to a concrete member first or the descent stops one hop short.
+        if (current instanceof RelSubset subset) {
+            RelNode member = subset.getBestOrOriginal();
+            if (member == null || member == current) {
+                return own;
+            }
+            OpenSearchDistribution resolved = effectiveDistributionOf(member, remainingDepth - 1);
+            return resolved == null ? own : resolved;
+        }
+        if (current.getInputs().size() != 1 || !(current instanceof OpenSearchRelNode physical)) {
+            return own;
+        }
+        OpenSearchDistribution childDistribution = effectiveDistributionOf(current.getInput(0), remainingDepth - 1);
+        if (childDistribution == null || childDistribution.getType() == RelDistribution.Type.ANY) {
+            return own;
+        }
+        Pair<RelTraitSet, List<RelTraitSet>> derived = physical.deriveTraits(
+            current.getInput(0).getTraitSet().replace(childDistribution),
+            0
+        );
+        if (derived == null) {
+            return own;
+        }
+        OpenSearchDistribution delivered = distributionOf(derived.left);
+        return delivered == null ? own : delivered;
+    }
 
     /** Returns the {@link OpenSearchDistribution} carried by {@code traits}, or null if absent. */
     static OpenSearchDistribution distributionOf(RelTraitSet traits) {
