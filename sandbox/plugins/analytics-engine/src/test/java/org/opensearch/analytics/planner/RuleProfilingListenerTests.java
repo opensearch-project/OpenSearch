@@ -58,8 +58,12 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchTableScanRule",
                 1L,
+                // 0, not 1: the marking phase seeds the Project UNRESOLVED, so the root's SINGLETON demand
+                // reaches it through passThroughTraits and the gather is placed by Convention.enforce. There
+                // is no AbstractConverter left for this rule to expand — the same progression the aggregate
+                // and join cases already record.
                 "ExpandConversionRule",
-                1L
+                0L
             )
         );
     }
@@ -79,8 +83,11 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchTableScanRule",
                 1L,
+                // 0, not 1: same cause as testProfilePureScan — the UNRESOLVED Project seed routes the root's
+                // SINGLETON demand through passThroughTraits / Convention.enforce, leaving no abstract
+                // converter to expand.
                 "ExpandConversionRule",
-                1L,
+                0L,
                 // trim-first enables the pushdown cascade: Filter pushed past Project, then merged.
                 "FilterProjectTransposeRule",
                 1L,
@@ -102,10 +109,11 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                // 8, not 1: the marking phase seeds the aggregate UNRESOLVED, so this rule matches once per
-                // (aggregate, input-subset) pair the memo forms rather than once against a pre-stamped trait.
+                // 11, not 1: the marking phase seeds the aggregate UNRESOLVED, so this rule matches once per
+                // (aggregate, input-subset) pair the memo forms rather than once against a pre-stamped trait —
+                // and the Project below it is seeded UNRESOLVED too, so more distinct input subsets form.
                 // The extra firings are search space, not extra plan nodes — the chosen plan is unchanged.
-                Map.entry("OpenSearchAggregateSplitRule", 8L),
+                Map.entry("OpenSearchAggregateSplitRule", 11L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 // OpenSearchDistributionDeriveRule is GONE (deleted with the move to top-down traits —
                 // its job is now OpenSearch*.deriveTraits). It previously added SINGLETON spine variants,

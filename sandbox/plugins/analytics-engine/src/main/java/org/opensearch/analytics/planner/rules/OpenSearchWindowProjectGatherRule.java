@@ -65,8 +65,12 @@ public class OpenSearchWindowProjectGatherRule extends RelOptRule {
         if (distribution == null) {
             return false;
         }
-        // ANY is Volcano's "still exploring" placeholder — no decision to correct yet.
-        return distribution.getType() != RelDistribution.Type.SINGLETON && distribution.getType() != RelDistribution.Type.ANY;
+        // An UNRESOLVED (ANY) project MUST match: that is the marking phase's seed, and it is the case this
+        // rule exists for. passThroughTraits is not always offered a chance to state the requirement, so
+        // skipping the seed would leave a window project over partitioned input with no gathered alternative
+        // from EITHER path and the query fails outright. Excluding ANY only looked safe while the marking rule
+        // seeded a concrete trait, which always left this rule a concrete node to fire on.
+        return distribution.getType() != RelDistribution.Type.SINGLETON;
     }
 
     @Override

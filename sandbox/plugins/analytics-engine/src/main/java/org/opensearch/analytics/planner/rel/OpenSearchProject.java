@@ -12,7 +12,6 @@ import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -49,12 +48,12 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
     private final List<String> viableBackends;
 
     /**
-     * When true, this Project must stay ABOVE the ExchangeReducer (in the coordinator fragment) —
-     * {@link #computeSelfCost} returns infinite cost unless its input is already gathered
-     * (SINGLETON/ANY), forcing Volcano to place an ER below it. Used to keep an aggregate's literal
-     * config arg (e.g. percentile's {@code 50}) adjacent to the aggregate while a duplicate,
-     * unpinned, physical-only Project pushes below the gather for projection-pushdown. Mirrors the
-     * RexOver gate, which has the same coordinator-side requirement.
+     * When true, this Project must stay ABOVE the ExchangeReducer (in the coordinator fragment) — it DEMANDS
+     * a gathered input via {@link #passThroughTraits}, so Volcano places an ER below it, and
+     * {@link #assertPlacementIsLegal} catches any builder that constructs it over partitioned input anyway.
+     * Used to keep an aggregate's literal config arg (e.g. percentile's {@code 50}) adjacent to the aggregate
+     * while a duplicate, unpinned, physical-only Project pushes below the gather for projection-pushdown.
+     * Mirrors the RexOver requirement, which is coordinator-side for the same reason.
      */
     private final boolean pinAboveExchange;
 
@@ -121,34 +120,66 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
     }
 
     /**
-     * Projects containing {@code RexOver} (window functions) need fully-gathered input so the
-     * window's global frame semantics are correct. Projects flagged {@link #pinAboveExchange} must
-     * likewise stay in the coordinator fragment (they carry an aggregate's literal config arg). Both
-     * return infinite cost unless input is SINGLETON/ANY — Volcano then picks the plan where an ER
-     * sits under this project.
+     * A Project costs nothing of its own. The one real cost here is the invariant every operator shares: an
+     * input whose placement is still UNRESOLVED has no defined cost, because nothing above it has a defined
+     * location or a defined correctness. The marking phase deliberately registers such a seed (see
+     * {@code OpenSearchProjectRule}), and this is what confines it to the ANY subset so only the concrete
+     * alternatives {@link #passThroughTraits} / {@link #deriveTraits} and
+     * {@code OpenSearchWindowProjectGatherRule} produce are consumable.
      *
-     * <p>Plain projects (neither) have no ordering requirement — tiny cost unconditionally.
+     * <p>The placement REQUIREMENT — a window or pinned Project needs gathered input — is asserted, not
+     * priced. See {@link #assertPlacementIsLegal}.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         if (hasUnresolvedInput()) {
             return planner.getCostFactory().makeInfiniteCost();
         }
-        if (!containsOver() && !pinAboveExchange) {
-            return planner.getCostFactory().makeTinyCost();
-        }
-        // containsOver() is Calcite's own — inherited from Project.
-        for (int i = 0; i < getInput().getTraitSet().size(); i++) {
-            RelTrait trait = getInput().getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution distribution) {
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
-            }
-        }
+        assert assertPlacementIsLegal();
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    /**
+     * The placement a window / pinned Project implies. ASSERTED rather than priced, and asserted rather than
+     * deleted, because a violation is a silently WRONG RESULT: a {@code RexOver} frame is global, so running
+     * it per-partition computes each window over a fraction of the rows, and a pinned literal config arg
+     * evaluated shard-side detaches from the aggregate it belongs to.
+     *
+     * <p>Unreachable because the requirement is stated in every direction that can build this node:
+     * {@link #passThroughTraits} turns the demand into a SINGLETON demand on its own input,
+     * {@link #getDeriveMode} returns {@code PROHIBITED} so Calcite cannot derive a partitioned variant into
+     * it, and {@code OpenSearchWindowProjectGatherRule} registers the gathered alternative unconditionally.
+     * A plain Project has no placement requirement at all and always passes.
+     *
+     * @return always {@code true}, so this reads as {@code assert assertPlacementIsLegal()}
+     * @throws IllegalStateException when a window / pinned Project meets input it cannot correctly consume
+     */
+    private boolean assertPlacementIsLegal() {
+        // containsOver() is Calcite's own — inherited from Project.
+        if (!containsOver() && !pinAboveExchange) {
+            return true;
+        }
+        // An UNRESOLVED seed makes no placement claim, so it cannot contradict its input; only a node that has
+        // COMMITTED to a distribution can be illegal.
+        OpenSearchDistribution selfDistribution = OpenSearchRelNode.distributionOf(getTraitSet());
+        if (selfDistribution == null || selfDistribution.getType() == RelDistribution.Type.ANY) {
+            return true;
+        }
+        // No distribution trait at all is not the same as an unresolved one: it carries no placement claim
+        // either way, so there is nothing to check.
+        OpenSearchDistribution inputDistribution = OpenSearchRelNode.distributionOf(getInput().getTraitSet());
+        if (inputDistribution == null) {
+            return true;
+        }
+        if (inputDistribution.getType() != RelDistribution.Type.SINGLETON) {
+            throw new IllegalStateException(
+                (containsOver() ? "Window" : "Pinned")
+                    + " project over partitioned input ["
+                    + inputDistribution
+                    + "] would evaluate a global frame per-partition"
+            );
+        }
+        return true;
     }
 
     /**
