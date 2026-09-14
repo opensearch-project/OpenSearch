@@ -16,6 +16,7 @@ import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;

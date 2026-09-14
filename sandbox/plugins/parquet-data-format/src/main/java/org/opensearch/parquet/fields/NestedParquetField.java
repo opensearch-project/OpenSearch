@@ -132,13 +132,14 @@ public class NestedParquetField extends ParquetField {
             throw new IllegalArgumentException("nested field value must contain at least one child element");
         }
         String path = children.getFirst().path;
-        if ((vector instanceof ListVector listVector) == false) {
+        if (vector instanceof ListVector == false) {
             throw new MismatchedInputException(
                 "No LIST vector for nested path ["
                     + path
                     + "] — schema reconciliation must run via updateMappingVersion before this document is written"
             );
         }
+        ListVector listVector = (ListVector) vector;
 
         int startOffset = listVector.startNewValue(rowIndex);
         StructVector structVector = (StructVector) listVector.getDataVector();
