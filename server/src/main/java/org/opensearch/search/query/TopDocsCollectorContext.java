@@ -865,8 +865,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 searchContext.searchAfter()
             );
         } else if (isConstantZeroScoreQuery(query) && searchContext.sort() == null && searchContext.rescore().isEmpty()) {
-            // Filter-only query: all documents score 0.0 (BoostQuery^0.0).
-            // No need to score — just collect first N doc-IDs and count total hits.
+            // filter-only (all docs score 0.0): skip scoring, just collect the first N doc-ids and count
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             return new FilterOnlyTopDocsCollectorContext(reader, query, numDocs, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else {
@@ -935,25 +934,22 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
     }
 
     /**
-     * Returns true if the query is a filter-only query that produces a constant score of 0.0
-     * for all matching documents. This is the case when a BooleanQuery with only FILTER clauses
-     * is rewritten to BoostQuery(ConstantScoreQuery(...), 0.0).
+     * True for a filter-only query, i.e. a BooleanQuery with only FILTER clauses that rewrites to
+     * BoostQuery(ConstantScoreQuery(...), 0.0) so every match scores 0.0.
      */
     static boolean isConstantZeroScoreQuery(Query query) {
         return query instanceof BoostQuery bq && bq.getBoost() == 0f;
     }
 
     /**
-     * A collector context for filter-only queries where all documents score 0.0.
-     * Uses ScoreMode.COMPLETE_NO_SCORES to avoid any scoring overhead, collects
-     * the first N doc-IDs (since all scores are tied, doc-ID order determines the result),
-     * and counts total hits without scoring.
+     * Collector context for filter-only queries (all docs score 0.0). Uses COMPLETE_NO_SCORES and
+     * collects the first N doc-ids by doc-id order (scores are all tied), counting total hits.
      */
     static class FilterOnlyTopDocsCollectorContext extends TopDocsCollectorContext {
         private final int trackTotalHitsUpTo;
         private final int hitCount;
         private final int numHits;
-        // stop once we've got numHits AND counted this many; 0 = stop right away, MAX_VALUE = never
+        // stop once we have numHits AND counted this many; 0 = stop immediately, MAX_VALUE = never
         private final int earlyTerminateThreshold;
         private FilterOnlyCollector filterCollector;
 
@@ -1037,7 +1033,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
     static class FilterOnlyCollector implements Collector {
         final int numHits;
         final int earlyTerminateThreshold;
-        // shared across slices so termination decision is global
+        // shared across slices so the termination decision is global
         final java.util.concurrent.atomic.LongAdder globalHitCount;
         int totalHits = 0;
         final List<ScoreDoc> collectedDocs = new ArrayList<>();
@@ -1059,7 +1055,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         public org.apache.lucene.search.LeafCollector getLeafCollector(LeafReaderContext context) {
-            // skip remaining leaves once we're done — CollectionTerminatedException only ends the current leaf
+            // skip remaining leaves once done; CollectionTerminatedException only ends the current leaf
             if (canTerminate()) {
                 throw new org.apache.lucene.search.CollectionTerminatedException();
             }

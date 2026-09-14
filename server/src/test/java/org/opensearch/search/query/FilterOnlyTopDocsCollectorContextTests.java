@@ -59,9 +59,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for the FilterOnlyTopDocsCollectorContext optimization (filter-only queries).
- * Parameterized over single-threaded and concurrent search to cover both postProcess
- * and createManager/reduce paths.
+ * Tests for FilterOnlyTopDocsCollectorContext. Parameterized over single-threaded and concurrent
+ * search to cover both the postProcess and createManager/reduce paths.
  */
 public class FilterOnlyTopDocsCollectorContextTests extends IndexShardTestCase {
 
@@ -123,7 +122,7 @@ public class FilterOnlyTopDocsCollectorContextTests extends IndexShardTestCase {
         assertFalse(TopDocsCollectorContext.isConstantZeroScoreQuery(new ConstantScoreQuery(new MatchAllDocsQuery())));
     }
 
-    // Correct results — matches baseline SimpleTopDocsCollectorContext
+    // Correct results, matching baseline SimpleTopDocsCollectorContext
 
     public void testFilterOnlyReturnsCorrectDocumentsMatchingBaseline() throws Exception {
         Directory dir = newDirectory();
