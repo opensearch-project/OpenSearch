@@ -8,15 +8,55 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
@@ -293,6 +333,250 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
         WildcardFieldMapper.WildcardMatchingQuery q3 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "other*");
         assertNotEquals(q1, q3);
+
+        WildcardFieldMapper.WildcardMatchingQuery q4 = new WildcardFieldMapper.WildcardMatchingQuery("other_field", bq, "test*");
+        assertNotEquals(q1, q4);
+    }
+
+    /**
+     * The query is admitted to the query cache, so two queries that compare equal must select the same documents.
+     * The second-phase matcher is a lambda that cannot be compared, so the flags it was compiled with have to be
+     * part of the identity.
+     */
+    public void testFlagsAffectEquality() {
+        Query firstPhase = new TermQuery(new Term("field", "abc"));
+        Predicate<String> anyMatcher = s -> true;
+        WildcardFieldMapper.WildcardMatchingQuery base = new WildcardFieldMapper.WildcardMatchingQuery(
+            "field",
+            firstPhase,
+            anyMatcher,
+            "abc",
+            0,
+            0,
+            null,
+            null
+        );
+        assertEquals(base, new WildcardFieldMapper.WildcardMatchingQuery("field", firstPhase, anyMatcher, "abc", 0, 0, null, null));
+        assertEquals(
+            base.hashCode(),
+            new WildcardFieldMapper.WildcardMatchingQuery("field", firstPhase, anyMatcher, "abc", 0, 0, null, null).hashCode()
+        );
+        assertNotEquals(
+            base,
+            new WildcardFieldMapper.WildcardMatchingQuery(
+                "field",
+                firstPhase,
+                anyMatcher,
+                "abc",
+                0,
+                RegExp.ASCII_CASE_INSENSITIVE,
+                null,
+                null
+            )
+        );
+        assertNotEquals(
+            base,
+            new WildcardFieldMapper.WildcardMatchingQuery("field", firstPhase, anyMatcher, "abc", RegExp.INTERVAL, 0, null, null)
+        );
+    }
+
+    /**
+     * A regexp union of single characters approximates with the field's exists query regardless of case sensitivity
+     * and keeps the same pattern string, which leaves the match flags as the only thing telling the two apart.
+     */
+    public void testCaseInsensitiveRegexpQueryIsNotEqualToCaseSensitiveOne() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        String pattern = "a|b";
+        Query caseSensitive = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        Query caseInsensitive = ft.regexpQuery(pattern, 0, RegExp.ASCII_CASE_INSENSITIVE, 1000, null, null);
+
+        // Same field, same approximation, same pattern string.
+        Query sameFieldAndApproximation = new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/" + pattern + "/");
+        assertEquals(sameFieldAndApproximation, caseSensitive);
+        assertNotEquals(sameFieldAndApproximation, caseInsensitive);
+        assertNotEquals(caseSensitive, caseInsensitive);
+
+        // ... but they verify candidates differently.
+        assertFalse(((WildcardFieldMapper.WildcardMatchingQuery) caseSensitive).getSecondPhaseMatcher().test("A"));
+        assertTrue(((WildcardFieldMapper.WildcardMatchingQuery) caseInsensitive).getSecondPhaseMatcher().test("A"));
+    }
+
+    /**
+     * Wildcard patterns with a literal already get a case-dependent first phase, so the two queries differ today
+     * even without the flags. The flags keep them apart should the approximation ever become case-agnostic.
+     */
+    public void testCaseInsensitiveWildcardQueryIsNotEqualToCaseSensitiveOne() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        Query caseSensitive = ft.wildcardQuery("*A*", null, false, null);
+        Query caseInsensitive = ft.wildcardQuery("*A*", null, true, null);
+
+        assertNotEquals(caseSensitive, caseInsensitive);
+        assertFalse(((WildcardFieldMapper.WildcardMatchingQuery) caseSensitive).getSecondPhaseMatcher().test("xax"));
+        assertTrue(((WildcardFieldMapper.WildcardMatchingQuery) caseInsensitive).getSecondPhaseMatcher().test("xax"));
+    }
+
+    /**
+     * The value fetcher used for second-phase verification must be fully resolved when the query is built. A
+     * {@link WildcardFieldMapper.WildcardMatchingQuery} outlives its request once the query cache keeps it as a
+     * cache key, so reaching back into the {@link QueryShardContext} at scorer time would pin the shard's
+     * {@code IndexSearcher} and segment readers on the heap. See issue 22419.
+     */
+    public void testValueFetcherSupplierResolvesSourcePathsUpFront() throws IOException {
+        WildcardFieldMapper.WildcardFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.sourcePath("field")).thenReturn(Set.of("field"));
+
+        Supplier<ValueFetcher> supplier = ft.valueFetcherSupplier(context);
+        verify(context).sourcePath("field");
+        clearInvocations(context);
+
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Map.of("field", "apple"));
+        assertEquals(List.of("apple"), supplier.get().fetchValues(lookup));
+        assertEquals(List.of("apple"), supplier.get().fetchValues(lookup));
+        assertEquals(ft.valueFetcher(context, null, null).fetchValues(lookup), supplier.get().fetchValues(lookup));
+        clearInvocations(context);
+        assertEquals(List.of("apple"), supplier.get().fetchValues(lookup));
+        verifyNoMoreInteractions(context);
+    }
+
+    /**
+     * Doc-values enabled fields fetch through {@link DocValueFetcher}, exactly as
+     * {@link WildcardFieldMapper.WildcardFieldType#valueFetcher} already did for the query-phase lookup. The
+     * {@link IndexFieldData} is index-level state, resolved once when the query is built.
+     */
+    public void testValueFetcherSupplierUsesDocValuesWhenAvailable() {
+        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder("field").docValues(true);
+        WildcardFieldMapper.WildcardFieldType ft = new WildcardFieldMapper.WildcardFieldType("field", Lucene.KEYWORD_ANALYZER, builder);
+        assertTrue(ft.hasDocValues());
+
+        QueryShardContext context = mock(QueryShardContext.class);
+        IndexFieldData<?> fieldData = mock(IndexFieldData.class);
+        doReturn(fieldData).when(context).getForField(ft);
+
+        Supplier<ValueFetcher> supplier = ft.valueFetcherSupplier(context);
+        verify(context).getForField(ft);
+        clearInvocations(context);
+
+        assertThat(supplier.get(), instanceOf(DocValueFetcher.class));
+        assertThat(supplier.get(), instanceOf(DocValueFetcher.class));
+        verifyNoMoreInteractions(context);
+    }
+
+    /**
+     * End-to-end check that a query which entered the query cache still verifies candidates against field values on
+     * a later request, and that it never calls back into the {@link QueryShardContext} that built it.
+     */
+    public void testSecondPhaseSurvivesQueryCaching() throws IOException {
+        WildcardFieldMapper.WildcardFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.sourcePath("field")).thenReturn(Set.of("field"));
+
+        // The first phase can only require the "ple" trigram, so "purple" is a candidate that only the second
+        // phase can reject.
+        String pattern = "*a?ple*";
+        assertEquals(Set.of("ple"), WildcardFieldMapper.WildcardFieldType.getRequiredNGrams(pattern, false));
+
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+                writer.addDocument(wildcardFieldDocument("apple"));
+                writer.addDocument(wildcardFieldDocument("purple"));
+                writer.addDocument(wildcardFieldDocument("banana"));
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                LRUQueryCache cache = new LRUQueryCache(100, 100_000, leaf -> true, 1f);
+                searcher.setQueryCache(cache);
+                searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+                    @Override
+                    public void onUse(Query query) {}
+
+                    @Override
+                    public boolean shouldCache(Query query) {
+                        return true;
+                    }
+                });
+
+                Query query = ft.wildcardQuery(pattern, null, false, context);
+                Query equalQuery = ft.wildcardQuery(pattern, null, false, context);
+                assertEquals(query, equalQuery);
+
+                WildcardFieldMapper.WildcardMatchingQuery matchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) query;
+                assertTrue(matchingQuery.getSecondPhaseMatcher().test("apple"));
+                assertFalse(matchingQuery.getSecondPhaseMatcher().test("purple"));
+
+                clearInvocations(context);
+
+                assertEquals(1, countMatches(searcher, query));
+                long entriesAfterFirstRun = cache.getCacheCount();
+                assertThat(entriesAfterFirstRun, greaterThan(0L));
+
+                // An equal query built by a later request must be answered from the cache with the same documents.
+                assertEquals(1, countMatches(searcher, equalQuery));
+                assertEquals(entriesAfterFirstRun, cache.getCacheCount());
+                assertThat(cache.getHitCount(), greaterThan(0L));
+
+                // Neither run consulted the query shard context.
+                verifyNoMoreInteractions(context);
+            }
+        }
+    }
+
+    /**
+     * Queries built without a {@link QueryShardContext} cannot fetch field values, so they cannot verify
+     * candidates. Running one has to fail loudly rather than silently returning first-phase false positives.
+     */
+    public void testQueryWithoutShardContextCannotVerifyCandidates() throws IOException {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+                writer.addDocument(wildcardFieldDocument("apple"));
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                Query needsVerification = ft.wildcardQuery("*a?ple*", null, null);
+                IllegalStateException e = expectThrows(IllegalStateException.class, () -> countMatches(searcher, needsVerification));
+                assertThat(e.getMessage(), containsString("built without a QueryShardContext"));
+
+                // A second phase that accepts everything needs no verification.
+                Query matchAllSecondPhase = new WildcardFieldMapper.WildcardMatchingQuery("field", new MatchAllDocsQuery(), "*a?ple*");
+                assertEquals(1, countMatches(searcher, matchAllSecondPhase));
+            }
+        }
+    }
+
+    private static int countMatches(IndexSearcher searcher, Query query) throws IOException {
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        int count = 0;
+        for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+            ScorerSupplier scorerSupplier = weight.scorerSupplier(leaf);
+            if (scorerSupplier == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = scorerSupplier.get(Long.MAX_VALUE).iterator();
+            while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Indexes a value the way {@link WildcardFieldMapper} does: trigrams for the first phase plus {@code _source}. */
+    private static Document wildcardFieldDocument(String value) {
+        FieldType ngramFieldType = new FieldType();
+        ngramFieldType.setIndexOptions(IndexOptions.DOCS);
+        ngramFieldType.setTokenized(true);
+        ngramFieldType.setOmitNorms(true);
+        ngramFieldType.freeze();
+
+        Tokenizer tokenizer = new WildcardFieldMapper.WildcardFieldTokenizer();
+        tokenizer.setReader(new StringReader(value));
+
+        Document document = new Document();
+        document.add(new Field("field", tokenizer, ngramFieldType));
+        document.add(new StoredField(SourceFieldMapper.NAME, new BytesRef("{\"field\":\"" + value + "\"}")));
+        return document;
     }
 
     public void testRegexpMatchAll() {
