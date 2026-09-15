@@ -13,15 +13,18 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +35,19 @@ import java.util.Set;
  * <p>Implements {@link DocumentInput} to collect field-value pairs incrementally during
  * document indexing. Fields are stored as {@link FieldValuePair} objects and later transferred
  * to Arrow vectors by {@link org.opensearch.parquet.vsr.VSRManager#addDocument(ParquetDocumentInput)}.
+ *
+ * <p>{@code nested} and {@code flat_object} data arrive through the SAME generic {@link #addField}
+ * every other field uses — there is no nested-specific method on the {@link DocumentInput} SPI. Two
+ * signals are recognized specially, by inspecting the field being added, entirely inside this class:
+ * <ul>
+ *   <li>a field whose {@link MappedFieldType#typeName()} is {@link NestedPathFieldMapper#NAME} is the
+ *       "a new nested array element starts here" marker emitted once per element by
+ *       {@code DocumentParser#nestedContext}; its value is the element's full dotted path.</li>
+ *   <li>a {@code flat_object} field whose value is a {@link Map.Entry} is one flattened (key, value)
+ *       pair of that field's open key space, emitted per-leaf by {@code FlatObjectFieldMapper}.</li>
+ * </ul>
+ * Nested element ownership and scope finalization are delegated to {@link NestedFieldBuffer}; this
+ * class only recognizes format signals and routes root versus nested values.
  *
  * <p>Calling {@link #close()} clears all collected fields and resets the row ID,
  * allowing the instance to be discarded cleanly after use.
@@ -48,15 +64,84 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     private final Map<String, FieldValuePair> seen = new HashMap<>();
     private long rowId = -1;
     private boolean isClosed = false;
+    private final NestedFieldBuffer nestedFields = new NestedFieldBuffer();
+    // Map support: entries of map-typed fields (e.g. a flat_object's attributes) emitted at the document
+    // root (not inside any nested element). Keyed by the map field's full name; each entry is one
+    // (key,value) pair, preserved in parse order.
+    private final LinkedHashMap<String, List<Map.Entry<String, Object>>> topLevelMapEntries = new LinkedHashMap<>();
+
+    /**
+     * One nested array element: its full dotted path (e.g. "comments"), its leaf field
+     * values in parse order, any deeper nested elements it contains (e.g. replies), and any
+     * map-typed fields (e.g. a flat_object {@code attributes}) buffered as key/value entries.
+     */
+    public static class NestedChild {
+        public final String path;
+        public final List<NestedLeaf> fields = new ArrayList<>();
+        public final List<NestedChild> children = new ArrayList<>();
+        // map field full name -> its (key,value) entries in parse order (one MAP<Utf8,Utf8> per key).
+        public final LinkedHashMap<String, List<Map.Entry<String, Object>>> mapEntries = new LinkedHashMap<>();
+
+        NestedChild(String path) {
+            this.path = path;
+        }
+    }
+
+    /**
+     * One leaf field of a nested element, with its name already relative to the element's own
+     * struct — computed once here, while the current nested scope's path is on hand, rather than
+     * re-derived from the full dotted {@code fieldType.name()} at write time.
+     */
+    public static class NestedLeaf {
+        public final String name;
+        public final MappedFieldType fieldType;
+        public final Object value;
+
+        NestedLeaf(String name, MappedFieldType fieldType, Object value) {
+            this.name = name;
+            this.fieldType = fieldType;
+            this.value = value;
+        }
+    }
+
+    /** Returns the buffered top-level nested elements in parse order. */
+    public List<NestedChild> getNestedChildren() {
+        return nestedFields.children();
+    }
+
+    /** Returns the document-root map fields (name -&gt; entries), for MAP columns not inside a nested field. */
+    public LinkedHashMap<String, List<Map.Entry<String, Object>>> getTopLevelMapEntries() {
+        return topLevelMapEntries;
+    }
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         ensureOpen();
+        // The "a new nested array element starts here" marker — recognized by name, BEFORE the
+        // capability check below, since this is bookkeeping internal to this class rather than
+        // something any format "claims" a capability for. Every other DocumentInput (e.g. Lucene) that
+        // doesn't special-case this field name just applies its own ordinary capability self-filter to
+        // it, same as any other field.
+        if (NestedPathFieldMapper.NAME.equals(fieldType.typeName())) {
+            nestedFields.startElement((String) value);
+            return;
+        }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap()
             .getOrDefault(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of());
         if (capabilities.isEmpty() && fieldType != PrimaryTermFieldType.INSTANCE) {
             // nothing to support on this format for this field.
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
+            return;
+        }
+        if (value instanceof Map.Entry<?, ?> && FlatObjectFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+            @SuppressWarnings("unchecked")
+            Map.Entry<String, Object> entry = (Map.Entry<String, Object>) value;
+            if (nestedFields.addMapEntry(fieldType, entry) == false) {
+                topLevelMapEntries.computeIfAbsent(fieldType.name(), ignored -> new ArrayList<>()).add(entry);
+            }
+            return;
+        }
+        if (nestedFields.addLeaf(fieldType, value)) {
             return;
         }
         FieldValuePair existing = seen.get(fieldType.name());
@@ -100,6 +185,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     @Override
     public List<FieldValuePair> getFinalInput() {
+        nestedFields.finish();
         if (!isClosed) {
             assert rowId >= 0 : "Row ID must be set before calling getFinalInput";
             // assertions for parquet primary
@@ -131,6 +217,8 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         isClosed = true;
         collectedFields.clear();
         seen.clear();
+        nestedFields.clear();
+        topLevelMapEntries.clear();
         rowId = -1;
     }
 

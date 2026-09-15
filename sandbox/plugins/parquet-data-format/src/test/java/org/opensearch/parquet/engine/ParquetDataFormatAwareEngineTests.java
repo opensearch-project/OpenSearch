@@ -28,6 +28,7 @@ import org.opensearch.index.mapper.BinaryFieldMapper.BinaryFieldType;
 import org.opensearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper.IpFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -35,6 +36,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -305,6 +307,14 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
         for (Map.Entry<String, ParquetField> dataField : new CoreDataFieldPlugin().getParquetFields().entrySet()) {
+            // Skip flat_object and nested: the two non-primitive types. Their real Arrow shapes
+            // (MAP<Utf8,Utf8>; LIST<STRUCT<...>>) need children only their dedicated buildField overload
+            // builds — getFieldType() alone is nominal and yields e.g. "Maps have one List child. Found:
+            // none". They also don't go through the scalar createField path these round-trip tests exercise.
+            if (FlatObjectFieldMapper.CONTENT_TYPE.equals(dataField.getKey())
+                || ObjectMapper.NESTED_CONTENT_TYPE.equals(dataField.getKey())) {
+                continue;
+            }
             fields.add(new Field(dataField.getKey() + "_field", dataField.getValue().getFieldType(), null));
         }
         fields.addAll(metadataFields());

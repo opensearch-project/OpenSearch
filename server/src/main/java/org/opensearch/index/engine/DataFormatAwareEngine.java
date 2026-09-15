@@ -1930,6 +1930,7 @@ public class DataFormatAwareEngine implements Indexer {
         return true;
     }
 
+
     /**
      * Verifies cross-format row-count parity on a retired writer's flushed segment.
      * Always called inside an {@code assert} so the map walk is stripped when assertions are disabled.

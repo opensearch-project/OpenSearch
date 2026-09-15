@@ -36,40 +36,39 @@ public abstract class ParquetField {
     public ParquetField() {}
 
     /**
-     * Writes the parsed field value into the appropriate vector in the managed VSR.
+     * Writes the parsed field value into the appropriate vector in the managed VSR. Scalar and
+     * nested writes share the same {@link #addToVector} conversion hook.
+     *
      * @param fieldType the mapped field type
      * @param managedVSR the managed vector schema root
      * @param parseValue the parsed value to write
      */
-    protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
-
-    /**
-     * Writes a single parsed value at an explicit index in the given vector.
-     * <p>
-     * Scalar columns write at the row index, so {@link #addToGroup} can derive the position from
-     * the VSR's row count. List columns write several values per row at positions in the child
-     * vector that have nothing to do with the row number, so multi-value writes need this
-     * index-explicit form instead.
-     * <p>
-     * Subclasses must override this to support being declared multi-valued; the default throws.
-     * When overridden, {@link #addToGroup} should delegate to it so the scalar and list paths
-     * share one value-coercion implementation.
-     *
-     * @param vector the target vector (the child data vector when writing into a list)
-     * @param index the position to write at
-     * @param parseValue the parsed value to write
-     */
-    protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
-        );
+    protected void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
+        addToVector(managedVSR.getVector(fieldType.name()), managedVSR.getRowCount(), parseValue);
     }
 
     /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
+     * Writes one scalar value at an explicit vector index. This is the format-internal conversion
+     * hook used for top-level fields, nested struct leaves, and LIST elements. Implementations stay
+     * protected; callers outside the field package use {@link #createField}.
      *
-     * @return true if multi-valued storage is supported
+     * <p>{@link #supportsMultiValue()} independently controls whether this conversion may back a
+     * top-level LIST column. A type can support scalar nested placement without supporting
+     * multi-valued storage.
+     *
+     * @param vector the target vector
+     * @param index the position to write
+     * @param value the parsed non-null value
+     */
+    protected void addToVector(FieldVector vector, int index, Object value) {
+        throw new UnsupportedOperationException("addToVector is not implemented for " + getClass().getSimpleName());
+    }
+
+    /**
+     * Returns whether this field can be stored as a Parquet LIST column. This is independent of
+     * {@link #addToVector}: scalar types also use that hook for nested struct placement.
+     *
+     * @return true if multi-valued LIST storage is supported
      */
     public boolean supportsMultiValue() {
         return false;
@@ -163,4 +162,17 @@ public abstract class ParquetField {
 
     /** Returns the Arrow field type with nullability metadata. */
     public abstract FieldType getFieldType();
+
+    /**
+     * Builds the Arrow {@link Field} named {@code name} for this type. Default is a leaf with no
+     * children, using {@link #getFieldType()} — correct for every scalar type. Overridden by types
+     * whose Arrow representation has children (e.g. {@code flat_object}'s {@code MAP<Utf8,Utf8>}),
+     * so schema-building code can call this uniformly instead of special-casing by type name.
+     *
+     * @param name the field's name — a full dotted path at the document root, or a leaf name
+     *             relative to its parent struct when nested inside a {@code LIST<STRUCT>}
+     */
+    public Field buildField(String name) {
+        return new Field(name, getFieldType(), null);
+    }
 }

@@ -73,14 +73,9 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     }
 
     /**
-     * Adds a field to the underlying Lucene document by looking up the appropriate
-     * {@link LuceneFieldFactory} from the registry based on the field's type name.
-     * <p>
-     * The field is accepted only if OWNING_FORMAT owns at least one capability
-     * for this field according to {@link MappedFieldType#getCapabilityMap()}. Fields with
-     * an empty capability map (no format declared support) and fields owned by other
-     * formats are silently skipped, mirroring the per-format self-filtering used by
-     * {@code ParquetDocumentInput}.
+     * Adds a field via the registered {@link LuceneFieldFactory} for its type. Silently skipped if no
+     * format declared support (empty capability map) — mirrors {@code ParquetDocumentInput}'s
+     * self-filtering.
      *
      * @param fieldType the OpenSearch mapped field type
      * @param value     the field value

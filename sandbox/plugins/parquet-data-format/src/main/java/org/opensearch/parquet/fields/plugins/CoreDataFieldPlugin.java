@@ -11,14 +11,18 @@ package org.opensearch.parquet.fields.plugins;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.parquet.fields.NestedParquetField;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.core.data.BinaryParquetField;
 import org.opensearch.parquet.fields.core.data.BooleanParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
 import org.opensearch.parquet.fields.core.data.date.DateNanosParquetField;
 import org.opensearch.parquet.fields.core.data.date.DateParquetField;
 import org.opensearch.parquet.fields.core.data.number.ByteParquetField;
@@ -53,6 +57,7 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
         registerBooleanFields(fieldMap);
         registerTextFields(fieldMap);
         registerBinaryFields(fieldMap);
+        registerObjectFields(fieldMap);
         return fieldMap;
     }
 
@@ -87,5 +92,14 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
 
     private static void registerBinaryFields(Map<String, ParquetField> fieldMap) {
         fieldMap.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryParquetField());
+    }
+
+    private static void registerObjectFields(Map<String, ParquetField> fieldMap) {
+        // flat_object is stored as a single MAP<utf8, utf8> column.
+        fieldMap.put(FlatObjectFieldMapper.CONTENT_TYPE, new FlatObjectParquetField());
+        // nested is stored as a single LIST<STRUCT<...>> column. An ObjectMapper is never a FieldMapper,
+        // so unlike every other entry here, nothing looks this up by fieldType.typeName() — callers look
+        // it up directly by this literal content type once they've identified a nested object mapper.
+        fieldMap.put(ObjectMapper.NESTED_CONTENT_TYPE, new NestedParquetField());
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.parquet.vsr;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -30,6 +31,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.fields.NestedParquetField;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.core.data.number.IntegerParquetField;
 import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
@@ -42,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 public class VSRManagerTests extends ParquetBaseTests {
 
@@ -859,6 +862,151 @@ public class VSRManagerTests extends ParquetBaseTests {
         manager.addDocument(doc);
         assertEquals(1, manager.getActiveManagedVSR().getRowCount());
         manager.flush();
+    }
+
+    /** A new leaf that sorts after every existing child is patched into the live struct, no rotation. */
+    public void testReconcileSchemaPatchesNestedStructChildWhenAppendPreservesSortedOrder() throws Exception {
+        Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
+        schema = new Schema(withMetadata(initialComments));
+        String filePath = createTempDir().resolve("nested-sorted-append.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        try {
+            Field updatedComments = nestedField("comments", utf8("author"), utf8("text"), utf8("zzz"));
+            boolean changed = manager.reconcileSchema(new Schema(withMetadata(updatedComments)));
+
+            assertTrue("in-place patch must report a schema change", changed);
+            StructVector struct = commentsStruct(manager);
+            assertEquals(List.of("author", "text", "zzz"), childNames(struct));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** A new leaf that sorts before an existing child cannot be patched in place — must signal rotation. */
+    public void testReconcileSchemaThrowsRotationExceptionWhenAppendWouldBreakSortedOrder() throws Exception {
+        Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
+        schema = new Schema(withMetadata(initialComments));
+        String filePath = createTempDir().resolve("nested-unsorted-append.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        try {
+            Field updatedComments = nestedField("comments", "aaa", "author", "text");
+            expectThrows(
+                SchemaChangeRequiresWriterRotationException.class,
+                () -> manager.reconcileSchema(new Schema(withMetadata(updatedComments)))
+            );
+
+            // Nothing was patched — the struct must be exactly as it was before the reconcile attempt.
+            StructVector struct = commentsStruct(manager);
+            assertEquals(List.of("author", "text"), childNames(struct));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** The first unsafe missing child aborts the whole struct's patches, even a later safe one. */
+    public void testReconcileSchemaAbortsAllPatchesInStructOnFirstUnsafeChild() throws Exception {
+        Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
+        schema = new Schema(withMetadata(initialComments));
+        String filePath = createTempDir().resolve("nested-mixed-append.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        try {
+            Field updatedComments = nestedField("comments", "aaa", "author", "text", "zzz");
+            expectThrows(
+                SchemaChangeRequiresWriterRotationException.class,
+                () -> manager.reconcileSchema(new Schema(withMetadata(updatedComments)))
+            );
+
+            StructVector struct = commentsStruct(manager);
+            assertEquals(List.of("author", "text"), childNames(struct));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** A safe patch to an earlier field is refreshed into the VSR's schema even when a later field throws. */
+    public void testReconcileSchemaRefreshesEarlierSafePatchEvenWhenLaterFieldThrows() throws Exception {
+        Field initialTags = nestedField("tags", utf8("name"));
+        Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
+        List<Field> initialFields = new ArrayList<>(metadataFields());
+        initialFields.add(initialTags);
+        initialFields.add(initialComments);
+        schema = new Schema(initialFields);
+
+        String filePath = createTempDir().resolve("nested-partial-refresh.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        try {
+            Field updatedTags = nestedField("tags", utf8("name"), utf8("zzz")); // safe: zzz sorts last
+            Field updatedComments = nestedField("comments", "aaa", "author", "text"); // unsafe
+
+            List<Field> updatedFields = new ArrayList<>(metadataFields());
+            updatedFields.add(updatedTags); // processed first — patched in place successfully
+            updatedFields.add(updatedComments); // processed second — throws
+
+            expectThrows(SchemaChangeRequiresWriterRotationException.class, () -> manager.reconcileSchema(new Schema(updatedFields)));
+
+            // The earlier, safe patch to "tags" must have gone through...
+            ListVector tagsList = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            StructVector tagsStruct = (StructVector) tagsList.getDataVector();
+            assertEquals(List.of("name", "zzz"), childNames(tagsStruct));
+
+            // ...and the VSR's cached top-level schema (Schema#getFields(), NOT the live vector
+            // inspected above) must already reflect it, despite the later field's exception —
+            // proving the refresh in reconcileSchema's finally block ran.
+            Field cachedTagsField = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("tags"))
+                .findFirst()
+                .orElseThrow();
+            List<String> cachedChildNames = cachedTagsField.getChildren().get(0).getChildren().stream().map(Field::getName).toList();
+            assertEquals(List.of("name", "zzz"), cachedChildNames);
+
+            // "comments" must remain untouched — "aaa" was never patched in.
+            ListVector commentsList = (ListVector) manager.getActiveManagedVSR().getVector("comments");
+            StructVector commentsStruct = (StructVector) commentsList.getDataVector();
+            assertEquals(List.of("author", "text"), childNames(commentsStruct));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** Returns the live struct vector backing the "comments" nested field's active VSR vector. */
+    private StructVector commentsStruct(VSRManager manager) {
+        ListVector list = (ListVector) manager.getActiveManagedVSR().getVector("comments");
+        return (StructVector) list.getDataVector();
+    }
+
+    /** The names of {@code struct}'s current children, in their actual (positional) order. */
+    private static List<String> childNames(StructVector struct) {
+        return struct.getField().getChildren().stream().map(Field::getName).collect(Collectors.toList());
+    }
+
+    /** Builds a {@code LIST<STRUCT<childNames...>>} nested field the same way a fresh schema build would. */
+    private static Field nestedField(String name, String... childNames) {
+        List<Field> children = new ArrayList<>();
+        for (String childName : childNames) {
+            children.add(utf8(childName));
+        }
+        return new NestedParquetField().buildField(name, children);
+    }
+
+    /** Builds a {@code LIST<STRUCT<...>>} nested field from already-built child {@link Field}s. */
+    private static Field nestedField(String name, Field... children) {
+        return new NestedParquetField().buildField(name, List.of(children));
+    }
+
+    private static Field utf8(String name) {
+        return new Field(name, FieldType.nullable(new ArrowType.Utf8()), null);
+    }
+
+    /** Metadata fields plus {@code extraTopLevelFields}, mirroring the production reconcile input shape. */
+    private List<Field> withMetadata(Field... extraTopLevelFields) {
+        List<Field> fields = new ArrayList<>(metadataFields());
+        for (Field f : extraTopLevelFields) {
+            fields.add(f);
+        }
+        return fields;
     }
 
 }

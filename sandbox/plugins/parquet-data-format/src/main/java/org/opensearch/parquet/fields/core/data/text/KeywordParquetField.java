@@ -12,9 +12,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 import java.nio.charset.StandardCharsets;
 
@@ -27,13 +25,8 @@ public class KeywordParquetField extends ParquetField {
     public KeywordParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
-    }
-
-    @Override
-    protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        ((VarCharVector) vector).setSafe(index, parseValue.toString().getBytes(StandardCharsets.UTF_8));
+    protected void addToVector(FieldVector vector, int index, Object value) {
+        ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -308,7 +309,8 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         assertTrue(field.getCapabilityMap().isEmpty());
     }
 
-    public void testPartialAcrossFormatsButStillIncomplete_Throws() {
+    /** A remaining non-storage-shaped capability (e.g. FULL_TEXT_SEARCH) is dropped, not thrown. */
+    public void testUnclaimedNonStorageCapabilityIsDroppedNotThrown() {
         DataFormat parquet = CompositeTestHelper.stubFormat(
             "parquet",
             1,
@@ -331,12 +333,75 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
 
         MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("name");
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        plugin.assignCapabilities(field, indexSettings, registry);
+
+        Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
+        assertEquals(1, map.size());
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), map.get(parquet));
+    }
+
+    /** Inside a nested scope, a secondary's declared support for the type name is ignored entirely. */
+    public void testInsideNestedScopeOnlySecondaryDeclaredCapabilityIsDropped() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.FULL_TEXT_SEARCH, Capability.STORED_FIELDS)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet, lucene));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED);
+
+        Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
+        assertEquals(1, map.size());
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), map.get(parquet));
+        assertFalse(map.containsKey(lucene));
+    }
+
+    /** Inside a nested scope, a storage capability the excluded secondary would have covered still throws. */
+    public void testInsideNestedScopeUnclaimedStorageCapabilityStillThrows() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.BLOOM_FILTER)))
+        );
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet, lucene));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> plugin.assignCapabilities(field, indexSettings, registry)
+            () -> plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED)
         );
-        assertTrue(ex.getMessage().contains("FULL_TEXT_SEARCH"));
+        assertTrue(ex.getMessage().contains("COLUMNAR_STORAGE"));
     }
 
     private static IndexSettings buildIndexSettings(Settings extra) {
