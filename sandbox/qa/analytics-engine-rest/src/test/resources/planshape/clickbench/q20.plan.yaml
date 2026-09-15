@@ -11,13 +11,13 @@ plans:
           OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
             OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
               OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
-                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
@@ -26,12 +26,12 @@ plans:
       CoalescePartitionsExec: fetch=10000
         FilterExec: UserID@0 = 435090932899640449, fetch=10000
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
     shard_physical_nseg: |
       CoalescePartitionsExec: fetch=10000
         FilterExec: UserID@0 = 435090932899640449, fetch=10000
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
     coord_physical: |
       StreamingTableExec: partition_sizes=1, projection=[UserID], fetch=10000
   prod1s:
@@ -39,20 +39,20 @@ plans:
       OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchProject(UserID=[$97], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($97, 435090932899640449))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       CoalescePartitionsExec: fetch=10000
         FilterExec: UserID@0 = 435090932899640449, fetch=10000
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
     shard_physical_nseg: |
       CoalescePartitionsExec: fetch=10000
         FilterExec: UserID@0 = 435090932899640449, fetch=10000
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-            DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet, predicate=UserID@89 = 435090932899640449, pruning_predicate=UserID_null_count@2 != row_count@3 AND UserID_min@0 <= 435090932899640449 AND 435090932899640449 <= UserID_max@1, required_guarantees=[UserID in (435090932899640449)]

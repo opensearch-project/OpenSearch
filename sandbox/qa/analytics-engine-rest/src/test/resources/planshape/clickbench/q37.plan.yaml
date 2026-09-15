@@ -15,14 +15,14 @@ plans:
                   OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
                       OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($85, '')))], viableBackends=[[datafusion]])
-                        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                        OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
           OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
             OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($85, '')))], viableBackends=[[datafusion]])
-              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+              OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
@@ -66,7 +66,7 @@ plans:
             OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
                 OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($85, '')))], viableBackends=[[datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
@@ -75,7 +75,7 @@ plans:
             OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
                 OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($85, '')))], viableBackends=[[datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, URL@1 as URL]
         SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, URL@1 ASC], fetch=10

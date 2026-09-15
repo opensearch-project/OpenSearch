@@ -36,12 +36,9 @@ import java.util.regex.Pattern;
  */
 public final class ProfilePlanExtractor {
 
-    /** Single consistent token for every non-deterministic value we redact from a plan. */
-    private static final String SCRUBBED = "<scrubbed>";
-
     /** Host/UUID/shard/generation-specific parquet path. */
     private static final Pattern FILE_GROUPS = Pattern.compile("file_groups=\\{[^}]*\\}");
-    private static final String FILE_GROUPS_SCRUBBED = "file_groups={" + SCRUBBED + "}";
+    private static final String FILE_GROUPS_SCRUBBED = "file_groups={" + ScrubRule.S001.token() + "}";
 
     // TopK SortExec's `, filter=[<expr> > N]` is a runtime value, not plan shape — its presence flips
     // with segment count, so we delete the whole clause (anchored on preserve_partitioning=[...] so
@@ -77,9 +74,6 @@ public final class ProfilePlanExtractor {
     /** Bare numeric literal as the expression side of "expr as alias" within a ProjectionExec. */
     private static final Pattern BARE_NUMERIC_LITERAL = Pattern.compile("(?<=^|, )-?\\d+(?= as )");
 
-    /** The concrete index name is scrubbed too, so goldens are index-name agnostic. */
-    private static final String INDEX_TOKEN = SCRUBBED;
-
     private static final String SHARD_FRAGMENT = "SHARD_FRAGMENT";
     private static final String COORDINATOR_REDUCE = "COORDINATOR_REDUCE";
 
@@ -96,8 +90,8 @@ public final class ProfilePlanExtractor {
 
     /**
      * Render the four layers from a profile response. {@code indexName} is the concrete index the
-     * query ran against; every occurrence is scrubbed to {@link #INDEX_TOKEN} so a golden is
-     * agnostic to which per-shard-count index was provisioned.
+     * query ran against; its scoped occurrences are scrubbed by {@link #scrubIndexName} (ScrubRule
+     * S004/S005) so a golden is agnostic to which per-shard-count index was provisioned.
      */
     @SuppressWarnings("unchecked")
     public static ProfilePlanExtractor extractFrom(Map<String, Object> response, String indexName) {
@@ -122,7 +116,10 @@ public final class ProfilePlanExtractor {
         layers.put(PlanShapeLayer.SHARD_PHYSICAL, physicalPlanOf(stages, SHARD_FRAGMENT));
         layers.put(PlanShapeLayer.COORD_PHYSICAL, physicalPlanOf(stages, COORDINATOR_REDUCE));
 
-        layers.replaceAll((layer, text) -> text.map(t -> t.replace(indexName, INDEX_TOKEN)));
+        // Mask the index name ONLY at its scoped sites, not blindly everywhere (ScrubRule S004/S005):
+        // RelNode layers carry it as OpenSearchTableScan(table=[[<index>]]); physical layers carry it
+        // as a "<index>." column qualifier. A bare global replace could clobber unrelated text.
+        layers.replaceAll((layer, text) -> text.map(t -> scrubIndexName(t, layer, indexName)));
         return new ProfilePlanExtractor(layers);
     }
 
@@ -192,6 +189,60 @@ public final class ProfilePlanExtractor {
         return Optional.empty();
     }
 
+    /**
+     * Catalog of what this extractor scrubs and why. Each rule is scoped to a plan tier + operator +
+     * field, so nothing is masked outside its declared span — replacing the previous blind global
+     * index-name replace. The transforms live in {@link #scrub} (S001–S003) and
+     * {@link #scrubIndexName} (S004–S005); this enum is the accountable, grep-able reason for each.
+     */
+    enum ScrubRule {
+        S001("host/uuid/generation parquet path",   Tier.PHYSICAL, "DataSourceExec",      "file_groups"),
+        S002("topk runtime heap boundary",          Tier.PHYSICAL, "SortExec",            "filter"),
+        S003("constant-folded aggregate value",     Tier.PHYSICAL, "ProjectionExec",      "expr"),
+        S004("index name (index-agnostic goldens)", Tier.LOGICAL,  "OpenSearchTableScan", "table"),
+        S005("index name qualifier",                Tier.PHYSICAL, null,                  "qualifier");
+
+        enum Tier {
+            LOGICAL,
+            PHYSICAL
+        }
+
+        final String description;
+        final Tier tier;
+        final String operator;
+        final String key;
+
+        ScrubRule(String description, Tier tier, String operator, String key) {
+            this.description = description;
+            this.tier = tier;
+            this.operator = operator;
+            this.key = key;
+        }
+
+        /** Common prefix for every golden scrub token; the code (S001…) is {@link #name()}. */
+        private static final String TOKEN_PREFIX = "scrub_";
+
+        /** The golden token this rule masks with, e.g. {@code scrub_S001} — single source of truth. */
+        String token() {
+            return TOKEN_PREFIX + name();
+        }
+    }
+
+    /**
+     * Mask the concrete index name only where it legitimately appears (ScrubRule S004/S005): physical
+     * layers carry it as a {@code <index>.} column qualifier; logical (RelNode) layers carry it as
+     * {@code OpenSearchTableScan(table=[[<index>]])}. Scoped so it can never clobber unrelated text.
+     */
+    private static String scrubIndexName(String text, PlanShapeLayer layer, String indexName) {
+        if (indexName == null || indexName.isEmpty()) {
+            return text;
+        }
+        if (layer == PlanShapeLayer.SHARD_PHYSICAL || layer == PlanShapeLayer.COORD_PHYSICAL) {
+            return text.replace(indexName + ".", ScrubRule.S005.token() + ".");
+        }
+        return text.replace("table=[[" + indexName + "]]", "table=[[" + ScrubRule.S004.token() + "]]");
+    }
+
     private static String scrub(String physicalPlan) {
         String scrubbed = FILE_GROUPS.matcher(physicalPlan).replaceAll(FILE_GROUPS_SCRUBBED);
         scrubbed = TOPK_DYNAMIC_FILTER.matcher(scrubbed).replaceAll(TOPK_DYNAMIC_FILTER_KEPT);
@@ -211,7 +262,7 @@ public final class ProfilePlanExtractor {
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
             String exprs = m.group(2);
-            String scrubbedExprs = BARE_NUMERIC_LITERAL.matcher(exprs).replaceAll(SCRUBBED);
+            String scrubbedExprs = BARE_NUMERIC_LITERAL.matcher(exprs).replaceAll(ScrubRule.S003.token());
             m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(m.group(1) + scrubbedExprs + m.group(3)));
         }
         m.appendTail(sb);
