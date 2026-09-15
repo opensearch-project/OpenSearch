@@ -34,18 +34,27 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -105,6 +114,117 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
         return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, metadata);
+    }
+
+    public void testEmptyExtendedBoundsRespectMaxBuckets() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(1)).build();
+        InternalDateHistogram histogram = createHistogram(List.of(), rounding, new LongBounds(0L, 10L), 0);
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testOneSidedExtendedBoundsRespectMaxBuckets() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(1)).build();
+        List<InternalDateHistogram.Bucket> buckets = List.of(createBucket(0));
+        InternalDateHistogram minBoundHistogram = createHistogram(buckets, rounding, new LongBounds(-10L, null), 0);
+        InternalDateHistogram maxBoundHistogram = createHistogram(buckets, rounding, new LongBounds(null, 10L), 0);
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> minBoundHistogram.reduce(List.of(minBoundHistogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> maxBoundHistogram.reduce(List.of(maxBoundHistogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testSparseBucketsRespectMaxBucketsWithoutExtendedBounds() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(1)).build();
+        InternalDateHistogram histogram = createHistogram(List.of(createBucket(0), createBucket(100)), rounding, null, 0);
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testCalendarIntervalExactBucketLimit() {
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(ZoneOffset.UTC).build();
+        long min = ZonedDateTime.parse("2020-01-01T00:00:00Z").toInstant().toEpochMilli();
+        long max = ZonedDateTime.parse("2021-01-01T00:00:00Z").toInstant().toEpochMilli();
+        InternalDateHistogram histogram = createHistogram(List.of(), rounding, new LongBounds(min, max), 0);
+
+        InternalDateHistogram reduced = (InternalDateHistogram) histogram.reduce(
+            List.of(histogram),
+            createReduceContext(13, Mockito.mock(CircuitBreaker.class))
+        );
+        assertEquals(13, reduced.getBuckets().size());
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(12, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testBucketKeyOverflowFails() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(1)).build();
+        InternalDateHistogram histogram = createHistogram(List.of(), rounding, new LongBounds(Long.MAX_VALUE - 2, Long.MAX_VALUE), 1);
+
+        expectThrows(
+            AggregationExecutionException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testCircuitBreakerCheckedWhileAddingEmptyBuckets() {
+        CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
+        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets")).thenThrow(CircuitBreakingException.class);
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(1)).build();
+        InternalDateHistogram histogram = createHistogram(List.of(), rounding, new LongBounds(0L, 1024L), 0);
+
+        expectThrows(CircuitBreakingException.class, () -> histogram.reduce(List.of(histogram), createReduceContext(2000, breaker)));
+        Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+    }
+
+    private InternalDateHistogram createHistogram(
+        List<InternalDateHistogram.Bucket> buckets,
+        Rounding rounding,
+        LongBounds bounds,
+        long histogramOffset
+    ) {
+        InternalDateHistogram.EmptyBucketInfo bucketInfo = new InternalDateHistogram.EmptyBucketInfo(
+            rounding,
+            InternalAggregations.EMPTY,
+            bounds
+        );
+        return new InternalDateHistogram(
+            randomAlphaOfLength(5),
+            buckets,
+            BucketOrder.key(true),
+            0,
+            histogramOffset,
+            bucketInfo,
+            format,
+            false,
+            null
+        );
+    }
+
+    private InternalDateHistogram.Bucket createBucket(long key) {
+        return new InternalDateHistogram.Bucket(key, 1, false, format, InternalAggregations.EMPTY);
+    }
+
+    private InternalAggregation.ReduceContext createReduceContext(int maxBuckets, CircuitBreaker breaker) {
+        return InternalAggregation.ReduceContext.forFinalReduction(
+            null,
+            null,
+            new MultiBucketConsumerService.MultiBucketConsumer(maxBuckets, breaker),
+            PipelineAggregator.PipelineTree.EMPTY
+        );
     }
 
     @Override

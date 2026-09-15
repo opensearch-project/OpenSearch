@@ -36,6 +36,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -130,40 +131,115 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         );
     }
 
-    public void testCircuitBreakerWhenAddEmptyBuckets() {
-        String name = randomAlphaOfLength(5);
-        double interval = 1;
-        double lowerBound = 1;
-        double upperBound = 1026;
-        List<InternalHistogram.Bucket> bucket1 = List.of(
-            new InternalHistogram.Bucket(lowerBound, 1, false, format, InternalAggregations.EMPTY)
-        );
-        List<InternalHistogram.Bucket> bucket2 = List.of(
-            new InternalHistogram.Bucket(upperBound, 1, false, format, InternalAggregations.EMPTY)
-        );
-        BucketOrder order = BucketOrder.key(true);
-        InternalHistogram.EmptyBucketInfo emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(
-            interval,
-            0,
-            lowerBound,
-            upperBound,
-            InternalAggregations.EMPTY
-        );
-        InternalHistogram histogram1 = new InternalHistogram(name, bucket1, order, 0, emptyBucketInfo, format, false, null);
-        InternalHistogram histogram2 = new InternalHistogram(name, bucket2, order, 0, emptyBucketInfo, format, false, null);
+    public void testEmptyExtendedBoundsRespectMaxBuckets() {
+        InternalHistogram histogram = createHistogram(List.of(), 1, 0, 10);
 
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testOneSidedExtendedBoundsRespectMaxBuckets() {
+        List<InternalHistogram.Bucket> buckets = List.of(createBucket(0));
+        InternalHistogram minBoundHistogram = createHistogram(buckets, 1, -10, Double.NEGATIVE_INFINITY);
+        InternalHistogram maxBoundHistogram = createHistogram(buckets, 1, Double.POSITIVE_INFINITY, 10);
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> minBoundHistogram.reduce(List.of(minBoundHistogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> maxBoundHistogram.reduce(List.of(maxBoundHistogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testSparseBucketsRespectMaxBucketsWithoutExtendedBounds() {
+        InternalHistogram histogram = createHistogram(
+            List.of(createBucket(0), createBucket(100)),
+            1,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY
+        );
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testExactBucketLimit() {
+        InternalHistogram histogram = createHistogram(List.of(), 1, 0, 9);
+
+        InternalHistogram reduced = (InternalHistogram) histogram.reduce(
+            List.of(histogram),
+            createReduceContext(10, Mockito.mock(CircuitBreaker.class))
+        );
+
+        assertEquals(10, reduced.getBuckets().size());
+    }
+
+    public void testNaNDoesNotBypassMaxBuckets() {
+        InternalHistogram histogram = createHistogram(
+            List.of(createBucket(0), createBucket(100), createBucket(Double.NaN)),
+            1,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY
+        );
+
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testNonAdvancingKeyFails() {
+        double minBound = 1e20;
+        InternalHistogram histogram = createHistogram(List.of(), 1, minBound, Math.nextUp(minBound));
+
+        expectThrows(
+            AggregationExecutionException.class,
+            () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
+        );
+    }
+
+    public void testCircuitBreakerCheckedWhileAddingEmptyBuckets() {
         CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
         Mockito.when(breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets")).thenThrow(CircuitBreakingException.class);
+        InternalHistogram histogram = createHistogram(List.of(), 1, 0, 1024);
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(0, breaker);
-        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+        expectThrows(CircuitBreakingException.class, () -> histogram.reduce(List.of(histogram), createReduceContext(2000, breaker)));
+        Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+    }
+
+    private InternalHistogram createHistogram(
+        List<InternalHistogram.Bucket> buckets,
+        double bucketInterval,
+        double minBound,
+        double maxBound
+    ) {
+        InternalHistogram.EmptyBucketInfo bucketInfo = new InternalHistogram.EmptyBucketInfo(
+            bucketInterval,
+            0,
+            minBound,
+            maxBound,
+            InternalAggregations.EMPTY
+        );
+        return new InternalHistogram(randomAlphaOfLength(5), buckets, BucketOrder.key(true), 0, bucketInfo, format, false, null);
+    }
+
+    private InternalHistogram.Bucket createBucket(double key) {
+        return new InternalHistogram.Bucket(key, 1, false, format, InternalAggregations.EMPTY);
+    }
+
+    private InternalAggregation.ReduceContext createReduceContext(int maxBuckets, CircuitBreaker breaker) {
+        return InternalAggregation.ReduceContext.forFinalReduction(
             null,
             null,
-            bucketConsumer,
+            new MultiBucketConsumerService.MultiBucketConsumer(maxBuckets, breaker),
             PipelineAggregator.PipelineTree.EMPTY
         );
-        expectThrows(CircuitBreakingException.class, () -> histogram1.reduce(List.of(histogram1, histogram2), reduceContext));
-        Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
     }
 
     @Override
