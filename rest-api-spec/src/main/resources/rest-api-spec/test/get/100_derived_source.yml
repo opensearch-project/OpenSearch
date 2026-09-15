@@ -1,0 +1,234 @@
+---
+"Derived source with nested objects":
+  - skip:
+      version: " - 3.7.99"
+      reason: "derived source nested object reconstruction is available in 3.8 and later"
+
+  - do:
+      indices.create:
+        index: test_derived_source_nested
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+              derived_source:
+                enabled: true
+              refresh_interval: -1
+          mappings:
+            properties:
+              title:
+                type: keyword
+              comments:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+                  score:
+                    type: integer
+                  approved:
+                    type: boolean
+                  message:
+                    type: keyword
+                  replies:
+                    type: nested
+                    properties:
+                      message:
+                        type: keyword
+                      likes:
+                        type: integer
+                      helpful:
+                        type: boolean
+
+  - do:
+      index:
+        index: test_derived_source_nested
+        id: 1
+        body:
+          title: doc
+          comments:
+            - tag: b
+              score: 2
+              approved: true
+              message: message b
+              replies:
+                - message: reply b1
+                  likes: 3
+                  helpful: true
+                - message: reply b2
+                  likes: 4
+                  helpful: false
+            - tag: a
+              score: 1
+              approved: false
+              message: message a
+              replies:
+                - message: reply a1
+                  likes: 5
+                  helpful: true
+
+  - do:
+      index:
+        index: test_derived_source_nested
+        id: 2
+        body:
+          title: doc_without_replies
+          comments:
+            - tag: lonely
+              score: 7
+              approved: true
+              message: comment without replies
+
+  - do:
+      index:
+        index: test_derived_source_nested
+        id: 3
+        body:
+          title: doc_without_comments
+
+  - do:
+      index:
+        index: test_derived_source_nested
+        id: 4
+        body:
+          title: doc_with_mixed_comments
+          comments:
+            - tag: with_reply
+              score: 11
+              approved: true
+              message: comment with reply
+              replies:
+                - message: mixed reply
+                  likes: 8
+                  helpful: true
+            - tag: without_reply
+              score: 12
+              approved: false
+              message: comment without reply
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 1
+  - match: { _source.title: doc }
+  - length: { _source.comments: 2 }
+  - match: { _source.comments.0.tag: b }
+  - match: { _source.comments.0.score: 2 }
+  - match: { _source.comments.0.approved: true }
+  - match: { _source.comments.0.message: message b }
+  - length: { _source.comments.0.replies: 2 }
+  - match: { _source.comments.0.replies.0.message: reply b1 }
+  - match: { _source.comments.0.replies.0.likes: 3 }
+  - match: { _source.comments.0.replies.0.helpful: true }
+  - match: { _source.comments.0.replies.1.message: reply b2 }
+  - match: { _source.comments.0.replies.1.likes: 4 }
+  - match: { _source.comments.0.replies.1.helpful: false }
+  - match: { _source.comments.1.tag: a }
+  - match: { _source.comments.1.score: 1 }
+  - match: { _source.comments.1.approved: false }
+  - match: { _source.comments.1.message: message a }
+  - length: { _source.comments.1.replies: 1 }
+  - match: { _source.comments.1.replies.0.message: reply a1 }
+  - match: { _source.comments.1.replies.0.likes: 5 }
+  - match: { _source.comments.1.replies.0.helpful: true }
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 2
+  - match: { _source.title: doc_without_replies }
+  - length: { _source.comments: 1 }
+  - match: { _source.comments.0.tag: lonely }
+  - match: { _source.comments.0.score: 7 }
+  - match: { _source.comments.0.approved: true }
+  - match: { _source.comments.0.message: comment without replies }
+  - is_false: _source.comments.0.replies
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 3
+  - match: { _source.title: doc_without_comments }
+  - is_false: _source.comments
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 4
+  - match: { _source.title: doc_with_mixed_comments }
+  - length: { _source.comments: 2 }
+  - match: { _source.comments.0.tag: with_reply }
+  - match: { _source.comments.0.score: 11 }
+  - length: { _source.comments.0.replies: 1 }
+  - match: { _source.comments.0.replies.0.message: mixed reply }
+  - match: { _source.comments.0.replies.0.likes: 8 }
+  - match: { _source.comments.0.replies.0.helpful: true }
+  - match: { _source.comments.1.tag: without_reply }
+  - match: { _source.comments.1.score: 12 }
+  - is_false: _source.comments.1.replies
+
+  - do:
+      indices.refresh:
+        index: test_derived_source_nested
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 1
+  - match: { _source.title: doc }
+  - length: { _source.comments: 2 }
+  - match: { _source.comments.0.replies.0.message: reply b1 }
+  - match: { _source.comments.1.replies.0.message: reply a1 }
+
+  - do:
+      indices.flush:
+        index: test_derived_source_nested
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 1
+  - match: { _source.title: doc }
+  - length: { _source.comments: 2 }
+  - length: { _source.comments.0.replies: 2 }
+  - match: { _source.comments.0.replies.0.message: reply b1 }
+  - match: { _source.comments.0.replies.1.message: reply b2 }
+  - match: { _source.comments.1.replies.0.message: reply a1 }
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 2
+  - match: { _source.title: doc_without_replies }
+  - length: { _source.comments: 1 }
+  - is_false: _source.comments.0.replies
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 3
+  - match: { _source.title: doc_without_comments }
+  - is_false: _source.comments
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 4
+  - match: { _source.title: doc_with_mixed_comments }
+  - length: { _source.comments: 2 }
+  - match: { _source.comments.0.replies.0.message: mixed reply }
+  - is_false: _source.comments.1.replies
+
+  - do:
+      get:
+        index: test_derived_source_nested
+        id: 1
+        _source_includes: comments.replies.message
+  - length: { _source: 1 }
+  - length: { _source.comments: 2 }
+  - length: { _source.comments.0.replies: 2 }
+  - match: { _source.comments.0.replies.0.message: reply b1 }
+  - match: { _source.comments.0.replies.1.message: reply b2 }
+  - match: { _source.comments.1.replies.0.message: reply a1 }
+  - is_false: _source.comments.0.tag
+  - is_false: _source.comments.0.replies.0.likes

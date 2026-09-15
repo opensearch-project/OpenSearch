@@ -900,6 +900,183 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertTrue(source.containsKey("binary_field"));
     }
 
+    public void testDerivedSourceWithNestedObjects() throws IOException {
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        },
+                        "refresh_interval": -1
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "title": {
+                                "type": "keyword"
+                            },
+                            "comments": {
+                                "type": "nested",
+                                "properties": {
+                                    "tag": {
+                                        "type": "keyword"
+                                    },
+                                    "score": {
+                                        "type": "integer"
+                                    },
+                                    "approved": {
+                                        "type": "boolean"
+                                    },
+                                    "message": {
+                                        "type": "text"
+                                    },
+                                    "replies": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "message": {
+                                                "type": "text"
+                                            },
+                                            "likes": {
+                                                "type": "integer"
+                                            },
+                                            "helpful": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("test_derive_nested").setSource(createIndexSource, MediaTypeRegistry.JSON));
+        ensureGreen();
+
+        client().prepareIndex("test_derive_nested")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("title", "doc")
+                    .startArray("comments")
+                    .startObject()
+                    .field("tag", "b")
+                    .field("score", 2)
+                    .field("approved", true)
+                    .field("message", "message b")
+                    .startArray("replies")
+                    .startObject()
+                    .field("message", "reply b1")
+                    .field("likes", 3)
+                    .field("helpful", true)
+                    .endObject()
+                    .startObject()
+                    .field("message", "reply b2")
+                    .field("likes", 4)
+                    .field("helpful", false)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("tag", "a")
+                    .field("score", 1)
+                    .field("approved", false)
+                    .field("message", "message a")
+                    .startArray("replies")
+                    .startObject()
+                    .field("message", "reply a1")
+                    .field("likes", 5)
+                    .field("helpful", true)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        client().prepareIndex("test_derive_nested")
+            .setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("title", "doc_without_replies")
+                    .startArray("comments")
+                    .startObject()
+                    .field("tag", "lonely")
+                    .field("score", 7)
+                    .field("approved", true)
+                    .field("message", "comment without replies")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        client().prepareIndex("test_derive_nested")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field("title", "doc_without_comments").endObject())
+            .get();
+
+        client().prepareIndex("test_derive_nested")
+            .setId("4")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("title", "doc_with_mixed_comments")
+                    .startArray("comments")
+                    .startObject()
+                    .field("tag", "with_reply")
+                    .field("score", 11)
+                    .field("approved", true)
+                    .field("message", "comment with reply")
+                    .startArray("replies")
+                    .startObject()
+                    .field("message", "mixed reply")
+                    .field("likes", 8)
+                    .field("helpful", true)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("tag", "without_reply")
+                    .field("score", 12)
+                    .field("approved", false)
+                    .field("message", "comment without reply")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        validateNestedDerivedSourceDocuments();
+
+        refresh();
+        validateNestedDerivedSourceDocuments();
+
+        flush();
+        validateNestedDerivedSourceDocuments();
+
+        GetResponse getResponse = client().prepareGet("test_derive_nested", "1")
+            .setFetchSource(new String[] { "comments.replies.message" }, null)
+            .get();
+        assertTrue(getResponse.isExists());
+        Map<String, Object> filteredSource = getResponse.getSourceAsMap();
+        assertEquals(1, filteredSource.size());
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) filteredSource.get("comments");
+        assertEquals(2, comments.size());
+        List<Map<String, Object>> firstReplies = (List<Map<String, Object>>) comments.get(0).get("replies");
+        List<Map<String, Object>> secondReplies = (List<Map<String, Object>>) comments.get(1).get("replies");
+        assertEquals("reply b1", firstReplies.get(0).get("message"));
+        assertEquals("reply b2", firstReplies.get(1).get("message"));
+        assertEquals("reply a1", secondReplies.get(0).get("message"));
+        assertFalse(firstReplies.get(0).containsKey("likes"));
+        assertFalse(comments.get(0).containsKey("score"));
+    }
+
     public void testDerivedSource_MultiValuesAndComplexField() throws Exception {
         // Create mapping with properly closed objects
         String mapping = XContentFactory.jsonBuilder()
@@ -1096,6 +1273,84 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals("test text", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
         assertEquals("bGlkaHQtd29rfx4=", source.get("binary_field"));
+    }
+
+    void validateNestedDerivedSourceDocuments() {
+        GetResponse getResponse = client().prepareGet("test_derive_nested", "1").get();
+        assertTrue(getResponse.isExists());
+        validateNestedDerivedSourceWithReplies(getResponse.getSourceAsMap());
+
+        getResponse = client().prepareGet("test_derive_nested", "2").get();
+        assertTrue(getResponse.isExists());
+        validateNestedDerivedSourceWithoutChildNested(getResponse.getSourceAsMap());
+
+        getResponse = client().prepareGet("test_derive_nested", "3").get();
+        assertTrue(getResponse.isExists());
+        validateNestedDerivedSourceWithoutTopLevelNested(getResponse.getSourceAsMap());
+
+        getResponse = client().prepareGet("test_derive_nested", "4").get();
+        assertTrue(getResponse.isExists());
+        validateNestedDerivedSourceWithMixedChildNested(getResponse.getSourceAsMap());
+    }
+
+    @SuppressWarnings("unchecked")
+    void validateNestedDerivedSourceWithReplies(Map<String, Object> source) {
+        assertEquals("doc", source.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+        assertEquals(2, comments.size());
+        assertEquals("b", comments.get(0).get("tag"));
+        assertEquals(2, comments.get(0).get("score"));
+        assertEquals(true, comments.get(0).get("approved"));
+        assertEquals("message b", comments.get(0).get("message"));
+        List<Map<String, Object>> firstReplies = (List<Map<String, Object>>) comments.get(0).get("replies");
+        assertEquals(2, firstReplies.size());
+        validateReply(firstReplies.get(0), "reply b1", 3, true);
+        validateReply(firstReplies.get(1), "reply b2", 4, false);
+        assertEquals("a", comments.get(1).get("tag"));
+        assertEquals(1, comments.get(1).get("score"));
+        assertEquals(false, comments.get(1).get("approved"));
+        assertEquals("message a", comments.get(1).get("message"));
+        List<Map<String, Object>> secondReplies = (List<Map<String, Object>>) comments.get(1).get("replies");
+        assertEquals(1, secondReplies.size());
+        validateReply(secondReplies.get(0), "reply a1", 5, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    void validateNestedDerivedSourceWithoutChildNested(Map<String, Object> source) {
+        assertEquals("doc_without_replies", source.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+        assertEquals(1, comments.size());
+        assertEquals("lonely", comments.get(0).get("tag"));
+        assertEquals(7, comments.get(0).get("score"));
+        assertEquals(true, comments.get(0).get("approved"));
+        assertEquals("comment without replies", comments.get(0).get("message"));
+        assertFalse(comments.get(0).containsKey("replies"));
+    }
+
+    void validateNestedDerivedSourceWithoutTopLevelNested(Map<String, Object> source) {
+        assertEquals("doc_without_comments", source.get("title"));
+        assertFalse(source.containsKey("comments"));
+    }
+
+    @SuppressWarnings("unchecked")
+    void validateNestedDerivedSourceWithMixedChildNested(Map<String, Object> source) {
+        assertEquals("doc_with_mixed_comments", source.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+        assertEquals(2, comments.size());
+        assertEquals("with_reply", comments.get(0).get("tag"));
+        assertEquals(11, comments.get(0).get("score"));
+        List<Map<String, Object>> replies = (List<Map<String, Object>>) comments.get(0).get("replies");
+        assertEquals(1, replies.size());
+        validateReply(replies.get(0), "mixed reply", 8, true);
+        assertEquals("without_reply", comments.get(1).get("tag"));
+        assertEquals(12, comments.get(1).get("score"));
+        assertFalse(comments.get(1).containsKey("replies"));
+    }
+
+    void validateReply(Map<String, Object> reply, String message, int likes, boolean helpful) {
+        assertEquals(message, reply.get("message"));
+        assertEquals(likes, reply.get("likes"));
+        assertEquals(helpful, reply.get("helpful"));
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
