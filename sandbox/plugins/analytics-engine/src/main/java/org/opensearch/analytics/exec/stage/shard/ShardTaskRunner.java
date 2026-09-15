@@ -80,6 +80,7 @@ public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
         // bottom() is defined here: canEliminate only says yes once K keys are in hand, and the
         // count never shrinks.
         logger.debug("sort-et: skipping shard {} — its whole range is worse than the bar {}", target.shardId(), gate.bottom());
+        stage.recordTopNSkip();
         stage.skipTask(task);
         return false;
     }
