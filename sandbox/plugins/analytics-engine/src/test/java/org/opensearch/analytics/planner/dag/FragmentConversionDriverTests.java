@@ -939,6 +939,37 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"), FilterTreeShape.CONJUNCTIVE);
     }
 
+    /**
+     * AND(MATCH_PHRASE [Lucene correctness], EQUALS [dual-viable]): the perf leaf folds into the
+     * Lucene shipment, giving one delegated expression and no {@code delegation_possible} marker.
+     * Contrast {@link #testSinglePerformanceDelegatedPredicate}, where no correctness sibling exists.
+     */
+    public void testAndCorrectnessFoldsDualViableMustLeaf() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildTwoFieldDelegationDag(
+            makeAnd(makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error"), makeEquals(0, SqlTypeName.INTEGER, 200)),
+            dfConvertor,
+            serializer
+        );
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        assertEquals(1, plan.delegatedExpressions().size());
+
+        ShardScanWithDelegationInstructionNode delegationInstruction = (ShardScanWithDelegationInstructionNode) plan.instructions()
+            .stream()
+            .filter(node -> node.type() == InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("delegation plan must have SHARD_SCAN_WITH_DELEGATION"));
+        assertEquals(FilterTreeShape.CONJUNCTIVE, delegationInstruction.getTreeShape());
+        assertEquals(1, delegationInstruction.getDelegatedPredicateCount());
+
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        assertTrue(strippedPlan.contains(DelegatedPredicateFunction.NAME));
+        assertFalse(strippedPlan.contains(DelegationPossibleFunction.NAME));
+        assertDoesntContainOperators(dfConvertor.shardScanFragment, ANNOTATION_MARKERS);
+    }
+
     /** AND(delegated, delegated) — both replaced, two entries in delegatedQueries. */
     public void testAndTwoDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
@@ -1865,12 +1896,13 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         // delegation is now decided purely by tree position.
         //
         // Rules: a dual-viable (perf) leaf stays performance-delegated (delegation_possible) under
-        // AND. Under OR/NOT it cannot stay perf (perf delegation is AND-only in the data node), so
-        // it's reclassified to correctness and ships to the peer, fusing with same-backend siblings.
+        // AND unless a same-backend correctness sibling exists, in which case it folds into that
+        // shipment. Under OR/NOT it cannot stay perf (perf delegation is AND-only in the data node),
+        // so it's reclassified to correctness and ships to the peer, fusing with same-backend siblings.
         Object[][] cases = {
-            // ── AND: perf stays perf (delegation_possible per perf leaf) ──
-            { "AND(MATCH, EQUALS-perf)", makeAnd(match, eqPerf), new int[] { 2, 1, 1 } },
-            { "AND(MATCH, EQUALS-perf, native)", makeAnd(match, eqPerf, nativeArm), new int[] { 2, 1, 1 } },
+            // ── AND with a correctness sibling: perf folds into it ──
+            { "AND(MATCH, EQUALS-perf)", makeAnd(match, eqPerf), new int[] { 1, 1, 0 } },
+            { "AND(MATCH, EQUALS-perf, native)", makeAnd(match, eqPerf, nativeArm), new int[] { 1, 1, 0 } },
             { "AND(MATCH, native)", makeAnd(match, nativeArm), new int[] { 1, 1, 0 } },
 
             // ── OR perf-only: perf reclassified to correctness, fused into one peer shipment ──
@@ -1891,7 +1923,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             // ── NOT inside boolean — the prod-bug shape from the OR-disjunction fix ───
             { "OR(NOT(MATCH), EQUALS-perf)", or(notMatch, eqPerf), new int[] { 1, 1, 0 } },
             { "OR(NOT(MATCH), EQUALS-perf, native)", or(notMatch, eqPerf, nativeArm), new int[] { 1, 1, 0 } },
-            { "AND(NOT(MATCH), EQUALS-perf, native)", makeAnd(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 } },
+            { "AND(NOT(MATCH), EQUALS-perf, native)", makeAnd(notMatch, eqPerf, nativeArm), new int[] { 1, 1, 0 } },
             { "OR(NOT(MATCH), native)", or(notMatch, nativeArm), new int[] { 1, 1, 0 } },
             { "AND(NOT(MATCH), native)", makeAnd(notMatch, nativeArm), new int[] { 1, 1, 0 } }, };
 
@@ -2118,8 +2150,8 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        // Correctness and performance delegated stay separate — 2 DelegatedExpressions
-        assertEquals("Correctness and performance delegated stay separate", 2, plan.delegatedExpressions().size());
+        // Plan-time conjunction merge: the perf EQUALS folds into the MATCH_PHRASE shipment → 1 DelegatedExpression
+        assertEquals("Perf leaf folds into the correctness sibling", 1, plan.delegatedExpressions().size());
     }
 
     // ---- Plan shape verification tests (match verified DF logical plans) ----
@@ -2155,12 +2187,12 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             )
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        // 1 correctness (match) + 1 combined performance (Referer AND URL) = 2 DelegatedExpressions
-        assertEquals(2, plan.delegatedExpressions().size());
+        // match AND Referer AND URL fold into one Lucene shipment; GoodEvent stays native
+        assertEquals(1, plan.delegatedExpressions().size());
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         LOGGER.info("Plan (AND correctness + multi-perf + native):\n{}", strippedPlan);
         assertTrue("Should have delegated_predicate", strippedPlan.contains(DelegatedPredicateFunction.NAME));
-        assertTrue("Should have delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
+        assertFalse("Perf leaves folded, no delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
         assertTrue("Should have native GoodEvent =", strippedPlan.contains("="));
         assertEquals(FilterTreeShape.CONJUNCTIVE, treeShapeOf(plan));
     }
@@ -2348,11 +2380,12 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             serializer
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertEquals(2, plan.delegatedExpressions().size());
+        // NOT(match) is a Lucene correctness sibling under the top-level AND → status=200 folds into it
+        assertEquals(1, plan.delegatedExpressions().size());
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         LOGGER.info("Plan (NOT correctness AND perf):\n{}", strippedPlan);
         assertTrue("Should have delegated_predicate", strippedPlan.contains(DelegatedPredicateFunction.NAME));
-        assertTrue("Should have delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
+        assertFalse("Perf leaf folded, no delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
         assertEquals(FilterTreeShape.CONJUNCTIVE, treeShapeOf(plan));
     }
 

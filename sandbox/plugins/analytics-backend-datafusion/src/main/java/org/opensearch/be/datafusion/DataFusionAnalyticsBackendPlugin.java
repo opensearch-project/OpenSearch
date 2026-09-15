@@ -130,6 +130,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.JSON_VALID
     );
 
+    // Exact-match operators whose DataFusion evaluation (whole-value equality on the stored column)
+    // differs from the Lucene term query on analyzed text (single-token match). Not declared for the
+    // text family so the planner routes them to the index-backed backend.
+    private static final Set<ScalarFunction> TERM_OPS = Set.of(ScalarFunction.EQUALS, ScalarFunction.NOT_EQUALS, ScalarFunction.IN);
+
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
     // PPL command/function we want the analytics-engine planner to route through DataFusion. Add
     // here only after verifying the function deserializes through Substrait isthmus into a plan
@@ -599,6 +604,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<FilterCapability> caps = new HashSet<>();
                 for (ScalarFunction op : STANDARD_FILTER_OPS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
+                        if (TERM_OPS.contains(op) && FieldType.text().contains(type)) {
+                            continue;
+                        }
                         caps.add(new FilterCapability.Standard(op, Set.of(type), formats));
                     }
                     // MAP-typed fields enter the filter rule when the predicate is

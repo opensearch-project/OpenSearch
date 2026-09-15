@@ -516,6 +516,9 @@ struct IndexedStream {
     store_url: datafusion::execution::object_store::ObjectStoreUrl,
     index_reader: IndexReader,
     projection: Option<Vec<usize>>,
+    /// Full-schema indices of the query's output columns (predicate-only columns excluded).
+    /// Per-RG projection adds the columns DataFusion still owns for that row group.
+    output_projection: Vec<usize>,
     current_stream: Option<SendableRecordBatchStream>,
     current_inner_plan: Option<Arc<dyn ExecutionPlan>>,
     current_mask: Option<BooleanArray>,
@@ -606,6 +609,11 @@ impl IndexedStream {
         seg_arrow_schema: SchemaRef,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
+        let output_projection: Vec<usize> = schema
+            .fields()
+            .iter()
+            .filter_map(|field| full_schema.index_of(field.name()).ok())
+            .collect();
         let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
         let dynamic_rg_pruner = super::dynamic_filter::DynamicRgPruner::new(
             dynamic_filter,
@@ -621,6 +629,7 @@ impl IndexedStream {
             store_url,
             index_reader,
             projection,
+            output_projection,
             current_stream: None,
             current_inner_plan: None,
             current_mask: None,
@@ -675,7 +684,23 @@ impl IndexedStream {
         }
     }
 
-    fn bridge_config(&self) -> RowGroupStreamConfig {
+    fn projection_for_rg(&self, required_predicate_columns: Option<&[usize]>) -> Option<Vec<usize>> {
+        // No per-RG ownership info, or row-id emission (its synthetic column has its own
+        // projection semantics): keep the query-wide projection.
+        let Some(required) = required_predicate_columns else {
+            return self.projection.clone();
+        };
+        if self.emit_row_ids {
+            return self.projection.clone();
+        }
+        let mut projection = self.output_projection.clone();
+        projection.extend_from_slice(required);
+        projection.sort_unstable();
+        projection.dedup();
+        Some(projection)
+    }
+
+    fn bridge_config(&self, projection: Option<Vec<usize>>) -> RowGroupStreamConfig {
         RowGroupStreamConfig {
             file_path: self.object_path.to_string(),
             file_size: self.file_size,
@@ -683,7 +708,7 @@ impl IndexedStream {
             store_url: self.store_url.clone(),
             full_schema: self.full_schema.clone(),
             metadata: Arc::clone(&self.metadata),
-            projection: self.projection.clone(),
+            projection,
             predicate: self.predicate.clone(),
             io_stats: self
                 .metrics
@@ -698,9 +723,10 @@ impl IndexedStream {
         rg: &RowGroupInfo,
         selection: RowSelection,
         push_predicate: bool,
+        projection: Option<Vec<usize>>,
     ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
         parquet_bridge::create_row_selection_stream(
-            &self.bridge_config(),
+            &self.bridge_config(projection),
             rg.index,
             selection,
             push_predicate,
@@ -1057,6 +1083,8 @@ impl IndexedStream {
 
                     let candidates = prefetched.prefetched.candidates;
                     let prefetch_mask_buffer = prefetched.prefetched.mask_buffer;
+                    let required_predicate_columns =
+                        prefetched.prefetched.required_predicate_columns;
 
                     if let Some(ref timer) = self.metrics.index_time {
                         timer.add_duration(Duration::from_nanos(prefetched.prefetched.eval_nanos));
@@ -1166,7 +1194,9 @@ impl IndexedStream {
                         && !alignment_risk
                         && !self.evaluator.forbid_parquet_pushdown();
 
-                    match self.create_row_selection_stream(&rg, selection, push) {
+                    let rg_projection =
+                        self.projection_for_rg(required_predicate_columns.as_deref());
+                    match self.create_row_selection_stream(&rg, selection, push, rg_projection) {
                         Ok((stream, plan)) => {
                             if let Some(ref timer) = self.metrics.parquet_time {
                                 timer.add_duration(t_plan.elapsed());
