@@ -2,6 +2,8 @@
 "Filter cat indices by system metadata":
 
   - skip:
+      version: " - 3.8.99"
+      reason: system filtering was added to cat indices in 3.9.0
       features: allowed_warnings
 
   - do:
