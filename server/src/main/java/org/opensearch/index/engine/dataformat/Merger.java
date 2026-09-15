@@ -28,25 +28,28 @@ public interface Merger {
     MergeResult merge(MergeInput mergeInput) throws IOException;
 
     /**
-     * Optional pre-merge hook. Implementations that need to freeze format-internal state
-     * (e.g. a Lucene secondary capturing its live-docs snapshot via
-     * {@link org.apache.lucene.index.MergeIndexWriter#prepareMerge}) do so here and return a
-     * per-segment {@link LiveDocs} reflecting that frozen view, so the primary-format merger
-     * drops the same rows the secondary will physically drop.
-     *
-     * <p>If the returned LiveDocs is non-empty, the caller must subsequently invoke
-     * {@link #merge} or {@link #abortPreparedMerge} with the same generation to release any
-     * resources taken here. Default returns {@link LiveDocs#ALL_ALIVE} (no-op).
+     * Whether this format owns delete state and can freeze it for the duration of a merge via
+     * {@link #prepareMerge}. In a composite at most one format may return {@code true}; the
+     * composite validates this when it is built and fails fast otherwise, so a second producer
+     * cannot be silently ignored.
      */
-    default LiveDocs prepareMerge(MergeInput mergeInput) throws IOException {
-        return LiveDocs.ALL_ALIVE;
+    default boolean providesMergeLiveDocs() {
+        return false;
     }
 
     /**
-     * Releases resources acquired by {@link #prepareMerge} when the subsequent
-     * {@link #merge} call won't happen. Default no-op.
+     * Phase 1 of a two-phase merge. A format that {@link #providesMergeLiveDocs() provides live
+     * docs} freezes its delete state for the merge inputs here and publishes the frozen view, so
+     * the primary-format merger drops exactly the rows this format will physically drop in
+     * {@link #merge}. Implementations must derive the view from the merge's frozen readers, not
+     * from a fresh reader, or the two formats diverge on any delete that lands in between.
+     *
+     * <p>The returned {@link MergePreparation} owns whatever was pinned to freeze the view. The
+     * caller holds it in a try-with-resources around {@link #merge} so it is released whether or
+     * not the merge runs; {@link MergePreparation#close()} is a no-op once {@code merge()} has
+     * consumed the prepared state. Default returns {@link MergePreparation#EMPTY}.
      */
-    default void abortPreparedMerge(MergeInput mergeInput) throws IOException {
-        // no-op
+    default MergePreparation prepareMerge(MergeInput mergeInput) throws IOException {
+        return MergePreparation.EMPTY;
     }
 }

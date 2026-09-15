@@ -72,19 +72,25 @@ public class MergeInputTests extends OpenSearchTestCase {
         expectThrows(UnsupportedOperationException.class, () -> input.segments().add(Segment.builder(3L).build()));
     }
 
-    // ========== Merger default prepare/abort hooks ==========
+    // ========== Merger default prepare hooks ==========
 
-    public void testMergerDefaultPrepareMergeReturnsAllAlive() throws IOException {
+    public void testMergerDefaultPrepareMergeReturnsEmptyPreparation() throws IOException {
         Merger merger = mergeInput -> null; // lambda implements only merge()
         MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(1L).build();
 
-        assertSame(LiveDocs.ALL_ALIVE, merger.prepareMerge(input));
+        MergePreparation preparation = merger.prepareMerge(input);
+        assertSame(MergePreparation.EMPTY, preparation);
+        assertSame(LiveDocs.ALL_ALIVE, preparation.liveDocs());
     }
 
-    public void testMergerDefaultAbortPreparedMergeIsNoOp() throws IOException {
+    public void testMergerDefaultDoesNotProvideMergeLiveDocs() {
         Merger merger = mergeInput -> null;
-        MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(1L).build();
+        assertFalse(merger.providesMergeLiveDocs());
+    }
 
-        merger.abortPreparedMerge(input); // must not throw
+    public void testEmptyPreparationCloseIsIdempotentNoOp() throws IOException {
+        MergePreparation.EMPTY.close(); // must not throw
+        MergePreparation.EMPTY.close(); // idempotent
+        assertTrue(MergePreparation.EMPTY.liveDocs().allAlive());
     }
 }

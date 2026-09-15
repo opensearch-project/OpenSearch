@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergePreparation;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.exec.Segment;
@@ -44,29 +45,33 @@ public class CompositeMerger implements Merger {
     private final List<DataFormat> secondaryFormats;
     private final CompositeMergeExecutor executor;
     private final CompositeShardStatsTracker statsTracker;
+    /** The one secondary whose {@link Merger#providesMergeLiveDocs()} is true, or {@code null}. */
+    private final DataFormat liveDocsProducer;
 
     public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat) {
         this.primaryFormat = compositeDataFormat.getPrimaryDataFormat();
         this.secondaryFormats = resolveSecondaryFormats(compositeDataFormat, primaryFormat);
         this.executor = new CompositeMergeExecutor(buildMergerMap(engine));
         this.statsTracker = engine.statsTracker();
+        this.liveDocsProducer = resolveLiveDocsProducer(secondaryFormats, executor);
     }
 
     /**
-     * Two-phase merge: phase 1 freezes each secondary's snapshot via {@link #prepareMerge};
-     * phase 2 runs primary → secondaries with that frozen bitmap. On failure between phases,
-     * {@link #abortPreparedMerge} releases prepared state. The bitmap from prepareMerge
-     * overrides any {@link MergeInput#liveDocs()} the caller passed in.
+     * Two-phase merge: phase 1 freezes the live-docs producer's snapshot via {@link #prepareMerge};
+     * phase 2 runs primary → secondaries with that frozen bitmap. The {@link MergePreparation} is
+     * held in a try-with-resources so the producer's pinned state is released on every exit path
+     * where its {@code merge()} did not consume it — no explicit abort call for callers to forget.
+     * The bitmap from prepareMerge overrides any {@link MergeInput#liveDocs()} the caller passed in.
      */
     @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         // recordOutcome: time always, merge_total on success, merge_failures on throw.
         return StatsRecorder.recordOutcome(() -> {
-            LiveDocs frozenLiveDocs = prepareMerge(mergeInput);
-            assert frozenLiveDocs != null : "merger returned null live-docs";
-            assert assertLiveDocsShape(mergeInput.segments(), frozenLiveDocs) : "live-docs shape doesn't match segment row counts";
+            try (MergePreparation preparation = prepareMerge(mergeInput)) {
+                LiveDocs frozenLiveDocs = preparation.liveDocs();
+                assert frozenLiveDocs != null : "merger returned null live-docs";
+                assert assertLiveDocsShape(mergeInput.segments(), frozenLiveDocs) : "live-docs shape doesn't match segment row counts";
 
-            try {
                 Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
                 MergePlan plan = new MergePlan(
                     mergeInput.newWriterGeneration(),
@@ -76,13 +81,6 @@ public class CompositeMerger implements Merger {
                     frozenLiveDocs
                 );
                 return executor.execute(plan);
-            } catch (Throwable t) {
-                try {
-                    abortPreparedMerge(mergeInput);
-                } catch (Throwable suppress) {
-                    t.addSuppressed(suppress);
-                }
-                throw t;
             }
         }, statsTracker::addMergeTimeMillis, statsTracker::incMergeTotal, statsTracker::incMergeFailures);
     }
@@ -116,35 +114,43 @@ public class CompositeMerger implements Merger {
     }
 
     @Override
-    public LiveDocs prepareMerge(MergeInput mergeInput) throws IOException {
-        // Drive prepare on every secondary so each freezes its own state. Today returns
-        // the first non-empty bitmap;
-        LiveDocs firstNonEmpty = LiveDocs.ALL_ALIVE;
-        for (DataFormat secondary : secondaryFormats) {
-            Merger merger = executor.getMerger(secondary);
-            if (merger == null) continue;
-            LiveDocs partial = merger.prepareMerge(mergeInput);
-            if (partial != null && partial.allAlive() == false && firstNonEmpty.allAlive()) {
-                firstNonEmpty = partial;
-            }
-        }
-        return firstNonEmpty;
+    public boolean providesMergeLiveDocs() {
+        return liveDocsProducer != null;
     }
 
+    /**
+     * Delegates to the single resolved live-docs producer. Secondaries that do not provide live
+     * docs are never asked to prepare, so they have nothing to release either.
+     */
     @Override
-    public void abortPreparedMerge(MergeInput mergeInput) throws IOException {
-        IOException firstFailure = null;
-        for (DataFormat secondary : secondaryFormats) {
+    public MergePreparation prepareMerge(MergeInput mergeInput) throws IOException {
+        if (liveDocsProducer == null) {
+            return MergePreparation.EMPTY;
+        }
+        MergePreparation preparation = executor.getMerger(liveDocsProducer).prepareMerge(mergeInput);
+        return preparation == null ? MergePreparation.EMPTY : preparation;
+    }
+
+    /**
+     * Picks the secondary that owns delete state for merges. Mirrors the registry's single
+     * delete-execution-engine rule: opt-in via {@link Merger#providesMergeLiveDocs()}, at most one,
+     * and a second producer is a configuration error rather than something to silently drop.
+     */
+    private static DataFormat resolveLiveDocsProducer(List<DataFormat> secondaries, CompositeMergeExecutor executor) {
+        List<DataFormat> producers = new ArrayList<>();
+        for (DataFormat secondary : secondaries) {
             Merger merger = executor.getMerger(secondary);
-            if (merger == null) continue;
-            try {
-                merger.abortPreparedMerge(mergeInput);
-            } catch (IOException e) {
-                if (firstFailure == null) firstFailure = e;
-                else firstFailure.addSuppressed(e);
+            if (merger != null && merger.providesMergeLiveDocs()) {
+                producers.add(secondary);
             }
         }
-        if (firstFailure != null) throw firstFailure;
+        if (producers.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple secondary formats provide merge live-docs, expected at most one but found "
+                    + producers.stream().map(DataFormat::name).toList()
+            );
+        }
+        return producers.isEmpty() ? null : producers.get(0);
     }
 
     private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {

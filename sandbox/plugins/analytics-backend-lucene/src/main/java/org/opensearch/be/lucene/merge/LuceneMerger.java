@@ -18,6 +18,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergePreparation;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
@@ -83,10 +84,15 @@ public class LuceneMerger implements Merger {
     }
 
     @Override
-    public LiveDocs prepareMerge(MergeInput mergeInput) throws IOException {
+    public boolean providesMergeLiveDocs() {
+        return true;
+    }
+
+    @Override
+    public MergePreparation prepareMerge(MergeInput mergeInput) throws IOException {
         List<Segment> segments = mergeInput.segments();
         if (segments.isEmpty()) {
-            return LiveDocs.ALL_ALIVE;
+            return MergePreparation.EMPTY;
         }
         Set<Long> generationsToMerge = new HashSet<>();
         for (Segment segment : segments) {
@@ -95,23 +101,45 @@ public class LuceneMerger implements Merger {
 
         List<SegmentCommitInfo> liveSegments = indexWriter.liveSegmentCommitInfos();
         if (liveSegments.isEmpty()) {
-            return LiveDocs.ALL_ALIVE;
+            return MergePreparation.EMPTY;
         }
         List<SegmentCommitInfo> matchingSegments = findMatchingSegments(liveSegments, generationsToMerge);
         if (matchingSegments.isEmpty()) {
-            return LiveDocs.ALL_ALIVE;
+            return MergePreparation.EMPTY;
         }
 
         // Build with null mapping; merge() sets it once the primary has produced it.
-        PreparableOneMerge oneMerge = strategy.createOneMerge(matchingSegments, null, mergeInput.newWriterGeneration());
-        indexWriter.prepareMerge(oneMerge, mergeInput.newWriterGeneration());
+        long generation = mergeInput.newWriterGeneration();
+        PreparableOneMerge oneMerge = strategy.createOneMerge(matchingSegments, null, generation);
+        indexWriter.prepareMerge(oneMerge, generation);
 
-        return LiveDocs.fromPackedBits(packLiveDocsFromMergeReaders(oneMerge));
+        return new PreparedLuceneMerge(LiveDocs.fromPackedBits(packLiveDocsFromMergeReaders(oneMerge)), generation);
     }
 
-    @Override
-    public void abortPreparedMerge(MergeInput mergeInput) throws IOException {
-        indexWriter.abortPreparedMerge(mergeInput.newWriterGeneration());
+    /**
+     * Owns the reader-pool and deleter references {@link MergeIndexWriter#prepareMerge} pinned.
+     * {@link #close()} delegates to {@link MergeIndexWriter#abortPreparedMerge}, which is a no-op
+     * once {@link #merge} has taken the prepared state — so holding this in a try-with-resources
+     * around the merge releases the pins only on the path where the merge never ran.
+     */
+    private final class PreparedLuceneMerge implements MergePreparation {
+        private final LiveDocs liveDocs;
+        private final long generation;
+
+        PreparedLuceneMerge(LiveDocs liveDocs, long generation) {
+            this.liveDocs = liveDocs;
+            this.generation = generation;
+        }
+
+        @Override
+        public LiveDocs liveDocs() {
+            return liveDocs;
+        }
+
+        @Override
+        public void close() throws IOException {
+            indexWriter.abortPreparedMerge(generation);
+        }
     }
 
     @Override
@@ -173,8 +201,12 @@ public class LuceneMerger implements Merger {
             );
 
             // Prefer the prepared OneMerge from prepareMerge (its snapshot is what the primary's
-            // bitmap was derived from). Fall back to a fresh OneMerge for code paths that did not
-            // go through the two-phase flow (e.g. tests). For the secondary path, the returned
+            // bitmap was derived from). A fresh OneMerge is only acceptable when no bitmap is in
+            // play: a Lucene-only engine calls merge() directly with ALL_ALIVE and there is no
+            // second format to diverge from. If a bitmap IS present, some primary already dropped
+            // rows against a snapshot we no longer hold — re-snapshotting here would filter against
+            // a later view, and a delete landing in between silently misaligns the two formats
+            // (same row count or not). Fail loudly instead. For the secondary path, the returned
             // RowIdRemappingOneMerge stamps the writer_generation attribute onto the merged
             // SegmentInfo via setMergeInfo, which Lucene invokes immediately before
             // codec.segmentInfoFormat().write(...) — so the attribute is persisted to the .si
@@ -187,6 +219,15 @@ public class LuceneMerger implements Merger {
                 }
                 oneMerge = prepared;
             } else {
+                if (mergeInput.liveDocs().allAlive() == false) {
+                    throw new IllegalStateException(
+                        "LuceneMerger.merge for generation "
+                            + mergeInput.newWriterGeneration()
+                            + " received a live-docs bitmap but no merge was prepared via prepareMerge. "
+                            + "Re-snapshotting live docs now would filter against a different view than the "
+                            + "primary format used; callers must go through prepareMerge first."
+                    );
+                }
                 oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
             }
             indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());

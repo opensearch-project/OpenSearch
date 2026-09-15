@@ -78,6 +78,13 @@ pub fn is_row_id_alive(live_bits: Option<&[u64]>, num_rows: u64, abs_row_id: u64
 /// One past the highest live-row index within `[0, batch_upper)` for the batch starting
 /// at `base_row_id`. `None` live_bits ⇒ all alive ⇒ returns `batch_upper`. If no row in
 /// the range is alive, returns 0.
+///
+/// Scans whole 64-bit words from the tail of the batch and uses `leading_zeros()` to find the
+/// highest set bit in the first non-zero word, so a long run of dead rows at the end of a batch
+/// costs one word read per 64 rows rather than one bit test per row. The word straddling the
+/// batch's upper edge is masked down to the bits that lie inside the batch; bits at or beyond
+/// `num_rows` (or beyond the supplied bitset) are treated as alive to match
+/// [`is_row_id_alive`].
 #[inline]
 pub fn last_live_index_plus_one(
     live_bits: Option<&[u64]>,
@@ -85,19 +92,52 @@ pub fn last_live_index_plus_one(
     base_row_id: u64,
     batch_upper: usize,
 ) -> usize {
-    match live_bits {
-        None => batch_upper,
-        Some(_) => {
-            let mut i = batch_upper;
-            while i > 0 {
-                let idx = i - 1;
-                if is_row_id_alive(live_bits, num_rows, base_row_id + idx as u64) {
-                    return i;
-                }
-                i -= 1;
+    let bits = match live_bits {
+        None => return batch_upper,
+        Some(bits) => bits,
+    };
+    if batch_upper == 0 {
+        return 0;
+    }
+    // Absolute row ids covered by this batch: [base_row_id, batch_end).
+    let batch_end = base_row_id + batch_upper as u64;
+
+    // Rows at or past num_rows, or past the end of the supplied bitset, are alive by contract.
+    // If the batch reaches into that region the last row of the batch is alive.
+    let bitset_rows = (bits.len() as u64).saturating_mul(64);
+    if batch_end > num_rows || batch_end > bitset_rows {
+        return batch_upper;
+    }
+
+    let first_word = (base_row_id / 64) as usize;
+    let last_row = batch_end - 1;
+    let mut word_idx = (last_row / 64) as usize;
+
+    loop {
+        let mut word = bits[word_idx];
+        let word_base = (word_idx as u64) * 64;
+        // Mask off bits above the batch's last row in the top word.
+        if word_idx == (last_row / 64) as usize {
+            let top_bit = (last_row - word_base) as u32; // 0..=63
+            if top_bit < 63 {
+                word &= (1u64 << (top_bit + 1)) - 1;
             }
-            0
         }
+        // Mask off bits below the batch's first row in the bottom word.
+        if word_idx == first_word {
+            let low_bit = (base_row_id - word_base) as u32; // 0..=63
+            if low_bit > 0 {
+                word &= !((1u64 << low_bit) - 1);
+            }
+        }
+        if word != 0 {
+            let highest_abs = word_base + (63 - word.leading_zeros() as u64);
+            return (highest_abs - base_row_id) as usize + 1;
+        }
+        if word_idx == first_word {
+            return 0;
+        }
+        word_idx -= 1;
     }
 }
 
@@ -740,5 +780,113 @@ mod last_live_index_plus_one_tests {
         // Cursor is at base_row_id=5, asking about a 10-row batch ⇒ checks abs rows 5..14.
         // Last alive in that range is abs 10 (= local idx 5 in this batch). Result is 5+1=6.
         assert_eq!(last_live_index_plus_one(Some(&bits), 64, 5, 10), 6);
+    }
+
+    /// The original one-bit-at-a-time implementation, kept as the oracle for the word-scan.
+    fn reference(
+        live_bits: Option<&[u64]>,
+        num_rows: u64,
+        base_row_id: u64,
+        batch_upper: usize,
+    ) -> usize {
+        match live_bits {
+            None => batch_upper,
+            Some(_) => {
+                let mut i = batch_upper;
+                while i > 0 {
+                    let idx = i - 1;
+                    if super::is_row_id_alive(live_bits, num_rows, base_row_id + idx as u64) {
+                        return i;
+                    }
+                    i -= 1;
+                }
+                0
+            }
+        }
+    }
+
+    /// Deterministic xorshift so the sweep is reproducible without a dev-dependency.
+    fn next_rand(state: &mut u64) -> u64 {
+        let mut x = *state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        *state = x;
+        x
+    }
+
+    #[test]
+    fn word_scan_matches_reference_across_word_boundaries() {
+        // 4 words = 256 rows. Try sparse, dense and empty bit patterns.
+        let patterns: Vec<Vec<u64>> = vec![
+            vec![0, 0, 0, 0],
+            vec![!0, !0, !0, !0],
+            vec![0, 1u64 << 63, 0, 0], // only abs row 127 alive
+            vec![0, 0, 1, 0],          // only abs row 128 alive
+            vec![1, 0, 0, 1u64 << 63], // rows 0 and 255 alive
+            vec![
+                0xF0F0_F0F0_F0F0_F0F0,
+                0x0F0F_0F0F_0F0F_0F0F,
+                0xAAAA_AAAA_AAAA_AAAA,
+                0x5555_5555_5555_5555,
+            ],
+        ];
+        for bits in &patterns {
+            let num_rows = 256u64;
+            for base in 0..256u64 {
+                for upper in 0..=(256 - base) as usize {
+                    let got = last_live_index_plus_one(Some(bits), num_rows, base, upper);
+                    let want = reference(Some(bits), num_rows, base, upper);
+                    assert_eq!(got, want, "bits={:?} base={} upper={}", bits, base, upper);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn word_scan_matches_reference_on_random_bitsets() {
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        for _ in 0..200 {
+            let words = 1 + (next_rand(&mut state) % 5) as usize;
+            let bits: Vec<u64> = (0..words).map(|_| next_rand(&mut state)).collect();
+            let capacity = words as u64 * 64;
+            // num_rows sometimes shorter than the bitset, sometimes exactly full, sometimes longer.
+            let num_rows_options = [
+                capacity,
+                capacity.saturating_sub(7),
+                capacity + 40,
+                1.max(capacity / 2),
+            ];
+            for &num_rows in &num_rows_options {
+                for _ in 0..40 {
+                    let limit = capacity + 64; // deliberately probe beyond the bitset
+                    let base = next_rand(&mut state) % limit;
+                    let upper = (next_rand(&mut state) % (limit - base + 1)) as usize;
+                    let got = last_live_index_plus_one(Some(&bits), num_rows, base, upper);
+                    let want = reference(Some(&bits), num_rows, base, upper);
+                    assert_eq!(
+                        got, want,
+                        "bits={:?} num_rows={} base={} upper={}",
+                        bits, num_rows, base, upper
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rows_past_num_rows_count_as_alive() {
+        // num_rows=10 but bitset says everything is dead; rows >= 10 are alive by contract.
+        let bits: Vec<u64> = vec![0u64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 10, 0, 12), 12);
+        assert_eq!(last_live_index_plus_one(Some(&bits), 10, 0, 10), 0);
+    }
+
+    #[test]
+    fn rows_past_bitset_length_count_as_alive() {
+        // Bitset covers 64 rows but the file claims 100; rows >= 64 are alive by contract.
+        let bits: Vec<u64> = vec![0u64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 100, 60, 10), 10);
+        assert_eq!(last_live_index_plus_one(Some(&bits), 100, 0, 64), 0);
     }
 }
