@@ -1999,6 +1999,63 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(expectedValue, customData.get(expectedKey));
     }
 
+    public void testDataStreamBackingIndexRejectsIngestionSource() {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                null,
+                null,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+            Settings indexSettings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                .build();
+            String backingIndexName = DataStream.getDefaultBackingIndexName("logs", 1);
+            CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest(
+                "create index",
+                backingIndexName,
+                backingIndexName
+            ).dataStreamName("logs");
+
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> checkerService.buildAndValidateTemporaryIndexMetadata(indexSettings, request, 1, clusterService.state())
+            );
+            assertEquals(
+                "cannot create backing index ["
+                    + backingIndexName
+                    + "] of data stream [logs] with [index.ingestion_source.type] set, "
+                    + "pull-based ingestion does not support index rollover",
+                exception.getMessage()
+            );
+
+            // the same settings are still accepted for a standalone index
+            CreateIndexClusterStateUpdateRequest standaloneRequest = new CreateIndexClusterStateUpdateRequest(
+                "create index",
+                "test",
+                "test"
+            );
+            assertNotNull(
+                checkerService.buildAndValidateTemporaryIndexMetadata(indexSettings, standaloneRequest, 1, clusterService.state())
+            );
+        }));
+    }
+
     public void testNumberOfRoutingShardsShowsInIndexSettings() {
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
