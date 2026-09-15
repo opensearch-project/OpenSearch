@@ -585,22 +585,42 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         assertEquals(context + ": userData", expected.getUserData(), actual.getUserData());
     }
 
+    /**
+     * The minimum number of bytes {@link DataformatAwareCatalogSnapshot}'s {@code StreamInput}
+     * constructor needs before it can even reach the segment-count check: generation (8) +
+     * version (8) + an empty user-data map's count vint (1) + id (8) + lastWriterGeneration (8)
+     * + a zero segment-count vint (1).
+     */
+    private static final int MIN_SERIALIZED_LENGTH = 34;
+
+    /**
+     * Builds a candidate invalid input that is invalid by construction rather than by chance.
+     *
+     * The wire format has no magic marker or checksum, so a sufficiently long arbitrary byte
+     * sequence can, in principle, happen to decode as a structurally valid (if meaningless)
+     * snapshot -- see https://github.com/opensearch-project/OpenSearch/issues/22315. Each case
+     * here instead targets a specific way {@link DataformatAwareCatalogSnapshot#deserializeFromString}
+     * is guaranteed to fail: a non-Base64 alphabet, a byte count below {@link
+     * #MIN_SERIALIZED_LENGTH} (so the stream always runs out before a segment count can even be
+     * read), or a segment count deliberately built to exceed the bytes remaining.
+     */
     private String generateInvalidInput(int iter) {
         switch (iter % 6) {
             case 0:
-                return randomAlphaOfLengthBetween(1, 200);
+                // Contains a character outside the Base64 alphabet, so decoding always fails
+                // regardless of length.
+                return randomAlphaOfLengthBetween(1, 199) + "!";
             case 1:
-                byte[] randomBytes = new byte[randomIntBetween(1, 100)];
+                // Valid Base64 alphabet, but too few bytes for even an empty snapshot's header
+                // to be read in full.
+                byte[] randomBytes = new byte[randomIntBetween(1, MIN_SERIALIZED_LENGTH - 1)];
                 random().nextBytes(randomBytes);
                 return java.util.Base64.getEncoder().encodeToString(randomBytes);
             case 2:
-                DataformatAwareCatalogSnapshot snap = randomSnapshot();
-                try {
-                    String validBase64 = snap.serializeToString();
-                    return validBase64.substring(0, randomIntBetween(1, Math.max(1, validBase64.length() / 2)));
-                } catch (IOException e) {
-                    return "AAAA";
-                }
+                // A well-formed header (empty user data, arbitrary id/generation/version) whose
+                // segment count is deliberately too large to fit in the remaining bytes, which
+                // DataformatAwareCatalogSnapshot's constructor rejects explicitly.
+                return corruptedSegmentCountInput();
             case 3:
                 return "";
             case 4:
@@ -609,6 +629,20 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
                 return randomFrom("null", "undefined", "None", "nil", "NaN");
             default:
                 return randomAlphaOfLength(10);
+        }
+    }
+
+    private String corruptedSegmentCountInput() {
+        try (org.opensearch.common.io.stream.BytesStreamOutput out = new org.opensearch.common.io.stream.BytesStreamOutput()) {
+            out.writeLong(randomLong()); // generation
+            out.writeLong(randomLong()); // version
+            out.writeVInt(0); // empty user data map
+            out.writeLong(randomLong()); // id
+            out.writeLong(randomLong()); // lastWriterGeneration
+            out.writeVInt(Integer.MAX_VALUE); // segment count, always > bytes remaining
+            return java.util.Base64.getEncoder().encodeToString(org.opensearch.core.common.bytes.BytesReference.toBytes(out.bytes()));
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 
