@@ -25,6 +25,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
@@ -467,15 +468,37 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // Set the minimum sequence number for keeping translog
         indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // The above trimming makes the translog-size based periodic flush condition ineffective on remote-store
-        // shards, hence publish the size of segment bytes not yet referenced by the last commit point so that the
-        // engine can flush once they breach the configured threshold.
-        if (indexShard.indexSettings().isFlushOnUncommittedSegmentsEnabled()
-            && indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
-            engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap);
+        // shards, hence publish the size of segment bytes not yet referenced by the last commit point, together with
+        // the threshold to flush at, so that the engine can flush once they breach it.
+        if (indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
+            if (remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled()) {
+                engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap, flushOnUncommittedSegmentsThresholdBytes());
+            } else {
+                // discard whatever was published while the condition was on, otherwise it stays armed and can still
+                // trigger a flush after the operator turned the condition off
+                engineBacked.getEngine().clearUncommittedSegmentBytes();
+            }
         }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
+    }
+
+    /**
+     * Resolves the uncommitted segment bytes to flush at: the per-index
+     * {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} if the index sets it explicitly,
+     * otherwise the cluster default {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size}.
+     * <p>
+     * This lives here, at the publication site, because it is the only place holding both scopes: the shard's
+     * {@link org.opensearch.index.IndexSettings} and the node's {@link RemoteStoreSettings}, whose values are kept
+     * current by cluster settings update consumers. Resolving on every publication rather than caching means an update
+     * to either setting is picked up by the next successful segments sync.
+     */
+    private long flushOnUncommittedSegmentsThresholdBytes() {
+        final IndexSettings indexSettings = indexShard.indexSettings();
+        return indexSettings.isFlushOnUncommittedSegmentsThresholdSizeExplicit()
+            ? indexSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes()
+            : remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes();
     }
 
     /**

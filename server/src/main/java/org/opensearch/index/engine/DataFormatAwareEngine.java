@@ -717,6 +717,11 @@ public class DataFormatAwareEngine implements Indexer {
             });
             Writer currentWriter = lockedWriter.get();
             currentWriter.updateMappingVersion(mappingVersion);
+            if (currentWriter.state() != WriterState.ACTIVE) {
+                writerCheckedOut = retireWriterIfNeeded(lockedWriter);
+                lockedWriter = null;
+                return indexIntoEngine(index, plan);
+            }
             // Writer pool must never return null — it creates on demand via the supplier
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();

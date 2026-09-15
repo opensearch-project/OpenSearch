@@ -136,14 +136,14 @@ public interface EnginePlugin {
     }
 
     /**
-     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings to determine
+     * Invoked for each engine plugin every time an engine is built for a shard. Engine plugins can inspect the index settings to determine
      * whether the index's writable primary should use a non-default indexing/sequence-number policy, for example a replication follower
      * whose sequence numbers are assigned by an upstream leader rather than generated locally. A plugin that does not override the policy
      * should return {@link Optional#empty()}, in which case {@link DefaultPrimaryOperationPolicy} is used.
      * <p>
      * Only one of the installed engine plugins can override this, otherwise {@link IllegalStateException} will be thrown.
      *
-     * @param indexSettings the settings of the index being created, so a plugin can key off its own marker setting
+     * @param indexSettings the settings of the index whose engine is being built, so a plugin can key off its own marker setting
      * @return an optional PrimaryOperationPolicy
      */
     @ExperimentalApi

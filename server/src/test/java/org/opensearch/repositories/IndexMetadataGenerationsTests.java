@@ -84,6 +84,28 @@ public class IndexMetadataGenerationsTests extends OpenSearchTestCase {
         assertEquals(IndexMetaDataGenerations.EMPTY, indexMetaDataGenerations.withRemovedSnapshots(snapshotToRemove));
     }
 
+    public void testWithRemovedSnapshotPreservesSharedIdentifiers() {
+        // Add a second snapshot that shares the identifier "1" with the base snapshot and adds one identifier of its own
+        final SnapshotId newSnapshot = new SnapshotId("newSnapshot", "newSnapshot");
+        final Map<IndexId, String> newLookup = new HashMap<>();
+        newLookup.put(new IndexId(INDEX_PREFIX + 1, INDEX_PREFIX + 1), String.valueOf(1));
+        newLookup.put(new IndexId("newIndex", "newIndex"), "newIdentifier");
+        final IndexMetaDataGenerations added = indexMetaDataGenerations.withAddedSnapshot(
+            newSnapshot,
+            newLookup,
+            Collections.singletonMap("newIdentifier", "newBlob")
+        );
+
+        // Remove the base snapshot: the shared identifier must survive while identifiers only referenced
+        // by the removed snapshot must be pruned
+        final IndexMetaDataGenerations updated = added.withRemovedSnapshots(Collections.singleton(new SnapshotId(SNAPSHOT, SNAPSHOT)));
+
+        assertEquals(BLOB_ID_PREFIX + 1, updated.getIndexMetaBlobId(String.valueOf(1)));
+        assertEquals("newBlob", updated.getIndexMetaBlobId("newIdentifier"));
+        assertNull(updated.getIndexMetaBlobId(String.valueOf(2)));
+        assertEquals(BLOB_ID_PREFIX + 1, updated.indexMetaBlobId(newSnapshot, new IndexId(INDEX_PREFIX + 1, INDEX_PREFIX + 1)));
+    }
+
     private Map<IndexId, String> createIndexMetadataMap(int indexCountLowerBound, int numIndices) {
         final int indexCountUpperBound = indexCountLowerBound + numIndices;
         Map<IndexId, String> map = new HashMap<>();
