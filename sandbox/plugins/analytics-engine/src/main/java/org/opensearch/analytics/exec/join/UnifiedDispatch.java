@@ -274,6 +274,19 @@ public final class UnifiedDispatch {
                             terminal.onFailure(new RuntimeException("UnifiedDispatch: broadcast build capture failed", t));
                             return;
                         }
+                        // FAIL rather than proceed on a null payload. extractIpcBytes returns
+                        // CompletableFuture#get, which can legitimately complete null, and
+                        // injectBroadcastsInPlace skips a null on its `ipc != null` check — so the broadcast
+                        // would be silently dropped and the join would return a WRONG ANSWER with no error at
+                        // all. There is no safe way to continue: the build's rows are part of the result.
+                        if (ipc == null) {
+                            LOGGER.warn("[UnifiedDispatch] broadcast build {} captured a null payload", buildId);
+                            cancelOtherBuilds(buildRoots, buildExec, "sibling broadcast build captured no payload");
+                            terminal.onFailure(
+                                new IllegalStateException("UnifiedDispatch: broadcast build " + buildId + " captured a null payload")
+                            );
+                            return;
+                        }
                         synchronized (capturedByBuildId) {
                             capturedByBuildId.put(buildId, ipc);
                         }
