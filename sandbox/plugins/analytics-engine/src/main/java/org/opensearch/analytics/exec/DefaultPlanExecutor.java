@@ -495,6 +495,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         }
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
+        // Pass a lazy supplier — RelOptUtil.toString only runs if a slow log threshold is crossed.
+        // Capturing `plan` is safe: Calcite RelNodes are immutable, and downstream DAG building
+        // produces new structures rather than mutating this tree in place. Even if the text drifted,
+        // this is diagnostic-only output, so an exact snapshot is not required.
+        final RelNode planForLog = plan;
+        queryListener.setPlanSupplier(() -> RelOptUtil.toString(planForLog));
 
         // The task is the framework-provided task from doExecute (registered by
         // HandledTransportAction before doExecute, unregistered when the listener completes).
