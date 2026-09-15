@@ -40,6 +40,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private long queryConfigPtr;
     private long tieredStorePtr;
     private NativeStoreHandle storeHandle;
+    /** Stands in for the node-scoped staging allocator AnalyticsSearchService hands to every stream. */
+    private BufferAllocator stagingAllocator;
     private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
@@ -50,6 +52,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
         testRootAllocator = new RootAllocator(Long.MAX_VALUE);
+        stagingAllocator = testRootAllocator.newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
+        allocatorsToClose.add(stagingAllocator);
 
         // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
         tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
@@ -272,7 +276,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         allocatorsToClose.add(failureAlloc);
         DatafusionResultStream stream = new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, tempRuntime),
-            failureAlloc
+            failureAlloc,
+            stagingAllocator
         );
 
         // Close runtime — streamNext should now fail with IllegalStateException from NativeRuntimeHandle.get()
@@ -323,7 +328,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         allocatorsToClose.add(childAllocator);
         return new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
-            childAllocator
+            childAllocator,
+            stagingAllocator
         );
     }
 
@@ -358,7 +364,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         allocatorsToClose.add(childAllocator);
         return new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
-            childAllocator
+            childAllocator,
+            stagingAllocator
         );
     }
 }

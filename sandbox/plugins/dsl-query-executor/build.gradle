@@ -26,6 +26,9 @@ configurations {
 }
 sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteCompile
+tasks.named('missingJavadoc').configure {
+  classpath += configurations.calciteCompile
+}
 
 dependencies {
   compileOnly project(':server')
@@ -40,6 +43,7 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson_databind}"
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 

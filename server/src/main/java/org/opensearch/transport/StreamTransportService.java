@@ -109,7 +109,14 @@ public class StreamTransportService extends TransportService {
             listener.onResponse(null);
             return;
         }
-        // TODO: add logic for validation
+        // A node without a stream address (predates the stream transport, or has it disabled) cannot serve
+        // a Flight connection. Skip it rather than attempting a connect that would fail; this avoids the
+        // retry/log-noise seen against older nodes during a mixed-version rolling upgrade.
+        if (node.getStreamAddress() == null) {
+            logger.debug("skipping stream connection to [{}]: node publishes no stream address", node);
+            listener.onResponse(null);
+            return;
+        }
         final ActionListener<Void> wrappedListener = ActionListener.wrap(response -> { listener.onResponse(response); }, exception -> {
             logger.warn("Failed to connect to streaming node [{}]: {}", node, exception.getMessage());
             listener.onFailure(new ConnectTransportException(node, "Failed to connect for streaming", exception));
