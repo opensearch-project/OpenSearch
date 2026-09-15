@@ -4511,4 +4511,44 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             );
         }
     }
+
+    /**
+     * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
+     * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.Indexer}
+     * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
+     * default delegates to it.
+     */
+    public void testAcquireSearcherSupplierContract() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            int numDocs = randomIntBetween(1, 5);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            engine.refresh("test");
+
+            // At server scope no real Lucene data format is registered, so the pinned contract is the
+            // failure shape: a live engine surfaces the missing format as EngineException (never a raw
+            // NPE or a silent null). The happy path is covered by the composite-engine cluster ITs.
+            EngineException e = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcherSupplier(java.util.function.Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
+
+            // The Indexer default acquireSearcher delegates to the supplier, so it must surface the same failure.
+            EngineException viaDefault = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, java.util.function.Function.identity())
+            );
+            assertThat(viaDefault.getMessage(), containsString("failed to build searcher supplier"));
+        } finally {
+            engine.close();
+        }
+        // A closed engine must refuse before touching the reader.
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcherSupplier(java.util.function.Function.identity(), Engine.SearcherScope.EXTERNAL)
+        );
+    }
 }
