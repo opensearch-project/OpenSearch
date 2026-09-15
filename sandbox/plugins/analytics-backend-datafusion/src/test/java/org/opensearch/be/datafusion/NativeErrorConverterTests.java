@@ -159,6 +159,36 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertTrue(result.getMessage().contains("too deeply nested"));
     }
 
+    public void testBigintOverflowConvertsToBadRequestStatusException() {
+        // Raw message as authored by the Rust checked_arith UDF, wrapped by DataFusion's Display.
+        String message = "Execution error: BIGINT arithmetic overflow: multiplication of two BIGINT values "
+            + "exceeded the 64-bit range (underlying: Arithmetic overflow: Overflow happened on: 9223372036854775807 * 2)";
+        RuntimeException original = new RuntimeException(message);
+
+        Exception result = NativeErrorConverter.convert(original);
+
+        // Status-bearing 400 so distributed-aggregate re-wrapping still surfaces a client error.
+        assertTrue(result instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.BAD_REQUEST, ((OpenSearchStatusException) result).status());
+        // Message is surfaced from the keyphrase onward; the "Execution error:" wrapper is stripped.
+        assertTrue(result.getMessage().startsWith("BIGINT arithmetic overflow"));
+        assertTrue(result.getMessage().contains("exceeded the 64-bit range"));
+        // No cause attached (parity with the other converters).
+        assertNull(result.getCause());
+    }
+
+    public void testBigintOverflowControlledMessageConvertsOnCoordinator() {
+        // Coordinator-side safety net: the message arriving via StreamException after transport.
+        String controlledMessage = "BIGINT arithmetic overflow: addition of two BIGINT values exceeded the 64-bit range";
+        RuntimeException transportException = new RuntimeException(controlledMessage);
+
+        Exception result = NativeErrorConverter.convert(transportException);
+
+        assertTrue(result instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.BAD_REQUEST, ((OpenSearchStatusException) result).status());
+        assertEquals(controlledMessage, result.getMessage());
+    }
+
     public void testUnrecognizedErrorPassedThrough() {
         RuntimeException original = new RuntimeException("Some unknown error from native code");
 

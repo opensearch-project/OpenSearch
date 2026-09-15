@@ -121,6 +121,7 @@ pub(crate) fn coerce_args(
 }
 
 pub mod binary_to_base64;
+pub mod checked_arith;
 pub mod conv;
 pub mod conversion;
 pub mod convert_tz;
@@ -175,6 +176,7 @@ pub mod width_bucket;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     binary_to_base64::register_all(ctx);
+    checked_arith::register_all(ctx);
     conv::register_all(ctx);
     convert_tz::register_all(ctx);
     conversion::register_all(ctx);

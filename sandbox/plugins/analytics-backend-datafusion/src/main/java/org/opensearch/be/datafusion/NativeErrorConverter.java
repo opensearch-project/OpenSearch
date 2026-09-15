@@ -66,6 +66,9 @@ public final class NativeErrorConverter {
 
     private static final String ADMISSION_REJECTED_MSG = "Native query admission rejected: insufficient memory budget available";
 
+    /** Stable Rust→Java contract phrase; must match {@code OVERFLOW_KEYPHRASE} in udf/checked_arith.rs. */
+    static final String BIGINT_OVERFLOW_MSG = "BIGINT arithmetic overflow";
+
     /**
      * Registered error patterns, checked in order. First match wins.
      * Key phrases include both the Rust-originated messages (for data-node local conversion)
@@ -92,7 +95,11 @@ public final class NativeErrorConverter {
         // (deeply nested function calls). Converted at the FFM boundary into a clean 400.
         new ErrorPattern("recursion limit reached", NativeErrorConverter::convertRecursionLimit),
         // Controlled message, as a coordinator-side safety net if it arrives via StreamException.
-        new ErrorPattern("Query too deeply nested", NativeErrorConverter::convertRecursionLimit)
+        new ErrorPattern("Query too deeply nested", NativeErrorConverter::convertRecursionLimit),
+        // BIGINT (Int64) +, -, * overflow produced by the checked_arith UDF (see the Rust
+        // udf/checked_arith.rs). Client error → HTTP 400. The message is self-authored (carries no
+        // native internals), so it is surfaced verbatim from the keyphrase onward.
+        new ErrorPattern(BIGINT_OVERFLOW_MSG, NativeErrorConverter::convertBigintOverflow)
     );
 
     /**
@@ -170,6 +177,23 @@ public final class NativeErrorConverter {
             "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
                 + "Simplify the query by reducing nested function calls."
         );
+    }
+
+    private static Exception convertBigintOverflow(MatchedError match) {
+        // The message is self-authored by the Rust UDF and carries no native internals, so surface it
+        // from the keyphrase onward — stripping any DataFusion "Execution error:" wrapper prefix and
+        // trailing cause detail. No cause is attached (parity with the other converters).
+        //
+        // Return a status-bearing OpenSearchStatusException (400) rather than a bare
+        // IllegalArgumentException: on distributed-aggregate paths the failure is re-wrapped several
+        // times across the Flight boundary (e.g. RuntimeException("Failed to start streaming
+        // fragment", ...) -> StreamException), and only a typed OpenSearchException carrying a
+        // non-500 status is recovered by the coordinator's statusBearingCause walk. A plain
+        // IllegalArgumentException would be redacted to a generic 500 there.
+        String msg = match.message();
+        int start = msg.indexOf(BIGINT_OVERFLOW_MSG);
+        String clean = start >= 0 ? msg.substring(start) : BIGINT_OVERFLOW_MSG;
+        return new OpenSearchStatusException(clean, RestStatus.BAD_REQUEST);
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────
