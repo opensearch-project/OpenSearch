@@ -66,6 +66,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
+    @Override
+    FieldTypeCapabilities.FieldScope dataFormatFieldScope() {
+        return FieldTypeCapabilities.FieldScope.NESTED;
+    }
+
     private static final NestedPathFieldMapper LEGACY_INSTANCE = new NestedPathFieldMapper(LEGACY_NAME);
     private static final NestedPathFieldMapper INSTANCE = new NestedPathFieldMapper(NAME);
 

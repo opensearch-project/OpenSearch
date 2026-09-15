@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -279,7 +280,7 @@ public class DataFormatRegistry {
      * @param indexSettings the index settings used to resolve the active plugin
      */
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
-        assignCapabilities(fieldType, indexSettings, false);
+        assignCapabilities(fieldType, indexSettings, FieldScope.ROOT);
     }
 
     /**
@@ -287,13 +288,13 @@ public class DataFormatRegistry {
      * additionally indicating whether the field is declared directly inside a {@code nested} object's
      * scope — passed through to the plugin so a composite plugin can restrict which of its sub-formats
      * may claim capabilities there (see {@link DataFormatPlugin#assignCapabilities(MappedFieldType,
-     * IndexSettings, DataFormatRegistry, boolean)}).
+     * IndexSettings, DataFormatRegistry, FieldScope)}).
      *
      * @param fieldType the field type to assign capabilities to
      * @param indexSettings the index settings used to resolve the active plugin
-     * @param insideNestedScope whether {@code fieldType} is declared directly inside a {@code nested} object
+     * @param fieldScope the field's mapping scope
      */
-    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, boolean insideNestedScope) {
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName == null || dataformatName.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
@@ -309,7 +310,7 @@ public class DataFormatRegistry {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
-        plugin.assignCapabilities(fieldType, indexSettings, this, insideNestedScope);
+        plugin.assignCapabilities(fieldType, indexSettings, this, fieldScope);
     }
 
     /**

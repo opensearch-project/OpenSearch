@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -107,7 +108,7 @@ public interface DataFormatPlugin {
      * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
      */
     default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
-        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, false);
+        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, FieldScope.ROOT);
     }
 
     /**
@@ -119,14 +120,14 @@ public interface DataFormatPlugin {
      * @param fieldType the field type to assign capabilities to
      * @param indexSettings the index settings
      * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
-     * @param insideNestedScope whether {@code fieldType} is declared directly inside a {@code nested} object
+     * @param fieldScope the field's mapping scope
      * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
      */
     default void assignCapabilities(
         MappedFieldType fieldType,
         IndexSettings indexSettings,
         DataFormatRegistry dataFormatRegistry,
-        boolean insideNestedScope
+        FieldScope fieldScope
     ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {

@@ -54,6 +54,7 @@ import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -230,14 +231,9 @@ public class DocumentMapper implements ToXContentFragment {
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
             try {
-                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, false);
+                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, FieldScope.ROOT);
                 for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                    // NestedPathFieldMapper's field type doubles as the pluggable-format nested-element
-                    // marker, so it's always treated as nested-scope — this keeps a secondary format (e.g.
-                    // Lucene, which separately declares FULL_TEXT_SEARCH for this type for its own
-                    // non-composite use) from claiming it and trying to represent the marker per element.
-                    boolean insideNestedScope = metadataMapper instanceof NestedPathFieldMapper;
-                    registry.assignCapabilities(metadataMapper.fieldType(), indexSettings, insideNestedScope);
+                    registry.assignCapabilities(metadataMapper.fieldType(), indexSettings, metadataMapper.dataFormatFieldScope());
                 }
             } catch (UnsupportedOperationException e) {
                 // A field type that declares no search capability (e.g. geo_point) cannot be backed by a
@@ -389,31 +385,32 @@ public class DocumentMapper implements ToXContentFragment {
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
      *
-     * @param insideNestedScope whether {@code mapper} is inside a {@code nested} object's scope
-     *                          (transitively); becomes {@code true} once recursion passes through a
-     *                          nested {@link ObjectMapper} and stays {@code true} for its descendants.
+     * @param fieldScope the mapper's current field scope; descendants of a nested
+     *                   {@link ObjectMapper} remain in {@link FieldScope#NESTED}
      */
     private void assignCapabilitiesRecursive(
         Mapper mapper,
         DataFormatRegistry registry,
         IndexSettings indexSettings,
-        boolean insideNestedScope
+        FieldScope fieldScope
     ) {
         if (mapper instanceof FieldMapper) {
-            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings, insideNestedScope);
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings, fieldScope);
             // For derived source: keyword fields with ignore_above/normalizer use a separate
             // rawValueFieldType to store the raw value for source reconstruction.
             if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
                 KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
                 if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
-                    registry.assignCapabilities(rawValueFieldType, indexSettings, insideNestedScope);
+                    registry.assignCapabilities(rawValueFieldType, indexSettings, fieldScope);
                 }
             }
         }
-        boolean childInsideNestedScope = insideNestedScope
-            || (mapper instanceof ObjectMapper objectMapper && objectMapper.nested().isNested());
+        FieldScope childScope = fieldScope == FieldScope.NESTED
+            || (mapper instanceof ObjectMapper objectMapper && objectMapper.nested().isNested())
+                ? FieldScope.NESTED
+                : FieldScope.ROOT;
         for (Mapper child : mapper) {
-            assignCapabilitiesRecursive(child, registry, indexSettings, childInsideNestedScope);
+            assignCapabilitiesRecursive(child, registry, indexSettings, childScope);
         }
     }
 
