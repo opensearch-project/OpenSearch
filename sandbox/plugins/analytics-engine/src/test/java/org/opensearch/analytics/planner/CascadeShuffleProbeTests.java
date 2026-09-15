@@ -1301,6 +1301,99 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         }
     }
 
+    /**
+     * DAG-cut regression for NESTED BROADCAST: a broadcast whose BUILD side is itself a broadcast probe.
+     * {@code DAGBuilder.cutBroadcast} must decide the build stage's locality by {@code fragmentHasShardScan}
+     * — the rule {@code cutReducer} and {@code cutShuffle} already use — NOT by {@code grandchildren.isEmpty()}.
+     * A nested build BOTH scans a shard table and has a grandchild (its own captured build), so keying off
+     * grandchild count alone leaves it with no {@link ShardTargetResolver} and a sink provider instead:
+     * {@link Stage} then classifies it {@code COORDINATOR_REDUCE} while its instruction list still carries a
+     * shard scan, and {@code ShardScanInstructionHandler} fails casting the {@code ExchangeSinkContext} it is
+     * handed to a {@code ShardScanExecutionContext}.
+     *
+     * <p>The nested shape is constructed directly rather than planned: this planner's CBO does not choose
+     * nested broadcast (it emits at most one broadcast per plan), so the shape is grafted by broadcasting a
+     * broadcast-probe join as the build of an outer join. The bug is in the DAG cutter, not the planner, so
+     * cutting a hand-built plan exercises it exactly.
+     */
+    /**
+     * NESTED BROADCAST: a broadcast build that is itself a broadcast probe must still cut as a
+     * {@code SHARD_FRAGMENT}, because its fragment scans a shard table.
+     *
+     * <p>Guards {@code DAGBuilder.cutBroadcast}, which used to decide the build's locality by
+     * {@code grandchildren.isEmpty()} rather than by whether the fragment scans — the rule its sibling
+     * cutters use. A nested build has a grandchild, so it came back {@code COORDINATOR_REDUCE} with a null
+     * resolver while its instruction list still carried a shard scan; {@code ReduceStageExecutionFactory}
+     * then handed that instruction an {@code ExchangeSinkContext} and the shard-scan handler failed casting.
+     *
+     * <p>The shape is GRAFTED rather than planned: it takes a real CBO broadcast plan and broadcasts THAT
+     * join, via {@code buildBroadcastExchange} directly, so the test keeps guarding the DAG cut regardless of
+     * what the cost model chooses. Nested broadcast is not exotic — Spark's committed TPC-DS plan goldens
+     * contain it in 85 queries (max depth 5) and Trino's in 27.
+     */
+    public void testDagCut_nestedBroadcastBuildIsShardFragment() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", SMALL, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        // A real CBO broadcast plan: Join(BroadcastExchange(a_small), b_large), SHARD-local. No enforcement
+        // pass here — on this branch CBO's own output already carries the exchanges (that pass is deleted;
+        // placement is a trait demand now), so runPlanner's result IS the enforced plan.
+        RelNode enforced2 = runPlanner(makeTwoWayJoin(context, "a_idx", "b_idx"), context);
+        OpenSearchJoin innerJoin = findAll(enforced2, OpenSearchJoin.class).get(0);
+        assertTrue(
+            "precondition: inner join must be a broadcast probe:\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced2),
+            unwrap(innerJoin.getInput(0)) instanceof OpenSearchBroadcastExchange
+                || unwrap(innerJoin.getInput(1)) instanceof OpenSearchBroadcastExchange
+        );
+
+        // A c_idx shard scan to serve as the outer probe.
+        RelNode enforced3 = runPlanner(makeThreeWayJoin(context), context);
+        OpenSearchTableScan cScan = null;
+        for (OpenSearchTableScan scan : findAll(enforced3, OpenSearchTableScan.class)) {
+            if (scan.getTable().getQualifiedName().toString().contains("c_idx")) {
+                cScan = scan;
+                break;
+            }
+        }
+        assertNotNull("need a c_idx scan for the outer probe", cScan);
+
+        // GRAFT: broadcast the broadcast-probe join as the BUILD of an outer join over c_idx.
+        RelNode outerBuild = context.getDistributionTraitDef().buildBroadcastExchange(innerJoin, CLUSTER_DATA_NODES);
+        int leftCols = outerBuild.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        RelNode outerJoin = innerJoin.copy(innerJoin.getTraitSet(), cond, outerBuild, cScan, JoinRelType.INNER, false);
+
+        QueryDAG dag = DAGBuilder.build(outerJoin, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+
+        List<Stage> builds = new java.util.ArrayList<>();
+        collectStages(dag.rootStage(), s -> s.getRole() == Stage.StageRole.BROADCAST_BUILD, builds);
+        assertEquals("nested broadcast must cut TWO BROADCAST_BUILD stages (outer build + its own build):\n" + dag, 2, builds.size());
+
+        // The OUTER build is the nested one: it scans a shard table AND has its own build child. Before the
+        // fix it was the only stage that came back COORDINATOR_REDUCE.
+        Stage nestedBuild = builds.stream().filter(b -> b.getChildStages().isEmpty() == false).findFirst().orElseThrow();
+        assertFalse(
+            "precondition: the nested build's fragment must scan a shard table:\n" + dag,
+            RelNodeUtils.findNodes(nestedBuild.getFragment(), OpenSearchTableScan.class).isEmpty()
+        );
+        for (Stage build : builds) {
+            assertEquals(
+                "a broadcast build whose fragment scans a shard table must be a SHARD_FRAGMENT, not a "
+                    + "COORDINATOR_REDUCE — even when it has its own build grandchild (nested broadcast):\n"
+                    + dag,
+                StageExecutionType.SHARD_FRAGMENT,
+                build.getExecutionType()
+            );
+            assertTrue("such a build must carry a ShardTargetResolver:\n" + dag, build.getTargetResolver() instanceof ShardTargetResolver);
+        }
+    }
+
     /** Recursively collects stages whose predicate holds (test helper for DAG-shape assertions). */
     private static void collectStages(Stage stage, java.util.function.Predicate<Stage> pred, List<Stage> out) {
         if (pred.test(stage)) {
