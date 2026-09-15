@@ -49,6 +49,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
@@ -76,6 +78,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import org.reactivestreams.Subscriber;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -354,6 +358,96 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestFreesBytesWhenStreamingIsNotSupportedByTheChannel() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        RestRequest request = testRestRequest("/streaming", content, MediaTypeRegistry.JSON);
+        restController.registerHandler(RestRequest.Method.GET, "/streaming", new RestHandler() {
+            @Override
+            public boolean supportsStreaming() {
+                return true;
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                throw new AssertionError("the handler must not run when the channel cannot stream");
+            }
+        });
+        // AssertingChannel is not a StreamingRestChannel, so dispatch fails before the handler runs and the failure
+        // is sent over this raw channel, which never owns a reservation. This is reachable in production through
+        // POST /_bulk/stream on a transport that does not support streaming.
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.INTERNAL_SERVER_ERROR);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertTrue(channel.getSendResponseCalled());
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestFreesBytesWhenFailureResponseCannotBeBuilt() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        // The "/error" handler throws, and building the failure response for it throws too, so sendResponse() is
+        // never reached on the channel that holds the reservation.
+        RestRequest request = testRestRequest("/error", content, MediaTypeRegistry.JSON);
+        BuilderFailingChannel channel = new BuilderFailingChannel(request);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestFreesBytesWhenHandlerThrowsError() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        RestRequest request = testRestRequest("/throwing-error", content, MediaTypeRegistry.JSON);
+        restController.registerHandler(RestRequest.Method.GET, "/throwing-error", (req, chan, clnt) -> {
+            throw new Error("test error that is not an Exception");
+        });
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+
+        // dispatchRequest() only catches Exception, so a Throwable that is not an Exception propagates out ...
+        Error thrown = null;
+        try {
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        } catch (Error e) {
+            thrown = e;
+        }
+        assertNotNull("the Error thrown by the handler must propagate to the caller", thrown);
+
+        // ... but the reservation must still have been returned on the way out.
+        assertFalse(channel.getSendResponseCalled());
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestFreesBytesWhenStreamTerminatesWithLastChunk() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        RestRequest request = testRestRequest("/streaming-ok", content, MediaTypeRegistry.JSON);
+        restController.registerHandler(RestRequest.Method.GET, "/streaming-ok", new RestHandler() {
+            @Override
+            public boolean supportsStreaming() {
+                return true;
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                // A streaming response completes by sending its last chunk, not through sendResponse().
+                ((StreamingRestChannel) channel).sendChunk(new LastHttpChunk());
+            }
+        });
+        TestStreamingChannel channel = new TestStreamingChannel(request);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertTrue(channel.getLastChunkSent());
         assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
         assertEquals(0, inFlightRequestsBreaker.getUsed());
     }
@@ -815,6 +909,82 @@ public class RestControllerTests extends OpenSearchTestCase {
         public void sendResponse(RestResponse response) {
             throw new IllegalStateException("always throwing an exception for testing");
         }
+    }
+
+    /** A channel whose error builder always fails, so a {@link BytesRestResponse} for a failure cannot be built. */
+    private static final class BuilderFailingChannel extends AbstractRestChannel {
+
+        private BuilderFailingChannel(RestRequest request) {
+            super(request, true);
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            throw new IOException("cannot build an error response");
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            throw new AssertionError("no failure response can be built for this channel");
+        }
+    }
+
+    /** Minimal streaming channel that records whether the stream was terminated by its last chunk. */
+    private static final class TestStreamingChannel extends AbstractRestChannel implements StreamingRestChannel {
+
+        private final AtomicBoolean lastChunkSent = new AtomicBoolean();
+
+        private TestStreamingChannel(RestRequest request) {
+            super(request, true);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            throw new AssertionError("a successful stream terminates with its last chunk, not with a response");
+        }
+
+        @Override
+        public void sendChunk(HttpChunk chunk) {
+            if (chunk.isLast()) {
+                lastChunkSent.set(true);
+            }
+        }
+
+        @Override
+        public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {}
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
+
+        @Override
+        public boolean isReadable() {
+            return true;
+        }
+
+        @Override
+        public boolean isWritable() {
+            return true;
+        }
+
+        boolean getLastChunkSent() {
+            return lastChunkSent.get();
+        }
+    }
+
+    private static final class LastHttpChunk implements HttpChunk {
+
+        @Override
+        public boolean isLast() {
+            return true;
+        }
+
+        @Override
+        public BytesReference content() {
+            return BytesArray.EMPTY;
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static RestRequest testRestRequest(String path, String content, MediaType mediaType) {

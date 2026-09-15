@@ -346,7 +346,31 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
 
+        // Resolve the streaming channel before reserving anything on the breaker. The failure below is dispatched
+        // over the raw channel, which never owns a reservation, so reserving first would leak the reserved bytes.
+        final StreamingRestChannel streamingChannel;
+        if (handler.supportsStreaming()) {
+            // The handler may support streaming but not the engine, in this case we fail with the bad request
+            if (channel instanceof StreamingRestChannel streamingRestChannel) {
+                streamingChannel = streamingRestChannel;
+            } else {
+                throw new IllegalStateException(
+                    "The engine does not support HTTP streaming, unable to serve uri ["
+                        + request.getHttpRequest().uri()
+                        + "] and method ["
+                        + request.getHttpRequest().method()
+                        + "]"
+                );
+            }
+        } else {
+            streamingChannel = null;
+        }
+
         RestChannel responseChannel = channel;
+        // Returns the in-flight reservation once it has been taken but its ownership was never transferred to a
+        // response channel. Idempotent, so it stays correct if the response path releases first.
+        Runnable releaseReservation = () -> {};
+        boolean reservationHandedOff = false;
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -354,27 +378,29 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
 
-            if (handler.supportsStreaming()) {
-                // The handler may support streaming but not the engine, in this case we fail with the bad request
-                if (channel instanceof StreamingRestChannel streamingRestChannel) {
-                    responseChannel = new StreamHandlingHttpChannel(streamingRestChannel, circuitBreakerService, contentLength);
-                } else {
-                    throw new IllegalStateException(
-                        "The engine does not support HTTP streaming, unable to serve uri ["
-                            + request.getHttpRequest().uri()
-                            + "] and method ["
-                            + request.getHttpRequest().method()
-                            + "]"
-                    );
-                }
+            if (streamingChannel != null) {
+                final StreamHandlingHttpChannel streamHandlingHttpChannel = new StreamHandlingHttpChannel(
+                    streamingChannel,
+                    circuitBreakerService,
+                    contentLength
+                );
+                releaseReservation = streamHandlingHttpChannel::releaseBytes;
+                responseChannel = streamHandlingHttpChannel;
 
                 if (mediaType == null) {
                     sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), responseChannel);
+                    reservationHandedOff = true;
                     return;
                 }
             } else {
                 // if we could reserve bytes for the request we need to send the response also over this channel
-                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+                final ResourceHandlingHttpChannel resourceHandlingHttpChannel = new ResourceHandlingHttpChannel(
+                    channel,
+                    circuitBreakerService,
+                    contentLength
+                );
+                releaseReservation = resourceHandlingHttpChannel::releaseBytes;
+                responseChannel = resourceHandlingHttpChannel;
             }
 
             // TODO: Count requests double in the circuit breaker if they need copying?
@@ -389,8 +415,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             handler.handleRequest(request, responseChannel, client);
+            reservationHandedOff = true;
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+            reservationHandedOff = true;
+        } finally {
+            // Nothing owns the reservation on this path: either the response channel was never handed the request,
+            // constructing the failure response above threw, or a Throwable that is not an Exception escaped. Return
+            // the bytes here instead of leaking them for the lifetime of the node.
+            if (reservationHandedOff == false) {
+                releaseReservation.run();
+            }
         }
     }
 
@@ -608,6 +643,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean released = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
@@ -666,7 +702,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            releaseBytes();
+        }
+
+        // Idempotent release of the in-flight reservation. Safe to call from both the response path (via close())
+        // and from dispatchRequest when no response channel ever took ownership; only the first call decrements.
+        private void releaseBytes() {
+            if (released.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            }
         }
     }
 
@@ -675,6 +719,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean released = new AtomicBoolean();
         private final AtomicBoolean subscribed = new AtomicBoolean();
 
         StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
@@ -738,6 +783,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendChunk(HttpChunk chunk) {
+            // A streaming response terminates with its last chunk rather than through sendResponse(), so the
+            // reservation has to be returned here too: otherwise a successful stream never releases its bytes.
+            if (chunk.isLast()) {
+                releaseBytes();
+            }
             delegate.sendChunk(chunk);
         }
 
@@ -757,7 +807,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            releaseBytes();
+        }
+
+        // Idempotent release of the in-flight reservation: a stream can terminate either by sending its last chunk
+        // or by sending a response, and only the first of those to happen should decrement the breaker.
+        private void releaseBytes() {
+            if (released.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            }
         }
 
         @Override
