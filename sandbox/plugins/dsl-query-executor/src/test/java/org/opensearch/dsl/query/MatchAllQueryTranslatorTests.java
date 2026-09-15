@@ -12,13 +12,14 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MatchAllQueryTranslatorTests extends OpenSearchTestCase {
 
-    public void testConvertsMatchAllToTrueLiteral() {
+    public void testConvertsMatchAllToTrueLiteral() throws ConversionException {
         ConversionContext ctx = TestUtils.createContext();
         MatchAllQueryTranslator translator = new MatchAllQueryTranslator();
 
@@ -26,6 +27,28 @@ public class MatchAllQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexLiteral);
         assertTrue(RexLiteral.booleanValue(result));
+    }
+
+    public void testThrowsForBoost() {
+        ConversionContext ctx = TestUtils.createContext();
+        MatchAllQueryTranslator translator = new MatchAllQueryTranslator();
+
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.matchAllQuery().boost(2.0f), ctx)
+        );
+        assertEquals("Match all query parameter 'boost' is not supported", ex.getMessage());
+    }
+
+    public void testThrowsForName() {
+        ConversionContext ctx = TestUtils.createContext();
+        MatchAllQueryTranslator translator = new MatchAllQueryTranslator();
+
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.matchAllQuery().queryName("my_match_all"), ctx)
+        );
+        assertEquals("Match all query parameter '_name' is not supported", ex.getMessage());
     }
 
     public void testReportsCorrectQueryType() {
