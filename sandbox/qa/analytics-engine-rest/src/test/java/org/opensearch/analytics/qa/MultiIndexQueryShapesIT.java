@@ -136,6 +136,12 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         assertEquals("delegation wildcard fan-out: 3 + 2 = 5", 5L, count);
     }
 
+    public void testDelegationWildcardFilterOnFieldMissingFromOneIndex() throws IOException {
+        ensureProvisioned();
+        long count = singleCount("source=multi_pqluc_* | where source = 'app1' | stats count() as c");
+        assertEquals("unmapped shard must contribute no matches", 1L, count);
+    }
+
     // ── Parquet+Lucene (delegation): alias scan ──
 
     public void testDelegationAliasScanFanOut() throws IOException {
