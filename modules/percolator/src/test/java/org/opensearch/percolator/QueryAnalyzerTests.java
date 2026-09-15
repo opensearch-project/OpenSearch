@@ -77,6 +77,8 @@ import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.lucene.queries.BlendedTermQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -1542,6 +1544,118 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         assertThat(result.extractions, hasSize(3));
         assertFalse(result.verified);
         assertFalse(result.matchAllDocs);
+    }
+
+    public void testTermQuery_verifiedIfSingleValued() {
+        // fully verified results are trivially verified for single-valued documents
+        Result result = analyze(new TermQuery(new Term("_field", "_value")), Version.CURRENT);
+        assertTrue(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+    }
+
+    public void testPointRangeQuery_verifiedIfSingleValued() {
+        Result result = analyze(IntPoint.newRangeQuery("_field", 10, 20), Version.CURRENT);
+        assertFalse(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+    }
+
+    public void testIndexOrDocValuesQuery_verifiedIfSingleValued() {
+        Query query = new IndexOrDocValuesQuery(
+            IntPoint.newRangeQuery("_field", 10, 20),
+            SortedNumericDocValuesField.newSlowRangeQuery("_field", 10, 20)
+        );
+        Result result = analyze(query, Version.CURRENT);
+        assertFalse(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+    }
+
+    public void testApproximateScoreQuery_verifiedIfSingleValued() {
+        // the exact shape produced by NumberFieldMapper.NumberType#rangeQuery for a searchable
+        // field with doc values
+        Query query = new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(
+                IntPoint.newRangeQuery("_field", 10, 20),
+                SortedNumericDocValuesField.newSlowRangeQuery("_field", 10, 20)
+            ),
+            new ApproximatePointRangeQuery(
+                "_field",
+                IntPoint.pack(10).bytes,
+                IntPoint.pack(20).bytes,
+                1,
+                ApproximatePointRangeQuery.INT_FORMAT
+            )
+        );
+        Result result = analyze(query, Version.CURRENT);
+        assertFalse(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        // the approximation query is not extracted separately
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertEquals("_field", ranges.get(0).range.fieldName);
+    }
+
+    public void testRangeConjunction_verifiedIfSingleValued() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(IntPoint.newRangeQuery("field1", 10, 20), Occur.MUST);
+        builder.add(LongPoint.newRangeQuery("field2", 10L, 20L), Occur.MUST);
+        builder.add(new TermQuery(new Term("field3", "value")), Occur.FILTER);
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertFalse(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+    }
+
+    public void testRangesOnSameFieldConjunction_notVerifiedIfSingleValued() {
+        // candidate matching collapses ranges per field, so a candidate match on one range does
+        // not imply that both match, not even for single-valued documents
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(IntPoint.newRangeQuery("field1", 10, 20), Occur.MUST);
+        builder.add(IntPoint.newRangeQuery("field1", 15, 25), Occur.MUST);
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertFalse(result.verified);
+        assertFalse(result.verifiedIfSingleValued);
+    }
+
+    public void testRangeDisjunction_verifiedIfSingleValued() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(IntPoint.newRangeQuery("field1", 10, 20), Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field2", "value")), Occur.SHOULD);
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertFalse(result.verified);
+        assertTrue(result.verifiedIfSingleValued);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+    }
+
+    public void testRangeDisjunctionWithMinimumShouldMatch_notVerifiedIfSingleValued() {
+        // with ranges present the combined msm collapses to 1, dropping the candidate bar below
+        // minimum_should_match=2; a candidate match no longer implies a real match
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(2);
+        builder.add(IntPoint.newRangeQuery("field1", 10, 20), Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field2", "value")), Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field3", "value")), Occur.SHOULD);
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertFalse(result.verified);
+        assertFalse(result.verifiedIfSingleValued);
+    }
+
+    public void testMustNotWithRange_notVerifiedIfSingleValued() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(IntPoint.newRangeQuery("field1", 10, 20), Occur.MUST);
+        builder.add(new TermQuery(new Term("field2", "value")), Occur.MUST_NOT);
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertFalse(result.verified);
+        assertFalse(result.verifiedIfSingleValued);
+    }
+
+    public void testUnverifyClearsVerifiedIfSingleValued() {
+        Result result = analyze(IntPoint.newRangeQuery("_field", 10, 20), Version.CURRENT);
+        assertTrue(result.verifiedIfSingleValued);
+        Result unverified = result.unverify();
+        assertFalse(unverified.verified);
+        assertFalse(unverified.verifiedIfSingleValued);
     }
 
 }

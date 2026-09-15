@@ -129,6 +129,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.opensearch.index.query.QueryBuilders.wildcardQuery;
 import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_COMPLETE;
+import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_COMPLETE_SINGLE_VALUED;
 import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_FAILED;
 import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_PARTIAL;
 import static org.hamcrest.Matchers.containsString;
@@ -316,7 +317,9 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParseContext.Document document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        // multiple ranges on the same field cannot be verified, not even for single-valued documents
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(fieldType.extractionRangeFieldsField.name()).length, equalTo(0));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
@@ -339,7 +342,14 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), parseContext);
         document = parseContext.doc();
 
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        // ranges on different fields are exact for single-valued documents: the query is encoded
+        // as complete_single_valued with the ranged field names recorded for the percolate-time check
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE_SINGLE_VALUED));
+        List<String> rangeFieldNames = Arrays.stream(document.getFields(fieldType.extractionRangeFieldsField.name()))
+            .map(f -> f.binaryValue().utf8ToString())
+            .sorted()
+            .collect(Collectors.toList());
+        assertThat(rangeFieldNames, equalTo(Arrays.asList("number_field1", "number_field2")));
         fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
@@ -351,6 +361,70 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
         fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.minimumShouldMatchField.name())));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).numericValue(), equalTo(2L));
+    }
+
+    public void testExtractRangesRecordsRangeFieldsOnce() throws Exception {
+        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        addQueryFieldMappings();
+        // a disjunction of two ranges on the same field is exact for single-valued documents,
+        // and the ranged field name is recorded only once
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.add(mapperService.fieldType("number_field1").rangeQuery(10, 20, true, true, null, null, null, context), Occur.SHOULD);
+        bq.add(mapperService.fieldType("number_field1").rangeQuery(30, 40, true, true, null, null, null, context), Occur.SHOULD);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
+            settings,
+            mapperService.documentMapperParser(),
+            documentMapper,
+            null,
+            null
+        );
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE_SINGLE_VALUED));
+        IndexableField[] rangeFieldNames = document.getFields(fieldType.extractionRangeFieldsField.name());
+        assertThat(rangeFieldNames.length, equalTo(1));
+        assertThat(rangeFieldNames[0].binaryValue().utf8ToString(), equalTo("number_field1"));
+    }
+
+    public void testExtractRangesOnOldIndexVersionUsesPartial() throws Exception {
+        // indices created before the single-valued verification encoding keep writing `partial`
+        Version oldVersion = Version.V_3_7_0;
+        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        addQueryFieldMappings();
+        Query rangeQuery = mapperService.fieldType("number_field1").rangeQuery(10, 20, true, true, null, null, null, context);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
+            settings,
+            mapperService.documentMapperParser(),
+            documentMapper,
+            null,
+            null
+        );
+        fieldMapper.processQuery(rangeQuery, parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.PercolatorFieldType oldFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        assertThat(document.getField(oldFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(oldFieldType.extractionRangeFieldsField.name()).length, equalTo(0));
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {
