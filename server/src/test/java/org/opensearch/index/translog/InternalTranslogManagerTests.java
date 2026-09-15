@@ -30,6 +30,39 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
+    /**
+     * A local translog has no fence, so the manager answers the fence-ownership questions for the absent case:
+     * nothing can have superseded this copy, a handoff transfer is a no-op, and an aborted handoff leaves it free to
+     * resume. See {@link RemoteStoreFenceOwnership} for why these answers live here rather than as defaults on
+     * {@link Translog}.
+     */
+    public void testFenceOwnershipWithoutAFence() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+        InternalTranslogManager translogManager = new InternalTranslogManager(
+            new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
+            primaryTerm,
+            globalCheckpoint::get,
+            createTranslogDeletionPolicy(INDEX_SETTINGS),
+            shardId,
+            new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+            () -> tracker,
+            translogUUID,
+            TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+            () -> {},
+            new InternalTranslogFactory(),
+            () -> Boolean.TRUE,
+            TranslogOperationHelper.DEFAULT
+        );
+        try {
+            assertFalse("no fence means nothing can have superseded us", translogManager.isRemoteStoreFenceSuperseded());
+            translogManager.transferFenceOwnership("target-allocation"); // no fence to hand over: a no-op, never a failure
+            assertTrue("no fence means an aborted handoff may resume", translogManager.revertFenceOwnership());
+        } finally {
+            translogManager.close();
+        }
+    }
+
     public void testRecoveryFromTranslog() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicBoolean beginTranslogRecoveryInvoked = new AtomicBoolean(false);

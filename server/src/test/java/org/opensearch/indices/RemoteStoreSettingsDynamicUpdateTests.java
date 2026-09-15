@@ -11,6 +11,9 @@ package org.opensearch.indices;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING;
@@ -189,5 +192,54 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
                 Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 0).build()
             )
         );
+    }
+
+    public void testFlushOnUncommittedSegmentsEnabled() {
+        // opt-in: disabled unless the operator turns it on
+        assertFalse(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true).build()
+        );
+        assertTrue(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), false).build()
+        );
+        assertFalse(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+    }
+
+    public void testFlushOnUncommittedSegmentsThresholdSize() {
+        assertEquals(
+            IndexSettings.DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize()
+        );
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "128mb")
+                .build()
+        );
+        assertEquals(new ByteSizeValue(128, ByteSizeUnit.MB), remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize());
+
+        // the minimum is one byte: a zero or negative threshold would flush on every successful segments sync
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "1b")
+                .build()
+        );
+        assertEquals(new ByteSizeValue(1, ByteSizeUnit.BYTES), remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize());
+
+        for (String invalid : new String[] { "0b", "-1" }) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> clusterSettings.applySettings(
+                    Settings.builder()
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), invalid)
+                        .build()
+                )
+            );
+            assertEquals(new ByteSizeValue(1, ByteSizeUnit.BYTES), remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize());
+        }
     }
 }
