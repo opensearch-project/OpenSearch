@@ -110,6 +110,9 @@ public class OpenSearchUnion extends Union implements OpenSearchRelNode {
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         OpenSearchDistribution selfDist = distributionOf(this);
         if (selfDist == null || selfDist.getType() != RelDistribution.Type.SINGLETON) {
             return planner.getCostFactory().makeInfiniteCost();

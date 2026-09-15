@@ -136,7 +136,7 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
     public void testBroadcastGateSuppressesBuildOverCap() {
         RelNode build = scanWith(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
         RelMetadataQuery mq = mock(RelMetadataQuery.class);
-        // 60M rows × 8 bytes = 480MB — TPC-H q18-class build side, ~15x the 32MB default cap.
+        // 60M rows × 8 bytes = 480MB — a fact-table build side, ~15x the 32MB default cap.
         when(mq.getRowCount(build)).thenReturn(60_000_000.0);
         assertFalse(
             "build estimated at 480MB must be suppressed under a 32MB cap so CBO falls back to shuffle/coord",

@@ -20,6 +20,7 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -85,9 +86,9 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
             return false;
         }
         OpenSearchJoin join = call.rel(0);
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Require at least one EQUI key, but do NOT require info.isEqui(): a join may carry equi keys
-        // AND a residual non-equi predicate (e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate
+        // AND a residual non-equi predicate (e.g. e.g. l_partkey=p_partkey AND l_shipdate
         // BETWEEN …). emitBroadcastAlternative copies the FULL join condition (equi + residual) onto
         // the worker join, so the probe-side HashJoinExec applies the residual as a join filter after
         // the equi match. A PURE-theta / cross join (no equi key) still bails (empty leftKeys) and
@@ -153,7 +154,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * expected post-filter estimate — NOT the selectivity-ignoring {@code getMaxRowCount} upper
      * bound. This mirrors Spark's plan-time {@code canBroadcastBySize}, which compares the
      * filter-reduced {@code stats.sizeInBytes} against {@code autoBroadcastJoinThreshold}: a build
-     * behind a selective filter (e.g. TPC-H q17's {@code part WHERE p_brand=… AND p_container=…})
+     * behind a selective filter (e.g. {@code part WHERE p_brand=… AND p_container=…})
      * estimates small and is allowed to broadcast, even though the unfiltered table is huge. A
      * conservative max-bound would suppress those legitimate broadcasts. The cost of trusting the
      * estimate — a build that filters less than predicted and overflows the runtime cap — is caught
@@ -170,8 +171,13 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * <p>Returns {@code true} (admit broadcast) when the row count is unknown or the row width can't
      * be estimated: missing stats must not suppress broadcast. A cap of {@code 0} (or negative)
      * means "no limit configured" → always admit.
+     *
+     * <p>Public because {@code OpenSearchJoin.deriveTraits} applies the SAME gate when it derives a
+     * broadcast alternative from a probe-shaped child. Both formation paths must agree, or lowering
+     * {@code analytics.mpp.broadcast.max_bytes} would suppress only the rule's alternative and the trait
+     * hook would keep forming a broadcast the runtime capture sink then rejects.
      */
-    static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
+    public static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
         if (maxBytes <= 0) {
             return true;
         }
@@ -204,7 +210,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * variable-width CHAR/VARCHAR/BINARY capped). Unknown column types contribute a conservative
      * default so a partially-typed row still estimates non-zero rather than collapsing to 0.
      */
-    private static double estimateRowWidthBytes(org.apache.calcite.rel.type.RelDataType rowType) {
+    public static double estimateRowWidthBytes(org.apache.calcite.rel.type.RelDataType rowType) {
         double total = 0d;
         for (org.apache.calcite.rel.type.RelDataTypeField field : rowType.getFieldList()) {
             total += averageTypeWidthBytes(field.getType());

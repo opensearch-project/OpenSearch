@@ -46,8 +46,8 @@ import static org.mockito.Mockito.when;
 /**
  * Validates the strategy a join query resolves to under the GENERAL post-CBO scheduler — ported from the
  * deleted {@code JoinStrategyAdvisorTests} (the {@code JoinStrategyAdvisor.observe()} read of CBO+DAGBuilder
- * output). The general path no longer has a per-strategy advisor; instead {@link DistributionEnforcementPass}
- * decides placement post-CBO and {@code DAGBuilder} tags each stage's {@link Stage.StageRole}, so the
+ * output). The general path no longer has a per-strategy advisor; instead CBO's trait enforcement
+ * decides placement during search and {@code DAGBuilder} tags each stage's {@link Stage.StageRole}, so the
  * "observed" strategy is read directly off the resulting DAG via {@link MppStrategy#containsJoin} +
  * {@link MppStrategy#findBroadcastBuild} + a hash-exchange scan (the same signals {@code DefaultPlanExecutor}
  * uses to pick the {@code /_analytics/_strategies} counter).
@@ -165,19 +165,10 @@ public class MppStrategyObservationTests extends BasePlannerRulesTests {
 
     // ── helpers ──────────────────────────────────────────────────────────────────
 
-    /** CBO → DistributionEnforcementPass (only when MPP is on) → DAGBuilder — the production formation
+    /** CBO (which places every exchange from traits) → DAGBuilder — the production formation
      *  pipeline, so the resulting roles reflect what the general scheduler would dispatch. */
     private QueryDAG buildEnforcedDag(RelNode logical, PlannerContext context) {
         RelNode plan = PlannerImpl.createPlan(logical, context);
-        if (context.getSettings().getAsBoolean("analytics.mpp.enabled", false)) {
-            plan = DistributionEnforcementPass.enforce(
-                plan,
-                context.getDistributionTraitDef(),
-                CLUSTER_DATA_NODES,
-                /* minRows */ 1L,
-                /* shuffleAggregateEnabled */ true
-            );
-        }
         return DAGBuilder.build(plan, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
     }
 

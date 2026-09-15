@@ -87,6 +87,9 @@ public class OpenSearchShuffleExchange extends SingleRel implements OpenSearchRe
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         double rows = mq.getRowCount(getInput());
         // Hash shuffle moves all input rows once, partitioned across N consumers. Cost is
         // dominated by the transfer term (proportional to rows) plus a per-partition setup

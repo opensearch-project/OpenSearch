@@ -96,6 +96,9 @@ public class OpenSearchBroadcastExchange extends SingleRel implements OpenSearch
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         double rows = mq.getRowCount(getInput());
         // Broadcast moves N copies of the row set, where N = probe-node count. Each copy
         // also pays a fixed setup cost (TCP setup + NamedScan registration on each probe).

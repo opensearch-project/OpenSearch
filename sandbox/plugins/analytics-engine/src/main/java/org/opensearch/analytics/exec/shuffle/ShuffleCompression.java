@@ -23,7 +23,7 @@ import java.util.Locale;
  * <p>Shuffle ships each producer partition as an Arrow IPC stream blob (the DataFusion backend's
  * {@code DatafusionPartitionedSink}); the consumer buffers every chunk on heap in
  * {@link ShuffleBufferManager} until both sides report {@code isLast}, then drains (the backend's
- * {@code ShuffleScanHandler}). For a wide fact-table shuffle (TPC-H lineitem) that buffered
+ * {@code ShuffleScanHandler}). For a wide fact-table shuffle that buffered
  * footprint is what trips the parent circuit breaker before the per-query shuffle budget forces a
  * spill. Compressing the IPC buffers shrinks BOTH the wire payload AND the heap-resident buffered
  * bytes — relieving the breaker — for a compress/decompress cost that is cheap relative to the

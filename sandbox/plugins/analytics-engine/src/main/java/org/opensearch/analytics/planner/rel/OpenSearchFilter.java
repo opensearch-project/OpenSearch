@@ -19,6 +19,7 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -32,7 +33,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchFilter extends Filter implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
 
@@ -67,24 +68,39 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode, Distr
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
         return planner.getCostFactory().makeTinyCost();
     }
 
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+    // ---- PhysicalNode (top-down trait propagation) ----
 
-    /** Filter is fully transparent to distribution: it imposes no partitioning requirement on its input. */
+    /**
+     * Filter preserves both row identity and column indices, so it RIDES any distribution: the demand
+     * passes to its input unchanged and the same distribution is delivered upward. No key remapping is
+     * needed (unlike {@link OpenSearchProject}), which makes this the simplest pass-through in the tree.
+     */
     @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        return null;
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
     }
 
-    /** Filter doesn't change schema or partitioning — output distribution = the child's, verbatim. */
+    /** Mirror of {@link #passThroughTraits}: the child's distribution is this filter's output. */
     @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        return childDistributions.size() == 1 ? childDistributions.get(0) : null;
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
     }
 
     @Override
