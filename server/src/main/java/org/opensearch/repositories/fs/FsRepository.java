@@ -102,19 +102,7 @@ public class FsRepository extends BlobStoreRepository {
         Property.Deprecated
     );
 
-    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", value -> {
-        // CWE-22 hardening (string-only fail-fast; avoids constructing a Path from a raw user-supplied string):
-        // reject absolute base_path values (POSIX "/", Windows "\\"/UNC, drive-letter "C:..") and any parent-directory
-        // ("..") segment. An absolute base_path makes Path.resolve discard the path.repo-validated location, escaping
-        // containment; a ".." segment lets the resolved path climb above it. The authoritative, location-aware
-        // containment check is performed in validateBasePathWithinRepo().
-        if (Strings.hasLength(value)
-            && (value.startsWith("/") || value.startsWith("\\") || value.matches("^[A-Za-z]:.*") || value.contains(".."))) {
-            throw new IllegalArgumentException(
-                "[base_path] must be a relative path that does not contain '..' segments; got [" + value + "]"
-            );
-        }
-    });
+    public static final Setting<String> BASE_PATH_SETTING = Setting.relativePathSetting("base_path");
 
     protected final Environment environment;
 

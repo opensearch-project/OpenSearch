@@ -177,7 +177,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
 
         Path wordListFile = generateWordList(home, words);
         settings = Settings.builder()
-            .loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath(), XContentType.YAML)
+            .loadFromSource("index: \n  word_list_path: " + env.configDir().relativize(wordListFile), XContentType.YAML)
             .build();
 
         Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
