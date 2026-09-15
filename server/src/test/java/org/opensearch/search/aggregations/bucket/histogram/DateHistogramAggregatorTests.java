@@ -1987,11 +1987,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             )
         );
 
-        // nested under a numeric histogram (parent != null): fast path can't apply -> intra-eligible
+        // nested under a numeric histogram (parent != null): fast path can't apply -> intra-eligible. The
+        // wrapping histogram is given hard bounds so that its own fast path declines too, leaving the nested
+        // date histogram as the only thing this asserts on.
         assertTrue(
             supportsIntraSegmentSearch(
                 new HistogramAggregationBuilder("outer").field("n")
                     .interval(10)
+                    .hardBounds(new DoubleBounds(0.0, 100.0))
                     .subAggregation(
                         new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR)
                     ),
