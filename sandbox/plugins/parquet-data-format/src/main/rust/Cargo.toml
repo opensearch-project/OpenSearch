@@ -24,6 +24,9 @@ rayon = { workspace = true }
 tokio = { workspace = true }
 crc32fast = { workspace = true }
 serde_json = { workspace = true }
+object_store = { workspace = true }
+bytes = { workspace = true }
+opensearch-tiered-storage = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }

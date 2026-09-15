@@ -264,7 +264,9 @@ public class DataFormatAwareEngine implements Indexer {
         // DataFormatAwareEngine is the writable primary-side engine. Read-only replicas
         // (segment-rep) and warm-tier shards must use a read-only engine instead — fail
         // fast so a misconfiguration surfaces before any indexing or recovery.
-        if (engineConfig.isReadOnlyReplica() || engineConfig.getIndexSettings().isWarmIndex()) {
+        // Exception: warm shards with index.warm.writable.enabled use this engine (writable warm).
+        boolean warmWritable = org.opensearch.index.IndexModule.WARM_WRITABLE_SETTING.get(engineConfig.getIndexSettings().getSettings());
+        if (engineConfig.isReadOnlyReplica() || (engineConfig.getIndexSettings().isWarmIndex() && warmWritable == false)) {
             throw new IllegalStateException(
                 "DataFormatAwareEngine cannot be used on a read-only shard ["
                     + engineConfig.getShardId()
@@ -413,8 +415,29 @@ public class DataFormatAwareEngine implements Indexer {
             FileDeleter fileDeleter = indexingExecutionEngine::deleteFiles;
             Map<String, FilesListener> filesListeners = new HashMap<>();
             List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>();
+            // Writable warm: the warm-tier directory listens for files entering the catalog so
+            // it can register locally-written (native) format files and account their bytes.
+            // Notified BEFORE the reader manager so registration precedes any reader warmup.
+            org.opensearch.index.store.FormatFilesAddedListener formatFilesAddedListener = resolveFormatFilesAddedListener(store);
             for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
-                filesListeners.put(entry.getKey().name(), entry.getValue());
+                String formatName = entry.getKey().name();
+                FilesListener delegate = entry.getValue();
+                if (formatFilesAddedListener == null) {
+                    filesListeners.put(formatName, delegate);
+                } else {
+                    filesListeners.put(formatName, new FilesListener() {
+                        @Override
+                        public void onFilesAdded(java.util.Collection<String> files) throws IOException {
+                            formatFilesAddedListener.onFormatFilesAdded(formatName, files);
+                            delegate.onFilesAdded(files);
+                        }
+
+                        @Override
+                        public void onFilesDeleted(java.util.Collection<String> files) throws IOException {
+                            delegate.onFilesDeleted(files);
+                        }
+                    });
+                }
                 snapshotListeners.add(entry.getValue());
             }
             List<CatalogSnapshot> committedSnapshots = committer.listCommittedSnapshots();
@@ -490,7 +513,8 @@ public class DataFormatAwareEngine implements Indexer {
                     long gen = writerGenerationCounter.incrementAndGet();
                     assert gen > 0 : "merge generation must be positive but was: " + gen;
                     return gen;
-                }
+                },
+                store::getDataformatAwareStoreHandles
             );
 
             // Restore version map and checkpoint tracker after recovery.
@@ -2089,7 +2113,7 @@ public class DataFormatAwareEngine implements Indexer {
                     readers.put(entry.getKey(), reader);
                 }
             }
-            DataFormatAwareReader reader = new DataFormatAwareReader(snapshotRef, readers);
+            DataFormatAwareReader reader = new DataFormatAwareReader(snapshotRef, readers, store.getDataformatAwareStoreHandles());
             return new GatedCloseable<>(reader, reader::close);
         } catch (Exception e) {
             snapshotRef.close();
@@ -2486,6 +2510,26 @@ public class DataFormatAwareEngine implements Indexer {
         return localCheckpointTracker.generateSeqNo();
     }
 
+    /**
+     * Walks the store's FilterDirectory chain looking for a directory that implements
+     * {@link org.opensearch.index.store.FormatFilesAddedListener} (the warm-tier
+     * directory). Returns {@code null} on hot shards.
+     */
+    static org.opensearch.index.store.FormatFilesAddedListener resolveFormatFilesAddedListener(Store store) {
+        org.apache.lucene.store.Directory dir = store.directory();
+        while (dir != null) {
+            if (dir instanceof org.opensearch.index.store.FormatFilesAddedListener listener) {
+                return listener;
+            }
+            if (dir instanceof org.apache.lucene.store.FilterDirectory filterDirectory) {
+                dir = filterDirectory.getDelegate();
+            } else {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private void markSeqNoAsSeen(long seqNo) {
         localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
@@ -2498,10 +2542,25 @@ public class DataFormatAwareEngine implements Indexer {
     public static class DataFormatAwareReader implements IndexReaderProvider.Reader {
         private final GatedCloseable<CatalogSnapshot> snapshotRef;
         private final Map<DataFormat, Object> readers;
+        private final Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles;
 
         public DataFormatAwareReader(GatedCloseable<CatalogSnapshot> snapshotRef, Map<DataFormat, Object> readers) {
+            this(snapshotRef, readers, Map.of());
+        }
+
+        public DataFormatAwareReader(
+            GatedCloseable<CatalogSnapshot> snapshotRef,
+            Map<DataFormat, Object> readers,
+            Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles
+        ) {
             this.snapshotRef = snapshotRef;
             this.readers = readers;
+            this.storeHandles = storeHandles == null ? Map.of() : storeHandles;
+        }
+
+        @Override
+        public Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles() {
+            return storeHandles;
         }
 
         @Override

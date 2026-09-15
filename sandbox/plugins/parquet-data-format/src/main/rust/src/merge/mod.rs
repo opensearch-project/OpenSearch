@@ -14,6 +14,7 @@ pub mod io_task;
 pub mod metrics;
 pub mod schema;
 mod sorted;
+pub mod store_reader;
 mod unsorted;
 
 pub use error::{MergeError, MergeResult};

@@ -63,7 +63,7 @@ public class GetServiceTests extends OpenSearchTestCase {
         when(mockReader.catalogSnapshot()).thenReturn(snapshot);
         when(snapshot.findFileSet("parquet", 1L)).thenReturn(pset);
         when(executor.formatName()).thenReturn("parquet");
-        when(executor.executeSingleRow(0L, pset)).thenReturn(
+        when(executor.executeSingleRow(0L, pset, mockReader)).thenReturn(
             Map.of("_id", "doc1", "_seq_no", 5L, "_primary_term", 1L, "_version", 2L, "field1", "value1")
         );
 
@@ -88,7 +88,7 @@ public class GetServiceTests extends OpenSearchTestCase {
         when(mockReader.catalogSnapshot()).thenReturn(snapshot);
         when(snapshot.findFileSet("parquet", 1L)).thenReturn(pset);
         when(executor.formatName()).thenReturn("parquet");
-        when(executor.executeSingleRow(0L, pset)).thenReturn(null);
+        when(executor.executeSingleRow(0L, pset, mockReader)).thenReturn(null);
 
         DocumentLookupService service = new GetService(executor).documentLookupService(resolver);
         expectThrows(IllegalStateException.class, () -> service.getById("doc1", mockReader, INDEX));

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.DataFormatAwareNRTReplicationEngine;
 import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
@@ -26,9 +27,17 @@ public class DataFormatAwareIndexerFactory implements IndexerFactory {
     public Indexer createIndexer(EngineConfig config) {
         if (config.isReadOnlyReplica()) {
             return new DataFormatAwareNRTReplicationEngine(config);
-        } else if (config.getIndexSettings().isWarmIndex()) {
+        } else if (config.getIndexSettings().isWarmIndex() && isWarmWritable(config) == false) {
             return new DataFormatAwareReadOnlyEngine(config);
         }
         return new DataFormatAwareEngine(config);
+    }
+
+    /**
+     * A warm primary gets the full writable engine when
+     * {@link IndexModule#WARM_WRITABLE_SETTING} is enabled on the index.
+     */
+    private static boolean isWarmWritable(EngineConfig config) {
+        return IndexModule.WARM_WRITABLE_SETTING.get(config.getIndexSettings().getSettings());
     }
 }

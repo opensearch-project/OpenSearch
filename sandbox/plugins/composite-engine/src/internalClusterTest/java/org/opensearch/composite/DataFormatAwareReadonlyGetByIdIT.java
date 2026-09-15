@@ -8,7 +8,6 @@
 
 package org.opensearch.composite;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.exec.Indexer;
@@ -21,7 +20,6 @@ import java.util.List;
  * End-to-end get-by-id coverage for {@link DataFormatAwareReadOnlyEngine}: after an index is tiered to
  * warm, a document is still resolvable by id via the read-only row path (the warm engine has no version map).
  */
-@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21803")
 public class DataFormatAwareReadonlyGetByIdIT extends DataFormatAwareReadonlyEngineBaseIT {
 
     public void testGetByIdFromWarmReadOnlyEngine() throws Exception {
@@ -38,15 +36,16 @@ public class DataFormatAwareReadonlyGetByIdIT extends DataFormatAwareReadonlyEng
             indexer instanceof DataFormatAwareReadOnlyEngine
         );
 
-        long cnt = 1;
+        // Docs are indexed by createHotIndexAndTierToWarm with field_number = 0..N-1
+        // and fields field_text + field_number (no field_keyword).
+        long cnt = 0;
         for (String id : ids) {
             GetResponse resp = client().prepareGet(INDEX_NAME, id).setRealtime(false).get();
 
-            assertTrue("replica get-by-id must find the replicated doc via rows", resp.isExists());
+            assertTrue("warm get-by-id must find the doc via rows", resp.isExists());
             assertEquals(1L, resp.getVersion());
             assertEquals(cnt++, ((Number) resp.getSourceAsMap().get("field_number")).longValue());
             assertNotNull(resp.getSourceAsMap().get("field_text"));
-            assertNotNull(resp.getSourceAsMap().get("field_keyword"));
         }
     }
 }

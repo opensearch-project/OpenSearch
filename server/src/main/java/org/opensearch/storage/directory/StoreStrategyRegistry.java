@@ -218,6 +218,28 @@ public final class StoreStrategyRegistry implements Closeable {
     }
 
     /**
+     * Forwards a locally-written-file event. Resolves the owning strategy and forwards
+     * to its store handler with the absolute key (matches DataFusion lookups and the
+     * key used by {@link #onUploaded}). Returns true if dispatched.
+     *
+     * @param file the file identifier (e.g. {@code "parquet/seg_0.parquet"})
+     * @param size file size in bytes
+     */
+    public boolean onWritten(String file, long size) {
+        Match match = matchFor(file);
+        if (match == null) {
+            return false;
+        }
+        DataFormatStoreHandler handler = storeHandlers.get(match.format());
+        if (handler == null) {
+            return false;
+        }
+        String absoluteKey = shardPath.getDataPath().resolve(file).toString();
+        handler.onWritten(absoluteKey, absoluteKey, size);
+        return true;
+    }
+
+    /**
      * Forwards a removal event. Returns true if dispatched, false otherwise.
      */
     public boolean onRemoved(String file) {

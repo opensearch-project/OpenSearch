@@ -77,6 +77,18 @@ public interface DataFormatStoreHandler extends Closeable {
     void onRemoved(String file);
 
     /**
+     * Called when a format file has been fully written locally (native writer output that
+     * just entered the catalog, or a recovery copy). Registers the file as LOCAL so native
+     * readers route to the local filesystem with a size fast-path, and so the upload flip
+     * ({@link #onUploaded}) is an in-place LOCAL to REMOTE transition.
+     *
+     * @param file              the file identifier (absolute path, same key form as {@link #onUploaded})
+     * @param localAbsolutePath the absolute local filesystem path
+     * @param size              file size in bytes
+     */
+    default void onWritten(String file, String localAbsolutePath, long size) {}
+
+    /**
      * Returns the native store handle wrapping the Rust object store pointer,
      * or {@code null} if this handler does not manage a native store.
      *
