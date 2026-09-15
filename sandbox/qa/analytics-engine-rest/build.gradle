@@ -136,7 +136,8 @@ integTest {
     //   -Dplan.generate=print  capture + log the block (read-only peek, no write)
     //   (flag absent           = assertion mode: compare capture vs golden)
     //   -Dplan.combos=...       override which named combos run (else combos.yaml defaults)
-    ['plan.generate', 'plan.combos'].each { k ->
+    //   -Dtests.ppl.only=10       run only the listed query numbers (comma-separated) — single-query debugging
+    ['plan.generate', 'plan.combos', 'tests.ppl.only'].each { k ->
         if (System.getProperty(k) != null) { systemProperty k, System.getProperty(k) }
     }
     // Source resources dir, so -Dplan.generate writes goldens to the source tree (not build/).
