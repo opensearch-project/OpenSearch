@@ -17,6 +17,7 @@ use crate::log_debug;
 
 use super::context::MergeContext;
 use super::error::MergeResult;
+use super::live_docs::is_alive_in_words;
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
 use crate::memory::merge_pool;
@@ -188,7 +189,7 @@ pub fn merge_unsorted_with_pool(
                     let mut alive = 0usize;
                     for i in 0..batch_rows {
                         let abs = base_row_id + i as u64;
-                        let alive_flag = is_alive(bits, abs, file_num_rows as u64);
+                        let alive_flag = is_alive_in_words(bits, file_num_rows as u64, abs);
                         if alive_flag {
                             mapping[mapping_offset] = new_row_id;
                             new_row_id += 1;
@@ -236,9 +237,4 @@ pub fn merge_unsorted_with_pool(
         flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
         row_id_mapping_max: stats.row_id_mapping_max,
     })
-}
-
-#[inline]
-fn is_alive(bits: &[u64], abs_row_id: u64, num_rows: u64) -> bool {
-    super::live_docs::is_alive_in_words(bits, num_rows, abs_row_id)
 }

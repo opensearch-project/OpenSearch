@@ -33,6 +33,7 @@ import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergePreparation;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
@@ -326,15 +327,22 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         return null;
     }
 
-    // ========== prepareMerge / abortPreparedMerge ==========
+    // ========== prepareMerge / MergePreparation ==========
 
-    /** Empty input returns ALL_ALIVE without taking any state. */
-    public void testPrepareMergeWithEmptySegmentsReturnsAllAlive() throws IOException {
+    /** LuceneMerger owns delete state, so it advertises itself as the composite's live-docs producer. */
+    public void testProvidesMergeLiveDocs() {
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        assertTrue(merger.providesMergeLiveDocs());
+    }
+
+    /** Empty input returns the EMPTY preparation without taking any state. */
+    public void testPrepareMergeWithEmptySegmentsReturnsEmptyPreparation() throws IOException {
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
         MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(99L).build();
 
-        LiveDocs result = merger.prepareMerge(input);
-        assertTrue(result.allAlive());
+        MergePreparation result = merger.prepareMerge(input);
+        assertSame(MergePreparation.EMPTY, result);
+        assertTrue(result.liveDocs().allAlive());
     }
 
     /** Calling prepareMerge twice for the same generation trips the double-prepare assertion. */
@@ -349,17 +357,17 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
-        merger.prepareMerge(input);
-
-        AssertionError err = expectThrows(AssertionError.class, () -> merger.prepareMerge(input));
-        assertTrue(err.getMessage(), err.getMessage().contains("already has a prepared merge"));
-
-        // Release prepared state before tearDown closes the writer.
-        writer.abortPreparedMerge(gen);
+        try (MergePreparation first = merger.prepareMerge(input)) {
+            assertNotSame(MergePreparation.EMPTY, first);
+            AssertionError err = expectThrows(AssertionError.class, () -> merger.prepareMerge(input));
+            assertTrue(err.getMessage(), err.getMessage().contains("already has a prepared merge"));
+        }
+        // try-with-resources released the prepared state before tearDown closes the writer.
+        assertNull(writer.takePreparedMerge(gen));
     }
 
-    /** abortPreparedMerge releases the prepared state and is idempotent. */
-    public void testAbortPreparedMergeReleasesState() throws IOException {
+    /** Closing the preparation releases the prepared state and is idempotent. */
+    public void testPreparationCloseReleasesState() throws IOException {
         writeSegment(writer, 1L, 0, 3);
         writeSegment(writer, 2L, 3, 2);
         writer.commit();
@@ -369,13 +377,14 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
-        merger.prepareMerge(input);
+        MergePreparation preparation = merger.prepareMerge(input);
+        assertNotSame(MergePreparation.EMPTY, preparation);
 
-        merger.abortPreparedMerge(input);
+        preparation.close();
         assertNull("entry must be drained from preparedMerges", writer.takePreparedMerge(gen));
 
         // idempotent
-        merger.abortPreparedMerge(input);
+        preparation.close();
     }
 
     /** prepareMerge surfaces per-generation live-docs bitmaps reflecting applied deletes. */
@@ -390,8 +399,8 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
-        LiveDocs liveDocs = merger.prepareMerge(input);
-        try {
+        try (MergePreparation preparation = merger.prepareMerge(input)) {
+            LiveDocs liveDocs = preparation.liveDocs();
             assertFalse("segment gen=1 has a delete", liveDocs.allAlive());
             assertEquals(1, liveDocs.segmentsWithDeletes());
 
@@ -402,9 +411,8 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
             assertTrue("gen=2 has no deletes", liveDocs.allAlive(2L));
             assertNull(liveDocs.packedBits(2L));
-        } finally {
-            writer.abortPreparedMerge(gen);
         }
+        assertNull("close() must have released the prepared state", writer.takePreparedMerge(gen));
     }
 
     /** merge() consumes the OneMerge prepared by prepareMerge — no fresh OneMerge is created. */
@@ -417,9 +425,68 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         long gen = 99L;
-        merger.prepareMerge(MergeInput.builder().segments(segments).newWriterGeneration(gen).build());
+        try (MergePreparation preparation = merger.prepareMerge(MergeInput.builder().segments(segments).newWriterGeneration(gen).build())) {
+            MergeInput mergeInput = MergeInput.builder()
+                .segments(segments)
+                .rowIdMapping(identityRowIdMapping())
+                .newWriterGeneration(gen)
+                .liveDocs(preparation.liveDocs())
+                .build();
+            MergeResult result = merger.merge(mergeInput);
 
-        RowIdMapping identity = new RowIdMapping() {
+            assertFalse(result.getMergedWriterFileSet().isEmpty());
+            assertNull("prepared state must be consumed by merge()", writer.takePreparedMerge(gen));
+        }
+        // close() after a consumed merge is a no-op: nothing left to abort.
+    }
+
+    /**
+     * A bitmap with nothing prepared means some primary already dropped rows against a snapshot
+     * this merger never saw. Re-snapshotting would silently misalign the formats, so merge()
+     * refuses instead of falling back to a fresh OneMerge.
+     */
+    public void testMergeRefusesLiveDocsWithoutPreparedMerge() throws IOException {
+        writeSegment(writer, 1L, 0, 3);
+        writeSegment(writer, 2L, 3, 2);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
+
+        long gen = 99L;
+        LiveDocs someBitmap = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b101L }));
+        MergeInput mergeInput = MergeInput.builder()
+            .segments(segments)
+            .rowIdMapping(identityRowIdMapping())
+            .newWriterGeneration(gen)
+            .liveDocs(someBitmap)
+            .build();
+
+        IllegalStateException err = expectThrows(IllegalStateException.class, () -> merger.merge(mergeInput));
+        assertTrue(err.getMessage(), err.getMessage().contains("no merge was prepared"));
+        assertEquals("source segments must be untouched", 2, writer.liveSegmentCommitInfos().size());
+    }
+
+    /** With ALL_ALIVE and nothing prepared (Lucene-only engine), merge() still runs on a fresh OneMerge. */
+    public void testMergeWithoutPreparedMergeAllowedWhenAllAlive() throws IOException {
+        writeSegment(writer, 1L, 0, 3);
+        writeSegment(writer, 2L, 3, 2);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
+
+        MergeInput mergeInput = MergeInput.builder()
+            .segments(segments)
+            .rowIdMapping(identityRowIdMapping())
+            .newWriterGeneration(99L)
+            .build(); // liveDocs defaults to ALL_ALIVE
+        MergeResult result = merger.merge(mergeInput);
+        assertFalse(result.getMergedWriterFileSet().isEmpty());
+    }
+
+    private static RowIdMapping identityRowIdMapping() {
+        return new RowIdMapping() {
             @Override
             public long getNewRowId(long oldId, long oldGeneration) {
                 return oldId;
@@ -440,11 +507,6 @@ public class LuceneMergerTests extends OpenSearchTestCase {
                 return 0;
             }
         };
-        MergeInput mergeInput = MergeInput.builder().segments(segments).rowIdMapping(identity).newWriterGeneration(gen).build();
-        MergeResult result = merger.merge(mergeInput);
-
-        assertFalse(result.getMergedWriterFileSet().isEmpty());
-        assertNull("prepared state must be consumed by merge()", writer.takePreparedMerge(gen));
     }
 
     // ========== Helper Methods ==========

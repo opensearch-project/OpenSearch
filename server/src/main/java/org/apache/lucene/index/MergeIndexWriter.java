@@ -199,13 +199,17 @@ public class MergeIndexWriter extends IndexWriter {
             // Ride Lucene's own abort path: setAborted + merge fast-fails inside mergeMiddle's
             // checkAborted and the surrounding finally runs closeMergeReaders, which closes any
             // readers we managed to open, decRefs their files (balancing our per-reader incRef),
-            // and clears the setIsMerging flags. We swallow the expected MergeAbortedException
-            // and suppress any other cleanup failure into the original throwable.
+            // and clears the setIsMerging flags. Any cleanup failure is suppressed into the
+            // original throwable.
             try {
                 oneMerge.setAborted();
                 merge(oneMerge);
             } catch (MergePolicy.MergeAbortedException expected) {
-                // expected — cleanup ran in merge()'s finally
+                // Currently unreachable: IndexWriter#handleMergeException only rethrows
+                // MergeAbortedException when merge.isExternal, and we set isExternal=false above,
+                // so merge() returns normally after swallowing it. Kept deliberately because Lucene
+                // carries a TODO to "just throw all the time" in handleMergeException; if that lands,
+                // this catch keeps the abort path quiet. Cleanup ran in merge()'s finally either way.
             } catch (Throwable suppress) {
                 t.addSuppressed(suppress);
             }
@@ -232,9 +236,9 @@ public class MergeIndexWriter extends IndexWriter {
      *
      * <p>Marks the prepared merge as aborted and invokes {@link IndexWriter#merge}; the
      * inner {@code mergeMiddle.checkAborted()} fast-fails with a
-     * {@link MergePolicy.MergeAbortedException} which we swallow here, while the
-     * surrounding finally block in {@code merge()} releases the reader-pool and deleter
-     * references that {@link #prepareMerge} took.
+     * {@link MergePolicy.MergeAbortedException}, which {@code IndexWriter#handleMergeException}
+     * swallows for non-external merges, while the surrounding finally block in {@code merge()}
+     * releases the reader-pool and deleter references that {@link #prepareMerge} took.
      */
     public void abortPreparedMerge(long mergeGeneration) throws IOException {
         PreparableOneMerge prepared = preparedMerges.remove(mergeGeneration);
@@ -245,7 +249,7 @@ public class MergeIndexWriter extends IndexWriter {
         try {
             merge(prepared);
         } catch (MergePolicy.MergeAbortedException expected) {
-            // Cleanup ran inside merge()'s finally block.
+            // Currently unreachable — see the matching catch in prepareMerge for why it is kept.
         }
     }
 
