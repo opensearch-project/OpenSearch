@@ -181,6 +181,40 @@ final class PplAggregateCallRewriter {
                     explicitReturnType = typeFactory.createTypeWithNullability(arrayType, true);
                 }
             }
+            case "ARRAY_AGG" -> {
+                // mvcombine: type-preserving collect; typed op drops nulls, so filterArg=-1 below.
+                if (call.getArgList().isEmpty()) {
+                    return call;
+                }
+                RelDataType arrayAggArg0 = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
+                RelDataTypeFactory arrayAggTf = agg.getCluster().getTypeFactory();
+                SqlAggFunction arrayAggOp;
+                RelDataType arrayAggType;
+                if (arrayAggArg0.getComponentType() != null) {
+                    arrayAggOp = DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP;
+                    arrayAggType = arrayAggArg0;
+                } else {
+                    // nullable element: NOT NULL trips Calcite typeMatchesInferred
+                    arrayAggOp = DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_TYPED_OP;
+                    RelDataType arrayAggElem = arrayAggTf.createTypeWithNullability(arrayAggArg0, true);
+                    arrayAggType = arrayAggTf.createTypeWithNullability(arrayAggTf.createArrayType(arrayAggElem, -1), true);
+                }
+                return AggregateCall.create(
+                    arrayAggOp,
+                    false,
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.rexList,
+                    call.getArgList(),
+                    -1,
+                    call.distinctKeys,
+                    call.collation,
+                    agg.getGroupCount(),
+                    agg.getInput(),
+                    arrayAggType,
+                    call.getName()
+                );
+            }
             case "PATTERN" -> {
                 // PPL declares ARRAY<MAP<VARCHAR, ANY>>; substrait can't carry ANY.
                 targetOp = DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP;

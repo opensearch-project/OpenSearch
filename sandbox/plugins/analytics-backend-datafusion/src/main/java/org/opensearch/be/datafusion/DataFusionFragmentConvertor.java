@@ -316,6 +316,21 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return rexBuilder.makeCast(varcharNullable, arg);
     }
 
+    /**
+     * mvcombine's ARRAY_AGG: type-preserving array collect. Unlike {@link #LOCAL_ARRAY_AGG_OP}
+     * (VARCHAR-cast for list()/values()), the element type is kept. Drops null elements.
+     */
+    static final SqlAggFunction LOCAL_ARRAY_AGG_TYPED_OP = new LocalAggOp("array_agg", SqlKind.OTHER_FUNCTION, opBinding -> {
+        RelDataTypeFactory tf = opBinding.getTypeFactory();
+        RelDataType elem = tf.createTypeWithNullability(opBinding.getOperandType(0), true);
+        return tf.createTypeWithNullability(tf.createArrayType(elem, -1), true);
+    }, OperandTypes.ANY) {
+        @Override
+        public boolean filtersNullArgs(AggregateCall call) {
+            return true;
+        }
+    };
+
     /** FINAL-side merge for LIST; un-nests per-shard list states. */
     static final SqlAggFunction LOCAL_LIST_MERGE_OP = new SqlAggFunction(
         "list_merge",
@@ -438,6 +453,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_FIRST_OP, "first_value"),
         FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
         FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
+        FunctionMappings.s(LOCAL_ARRAY_AGG_TYPED_OP, "array_agg"),
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
