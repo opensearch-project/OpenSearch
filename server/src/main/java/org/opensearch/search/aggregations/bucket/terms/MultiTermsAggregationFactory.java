@@ -144,7 +144,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
         List<ValuesSource> rawValuesSources = configs.stream().map(config -> config.v1().getValuesSource()).toList();
-        MultiTermsBucketOrds ordinalBucketOrds = selectOrdinalStrategy(configs, searchContext, cardinality);
+        long[] ordinalMaxOrds = resolveOrdinalMaxOrds(configs, searchContext, cardinality);
         return new MultiTermsAggregator(
             name,
             factories,
@@ -162,7 +162,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             parent,
             cardinality,
             metadata,
-            ordinalBucketOrds
+            ordinalMaxOrds
         );
     }
 
@@ -171,16 +171,15 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     }
 
     /**
-     * Returns the optimal {@link MultiTermsBucketOrds} for the given configs, or {@code null} to
-     * fall back to the default byte-key path. Falls back when a star-tree index is active, when any
-     * field is not backed by global ordinals, when any field carries an {@code include}/{@code exclude}
-     * filter (those filters are applied by the per-field {@code InternalValuesSource} collectors, which
-     * the ordinal collection path bypasses), or when {@link PackedOrdinalBucketOrds} cannot pack the
-     * ordinals for this aggregation. The choice of packed layout is delegated to
-     * {@link PackedOrdinalBucketOrds#create}, keeping this factory agnostic of the single- vs two-long
-     * implementation.
+     * Returns the per-field global-ordinal counts ({@code maxOrds}) to pack for the given configs when the
+     * ordinal path is eligible, or {@code null} to fall back to the default byte-key path. Falls back when a
+     * star-tree index is active, when any field is not backed by global ordinals, or when any field carries an
+     * {@code include}/{@code exclude} filter (those filters are applied by the per-field
+     * {@code InternalValuesSource} collectors, which the ordinal collection path bypasses). The actual
+     * {@link PackedOrdinalBucketOrds} is built inside the {@link MultiTermsAggregator} constructor from these
+     * counts, so a constructor that fails cannot leak the BigArrays-backed ords.
      */
-    private static MultiTermsBucketOrds selectOrdinalStrategy(
+    private static long[] resolveOrdinalMaxOrds(
         List<Tuple<ValuesSourceConfig, IncludeExclude>> configs,
         SearchContext searchContext,
         CardinalityUpperBound cardinality
@@ -203,7 +202,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             }
             maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) vs).globalMaxOrd(searchContext.searcher());
         }
-        return PackedOrdinalBucketOrds.create(searchContext.bigArrays(), cardinality, maxOrds);
+        return maxOrds;
     }
 
     @Override

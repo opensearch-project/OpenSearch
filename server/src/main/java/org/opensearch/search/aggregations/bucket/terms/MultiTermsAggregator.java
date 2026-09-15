@@ -103,11 +103,16 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata,
-        MultiTermsBucketOrds ordinalBucketOrds
+        long[] ordinalMaxOrds
     ) throws IOException {
         super(name, factories, context, parent, metadata);
-        this.ordinalBucketOrds = ordinalBucketOrds;
-        if (ordinalBucketOrds != null) {
+        // Build the packed-ordinal ords here, after super(), so a failing super constructor (e.g. a circuit
+        // breaker trip while allocating docCounts) cannot leave an orphaned BigArrays allocation. PackedOrdinalBucketOrds.create
+        // may itself return null (e.g. >126-bit or two-long+MANY), in which case the byte-key path is used.
+        this.ordinalBucketOrds = ordinalMaxOrds == null
+            ? null
+            : PackedOrdinalBucketOrds.create(context.bigArrays(), cardinality, ordinalMaxOrds);
+        if (this.ordinalBucketOrds != null) {
             List<ValuesSource.Bytes.WithOrdinals> ordSources = new ArrayList<>(rawValuesSources.size());
             for (ValuesSource vs : rawValuesSources) {
                 ordSources.add((ValuesSource.Bytes.WithOrdinals) vs);
@@ -116,7 +121,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         } else {
             this.ordinalSources = null;
         }
-        this.bucketOrds = ordinalBucketOrds == null ? BytesKeyedBucketOrds.build(context.bigArrays(), cardinality) : null;
+        this.bucketOrds = this.ordinalBucketOrds == null ? BytesKeyedBucketOrds.build(context.bigArrays(), cardinality) : null;
         this.multiTermsValue = new MultiTermsValuesSource(rawValuesSources, internalValuesSources);
         this.showTermDocCountError = showTermDocCountError;
         this.formats = formats;
