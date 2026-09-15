@@ -195,8 +195,41 @@ public class SearchResponseTests extends OpenSearchTestCase {
             phaseTook,
             shardSearchFailures,
             randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY,
-            null
+            null,
+            randomBoolean() ? randomShardInfo() : null
         );
+    }
+
+    private SearchShardInfo randomShardInfo() {
+        return new SearchShardInfo(randomShardInfoEntries(), randomShardInfoEntries(), randomShardInfoEntries());
+    }
+
+    private List<SearchShardInfo.Entry> randomShardInfoEntries() {
+        int count = randomIntBetween(0, 3);
+        List<SearchShardInfo.Entry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            SearchShardInfo.Entry.Builder entry = new SearchShardInfo.Entry.Builder(
+                randomAlphaOfLengthBetween(3, 8),
+                randomIntBetween(0, 5)
+            );
+            if (randomBoolean()) {
+                entry.nodeId(randomAlphaOfLengthBetween(3, 8));
+            }
+            if (randomBoolean()) {
+                entry.nodeName(randomAlphaOfLengthBetween(3, 8));
+            }
+            if (randomBoolean()) {
+                entry.primary(randomBoolean());
+            }
+            if (randomBoolean()) {
+                entry.state(randomFrom("STARTED", "RELOCATING", "INITIALIZING"));
+            }
+            if (randomBoolean()) {
+                entry.cluster(randomAlphaOfLengthBetween(3, 8));
+            }
+            entries.add(entry.build());
+        }
+        return entries;
     }
 
     static SearchResponse.Clusters randomClusters() {
@@ -466,6 +499,147 @@ public class SearchResponseTests extends OpenSearchTestCase {
             expectedString.append("}");
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
         }
+    }
+
+    public void testShardInfoRoundTrip() throws IOException {
+        SearchShardInfo shardInfo = new SearchShardInfo(
+            List.of(new SearchShardInfo.Entry.Builder("idx", 0).nodeId("node-1").nodeName("n1").primary(true).state("STARTED").build()),
+            List.of(new SearchShardInfo.Entry.Builder("idx", 2).build()),
+            List.of(new SearchShardInfo.Entry.Builder("idx", 1).nodeId("node-2").primary(false).state("STARTED").cluster("remote1").build())
+        );
+
+        SearchResponse response = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            3,
+            2,
+            1,
+            42,
+            null,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            shardInfo
+        );
+
+        SearchResponse deserialized = copyWriteable(response, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        assertNotNull(deserialized.getShardInfo());
+        assertEquals(shardInfo, deserialized.getShardInfo());
+    }
+
+    public void testShardInfoDroppedOnOlderVersions() throws IOException {
+        SearchShardInfo shardInfo = new SearchShardInfo(
+            List.of(new SearchShardInfo.Entry.Builder("idx", 0).nodeId("node-1").primary(true).state("STARTED").build()),
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+
+        SearchResponse response = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            1,
+            1,
+            0,
+            10,
+            null,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            shardInfo
+        );
+
+        SearchResponse deserialized = copyWriteable(response, namedWriteableRegistry, SearchResponse::new, Version.V_3_7_0);
+        assertNull("shard_info must be omitted when peer is on a pre-3.8 version", deserialized.getShardInfo());
+    }
+
+    public void testShardInfoRendersUnderShardsBlock() throws IOException {
+        SearchShardInfo shardInfo = new SearchShardInfo(
+            List.of(new SearchShardInfo.Entry.Builder("my-index", 1).nodeId("node-1").primary(true).state("STARTED").build()),
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+        SearchResponse response = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            1,
+            1,
+            0,
+            5,
+            null,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            shardInfo
+        );
+
+        String json = Strings.toString(MediaTypeRegistry.JSON, response);
+        // The new field must live inside the existing _shards block, per issue #19686.
+        try (XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), json)) {
+            Map<String, Object> map = parser.map();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> shards = (Map<String, Object>) map.get("_shards");
+            assertNotNull("expected _shards block: " + json, shards);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> shardInfoMap = (Map<String, Object>) shards.get("shard_info");
+            assertNotNull("expected shard_info nested inside _shards: " + json, shardInfoMap);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> successful = (List<Map<String, Object>>) shardInfoMap.get("successful");
+            assertEquals(1, successful.size());
+            Map<String, Object> entry = successful.get(0);
+            assertEquals("my-index", entry.get("index"));
+            assertEquals(1, entry.get("shard"));
+            assertEquals("node-1", entry.get("node_id"));
+            assertEquals(true, entry.get("primary"));
+            assertEquals("STARTED", entry.get("state"));
+            assertFalse("node_name must be omitted when unknown", entry.containsKey("node_name"));
+            assertFalse("cluster must be omitted for local shards", entry.containsKey("cluster"));
+            assertEquals(Collections.emptyList(), shardInfoMap.get("skipped"));
+            assertEquals(Collections.emptyList(), shardInfoMap.get("failed"));
+        }
+    }
+
+    public void testShardInfoXContentRoundTrip() throws IOException {
+        SearchShardInfo shardInfo = new SearchShardInfo(
+            List.of(new SearchShardInfo.Entry.Builder("idx", 0).nodeId("node-1").nodeName("n1").primary(true).state("STARTED").build()),
+            List.of(new SearchShardInfo.Entry.Builder("idx", 2).build()),
+            List.of(new SearchShardInfo.Entry.Builder("idx", 1).nodeId("node-2").primary(false).state("STARTED").cluster("remote1").build())
+        );
+        SearchResponse response = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            3,
+            2,
+            1,
+            42,
+            null,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            shardInfo
+        );
+
+        String json = Strings.toString(MediaTypeRegistry.JSON, response);
+        SearchResponse parsed;
+        try (XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), json)) {
+            parsed = SearchResponse.fromXContent(parser);
+        }
+        assertEquals(shardInfo, parsed.getShardInfo());
+    }
+
+    public void testShardInfoOmittedWhenNull() throws IOException {
+        SearchResponse response = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            1,
+            1,
+            0,
+            5,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        assertNull(response.getShardInfo());
+        String json = Strings.toString(MediaTypeRegistry.JSON, response);
+        assertFalse("shard_info must not be rendered when not requested", json.contains("shard_info"));
     }
 
     public void testSerialization() throws IOException {
