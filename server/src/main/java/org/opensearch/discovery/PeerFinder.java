@@ -109,6 +109,8 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
+    // bumped on each activation so a superseded activation's wakeup chain stops instead of running alongside the current one
+    private long activationCount;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -160,6 +162,7 @@ public abstract class PeerFinder {
         synchronized (mutex) {
             assert assertInactiveWithNoKnownPeers();
             active = true;
+            activationCount += 1;
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
@@ -329,6 +332,7 @@ public abstract class PeerFinder {
             }
         });
 
+        final long scheduledActivationCount = activationCount;
         transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
@@ -344,6 +348,11 @@ public abstract class PeerFinder {
             @Override
             protected void doRun() {
                 synchronized (mutex) {
+                    if (scheduledActivationCount != activationCount) {
+                        // superseded activation: the current one has its own chain, so stop rather than duplicate it
+                        logger.trace("not handling wakeup from stale activation [{}]", scheduledActivationCount);
+                        return;
+                    }
                     if (handleWakeUp() == false) {
                         return;
                     }
