@@ -109,6 +109,14 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            // Make the node-resource gate permissive so the auto-force-merge actually fires: AutoForceMergeManager
+            // defers the merge when node CPU/JVM/disk is above threshold (defaults 75/75/85%). Under the sandbox
+            // engine stack (extra gRPC/arrow/datafusion threads) plus full-suite parallelism, node CPU stays above
+            // the 75% default, so the merge is perpetually deferred and this triggering test times out. This test
+            // validates the merge-triggering logic, not the resource gating, so raise the thresholds to 100%.
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -137,6 +145,14 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            // Make the node-resource gate permissive so the auto-force-merge actually fires: AutoForceMergeManager
+            // defers the merge when node CPU/JVM/disk is above threshold (defaults 75/75/85%). Under the sandbox
+            // engine stack (extra gRPC/arrow/datafusion threads) plus full-suite parallelism, node CPU stays above
+            // the 75% default, so the merge is perpetually deferred and this triggering test times out. This test
+            // validates the merge-triggering logic, not the resource gating, so raise the thresholds to 100%.
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -166,6 +182,14 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            // Make the node-resource gate permissive so the auto-force-merge actually fires: AutoForceMergeManager
+            // defers the merge when node CPU/JVM/disk is above threshold (defaults 75/75/85%). Under the sandbox
+            // engine stack (extra gRPC/arrow/datafusion threads) plus full-suite parallelism, node CPU stays above
+            // the 75% default, so the merge is perpetually deferred and this triggering test times out. This test
+            // validates the merge-triggering logic, not the resource gating, so raise the thresholds to 100%.
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
