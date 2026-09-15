@@ -161,7 +161,7 @@ public class SearchShardTaskSettings {
     public static final Setting<Integer> SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
         "search_backpressure.search_shard_task.heap_moving_average_window_size",
         Defaults.HEAP_MOVING_AVERAGE_WINDOW_SIZE,
-        0,
+        1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
