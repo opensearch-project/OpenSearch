@@ -11,6 +11,7 @@ package org.opensearch.dsl;
 import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -42,6 +43,37 @@ public class DslAggregationIT extends DslIntegTestBase {
     public void testTermsBucket() {
         createTestIndex();
         assertOk(search(new SearchSourceBuilder().size(0).aggregation(new TermsAggregationBuilder("by_brand").field("brand"))));
+    }
+
+    public void testRangeBucket() {
+        createTestIndex();
+        assertOk(
+            search(
+                new SearchSourceBuilder().size(0)
+                    .aggregation(
+                        new RangeAggregationBuilder("price_ranges").field("price")
+                            .addUnboundedTo(100)
+                            .addRange(100, 200)
+                            .addUnboundedFrom(200)
+                    )
+            )
+        );
+    }
+
+    public void testRangeBucketWithMetric() {
+        createTestIndex();
+        assertOk(
+            search(
+                new SearchSourceBuilder().size(0)
+                    .aggregation(
+                        new RangeAggregationBuilder("price_ranges").field("price")
+                            .addUnboundedTo(100)
+                            .addRange(100, 200)
+                            .addUnboundedFrom(200)
+                            .subAggregation(AggregationBuilders.avg("avg_rating").field("rating"))
+                    )
+            )
+        );
     }
 
     public void testTermsBucketWithMetric() {
