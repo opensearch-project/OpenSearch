@@ -112,9 +112,11 @@ pub async fn register_listing_table(
     sort_fields: &[String],
     sort_orders: &[String],
 ) -> Result<(), DataFusionError> {
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
+    let mut listing_options =
+        ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
+    // Declare the per-file sort order when an `index.sort.field` is described. Callers pass the
+    // index sort fields unconditionally; this helper stays plan-agnostic and just honours what
+    // it is given.
     if let Some(sort_exprs) = build_file_sort_order(sort_fields, sort_orders) {
         listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
     }
@@ -167,7 +169,9 @@ pub fn build_query_session_context(
     config.options_mut().execution.parquet.pushdown_filters =
         query_config.listing_table_pushdown_filters;
     config.options_mut().execution.target_partitions = target_partitions.max(1);
-    config.options_mut().execution.batch_size = query_config.batch_size;
+    config.options_mut().execution.batch_size =
+        datafusion::common::config::ConfigNonZeroUsize::try_new(query_config.batch_size)
+            .expect("batch size must be greater than zero");
 
     let mut builder = SessionStateBuilder::new()
         .with_config(config)

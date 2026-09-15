@@ -645,7 +645,7 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
-    use datafusion::execution::cache::DefaultFilesMetadataCache;
+    use datafusion::execution::cache::default_cache::DefaultCache;
     use object_store::memory::InMemory;
     use object_store::ObjectStoreExt;
     use parquet::arrow::ArrowWriter;
@@ -669,9 +669,9 @@ mod tests {
     /// static because the registry keeps only a `Weak`.
     pub(super) fn register_test_metadata_cache() {
         static ENV: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| {
-            let cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+            let cache = Arc::new(MutexFileMetadataCache::new(DefaultCache::new(
                 64 * 1024 * 1024,
-            ))) as Arc<dyn FileMetadataCache>;
+            ))) as Arc<FileMetadataCache>;
             let cache_manager = CacheManagerConfig::default().with_file_metadata_cache(Some(cache));
             Arc::new(
                 RuntimeEnvBuilder::new()
