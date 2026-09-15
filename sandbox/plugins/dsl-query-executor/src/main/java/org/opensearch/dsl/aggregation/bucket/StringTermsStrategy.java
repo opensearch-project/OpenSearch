@@ -9,7 +9,6 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.DocValueFormat;
@@ -18,10 +17,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -70,22 +66,6 @@ public final class StringTermsStrategy implements TermsResponseStrategy {
      * since RAW would otherwise print raw bytes. String keys become their UTF-8 bytes.
      */
     private static BytesRef termBytes(Object key, DocValueFormat format) {
-        if (key instanceof BytesRef ref) {
-            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(ref.bytes)) : ref;
-        }
-        if (key instanceof byte[] bytes) {
-            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(bytes)) : new BytesRef(bytes);
-        }
-        return new BytesRef(key.toString());
-    }
-
-    /** Binary keys are ip columns: render the address string like classic ip terms. */
-    private static String binaryKeyString(byte[] bytes) {
-        try {
-            return NetworkAddress.format(InetAddress.getByAddress(bytes));
-        } catch (UnknownHostException e) {
-            // Not a 4/16-byte address; fall back to a printable, deterministic form.
-            return Base64.getEncoder().encodeToString(bytes);
-        }
+        return BinaryTermKeys.termBytes(key, format);
     }
 }

@@ -1,0 +1,51 @@
+{
+  "testName": "multi_terms_null_key_skipped",
+  "indexName": "test-index",
+  "indexMapping": {
+    "status": "VARCHAR",
+    "region": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "status" },
+            { "field": "region" }
+          ]
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC], dir1=[ASC], dir2=[ASC])",
+    "  LogicalAggregate(group=[{0, 1}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[AND(IS NOT NULL($0), IS NOT NULL($1))])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["status", "region", "_count"],
+  "mockResultRows": [
+    [null, "us", 3],
+    ["active", null, 4],
+    ["active", "eu", 2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": { "value": 0, "relation": "eq" },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "combo": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          { "key": ["active", "eu"], "key_as_string": "active|eu", "doc_count": 2 }
+        ]
+      }
+    }
+  }
+}
