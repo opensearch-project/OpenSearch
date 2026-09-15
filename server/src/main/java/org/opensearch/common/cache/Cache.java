@@ -956,7 +956,20 @@ public class Cache<K, V> {
     private void delete(Entry<K, V> entry, RemovalReason removalReason) {
         assert lruLock.isHeldByCurrentThread();
 
-        if (unlink(entry)) {
+        final boolean removed;
+        if (entry.state == State.NEW) {
+            // The entry was removed from the segment map before the thread that loaded it acquired the LRU lock to
+            // promote it. Claim it by marking it DELETED so that the pending promote() becomes a no-op: otherwise the
+            // entry gets linked into the LRU list while absent from the segment map, where it is counted in
+            // count()/weight() but is unreachable via get() and can no longer be invalidated by key. There is no
+            // count/weight adjustment to make here because the entry was never linked, but the removal notification
+            // must still fire so that listeners can account for the value the loader produced.
+            entry.state = State.DELETED;
+            removed = true;
+        } else {
+            removed = unlink(entry);
+        }
+        if (removed) {
             removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, removalReason));
         }
     }

@@ -7,6 +7,7 @@
  */
 
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
@@ -44,12 +45,18 @@ dependencies {
     // /_plugins/_ppl on the real plugin.
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
+    // External plugins are versioned as <opensearch_version>.0-SNAPSHOT and pulled from
+    // OpenSearch Snapshots (no local build). Derive the version from core's
+    // buildSrc/version.properties (via VersionProperties) so this stays in lockstep with
+    // the current OpenSearch version instead of pinning to a stale release. Strip any
+    // -SNAPSHOT so the "<x.y.z>.0-SNAPSHOT" plugin coordinate is well-formed.
+    def externalPluginVersion = "${VersionProperties.getOpenSearch().replace('-SNAPSHOT', '')}.0-SNAPSHOT"
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:${externalPluginVersion}@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:${externalPluginVersion}@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -104,6 +111,11 @@ def configureAnalyticsCluster = { cluster ->
     // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
+
+    // Override default block-list to empty for integration tests so all predicate shapes
+    // are exercised with delegation enabled. Production clusters retain the default
+    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
+    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'

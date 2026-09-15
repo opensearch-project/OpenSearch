@@ -671,56 +671,129 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsGlobalWithNull. PR #21795 + the layered marking fixes
-     *  (LITERAL_AGG lowering, OpenSearchJoinRule relaxation) wire enough of the
-     *  streamstats lowering through that this query now plans and executes. */
+    /** sql IT: testStreamstatsGlobalWithNull. {@code global=true} lowers to a self-join with a
+     *  BETWEEN frame predicate (non-equi) AND-ed with the group equality. The non-equi predicate
+     *  used to be rejected at the join marker rule until theta-join routing was restored, after
+     *  which {@code OpenSearchJoinSplitRule} sends both sides through coord-singleton ERs and
+     *  DataFusion's NestedLoopJoinExec evaluates the frame predicate.
+     *
+     *  <p>For our calcs dataset the {@code str0} groups (FURNITURE / OFFICE SUPPLIES /
+     *  TECHNOLOGY) are ingested contiguously, so each row's window of {seq−1, seq} naturally
+     *  stays inside one group — making the {@code global=true} output identical to {@code
+     *  global=false} on this data. Both null bucket variants behave the same here because no
+     *  row has a null {@code str0}. */
     public void testStreamstatsGlobalWithNull() throws IOException {
         Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats window=2 global=true avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
-        assertNotNull(response);
+        assertRowsEqualList(response, EXPECTED_GLOBAL_TRUE_ROWS);
     }
 
-    /** sql IT: testStreamstatsGlobalWithNullBucket. */
+    /** Same data shape as {@link #testStreamstatsGlobalWithNull} — see the comment there for the
+     *  reason this matches {@code testStreamstatsGlobal}. {@code bucket_nullable=false} only
+     *  changes the both-null group-key handling, and no row in calcs has a null {@code str0}. */
     public void testStreamstatsGlobalWithNullBucket() throws IOException {
         Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats bucket_nullable=false window=2 global=true avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
-        assertNotNull(response);
+        assertRowsEqualList(response, EXPECTED_GLOBAL_TRUE_ROWS);
     }
 
-    /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
-     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver.
-     *  Ryan's PR #21795 added subquery-remove + decorrelate to PlannerImpl; this test
-     *  is flipped to positive to observe whether streamstats-reset's directly-built
-     *  LogicalCorrelate falls through that path correctly. */
+    /** Per-row {@code window=2} running average of {@code int0} over the calcs dataset, computed
+     *  by hand and shared by the two {@code global=true} cases. Frame is {@code rightSeq IN
+     *  {leftSeq−1, leftSeq}} AND {@code rightStr0 = leftStr0}; nulls in {@code int0} are dropped
+     *  by AVG; left-join semantics keep every left row even when the frame matches no right
+     *  rows that contribute a non-null value. */
+    private static final List<List<Object>> EXPECTED_GLOBAL_TRUE_ROWS = List.of(
+        row("key00", "FURNITURE",       1,    1.0),
+        row("key01", "FURNITURE",       null, 1.0),
+        row("key02", "OFFICE SUPPLIES", null, null),
+        row("key03", "OFFICE SUPPLIES", null, null),
+        row("key04", "OFFICE SUPPLIES", 7,    7.0),
+        row("key05", "OFFICE SUPPLIES", 3,    5.0),
+        row("key06", "OFFICE SUPPLIES", 8,    5.5),
+        row("key07", "OFFICE SUPPLIES", null, 8.0),
+        row("key08", "TECHNOLOGY",      null, null),
+        row("key09", "TECHNOLOGY",      8,    8.0),
+        row("key10", "TECHNOLOGY",      4,    6.0),
+        row("key11", "TECHNOLOGY",      10,   7.0),
+        row("key12", "TECHNOLOGY",      null, 10.0),
+        row("key13", "TECHNOLOGY",      4,    4.0),
+        row("key14", "TECHNOLOGY",      11,   7.5),
+        row("key15", "TECHNOLOGY",      4,    7.5),
+        row("key16", "TECHNOLOGY",      8,    6.0)
+    );
+
+    /**
+     * {@code streamstats reset_before=…} segments rows by seq position: each row where the
+     * predicate is true bumps a segment id, partitioning the running aggregate so windows do
+     * not span the boundary. Lowering: {@code buildStreamWindowJoinPlan} (Correlate +
+     * segment-id filter), which became reachable on the analytics-engine route after theta-join
+     * restoration — the correlate's join predicate is non-equi (range over the row-number seq
+     * column) and used to be rejected at the marker rule.
+     *
+     * <p>For {@code int0 > 5}: segId increments before rows {key04, key06, key09, key11, key14,
+     * key16}, producing 7 segments (id 0..6) over the 17-row dataset. Default {@code current=true}
+     * + {@code window=0} → running average over rows with the same {@code (str0, segId)} and
+     * {@code seq <= current_seq}. Nulls in {@code int0} are dropped by AVG.
+     */
     public void testStreamstatsReset() throws IOException {
         Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName + " | sort key | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0 | fields key, str0, int0, avg"
+            "source=" + DATASET.indexName + " | sort key"
+                + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
-        assertNotNull(response);
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
 
-    /** sql IT: testStreamstatsResetWithNull. */
+    /** Same data, same query — same lowering. {@code bucket_nullable} only matters when
+     *  {@code str0} has null values, and calcs has none, so the output is identical. */
     public void testStreamstatsResetWithNull() throws IOException {
         Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
-        assertNotNull(response);
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
 
-    /** sql IT: testStreamstatsResetWithNullBucket. */
+    /** {@code bucket_nullable=false} excludes null group-keys from aggregation. Calcs has no
+     *  null in {@code str0} so the output matches the bucket-nullable variant exactly. */
     public void testStreamstatsResetWithNullBucket() throws IOException {
         Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats bucket_nullable=false reset_before=(int0 > 5)"
                 + " avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
-        assertNotNull(response);
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
+
+    /** Hand-computed running average for {@code reset_before=(int0 > 5)} over the calcs
+     *  dataset, sorted by key. See {@link #testStreamstatsReset} javadoc for the segId mapping. */
+    private static final List<List<Object>> EXPECTED_RESET_ROWS = List.of(
+        row("key00", "FURNITURE",       1,    1.0),
+        row("key01", "FURNITURE",       null, 1.0),
+        row("key02", "OFFICE SUPPLIES", null, null),
+        row("key03", "OFFICE SUPPLIES", null, null),
+        row("key04", "OFFICE SUPPLIES", 7,    7.0),
+        row("key05", "OFFICE SUPPLIES", 3,    5.0),
+        row("key06", "OFFICE SUPPLIES", 8,    8.0),
+        row("key07", "OFFICE SUPPLIES", null, 8.0),
+        row("key08", "TECHNOLOGY",      null, null),
+        row("key09", "TECHNOLOGY",      8,    8.0),
+        row("key10", "TECHNOLOGY",      4,    6.0),
+        row("key11", "TECHNOLOGY",      10,   10.0),
+        row("key12", "TECHNOLOGY",      null, 10.0),
+        row("key13", "TECHNOLOGY",      4,    7.0),
+        row("key14", "TECHNOLOGY",      11,   11.0),
+        row("key15", "TECHNOLOGY",      4,    7.5),
+        row("key16", "TECHNOLOGY",      8,    8.0)
+    );
 
     // ── Unsupported window functions ───────────────────────────────────────────
 
@@ -922,24 +995,27 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — a multi-input
-     *  (semi-join) shape: the subquery decorrelates to a correlate after PlannerImpl's subquery-remove
-     *  phase. Previously errored because PlanForker couldn't reconcile the multi-input arms' backends;
-     *  now supported. The result is nondeterministic by construction — the inner
-     *  {@code streamstats count() | where cnt < 5} captures an arbitrary 5-row subset (streamstats sees
-     *  rows in arrival order, which varies across shards), so {@code head 1} can return any matching
-     *  key. Assert the invariant that holds regardless of which subset is captured: exactly one row. */
+    /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — uses
+     *  semi-join lowering inside the subquery. After PlannerImpl's subquery-remove phase the
+     *  RexSubQuery becomes a decorrelated correlate. This historically hit a nondeterministic
+     *  multi-node race ({@code Stage 0 sink feed failed: partition stream receiver dropped before
+     *  send}) so the assertion was the tolerant {@code assertErrorAny}. The decorrelated-correlate
+     *  execution path was fixed (multi-input backend selection in {@code PlanForker} and the
+     *  multi-leaf {@code OpenSearchStageInputScan} schema resolution in
+     *  {@code FragmentConversionDriver}); the query now executes deterministically.
+     *
+     *  <p>The subquery sorts by {@code key} before {@code streamstats count()} so the running
+     *  count is deterministic: rows with {@code cnt < 5} are the first four keys (key00..key03).
+     *  The outer query re-sorts by {@code key} so the IN-filtered result is pinned to an exact,
+     *  ordered row set — this asserts real content end-to-end, not just that the query ran. */
     public void testWhereInWithStreamstatsSubquery() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where key in"
-                + " [ source=" + DATASET.indexName + " | streamstats count() as cnt"
+                + " [ source=" + DATASET.indexName + " | sort key | streamstats count() as cnt"
                 + " | where cnt < 5 | fields key ]"
-                + " | head 1"
+                + " | sort key | fields key"
         );
-        @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
-        assertNotNull("expected datarows for where-in streamstats subquery", rows);
-        assertEquals("head 1 over a non-empty match set must return exactly one row", 1, rows.size());
+        assertRowsEqual(response, row("key00"), row("key01"), row("key02"), row("key03"));
     }
 
     /** sql IT: testMultipleStreamstatsWithEval. Streamstats running cnt → eval x=cnt+1 →
@@ -1345,11 +1421,16 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
     private final void assertRowsEqual(Map<String, Object> response, List<Object>... expected) {
+        assertRowsEqualList(response, Arrays.asList(expected));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRowsEqualList(Map<String, Object> response, List<List<Object>> expected) {
         List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", actualRows);
-        assertEquals("Row count mismatch", expected.length, actualRows.size());
-        for (int i = 0; i < expected.length; i++) {
-            List<Object> want = expected[i];
+        assertEquals("Row count mismatch", expected.size(), actualRows.size());
+        for (int i = 0; i < expected.size(); i++) {
+            List<Object> want = expected.get(i);
             List<Object> got = actualRows.get(i);
             assertEquals("Column count mismatch at row " + i, want.size(), got.size());
             for (int j = 0; j < want.size(); j++) {

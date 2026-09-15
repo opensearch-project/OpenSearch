@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -622,6 +623,28 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 } else {
                     assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
                 }
+
+                ActionConcurrencyLimiterStats limiterStats = nodeStats.getConcurrencyLimiterStats();
+                ActionConcurrencyLimiterStats deserializedLimiterStats = deserializedNodeStats.getConcurrencyLimiterStats();
+                if (limiterStats == null) {
+                    assertNull(deserializedLimiterStats);
+                } else {
+                    assertNotNull(deserializedLimiterStats);
+                    assertEquals(limiterStats.getSnapshots().size(), deserializedLimiterStats.getSnapshots().size());
+                    for (int i = 0; i < limiterStats.getSnapshots().size(); i++) {
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot orig = limiterStats.getSnapshots().get(i);
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot deser = deserializedLimiterStats.getSnapshots().get(i);
+                        assertEquals(orig.getAlias(), deser.getAlias());
+                        assertEquals(orig.getActionName(), deser.getActionName());
+                        assertEquals(orig.getMode(), deser.getMode());
+                        assertEquals(orig.getAlgorithm(), deser.getAlgorithm());
+                        assertEquals(orig.getCurrentLimit(), deser.getCurrentLimit());
+                        assertEquals(orig.getInFlight(), deser.getInFlight());
+                        assertEquals(orig.getTotalRejected(), deser.getTotalRejected());
+                        assertEquals(orig.getLastRttMillis(), deser.getLastRttMillis());
+                        assertEquals(orig.getRttNoLoadMillis(), deser.getRttNoLoadMillis());
+                    }
+                }
             }
         }
     }
@@ -1056,8 +1079,30 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats,
             remoteStoreNodeStats,
             null,
+            frequently() ? randomConcurrencyLimiterStats() : null,
             -1L
         );
+    }
+
+    private static ActionConcurrencyLimiterStats randomConcurrencyLimiterStats() {
+        int count = randomIntBetween(1, 3);
+        List<ActionConcurrencyLimiterStats.ActionLimiterSnapshot> snapshots = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            snapshots.add(
+                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(10),
+                    randomFrom("enforced", "monitor_only", "disabled"),
+                    randomFrom("vegas", "gradient2", "aimd"),
+                    randomIntBetween(1, 200),
+                    randomIntBetween(0, 50),
+                    randomNonNegativeLong(),
+                    randomBoolean() ? randomNonNegativeLong() : -1L,
+                    randomBoolean() ? randomNonNegativeLong() : -1L
+                )
+            );
+        }
+        return new ActionConcurrencyLimiterStats(snapshots);
     }
 
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
@@ -1700,6 +1745,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null, // nodeCacheStats
             null,
             nativeAllocatorStats,
+            null, // concurrencyLimiterStats
             totalEstimatedNativeBytes
         );
     }
@@ -1734,6 +1780,40 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 NodeStats deserialized = new NodeStats(in);
                 assertNull(deserialized.getFileCacheOnlyStats());
                 assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+    }
+
+    public void testConcurrencyLimiterStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_8_0: concurrencyLimiterStats round-trips (may be null or non-null)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_9_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_9_0);
+                NodeStats deserialized = new NodeStats(in);
+                if (nodeStats.getConcurrencyLimiterStats() == null) {
+                    assertNull(deserialized.getConcurrencyLimiterStats());
+                } else {
+                    assertNotNull(deserialized.getConcurrencyLimiterStats());
+                    assertEquals(
+                        nodeStats.getConcurrencyLimiterStats().getSnapshots().size(),
+                        deserialized.getConcurrencyLimiterStats().getSnapshots().size()
+                    );
+                }
+            }
+        }
+
+        // V_3_7_0: concurrencyLimiterStats is not on the wire; deserialization must not throw
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull("V_3_7_0 must not include concurrencyLimiterStats", deserialized.getConcurrencyLimiterStats());
             }
         }
     }

@@ -1,0 +1,34 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "c_custkey": {
+        "type": "long"
+      },
+      "c_name": {
+        "type": "keyword"
+      },
+      "c_address": {
+        "type": "text"
+      },
+      "c_nationkey": {
+        "type": "long"
+      },
+      "c_phone": {
+        "type": "keyword"
+      },
+      "c_acctbal": {
+        "type": "double"
+      },
+      "c_mktsegment": {
+        "type": "keyword"
+      },
+      "c_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

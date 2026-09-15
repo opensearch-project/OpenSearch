@@ -315,7 +315,7 @@ public class IngestionEngine extends InternalEngine {
         ) {
             ensureOpen();
             validateDocumentVersion(delete);
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id(), delete.routing());
             boolean isExternalVersioning = delete.versionType() == VersionType.EXTERNAL;
             if (isExternalVersioning) {
                 tombstone.version().setLongValue(delete.version());

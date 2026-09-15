@@ -223,6 +223,23 @@ fn fill_int_builder<F>(
 where
     F: Fn(usize) -> Option<i64>,
 {
+    // The unit is virtually always a literal (`extract(minute from ts)`), in which case the
+    // planner hands us a length-1 array or an all-same column. Resolving + upper-casing it once
+    // instead of per row removes two heap allocations from a 100M-row loop (ClickBench q19 spent
+    // 5.6s of expr eval time in this UDF; the whole query in stock DataFusion is 1.8s).
+    if let Some(unit) = single_unit(unit_arr)? {
+        let upper = unit.to_ascii_uppercase();
+        for i in 0..n {
+            match value_at(i) {
+                None => builder.append_null(),
+                Some(v) => match compute_upper(&upper, v) {
+                    Some(out) => builder.append_value(out),
+                    None => builder.append_null(),
+                },
+            }
+        }
+        return Ok(());
+    }
     for i in 0..n {
         match value_at(i) {
             None => builder.append_null(),
@@ -236,6 +253,29 @@ where
         }
     }
     Ok(())
+}
+
+/// The unit as a single value when every row shares it — a length-1 (broadcast scalar) array, or a
+/// column whose values are all equal. Returns `None` when the unit genuinely varies per row, or when
+/// any unit is null, so the caller falls back to the per-row path and null handling is unchanged.
+fn single_unit(array: &ArrayRef) -> Result<Option<String>> {
+    if array.is_empty() || array.null_count() > 0 {
+        return Ok(None);
+    }
+    let first = match unit_at(array, 0)? {
+        Some(u) => u,
+        None => return Ok(None),
+    };
+    if array.len() == 1 {
+        return Ok(Some(first));
+    }
+    for row in 1..array.len() {
+        match unit_at(array, row)? {
+            Some(u) if u == first => {}
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some(first))
 }
 
 fn scalar_utf8(s: &ScalarValue) -> Result<Option<String>> {
@@ -261,12 +301,29 @@ fn unit_at(array: &ArrayRef, row: usize) -> Result<Option<String>> {
 }
 
 fn compute(unit: &str, micros: i64) -> Option<i64> {
+    compute_upper(&unit.to_ascii_uppercase(), micros)
+}
+
+/// As [`compute`] but with the unit already upper-cased, so a hot loop over a constant unit does
+/// not re-allocate per row.
+fn compute_upper(unit_upper: &str, micros: i64) -> Option<i64> {
+    // Time-of-day components need no calendar arithmetic — derive them from the epoch offset
+    // directly and skip building a chrono DateTime for every row. div_euclid/rem_euclid keep
+    // pre-1970 (negative) timestamps correct, matching the chrono path.
+    match unit_upper {
+        "MICROSECOND" => return Some(micros.rem_euclid(1_000_000)),
+        "MILLISECOND" => return Some(micros.rem_euclid(1_000_000) / 1_000),
+        "SECOND" => return Some(micros.div_euclid(1_000_000).rem_euclid(60)),
+        "MINUTE" => return Some(micros.div_euclid(60_000_000).rem_euclid(60)),
+        "HOUR" => return Some(micros.div_euclid(3_600_000_000).rem_euclid(24)),
+        _ => {}
+    }
     let seconds = micros.div_euclid(1_000_000);
     let micro_fraction = micros.rem_euclid(1_000_000) as u32;
     let dt = Utc
         .timestamp_opt(seconds, micro_fraction * 1_000)
         .single()?;
-    extract_for_unit(&unit.to_ascii_uppercase(), dt)
+    extract_for_unit(unit_upper, dt)
 }
 
 /// Unknown unit → None (PPL throws; we surface null to avoid aborting the whole query).
@@ -401,5 +458,56 @@ mod tests {
     fn unknown_unit_yields_null() {
         assert_eq!(eval("NANOSECOND"), None);
         assert_eq!(eval(""), None);
+    }
+
+    /// The fast path for time-of-day units must agree with the chrono calendar path bit for bit,
+    /// including pre-epoch (negative) timestamps where div_euclid/rem_euclid matter.
+    #[test]
+    fn fast_path_matches_chrono_path() {
+        fn chrono_reference(unit_upper: &str, micros: i64) -> Option<i64> {
+            let seconds = micros.div_euclid(1_000_000);
+            let micro_fraction = micros.rem_euclid(1_000_000) as u32;
+            let dt = Utc
+                .timestamp_opt(seconds, micro_fraction * 1_000)
+                .single()?;
+            extract_for_unit(unit_upper, dt)
+        }
+        let samples: [i64; 9] = [
+            0,
+            1_000_000,
+            1_234_567_890_123_456,
+            1_700_000_000_999_999,
+            59_999_999,
+            86_399_999_999,
+            -1,
+            -1_000_000_001,
+            -86_400_000_000,
+        ];
+        for unit in ["MICROSECOND", "MILLISECOND", "SECOND", "MINUTE", "HOUR"] {
+            for micros in samples {
+                assert_eq!(
+                    compute_upper(unit, micros),
+                    chrono_reference(unit, micros),
+                    "unit={unit} micros={micros}"
+                );
+            }
+        }
+    }
+
+    /// A constant unit must take the hoisted path and a varying unit must not, with identical output.
+    #[test]
+    fn single_unit_detects_constant_and_varying_units() {
+        let constant: ArrayRef = Arc::new(StringArray::from(vec!["minute", "minute", "minute"]));
+        assert_eq!(single_unit(&constant).unwrap().as_deref(), Some("minute"));
+
+        let broadcast: ArrayRef = Arc::new(StringArray::from(vec!["hour"]));
+        assert_eq!(single_unit(&broadcast).unwrap().as_deref(), Some("hour"));
+
+        let varying: ArrayRef = Arc::new(StringArray::from(vec!["minute", "hour"]));
+        assert_eq!(single_unit(&varying).unwrap(), None);
+
+        // A null unit must fall back to the per-row path so null handling is preserved.
+        let with_null: ArrayRef = Arc::new(StringArray::from(vec![Some("minute"), None]));
+        assert_eq!(single_unit(&with_null).unwrap(), None);
     }
 }

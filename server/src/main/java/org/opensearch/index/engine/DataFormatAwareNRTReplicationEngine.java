@@ -786,6 +786,23 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     }
 
     @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
+    }
+
+    @Override
     public EngineConfig config() {
         return engineConfig;
     }

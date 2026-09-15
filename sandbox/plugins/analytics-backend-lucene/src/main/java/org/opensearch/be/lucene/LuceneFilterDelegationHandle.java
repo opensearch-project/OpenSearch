@@ -86,7 +86,18 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
-        this.searcher = queryShardContext.searcher();
+        // Use the shared per-reader searcher (LuceneReader#searcher). It is built over THIS
+        // directoryReader — the same reader whose leaves we score against in createCollector
+        // (weight.scorer(leaf)) — so the Weight's top-reader matches the scored leaf's top-reader and
+        // the IndicesQueryCache wrapper's assertion holds (a searcher over a DIFFERENT reader, e.g. the
+        // old queryShardContext.searcher(), threw the fatal-under-`-ea` "top-reader used to create
+        // Weight is not the same as the current reader's top-reader" AssertionError). Reusing this
+        // searcher (vs a fresh plain IndexSearcher, which has no query cache) keeps the node
+        // IndicesQueryCache wired in, so repeated delegated predicates populate + hit the shard query
+        // cache (QueryCacheIT). The shared instance was already built cache-enabled by the caller
+        // (LuceneAnalyticsBackendPlugin#getFilterDelegationHandle passes the cache + policy); later
+        // calls return that instance and ignore the args.
+        this.searcher = luceneReader.searcher(null, null);
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
@@ -212,7 +223,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     @Override
-    public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+    public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
         ScorerHandle handle = scorersByCollectorKey.get(collectorKey);
         if (handle == null) {
             return -1;
@@ -222,6 +233,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         int span = maxDoc - minDoc;
         FixedBitSet bits = new FixedBitSet(span);
+        int nextDoc = Integer.MAX_VALUE;
 
         if (handle.scorer != null) {
             int scanFrom = Math.max(minDoc, handle.partitionMinDoc);
@@ -241,9 +253,16 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                         }
                         handle.currentDoc = docId;
                     }
+                    nextDoc = handle.currentDoc;
                 } catch (IOException exception) {
                     LOGGER.warn("IOException during collectDocs, returning partial bitset", exception);
+                    // Iteration is only partial — don't signal exhaustion (MAX_VALUE),
+                    // which would make callers skip all subsequent RGs for this leaf.
+                    // Report maxDoc conservatively so later RGs are still probed.
+                    nextDoc = maxDoc;
                 }
+            } else {
+                nextDoc = handle.currentDoc;
             }
         }
 
@@ -252,15 +271,16 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
-                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
+                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={} nextDoc={}",
                 collectorKey,
                 minDoc,
                 maxDoc,
                 bits.cardinality(),
-                wordCount
+                wordCount,
+                nextDoc
             );
         }
-        return wordCount;
+        return ((long) nextDoc << 32) | (wordCount & 0xFFFFFFFFL);
     }
 
     @Override

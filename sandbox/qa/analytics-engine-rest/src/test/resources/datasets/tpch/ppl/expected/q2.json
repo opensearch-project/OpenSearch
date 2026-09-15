@@ -1,0 +1,39 @@
+{
+  "schema" : [
+    {
+      "name" : "s_acctbal",
+      "type" : "double"
+    },
+    {
+      "name" : "s_name",
+      "type" : "string"
+    },
+    {
+      "name" : "n_name",
+      "type" : "string"
+    },
+    {
+      "name" : "p_partkey",
+      "type" : "bigint"
+    },
+    {
+      "name" : "p_mfgr",
+      "type" : "string"
+    },
+    {
+      "name" : "s_address",
+      "type" : "string"
+    },
+    {
+      "name" : "s_phone",
+      "type" : "string"
+    },
+    {
+      "name" : "s_comment",
+      "type" : "string"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

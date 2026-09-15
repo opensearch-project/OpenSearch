@@ -15,9 +15,9 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.VectorUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 
 import java.util.List;
@@ -196,16 +196,23 @@ public final class Stitcher {
                     outputDisposed = true;
                 }
                 ownershipTransferred = true;
-                // Guard the sink close like the failure branch below: feed() already transferred
-                // ownership of output, so a close-time failure must not propagate out of finish()
-                // (it runs on a shard's GatherListener callback thread) — log and swallow it.
-                try {
-                    parentSink.close();
-                } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("[Stitcher] parentSink.close() failed after emit for {} rows", totalRows), e);
-                }
+                // Do NOT close parentSink here — a producer never closes its consumer's sink.
+                // Per-input EOF is the parent's job (StageExecution.attachChildren fires
+                // closeChildInput on our SUCCEEDED, closing the very sender we fed), and a ROOT LM
+                // stage has no parent: its sink is the RowProducingSink whose close() frees and
+                // clears every batch, while QueryExecution reads the answer only afterwards via
+                // outputSource().readResult(). Closing here returned 0 rows with HTTP 200 for an
+                // unprojected multi-shard `sort <col> | head N` (QTF leaves
+                // OpenSearchLateMaterialization the plan root). Root teardown belongs to
+                // QueryExecution.closeTerminalSink(); the K==0 branch documents the same contract.
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
             } else {
+                // A fetch failure is not normal input completion. Abort a cancellable parent
+                // before closing it so its native stream reports an error instead of treating
+                // close as graceful EOF and completing the top-level query successfully.
+                if (parentSink instanceof CancellableExchangeSink cancellable) {
+                    cancellable.cancel();
+                }
                 try {
                     parentSink.close();
                 } catch (Exception ignore) {}

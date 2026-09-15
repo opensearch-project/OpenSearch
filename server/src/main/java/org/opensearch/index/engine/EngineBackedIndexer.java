@@ -250,6 +250,21 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        return engine.prepareDelete(id, routing, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         return engine.acquireSafeIndexCommit();
     }

@@ -9,6 +9,9 @@
 package org.opensearch.dsl.action;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -21,8 +24,9 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.client.node.NodeClient;
 
 /**
- * Intercepts all {@code _search} requests and dispatches them to {@link DslExecuteAction}
- * for execution through the Calcite pipeline. Non-search actions pass through unchanged.
+ * Intercepts all {@code _search} requests (dispatched to {@link ExecuteAction}) and
+ * {@code _validate/query} requests (dispatched to {@link ValidateAction}) for handling
+ * through the Calcite pipeline. Other actions pass through unchanged.
  */
 public class SearchActionFilter implements ActionFilter {
 
@@ -34,7 +38,7 @@ public class SearchActionFilter implements ActionFilter {
     /**
      * Creates a filter that dispatches intercepted searches via the given client.
      *
-     * @param client node client for dispatching to {@link DslExecuteAction}
+     * @param client node client for dispatching to {@link ExecuteAction}
      */
     public SearchActionFilter(NodeClient client) {
         this.client = client;
@@ -59,7 +63,11 @@ public class SearchActionFilter implements ActionFilter {
         // Consider two categories: APIs that execute search vs APIs that only explain/validate.
         if (SearchAction.NAME.equals(action)) {
             SearchRequest searchRequest = (SearchRequest) request;
-            client.execute(DslExecuteAction.INSTANCE, searchRequest, (ActionListener<SearchResponse>) listener);
+            client.execute(ExecuteAction.INSTANCE, searchRequest, (ActionListener<SearchResponse>) listener);
+        } else if (ValidateQueryAction.NAME.equals(action)) {
+            // Cast is safe: the action name identifies the request/listener types.
+            ValidateQueryRequest validateRequest = (ValidateQueryRequest) request;
+            client.execute(ValidateAction.INSTANCE, validateRequest, (ActionListener<ValidateQueryResponse>) listener);
         } else {
             chain.proceed(task, action, request, listener);
         }

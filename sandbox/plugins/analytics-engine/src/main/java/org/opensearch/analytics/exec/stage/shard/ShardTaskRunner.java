@@ -8,10 +8,13 @@
 
 package org.opensearch.analytics.exec.stage.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.TopNGate;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.core.action.ActionListener;
@@ -28,6 +31,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
+
+    private static final Logger logger = LogManager.getLogger(ShardTaskRunner.class);
 
     private final ShardFragmentStageExecution stage;
     private final QueryContext config;
@@ -57,8 +62,26 @@ public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
             target.node(),
             stage.responseListenerFor(task, listener),
             config.parentTask(),
-            pending
+            pending,
+            () -> stillNeeded(task, target)
         );
+    }
+
+    /**
+     * Top-N early termination: {@code false} skips this shard, because it provably cannot place a
+     * row in the top-{@code K} the coordinator already holds — so the scan is wasted work.
+     * Checked right before the request goes out, not when the task was queued
+     */
+    private boolean stillNeeded(ShardStageTask task, ShardExecutionTarget target) {
+        TopNGate gate = stage.topNGate();
+        if (gate == null || gate.canEliminate(stage.sortBounds().get(target)) == false) {
+            return true;
+        }
+        // bottom() is defined here: canEliminate only says yes once K keys are in hand, and the
+        // count never shrinks.
+        logger.debug("sort-et: skipping shard {} — its whole range is worse than the bar {}", target.shardId(), gate.bottom());
+        stage.skipTask(task);
+        return false;
     }
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {

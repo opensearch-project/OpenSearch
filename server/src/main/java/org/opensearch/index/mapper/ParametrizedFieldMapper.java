@@ -36,6 +36,7 @@ import org.apache.lucene.document.FieldType;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -80,10 +82,31 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
+     * True when the index uses a pluggable data format. Remembered here so {@link #getMergeBuilder()} can
+     * rebuild a settings-less builder that still knows this, keeping parameter defaults correct (e.g.
+     * {@code index} defaulting to false) during serialization and mapping merges.
+     */
+    protected final boolean pluggableDataFormat;
+
+    /**
      * Creates a new ParametrizedFieldMapper
      */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedFieldType, multiFields, copyTo, false);
+    }
+
+    /**
+     * Creates a new ParametrizedFieldMapper, recording whether the index uses a pluggable data format.
+     */
+    protected ParametrizedFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean pluggableDataFormat
+    ) {
         super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
+        this.pluggableDataFormat = pluggableDataFormat;
     }
 
     /**
@@ -92,7 +115,83 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      * Implement as follows:
      * {@code return new MyBuilder(simpleName()).init(this); }
      */
+    /**
+     * Returns the resolved values of any plugin-contributed mapping parameters on this mapper, keyed by
+     * parameter name. Empty unless a data-format plugin contributed parameters for this field type.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public Map<String, Object> mappingPluginParameterValues() {
+        return Map.of();
+    }
+
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
+
+    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
+        return new Parameter<>(
+            "multi_value",
+            true,
+            () -> MappedFieldType.MultiValueState.AUTO,
+            (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
+                ? MappedFieldType.MultiValueState.LIST
+                : MappedFieldType.MultiValueState.SCALAR,
+            mapper -> mapper.fieldType().multiValueState()
+        ).setSerializer((builder, name, mode) -> builder.field(name, mode == MappedFieldType.MultiValueState.LIST), mode -> switch (mode) {
+            case AUTO -> "auto";
+            case SCALAR -> "false";
+            case LIST -> "true";
+        })
+            .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+            .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+            .setMergeValidator((previous, next) -> previous == MappedFieldType.MultiValueState.AUTO || previous == next);
+    }
+
+    /**
+     * Adds one successfully parsed scalar value to the pluggable document input and requests a
+     * mapping promotion when this is the second value for a supported field.
+     */
+    protected final void addFieldForPluggableFormat(ParseContext context, Object value) {
+        MappedFieldType fieldType = fieldType();
+        if (fieldType.isMultiValued() == false
+            && fieldType.isMultiValueSupported()
+            && context.documentInput().getFieldCount(fieldType.name()) > 0) {
+            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+                throw new MapperParsingException(
+                    "Field [" + fieldType.name() + "] is locked scalar by [multi_value: false] and cannot accept multiple values"
+                );
+            }
+            addMultiValueMappingUpdate(context);
+        }
+        context.documentInput().addField(fieldType, value);
+    }
+
+    /** Publishes the idempotent scalar-to-multi-value mapping update for this mapper. */
+    final void addMultiValueMappingUpdate(ParseContext context) {
+        if (fieldType().isMultiValued()) {
+            return;
+        }
+        if (fieldType().isMultiValueSupported() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
+            );
+        }
+        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] is locked scalar by [multi_value: false] and cannot promote"
+            );
+        }
+        Builder updateBuilder = getMergeBuilder();
+        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
+        if (update.fieldType().isMultiValued() == false) {
+            throw new IllegalStateException(
+                "Mapper [" + fieldType().name() + "] advertises multi-value support but did not apply [multi_value]"
+            );
+        }
+        context.addDynamicMapper(update);
+    }
 
     @Override
     public ParametrizedFieldMapper merge(Mapper mergeWith) {
@@ -187,7 +286,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static final class Parameter<T> implements Supplier<T> {
+    public static sealed class Parameter<T> implements Supplier<T> permits SideEffectParameter {
 
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
@@ -200,6 +299,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
+        private BiFunction<T, T, T> mergeValueNormalizer = (current, incoming) -> incoming;
         private T value;
         private boolean isSet;
 
@@ -326,6 +426,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Normalizes an incoming mapping-update value before merge validation. This is useful for
+         * tri-state parameters where the default value means "unspecified" and must preserve the
+         * current state rather than overwrite it.
+         */
+        public Parameter<T> setMergeValueNormalizer(BiFunction<T, T, T> mergeValueNormalizer) {
+            this.mergeValueNormalizer = Objects.requireNonNull(mergeValueNormalizer);
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -341,12 +451,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+            T incoming = initializer.apply(toMerge);
             T current = getValue();
-            if (mergeValidator.test(current, value)) {
-                setValue(value);
+            T merged = mergeValueNormalizer.apply(current, incoming);
+            if (mergeValidator.test(current, merged)) {
+                setValue(merged);
             } else {
-                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(incoming));
             }
         }
 
@@ -369,7 +480,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             Function<FieldMapper, Boolean> initializer,
             boolean defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return boolParam(name, updateable, initializer, () -> defaultValue);
+        }
+
+        public static Parameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, Boolean> initializer,
+            Supplier<Boolean> defaultValue
+        ) {
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
         /**
@@ -543,6 +663,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -555,6 +679,86 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
         }
 
+    }
+
+    /**
+     * A {@link Parameter} that also applies a build-time side effect (for example, overriding a sibling
+     * parameter) when the owning mapper is built. Data-format plugins contribute these for parameters such
+     * as {@code low_cardinality}, where the field additionally opts out of Lucene indexing.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public static final class SideEffectParameter<T> extends Parameter<T> {
+
+        private final BiConsumer<Builder, T> sideEffect;
+
+        public SideEffectParameter(
+            String name,
+            boolean updateable,
+            Supplier<T> defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            Function<FieldMapper, T> initializer,
+            BiConsumer<Builder, T> sideEffect
+        ) {
+            super(name, updateable, defaultValue, parser, initializer);
+            this.sideEffect = Objects.requireNonNull(sideEffect, "sideEffect");
+        }
+
+        /**
+         * Creates a plugin-contributed parameter of any type. Its raw mapping value is converted by
+         * {@code parser}, read back from {@link ParametrizedFieldMapper#mappingPluginParameterValues()} during
+         * mapping merges, and the given side effect is applied at build time (for example, overriding a sibling
+         * parameter based on the resolved value).
+         *
+         * @param name         the parameter name as it appears in the mapping
+         * @param updateable   whether the parameter can be changed by a mapping update
+         * @param defaultValue the value used when the parameter is absent from the mapping
+         * @param parser       converts the raw mapping value into the parameter's type
+         * @param sideEffect   applied at build time with the builder and the resolved value
+         */
+        public static <T> SideEffectParameter<T> create(
+            String name,
+            boolean updateable,
+            T defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            BiConsumer<Builder, T> sideEffect
+        ) {
+            return new SideEffectParameter<>(name, updateable, () -> defaultValue, parser, m -> {
+                Object value = ((ParametrizedFieldMapper) m).mappingPluginParameterValues().get(name);
+                if (value == null) {
+                    return defaultValue;
+                }
+                if (defaultValue != null && defaultValue.getClass().isInstance(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Plugin mapping parameter ["
+                            + name
+                            + "] resolved to a value of type ["
+                            + value.getClass().getName()
+                            + "]; expected ["
+                            + defaultValue.getClass().getName()
+                            + "]"
+                    );
+                }
+                @SuppressWarnings("unchecked")
+                T resolved = (T) value;
+                return resolved;
+            }, sideEffect);
+        }
+
+        /** Convenience factory for a boolean plugin-contributed parameter; see {@link #create}. */
+        public static SideEffectParameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            boolean defaultValue,
+            BiConsumer<Builder, Boolean> sideEffect
+        ) {
+            return create(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), sideEffect);
+        }
+
+        void applySideEffect(Builder builder) {
+            sideEffect.accept(builder, getValue());
+        }
     }
 
     /**
@@ -597,10 +801,105 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
         /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructors that receive index settings, so builders created
+         * for internal field types — such as derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        protected boolean pluggableDataFormat;
+
+        /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
             super(name);
+        }
+
+        /** Plugin-contributed parameters supplied at construction; appended to {@link #getParameters()} by subclasses. */
+        private List<Parameter<?>> pluginMappingParameters = List.of();
+
+        /**
+         * Sets the plugin-contributed parameters for this builder. Called from the concrete builder's
+         * constructor so the parameters are present when {@link #getParameters()} runs.
+         */
+        protected void setPluginMappingParameters(List<Parameter<?>> parameters) {
+            this.pluginMappingParameters = (parameters == null || parameters.isEmpty()) ? List.of() : List.copyOf(parameters);
+        }
+
+        /** Returns the plugin-contributed parameters to be appended to {@link #getParameters()} by subclasses. */
+        protected List<Parameter<?>> pluginMappingParameters() {
+            return pluginMappingParameters;
+        }
+
+        /** Returns the resolved values of the plugin-contributed parameters, keyed by parameter name. */
+        protected Map<String, Object> pluginMappingParameterValues() {
+            if (pluginMappingParameters.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, Object> values = new HashMap<>();
+            for (Parameter<?> param : pluginMappingParameters) {
+                values.put(param.name, param.getValue());
+            }
+            return values;
+        }
+
+        /**
+         * Applies the build-time side effects declared by any {@link SideEffectParameter}s among the
+         * plugin-contributed parameters. Subclasses call this from {@code build(...)}.
+         */
+        protected final void applyPluginParameterEffects() {
+            for (Parameter<?> param : pluginMappingParameters) {
+                if (param instanceof SideEffectParameter) {
+                    ((SideEffectParameter<?>) param).applySideEffect(this);
+                }
+            }
+        }
+
+        /**
+         * Sets the value of the parameter with the given name if present. Used by a {@link SideEffectParameter}
+         * to override a sibling parameter at build time (e.g. disabling indexing).
+         *
+         * <p>The value must be type-compatible with the target parameter's current value; a mismatch throws
+         * {@link IllegalArgumentException} rather than silently corrupting the parameter.
+         */
+        public void setParameterValue(String name, Object value) {
+            for (Parameter<?> param : getParameters()) {
+                if (param.name.equals(name)) {
+                    setCheckedValue(param, value);
+                    return;
+                }
+            }
+        }
+
+        /**
+         * Assigns {@code value} to {@code param} after verifying it is assignable to the parameter's current value
+         * type. The unchecked cast is guarded by the preceding runtime {@code isInstance} check.
+         */
+        private static <T> void setCheckedValue(Parameter<T> param, Object value) {
+            T current = param.getValue();
+            if (value != null && current != null && current.getClass().isInstance(value) == false) {
+                throw new IllegalArgumentException(
+                    "Cannot set parameter ["
+                        + param.name
+                        + "] to a value of type ["
+                        + value.getClass().getName()
+                        + "]; expected ["
+                        + current.getClass().getName()
+                        + "]"
+                );
+            }
+            @SuppressWarnings("unchecked")
+            T typed = (T) value;
+            param.setValue(typed);
+        }
+
+        /**
+         * @return true when the index uses a pluggable data format. Exposed so mappers in other modules
+         *         (which cannot access the protected field across class loaders) can propagate the flag
+         *         when constructing their mapper.
+         */
+        public boolean isPluggableDataFormat() {
+            return pluggableDataFormat;
         }
 
         /**
@@ -612,6 +911,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
+            }
+            // Carry the pluggable-data-format flag over from the mapper being merged/serialized so a
+            // settings-less merge builder keeps the correct parameter defaults (e.g. `index` -> false).
+            if (initializer instanceof ParametrizedFieldMapper) {
+                this.pluggableDataFormat = ((ParametrizedFieldMapper) initializer).pluggableDataFormat;
             }
             return this;
         }

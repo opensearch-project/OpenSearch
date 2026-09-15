@@ -275,6 +275,15 @@ public class DataFormatAwareEngine implements Indexer {
                     + "); use a segment-consuming or read-only engine"
             );
         }
+        if (engineConfig.getPrimaryOperationPolicy() != DefaultPrimaryOperationPolicy.INSTANCE) {
+            throw new IllegalStateException(
+                "DataFormatAwareEngine does not support primary operation policy ["
+                    + engineConfig.getPrimaryOperationPolicy()
+                    + "] requested for shard ["
+                    + engineConfig.getShardId()
+                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
+            );
+        }
         this.logger = Loggers.getLogger(DataFormatAwareEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -708,6 +717,11 @@ public class DataFormatAwareEngine implements Indexer {
             });
             Writer currentWriter = lockedWriter.get();
             currentWriter.updateMappingVersion(mappingVersion);
+            if (currentWriter.state() != WriterState.ACTIVE) {
+                writerCheckedOut = retireWriterIfNeeded(lockedWriter);
+                lockedWriter = null;
+                return indexIntoEngine(index, plan);
+            }
             // Writer pool must never return null — it creates on demand via the supplier
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
@@ -913,6 +927,21 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public Engine.Delete prepareDelete(
         String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        throw new UnsupportedOperationException("delete operation not supported.");
+    }
+
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
         long seqNo,
         long primaryTerm,
         long version,
