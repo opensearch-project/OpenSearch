@@ -25,6 +25,7 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         // Create index settings with KMS encryption configuration
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
+            .put("index.store.type", "cryptofs")
             .put("index.store.crypto.key_provider", "aws-kms-provider")
             .put("index.store.crypto.kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/test-key")
             .put("index.store.crypto.kms.encryption_context", "tenant=test,env=prod")
@@ -57,10 +58,21 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         assertNull(cryptoMetadata);
     }
 
+    public void testResolveCryptoMetadataReturnsNullWithoutCryptofsStoreType() {
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put("index.store.crypto.key_provider", "aws-kms-provider")
+            .put("index.store.crypto.kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/test-key")
+            .build();
+
+        assertNull(CryptoMetadata.fromIndexSettings(indexSettings));
+    }
+
     public void testResolveCryptoMetadataReturnsNullForMissingKeyProvider() {
         // Create index settings with some crypto-related settings but missing key provider
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
+            .put("index.store.type", "cryptofs")
             .put("index.store.crypto.kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/test-key")
             .build();
 
@@ -104,6 +116,7 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         // Index A with one KMS key
         Settings indexASettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
+            .put("index.store.type", "cryptofs")
             .put("index.store.crypto.key_provider", "provider-a")
             .put("index.store.crypto.kms.key_arn", "arn:aws:kms:us-east-1:111:key/key-a")
             .put("index.store.crypto.kms.encryption_context", "tenant=acme")
@@ -112,6 +125,7 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         // Index B with different KMS key
         Settings indexBSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
+            .put("index.store.type", "cryptofs")
             .put("index.store.crypto.key_provider", "provider-b")
             .put("index.store.crypto.kms.key_arn", "arn:aws:kms:us-west-2:222:key/key-b")
             .put("index.store.crypto.kms.encryption_context", "tenant=globex")

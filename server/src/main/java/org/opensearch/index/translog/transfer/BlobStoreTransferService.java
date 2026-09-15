@@ -23,6 +23,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
@@ -33,6 +34,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -187,13 +189,6 @@ public class BlobStoreTransferService implements TransferService {
                 metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
             }
 
-            // Read content once using inputStream() to invoke any overrides (e.g., decryption)
-            byte[] fileContent;
-            try (InputStream inputStream = fileSnapshot.inputStream()) {
-                fileContent = inputStream.readAllBytes();
-            }
-            long contentLength = fileContent.length;
-
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
                 listener.onFailure(new FileTransferException(fileSnapshot, ex));
@@ -202,19 +197,45 @@ public class BlobStoreTransferService implements TransferService {
             // Only the first generation doesn't have checksum
             assert (fileSnapshot.getChecksum() != null || fileSnapshot.getName().contains("-1."));
 
-            // Use ByteArrayIndexInput for async upload with the content from inputStream()
-            String resourceDesc = "FileSnapshot[" + fileSnapshot.getName() + "]";
+            if (cryptoMetadata != null) {
+                // ILE snapshots override inputStream() to decrypt the local cryptofs file before remote upload.
+                final byte[] fileContent;
+                try (InputStream inputStream = fileSnapshot.inputStream()) {
+                    fileContent = inputStream.readAllBytes();
+                }
+                String resourceDescription = "FileSnapshot[" + fileSnapshot.getName() + "]";
+                uploadBlobAsyncInternal(
+                    fileSnapshot.getName(),
+                    fileSnapshot.getName(),
+                    fileContent.length,
+                    blobPath,
+                    writePriority,
+                    (size, position) -> new OffsetRangeIndexInputStream(
+                        new ByteArrayIndexInput(resourceDescription, fileContent),
+                        size,
+                        position
+                    ),
+                    fileSnapshot.getChecksum(),
+                    completionListener,
+                    metadata,
+                    cryptoMetadata
+                );
+                return;
+            }
+
+            // Ordinary translogs can be uploaded directly from independent file ranges without buffering the full file.
+            final long contentLength = Files.size(fileSnapshot.getPath());
             uploadBlobAsyncInternal(
                 fileSnapshot.getName(),
                 fileSnapshot.getName(),
                 contentLength,
                 blobPath,
                 writePriority,
-                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDesc, fileContent), size, position),
+                (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 fileSnapshot.getChecksum(),
                 completionListener,
                 metadata,
-                cryptoMetadata
+                null
             );
 
         } catch (Exception e) {

@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -54,6 +55,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -100,6 +102,77 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         );
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.NORMAL, null);
+    }
+
+    public void testAsyncUploadWithoutCryptoMetadataStreamsFromFile() throws Exception {
+        byte[] fileContent = randomByteArrayOfLength(128);
+        Path testFile = createTempFile();
+        Files.write(testFile, fileContent);
+        long primaryTerm = randomNonNegativeLong();
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = Mockito.spy(
+            new FileSnapshot.TransferFileSnapshot(testFile, primaryTerm, randomLong())
+        );
+
+        BlobStore blobStore = createTestBlobStore();
+        MockAsyncFsContainer mockAsyncFsContainer = new MockAsyncFsContainer((FsBlobStore) blobStore, BlobPath.cleanPath(), null);
+        FsBlobStore fsBlobStore = mock(FsBlobStore.class);
+        when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        new BlobStoreTransferService(fsBlobStore, threadPool).uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(primaryTerm, BlobPath.cleanPath()),
+            new LatchedActionListener<>(ActionListener.wrap(response -> succeeded.set(true), failure -> {
+                throw new AssertionError("Upload failed", failure);
+            }), latch),
+            WritePriority.NORMAL,
+            null
+        );
+
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        assertTrue(succeeded.get());
+        verify(transferFileSnapshot, Mockito.never()).inputStream();
+        try (InputStream uploaded = mockAsyncFsContainer.getDelegate().readBlob(transferFileSnapshot.getName())) {
+            assertArrayEquals(fileContent, uploaded.readAllBytes());
+        }
+    }
+
+    public void testAsyncUploadWithCryptoMetadataReadsSnapshotInputStream() throws Exception {
+        byte[] encryptedFileContent = randomByteArrayOfLength(128);
+        byte[] decryptedFileContent = randomByteArrayOfLength(96);
+        Path testFile = createTempFile();
+        Files.write(testFile, encryptedFileContent);
+        long primaryTerm = randomNonNegativeLong();
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = Mockito.spy(
+            new FileSnapshot.TransferFileSnapshot(testFile, primaryTerm, randomLong())
+        );
+        Mockito.doReturn(new ByteArrayInputStream(decryptedFileContent)).when(transferFileSnapshot).inputStream();
+
+        BlobStore blobStore = createTestBlobStore();
+        MockAsyncFsContainer mockAsyncFsContainer = new MockAsyncFsContainer((FsBlobStore) blobStore, BlobPath.cleanPath(), null);
+        FsBlobStore fsBlobStore = mock(FsBlobStore.class);
+        when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        CryptoMetadata cryptoMetadata = new CryptoMetadata("test-provider", "aws-kms", Settings.EMPTY);
+        new BlobStoreTransferService(fsBlobStore, threadPool).uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(primaryTerm, BlobPath.cleanPath()),
+            new LatchedActionListener<>(ActionListener.wrap(response -> succeeded.set(true), failure -> {
+                throw new AssertionError("Upload failed", failure);
+            }), latch),
+            WritePriority.NORMAL,
+            cryptoMetadata
+        );
+
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        assertTrue(succeeded.get());
+        verify(transferFileSnapshot).inputStream();
+        try (InputStream uploaded = mockAsyncFsContainer.getDelegate().readBlob(transferFileSnapshot.getName())) {
+            assertArrayEquals(decryptedFileContent, uploaded.readAllBytes());
+        }
     }
 
     public void testUploadBlobAsync() throws IOException, InterruptedException {
