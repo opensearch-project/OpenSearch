@@ -975,11 +975,17 @@ async unsafe fn execute_indexed_with_context_inner(
     // interpretable by `api::fetch_by_row_ids` (which builds its own segments from
     // `ShardView.object_metas` in catalog order).
     let mut segments = segments;
-    if should_reverse_segments(
-        analyze_top_sort(&logical_plan).as_ref(),
-        &sort_fields,
-        &sort_orders,
-    ) {
+    let lead_sort_is_list = sort_fields
+        .first()
+        .and_then(|field| schema.field_with_name(field).ok())
+        .is_some_and(|field| matches!(field.data_type(), arrow::datatypes::DataType::List(_)));
+    if !lead_sort_is_list
+        && should_reverse_segments(
+            analyze_top_sort(&logical_plan).as_ref(),
+            &sort_fields,
+            &sort_orders,
+        )
+    {
         log_debug!(
             "indexed_executor: reversing segment iteration (catalog leading sort={:?} {:?}, query opposite)",
             sort_fields.first(),

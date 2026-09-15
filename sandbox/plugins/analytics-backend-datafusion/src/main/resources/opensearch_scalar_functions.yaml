@@ -587,6 +587,16 @@ scalar_functions:
             name: "input"
         return: i64
 
+  - name: list_min
+    description: >-
+      Fixed minimum non-null element of a LIST value. Used as the hidden query and
+      physical-order key for multi-value keyword sorting in both ASC and DESC directions.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "input"
+        return: any1
+
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"
     description: "Return the unicode code point of the first character of the input string."

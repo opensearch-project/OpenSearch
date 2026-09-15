@@ -14,6 +14,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
@@ -338,6 +339,45 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             "the cast must wrap the ORIGINAL input field (index 0), not a lifted/appended column",
             0,
             arg.getCast().getInput().getSelection().getDirectReference().getStructField().getField()
+        );
+    }
+
+    public void testListSortUsesHiddenFixedMinimumKey() throws Exception {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType rowType = typeFactory.builder().add("tags", list).build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
+        RelFieldCollation collation = new RelFieldCollation(
+            0,
+            RelFieldCollation.Direction.DESCENDING,
+            RelFieldCollation.NullDirection.LAST
+        );
+        RelNode sort = LogicalSort.create(scan, RelCollations.of(collation), null, null);
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
+        Rel root = rootRel(plan);
+        assertTrue("outer Project must hide the temporary sort key", root.hasProject());
+        Rel sorted = root.getProject().getInput();
+        assertTrue(sorted.hasSort());
+        assertEquals(1, sorted.getSort().getSortsCount());
+        Expression sortKey = sorted.getSort().getSorts(0).getExpr();
+        assertTrue(sortKey.hasSelection());
+        assertEquals(1, sortKey.getSelection().getDirectReference().getStructField().getField());
+        Rel hiddenProject = sorted.getSort().getInput();
+        assertTrue(hiddenProject.hasProject());
+        assertTrue(
+            "hidden LIST sort key must be computed by list_min",
+            hiddenProject.getProject().getExpressionsList().stream().anyMatch(Expression::hasScalarFunction)
+        );
+        assertTrue(sorted.getSort().getSorts(0).getDirection().name().contains("DESC"));
+        assertTrue(
+            "Substrait extensions must declare list_min",
+            plan.getExtensionsList()
+                .stream()
+                .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+                .map(declaration -> declaration.getExtensionFunction().getName())
+                .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
+                .anyMatch("list_min"::equals)
         );
     }
 
