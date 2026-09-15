@@ -42,6 +42,7 @@ import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -582,13 +583,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
                 List<Object> terms = new ArrayList<>();
                 if (termsLookup.store()) {
-                    List<Object> values = getResponse.getField(termsLookup.path()).getValues();
-                    if (values.size() != 1 && valueType == ValueType.BITMAP) {
-                        throw new IllegalArgumentException(
-                            "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
-                        );
+                    DocumentField storedField = getResponse.getField(termsLookup.path());
+                    // A stored field that is absent from the looked-up document yields a null
+                    // DocumentField; treat it as no terms (no matches) instead of failing.
+                    if (storedField != null) {
+                        List<Object> values = storedField.getValues();
+                        if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                            throw new IllegalArgumentException(
+                                "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                            );
+                        }
+                        terms.addAll(values);
                     }
-                    terms.addAll(values);
                 } else {
                     if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
                         List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
