@@ -384,6 +384,17 @@ class FlightClientChannel implements TcpChannel {
 
         var threadContext = threadPool.getThreadContext();
         CompletableFuture<Header> future = new CompletableFuture<>();
+        // Hand the stream to the handler BEFORE the prefetch starts. The prefetch's first
+        // FlightStream.next() has no deadline and handleStreamResponse only runs once it returns, so a
+        // producer that stalls before sending anything parks the prefetch thread in a window a handler
+        // could not otherwise reach — leaving nothing able to cancel the stream. See
+        // TransportResponseHandler#onStreamCreated.
+        try {
+            handler.onStreamCreated(streamResponse);
+        } catch (Exception e) {
+            handleStreamException(streamResponse, e);
+            return;
+        }
         streamResponse.openAndPrefetchAsync(future);
 
         future.whenComplete((header, error) -> {
