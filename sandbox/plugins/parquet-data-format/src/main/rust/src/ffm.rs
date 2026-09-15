@@ -82,6 +82,8 @@ pub unsafe extern "C" fn parquet_create_writer(
     reverse_count: i64,
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
+    max_sort_mode_vals: *const i64,
+    max_sort_mode_count: i64,
     writer_generation: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
@@ -94,6 +96,7 @@ pub unsafe extern "C" fn parquet_create_writer(
         .map_err(|e| format!("parquet_create_writer sort_columns: {}", e))?;
     let reverse_sorts = bool_array_from_raw(reverse_vals, reverse_count);
     let nulls_first = bool_array_from_raw(nulls_first_vals, nulls_first_count);
+    let max_sort_modes = bool_array_from_raw(max_sort_mode_vals, max_sort_mode_count);
 
     NativeParquetWriter::create_writer(
         filename,
@@ -102,6 +105,7 @@ pub unsafe extern "C" fn parquet_create_writer(
         sort_columns,
         reverse_sorts,
         nulls_first,
+        max_sort_modes,
         writer_generation,
     )
     .map(|_| 0)
@@ -686,22 +690,25 @@ pub unsafe extern "C" fn parquet_merge_files(
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_merge_files index_name: {}", e))?;
 
-    let (sort_cols, reverse_flags, nulls_first_flags) = match SETTINGS_STORE.get(index_name) {
+    let (sort_cols, reverse_flags, nulls_first_flags, max_sort_mode_flags) = match SETTINGS_STORE
+        .get(index_name)
+    {
         Some(s) => {
             let sc = s.sort_columns.clone();
             let rf = s.reverse_sorts.clone();
             let nf = s.nulls_first.clone();
+            let mm = s.max_sort_modes.clone();
             if !sc.is_empty() && rf.is_empty() {
                 crate::log_info!("parquet_merge_files: sort columns present but reverse_sorts is empty for index '{}', defaulting to ascending", index_name);
             }
             if !sc.is_empty() && nf.is_empty() {
                 crate::log_info!("parquet_merge_files: sort columns present but nulls_first is empty for index '{}', defaulting to nulls last", index_name);
             }
-            (sc, rf, nf)
+            (sc, rf, nf, mm)
         }
         None => {
             crate::log_info!("parquet_merge_files: no settings found for index '{}', proceeding with unsorted merge", index_name);
-            (vec![], vec![], vec![])
+            (vec![], vec![], vec![], vec![])
         }
     };
 
@@ -720,6 +727,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &sort_cols,
             &reverse_flags,
             &nulls_first_flags,
+            &max_sort_mode_flags,
             output_writer_generation,
         )
     }
