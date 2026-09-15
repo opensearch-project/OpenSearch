@@ -742,11 +742,56 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("must find approx_distinct in extension declarations", foundApproxDistinct);
     }
 
+    /** PPL's overflow-checking long sum must bind to DataFusion's standard {@code sum} aggregate. */
+    public void testCheckedLongSumRewrittenToStandardSum() throws Exception {
+        RelDataType longRow = typeFactory.builder()
+            .add("A", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true))
+            .build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", longRow);
+        SqlAggFunction checkedLongSum = new SqlAggFunction(
+            "CHECKED_LONG_SUM",
+            null,
+            SqlKind.SUM,
+            ReturnTypes.BIGINT_FORCE_NULLABLE,
+            null,
+            OperandTypes.NUMERIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        AggregateCall sumCall = AggregateCall.create(
+            checkedLongSum,
+            false,
+            List.of(0),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_col"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(agg));
+        List<String> aggregateNames = plan.getExtensionsList()
+            .stream()
+            .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+            .map(declaration -> declaration.getExtensionFunction().getName())
+            .toList();
+
+        assertTrue(
+            "CHECKED_LONG_SUM must emit as standard sum: " + aggregateNames,
+            aggregateNames.stream().anyMatch(name -> name.equals("sum") || name.startsWith("sum:"))
+        );
+        assertFalse(
+            "CHECKED_LONG_SUM must not leak into Substrait: " + aggregateNames,
+            aggregateNames.stream().anyMatch(name -> name.contains("CHECKED_LONG_SUM"))
+        );
+    }
+
     /**
      * SUM aggregate is not affected by the rename map — its extension function
      * name remains unchanged.
      */
-
     public void testOtherFunctionsNotRenamed() throws Exception {
         RelNode scan = buildTableScan("test_index", "A");
         LogicalAggregate agg = buildSumAggregate(scan, 0);

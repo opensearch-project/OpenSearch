@@ -23,6 +23,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.ArrayList;
@@ -30,8 +31,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Rewrites PPL state-expanding aggregates (TAKE / FIRST / LAST / LIST / VALUES / PATTERN /
- * PERCENTILE_APPROX) onto local stubs the substrait emitter binds via
+ * Rewrites PPL custom aggregates (CHECKED_LONG_SUM / TAKE / FIRST / LAST / LIST / VALUES /
+ * PATTERN / PERCENTILE_APPROX) onto standard operators or local stubs the substrait emitter binds via
  * {@link DataFusionFragmentConvertor}'s ADDITIONAL_AGGREGATE_SIGS. Also normalises any
  * RexLiteral{SqlTypeName.SYMBOL} in upstream Projects to VARCHAR — isthmus's
  * LiteralConverter rejects unregistered Enum classes, and PPL's percentile_approx /
@@ -121,6 +122,7 @@ final class PplAggregateCallRewriter {
         boolean targetDistinct = call.isDistinct();
         RelDataType explicitReturnType = call.getType();
         switch (aggregation.getName().toUpperCase(java.util.Locale.ROOT)) {
+            case "CHECKED_LONG_SUM" -> targetOp = SqlStdOperatorTable.SUM;
             case "TAKE" -> targetOp = DataFusionFragmentConvertor.LOCAL_TAKE_OP;
             case "FIRST" -> targetOp = DataFusionFragmentConvertor.LOCAL_FIRST_OP;
             case "LAST" -> targetOp = DataFusionFragmentConvertor.LOCAL_LAST_OP;

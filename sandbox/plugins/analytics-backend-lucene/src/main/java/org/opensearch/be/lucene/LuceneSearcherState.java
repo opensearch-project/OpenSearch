@@ -10,6 +10,7 @@ package org.opensearch.be.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 
 import java.util.List;
@@ -18,7 +19,8 @@ import java.util.Objects;
 /**
  * Lucene-side {@link BackendExecutionContext}. Built by {@link LuceneScanInstructionHandler}
  * from the wire bytes {@link LuceneFragmentConvertor} produced (filter {@code QueryBuilder} +
- * aggregate-call column names) and consumed by {@link LuceneSearchExecEngine}.
+ * aggregate-call column names) and consumed by {@link LuceneSearchExecEngine}. An optional
+ * {@link ArrowBatchSourcePlan} selects the doc-values handoff instead of the count fast path.
  *
  * <p>Mirrors the role {@code DataFusionSessionState} plays for the DataFusion backend —
  * a small immutable state record threaded from instruction handler to search engine.
@@ -36,13 +38,24 @@ final class LuceneSearcherState implements BackendExecutionContext {
     private final Query filterQuery;
     /** Aggregate-call output names — one Int64 column per name in the result Arrow batch. */
     private final List<String> outputColumnNames;
+    private final ArrowBatchSourcePlan arrowBatchSourcePlan;
 
     LuceneSearcherState(IndexSearcher searcher, Query filterQuery, List<String> outputColumnNames) {
+        this(searcher, filterQuery, outputColumnNames, null);
+    }
+
+    LuceneSearcherState(
+        IndexSearcher searcher,
+        Query filterQuery,
+        List<String> outputColumnNames,
+        ArrowBatchSourcePlan arrowBatchSourcePlan
+    ) {
         this.searcher = Objects.requireNonNull(searcher, "searcher");
         // Never null — see field javadoc. Caller must substitute MatchAllDocsQuery when the
         // fragment has no filter so the search engine doesn't have to branch.
         this.filterQuery = Objects.requireNonNull(filterQuery, "filterQuery (use MatchAllDocsQuery for no-filter fragments)");
         this.outputColumnNames = List.copyOf(Objects.requireNonNull(outputColumnNames, "outputColumnNames"));
+        this.arrowBatchSourcePlan = arrowBatchSourcePlan;
     }
 
     IndexSearcher searcher() {
@@ -55,5 +68,9 @@ final class LuceneSearcherState implements BackendExecutionContext {
 
     List<String> outputColumnNames() {
         return outputColumnNames;
+    }
+
+    ArrowBatchSourcePlan arrowBatchSourcePlan() {
+        return arrowBatchSourcePlan;
     }
 }

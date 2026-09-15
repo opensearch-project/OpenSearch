@@ -40,6 +40,20 @@ public class PlanForker {
         forkStage(dag.rootStage(), registry);
     }
 
+    /**
+     * Binds a coordinator-local fragment to the backend selected for its exchange sink.
+     * Storage capability does not constrain these operators because their leaves consume
+     * exchanged Arrow batches rather than index segments.
+     */
+    static RelNode bindToBackend(RelNode node, String backend) {
+        List<RelNode> children = node.getInputs().stream().map(child -> bindToBackend(child, backend)).toList();
+        if (node instanceof OpenSearchRelNode openSearchNode) {
+            List<OperatorAnnotation> annotations = openSearchNode.getAnnotations().stream().map(a -> a.narrowTo(backend)).toList();
+            return openSearchNode.copyResolved(backend, children, annotations);
+        }
+        return children.isEmpty() ? node : node.copy(node.getTraitSet(), children);
+    }
+
     private static void forkStage(Stage stage, CapabilityRegistry registry) {
         for (Stage child : stage.getChildStages()) {
             forkStage(child, registry);

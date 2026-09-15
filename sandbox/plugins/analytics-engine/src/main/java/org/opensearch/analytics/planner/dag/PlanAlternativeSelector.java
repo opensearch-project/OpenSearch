@@ -28,8 +28,9 @@ import java.util.Set;
  * preference (or scores empty) are kept as-is — value-producing backends that don't
  * implement {@link BackendShardPreference} simply pass through.
  *
- * <p>Today's only consumer is Lucene's count-fast-path. The {@link ShardPreferenceContext}
- * surface is intentionally minimal (just the user-facing {@code prefer_metadata_driver} flag);
+ * <p>Lucene uses this for its count fast path and supported doc-values Arrow source plans.
+ * The {@link ShardPreferenceContext} surface is intentionally minimal (just the user-facing
+ * {@code prefer_metadata_driver} flag);
  * future inputs (deletes, segment count, query-cache warmth) plug into the same scoring path.
  *
  * <p>TODO: this selection runs on the coordinator using only fragment-shape signals. True
@@ -45,7 +46,7 @@ public final class PlanAlternativeSelector {
     private PlanAlternativeSelector() {}
 
     /**
-     * Collapses each stage's alternatives by score. Stages with ≤1 alternative are untouched.
+     * Collapses each stage's alternatives by score and rejects a sole negative-scoring plan.
      *
      * @param dag                  plan-forked DAG; modified in place.
      * @param registry             capability registry for backend lookups.
@@ -71,8 +72,14 @@ public final class PlanAlternativeSelector {
             constrainToParentBackends(stage, child, registry, ctx);
             selectStage(child, registry, ctx);
         }
-        if (ctx == null) return;
-        if (stage.getPlanAlternatives().size() < 2) return;
+        if (ctx == null || stage.getPlanAlternatives().isEmpty()) return;
+        if (stage.getPlanAlternatives().size() == 1) {
+            StagePlan only = stage.getPlanAlternatives().getFirst();
+            if (scoreOf(only, registry, ctx) < 0) {
+                throw new IllegalStateException("Only plan alternative was rejected by backend preference: " + only.backendId());
+            }
+            return;
+        }
 
         // Pick the highest-scoring alternative. Backends without a preference score 0;
         // a positive score wins. Ties go to the first plan in PlanForker order.
@@ -85,6 +92,9 @@ public final class PlanAlternativeSelector {
                 winner = plan;
                 winnerScore = s;
             }
+        }
+        if (winnerScore < 0) {
+            throw new IllegalStateException("All plan alternatives were rejected by backend preference");
         }
         stage.setPlanAlternatives(List.of(winner));
     }

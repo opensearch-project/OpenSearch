@@ -109,8 +109,19 @@ public final class OpenSearchLateMaterializationRewriter {
 
     /** Returns the rewritten root iff QTF matched and fired; {@link Optional#empty()} otherwise. */
     public static Optional<RelNode> rewrite(RelNode root) {
+        return rewrite(root, scan -> true);
+    }
+
+    /**
+     * Applies QTF only when the scan backend can emit row IDs and serve the fetch phase.
+     */
+    public static Optional<RelNode> rewrite(RelNode root, java.util.function.Predicate<OpenSearchTableScan> scanSupportsFetch) {
         Detection detection = detect(root);
         if (detection == null) return Optional.empty();
+        if (scanSupportsFetch.test(detection.belowChain().scan()) == false) {
+            LOGGER.debug("[QTF] scan backend cannot serve the fetch phase; skipping rewrite");
+            return Optional.empty();
+        }
         LOGGER.debug(
             "[QTF] fired: aboveAnchorPhysicalFields={}, belowAnchorPhysicalFields={}",
             detection.aboveAnchorPhysicalFields(),
