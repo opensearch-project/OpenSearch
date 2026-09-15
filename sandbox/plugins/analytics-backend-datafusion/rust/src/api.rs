@@ -1362,6 +1362,7 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
+    let expected_schema = handle.stream.schema();
     // Use the handle's OWN token, not a registry lookup by context_id. The
     // registry entry can be removed by a sibling stream's Drop (same id) while
     // this stream is mid-flight; a `None` token here silently degrades
@@ -1393,6 +1394,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
                 ._query_tracking_context
                 .apply_pending_phantom_correction();
 
+            let batch = align_batch_to_stream_schema(batch, expected_schema)?;
             let batch = if handle.has_views {
                 compact_string_view_columns(batch)
             } else {
@@ -1405,6 +1407,48 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Casts runtime batch columns to the schema advertised by the stream.
+///
+/// Arrow C exports arrays and schemas through separate calls. DataFusion operators can
+/// preserve an equivalent LIST element type while changing child field metadata, or select
+/// Utf8 versus Utf8View at runtime. Rebuild mismatched columns against the advertised type
+/// before export so Java never imports one buffer layout under a different schema.
+fn align_batch_to_stream_schema(
+    batch: RecordBatch,
+    expected: arrow_schema::SchemaRef,
+) -> Result<RecordBatch, DataFusionError> {
+    if batch.schema().as_ref() == expected.as_ref()
+        && batch
+            .columns()
+            .iter()
+            .zip(expected.fields().iter())
+            .all(|(column, field)| column.data_type() == field.data_type())
+    {
+        return Ok(batch);
+    }
+    if batch.num_columns() != expected.fields().len() {
+        return Err(DataFusionError::Execution(format!(
+            "stream batch width {} does not match declared schema width {}",
+            batch.num_columns(),
+            expected.fields().len()
+        )));
+    }
+    let columns = batch
+        .columns()
+        .iter()
+        .zip(expected.fields().iter())
+        .map(|(column, field)| {
+            if column.data_type() == field.data_type() {
+                Ok(Arc::clone(column))
+            } else {
+                arrow::compute::cast(column.as_ref(), field.data_type())
+                    .map_err(DataFusionError::from)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    RecordBatch::try_new(expected, columns).map_err(DataFusionError::from)
 }
 
 /// Prevents sliced StringView batches from carrying full backing buffers across FFI.
@@ -2165,58 +2209,53 @@ pub unsafe fn sender_send(
     Ok(sender.send_blocking(Ok(batch), io_handle))
 }
 
-/// Conforms a producer batch to the consumer-side `StreamingTable`'s `declared`
-/// schema, but ONLY for the Utf8/Utf8View string-view family — the one divergence
-/// that is a genuine buffer-layout mismatch (offset buffers vs. view buffers) that
-/// crashes downstream operators rebuilding batches against the declared schema.
+/// Conforms a producer batch to the consumer-side `StreamingTable` schema.
 ///
-/// Every other type divergence is left untouched: the column keeps its actual type
-/// and field. This mirrors the pre-conform behavior (the batch flowed through as-is)
-/// and matches the Java sink's `typesMatch` tripwire, which deliberately tolerates
-/// e.g. Timestamp precision/timezone differences as advisory — a real
-/// [`arrow::compute::cast`] there would truncate sub-precision or shift values the
-/// previous contract treated as round-trippable. String-view conversion is the only
-/// safe, value-preserving cast (both are byte-identical UTF-8), so it is the only one
-/// performed here.
+/// Exact data types are rebuilt with the declared fields so advisory field metadata agrees.
+/// Nested LIST/STRUCT/MAP types that differ only in child field metadata are relabeled without
+/// copying buffers. Utf8/Utf8View mismatches still require a real value-preserving cast because
+/// their buffer layouts differ. Other divergences, such as timestamp precision, retain their
+/// actual field and column so this boundary does not silently truncate values.
 fn conform_batch_to_schema(
     batch: RecordBatch,
     declared: &SchemaRef,
 ) -> Result<RecordBatch, DataFusionError> {
-    if batch.schema().fields().len() != declared.fields().len() {
+    let actual_schema = batch.schema();
+    if actual_schema.fields().len() != declared.fields().len() {
         return Err(DataFusionError::Execution(format!(
             "sender_send: batch column count {} does not match declared schema {}",
-            batch.schema().fields().len(),
+            actual_schema.fields().len(),
             declared.fields().len()
         )));
     }
-
-    let needs_conform = batch
-        .schema()
-        .fields()
-        .iter()
-        .zip(declared.fields().iter())
-        .any(|(actual, want)| {
-            actual.data_type() != want.data_type()
-                && is_utf8_family(actual.data_type())
-                && is_utf8_family(want.data_type())
-        });
-    if !needs_conform {
+    if actual_schema.as_ref() == declared.as_ref() {
         return Ok(batch);
     }
 
-    // Build the output column-by-column: cast only the string-view-family mismatches
-    // to the declared type; keep every other column (and any tolerated divergence such
-    // as Timestamp precision) with its own actual type. The output schema therefore
-    // uses the declared field for conformed columns and the batch's own field otherwise.
-    let actual_fields = batch.schema().fields().clone();
     let mut fields = Vec::with_capacity(batch.num_columns());
     let mut columns = Vec::with_capacity(batch.num_columns());
     for (i, want) in declared.fields().iter().enumerate() {
         let col = batch.column(i);
-        if col.data_type() != want.data_type()
-            && is_utf8_family(col.data_type())
-            && is_utf8_family(want.data_type())
-        {
+        if col.data_type() == want.data_type() {
+            columns.push(Arc::clone(col));
+            fields.push(Arc::clone(want));
+        } else if same_storage_layout_ignoring_field_metadata(col.data_type(), want.data_type()) {
+            let data = col
+                .to_data()
+                .into_builder()
+                .data_type(want.data_type().clone())
+                .build()
+                .map_err(|e| {
+                    DataFusionError::Execution(format!(
+                        "sender_send: failed to relabel column {} ('{}') to declared nested schema: {}",
+                        i,
+                        want.name(),
+                        e
+                    ))
+                })?;
+            columns.push(arrow_array::make_array(data));
+            fields.push(Arc::clone(want));
+        } else if is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
             let cast = arrow::compute::cast(col, want.data_type()).map_err(|e| {
                 DataFusionError::Execution(format!(
                     "sender_send: failed to cast column {} ('{}') from {:?} to declared {:?}: {}",
@@ -2231,16 +2270,62 @@ fn conform_batch_to_schema(
             fields.push(Arc::clone(want));
         } else {
             columns.push(Arc::clone(col));
-            fields.push(Arc::clone(&actual_fields[i]));
+            fields.push(Arc::clone(&actual_schema.fields()[i]));
         }
     }
-    let target_schema = Arc::new(arrow_schema::Schema::new(fields));
+
+    let target_schema = Arc::new(arrow_schema::Schema::new_with_metadata(
+        fields,
+        declared.metadata().clone(),
+    ));
     RecordBatch::try_new(target_schema, columns).map_err(|e| {
         DataFusionError::Execution(format!(
             "sender_send: failed to assemble conformed batch: {}",
             e
         ))
     })
+}
+
+fn same_storage_layout_ignoring_field_metadata(actual: &DataType, declared: &DataType) -> bool {
+    if actual == declared {
+        return true;
+    }
+    match (actual, declared) {
+        (DataType::List(actual), DataType::List(declared))
+        | (DataType::LargeList(actual), DataType::LargeList(declared)) => {
+            same_storage_layout_ignoring_field_metadata(actual.data_type(), declared.data_type())
+        }
+        (
+            DataType::FixedSizeList(actual, actual_size),
+            DataType::FixedSizeList(declared, declared_size),
+        ) => {
+            actual_size == declared_size
+                && same_storage_layout_ignoring_field_metadata(
+                    actual.data_type(),
+                    declared.data_type(),
+                )
+        }
+        (DataType::Struct(actual), DataType::Struct(declared)) => {
+            actual.len() == declared.len()
+                && actual
+                    .iter()
+                    .zip(declared.iter())
+                    .all(|(actual, declared)| {
+                        same_storage_layout_ignoring_field_metadata(
+                            actual.data_type(),
+                            declared.data_type(),
+                        )
+                    })
+        }
+        (DataType::Map(actual, actual_sorted), DataType::Map(declared, declared_sorted)) => {
+            actual_sorted == declared_sorted
+                && same_storage_layout_ignoring_field_metadata(
+                    actual.data_type(),
+                    declared.data_type(),
+                )
+        }
+        _ => false,
+    }
 }
 
 /// Utf8 / Utf8View — the string-view family whose two variants share byte-identical
@@ -2300,7 +2385,8 @@ pub unsafe fn sender_fail(sender_ptr: i64, reason: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow::buffer::OffsetBuffer;
+    use arrow_array::{BinaryViewArray, Int64Array, ListArray, StringViewArray};
     use arrow_schema::{Field, Schema};
 
     /// Shared lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR
@@ -2320,6 +2406,49 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         predicate()
+    }
+
+    #[test]
+    fn conforms_list_child_name_to_declared_coordinator_schema() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let expected_child = Arc::new(Field::new("item", DataType::Utf8View, true));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["prod", "error"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 2].into()),
+            values,
+            None,
+        );
+        let original_offsets = list.value_offsets().as_ptr();
+        let actual_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(actual_child),
+            true,
+        )]));
+        let expected_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(expected_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)])
+            .expect("runtime LIST batch builds");
+
+        let aligned = conform_batch_to_schema(batch, &expected_schema)
+            .expect("equivalent LIST child names align");
+        assert_eq!(aligned.schema(), expected_schema);
+        let aligned_list = aligned
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .expect("aligned column remains LIST");
+        assert_eq!(aligned_list.value_offsets().as_ptr(), original_offsets);
+        let aligned_values = aligned_list
+            .values()
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .expect("aligned child remains Utf8View");
+        assert_eq!(aligned_values.value(0), "prod");
+        assert_eq!(aligned_values.value(1), "error");
     }
 
     #[test]
