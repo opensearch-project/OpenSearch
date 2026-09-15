@@ -127,6 +127,14 @@ public class NativeMemorySearchBackpressureIT extends OpenSearchIntegTestCase {
 
         SNAPSHOT.clear();
         BUDGET_BYTES.set(DEFAULT_BUDGET_BYTES);
+
+        // Re-assert this test's native-memory suppliers. NativeMemoryUsageService is a process-wide,
+        // last-writer-wins singleton, and the sandbox stack's DataFusion backend also installs snapshot/budget
+        // suppliers during its createComponents at boot — which can overwrite the ones this test's plugin set,
+        // making the injected SNAPSHOT/BUDGET invisible so no cancellation fires. Re-installing here (after all
+        // plugins have initialized) guarantees this test's suppliers are the active source for the assertions below.
+        NativeMemoryUsageTracker.setSnapshotSupplier(() -> new HashMap<>(SNAPSHOT));
+        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(BUDGET_BYTES::get);
     }
 
     @After

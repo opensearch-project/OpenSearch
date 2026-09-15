@@ -57,6 +57,13 @@ public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
         return Settings.builder().build();
     }
 
+    // This test asserts every thread follows OpenSearch's node-thread naming convention, but the sandbox
+    // stack's arrow-flight spawns gRPC threads (os-grpc-*) that don't, so opt out of the stack.
+    @Override
+    protected boolean installSandboxPlugins() {
+        return false;
+    }
+
     public void testThreadNames() throws Exception {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         Set<String> preNodeStartThreadNames = new HashSet<>();
