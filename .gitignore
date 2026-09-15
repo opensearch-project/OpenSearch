@@ -75,3 +75,8 @@ doc-tools/missing-doclet/bin/
 
 /sandbox/plugins/analytics-backend-datafusion/target/
 /sandbox/libs/dataformat-native/rust/target
+
+# Cargo lock files: only the dataformat-native workspace lock is real (Cargo ignores
+# per-member locks in a workspace); strays from standalone cargo runs must not be committed.
+**/Cargo.lock
+!sandbox/libs/dataformat-native/rust/Cargo.lock
