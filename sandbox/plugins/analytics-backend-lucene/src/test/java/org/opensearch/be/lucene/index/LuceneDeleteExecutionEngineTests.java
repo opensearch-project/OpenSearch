@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.Deleter;
+import org.opensearch.index.engine.dataformat.DocumentLocation;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
@@ -178,7 +179,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(previousWriter);
 
         // Record the prior version of doc1 in generation 1 at insertion rowId 7.
-        deleteEngine.recordWrite("doc1", 1L, 7L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 7L));
 
         DeleteInput deleteInput = new DeleteInput(IdFieldMapper.NAME, "doc1", 2L);
 
@@ -217,7 +218,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(writer2);
 
         // doc1's prior copy lives in the DIFFERENT, still-active generation 1, at insertion rowId 5.
-        deleteEngine.recordWrite("doc1", 1L, 5L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 5L));
 
         // Update doc1 from the current generation 2.
         DeleteInput deleteInput = new DeleteInput(IdFieldMapper.NAME, "doc1", 2L);
@@ -258,7 +259,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(currentWriter);
 
         // recordWrite routes doc1 to generation 1 at insertion rowId 3.
-        deleteEngine.recordWrite("doc1", 1L, 3L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 3L));
 
         // Deleting from the current generation (2) must resolve doc1 to generation 1 and defer a
         // positional delete to its writer.
@@ -292,8 +293,8 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(writer3);
 
         // Recording doc1 twice: the later write (gen 2, rowId 9) must win.
-        deleteEngine.recordWrite("doc1", 1L, 1L);
-        deleteEngine.recordWrite("doc1", 2L, 9L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 1L));
+        deleteEngine.recordWrite("doc1", new DocumentLocation(2L, 9L));
 
         DeleteInput deleteInput = new DeleteInput(IdFieldMapper.NAME, "doc1", 3L);
         deleteEngine.deleteDocument(deleteInput, writer3);
@@ -384,9 +385,9 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(writer1);
         deleteEngine.createDeleter(writer2);
 
-        deleteEngine.recordWrite("doc1", 1L, 0L);
-        deleteEngine.recordWrite("doc2", 1L, 1L);
-        deleteEngine.recordWrite("doc3", 2L, 4L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 0L));
+        deleteEngine.recordWrite("doc2", new DocumentLocation(1L, 1L));
+        deleteEngine.recordWrite("doc3", new DocumentLocation(2L, 4L));
 
         // Checking out generation 1 drops its idToGen entries (doc1, doc2) but leaves doc3 -> gen 2 intact.
         deleteEngine.onWriterCheckedOut(1L);
@@ -540,7 +541,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             try {
                 startLatch.await();
                 for (int i = 0; i < 100; i++) {
-                    deleteEngine.recordWrite("doc" + i, 1L, -1L);
+                    deleteEngine.recordWrite("doc" + i, new DocumentLocation(1L, -1L));
                     Thread.yield();
                 }
             } catch (Exception e) {
@@ -626,7 +627,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         deleteEngine.createDeleter(writer1);
         deleteEngine.createDeleter(writer2);
 
-        deleteEngine.recordWrite("shared_doc", 1L, -1L);
+        deleteEngine.recordWrite("shared_doc", new DocumentLocation(1L, -1L));
 
         int numThreads = 10;
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
@@ -672,7 +673,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             try {
                 barrier.await();
                 for (int i = 0; i < 200; i++) {
-                    deleteEngine.recordWrite("doc" + i, 1L, -1L);
+                    deleteEngine.recordWrite("doc" + i, new DocumentLocation(1L, -1L));
                 }
             } catch (Exception e) {
                 exception.set(e);
@@ -775,7 +776,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         Writer<?> mockWriter = createMockWriter(1L);
         Deleter deleter = deleteEngine.createDeleter(mockWriter);
 
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         deleter.recordBufferedDeletes("doc2");
 
@@ -807,7 +808,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         Deleter deleter1 = deleteEngine.createDeleter(writer1);
         Deleter deleter2 = deleteEngine.createDeleter(writer2);
 
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         deleter1.recordBufferedDeletes("buffered1");
         deleter2.recordBufferedDeletes("buffered2");
@@ -925,7 +926,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         Writer<?> oldWriter = createMockWriter(1L);
         Deleter oldDeleter = deleteEngine.createDeleter(oldWriter);
 
-        deleteEngine.recordWrite("old_doc", 1L, -1L);
+        deleteEngine.recordWrite("old_doc", new DocumentLocation(1L, -1L));
         oldDeleter.recordBufferedDeletes("old_buffered");
 
         deleteEngine.onWriterCheckedOut(1L);
@@ -947,7 +948,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         Writer<?> writer1 = createMockWriter(1L);
         deleteEngine.createDeleter(writer1);
-        deleteEngine.recordWrite(docId, 1L, -1L);
+        deleteEngine.recordWrite(docId, new DocumentLocation(1L, -1L));
 
         Writer<?> writer2 = createMockWriter(2L);
         deleteEngine.createDeleter(writer2);
@@ -1064,7 +1065,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         Writer<?> writer1 = createMockWriter(1L);
         Deleter deleter1 = deleteEngine.createDeleter(writer1);
 
-        deleteEngine.recordWrite("test", 1L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(1L, -1L));
         deleter1.recordBufferedDeletes("test");
 
         deleteEngine.onWriterCheckedOut(1L);
@@ -1084,7 +1085,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         Writer<?> writer1 = createMockWriter(1L);
         deleteEngine.createDeleter(writer1);
 
-        deleteEngine.recordWrite("test", 1L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(1L, -1L));
 
         DeleteInput deleteInput = new DeleteInput(IdFieldMapper.NAME, "test", 1L);
         DeleteResult result = deleteEngine.deleteDocument(deleteInput, writer1);
@@ -1097,13 +1098,13 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngine();
         Writer<?> writer1 = createMockWriter(1L);
         deleteEngine.createDeleter(writer1);
-        deleteEngine.recordWrite("test", 1L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(1L, -1L));
 
         deleteEngine.onWriterCheckedOut(1L);
 
         Writer<?> writer2 = createMockWriter(2L);
         deleteEngine.createDeleter(writer2);
-        deleteEngine.recordWrite("test", 2L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(2L, -1L));
 
         Writer<?> writer3 = createMockWriter(3L);
         deleteEngine.createDeleter(writer3);
@@ -1119,7 +1120,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngine();
         Writer<?> writer1 = createMockWriter(1L);
         deleteEngine.createDeleter(writer1);
-        deleteEngine.recordWrite("test", 1L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(1L, -1L));
 
         Writer<?> writer2 = createMockWriter(2L);
         deleteEngine.createDeleter(writer2);
@@ -1137,7 +1138,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngine();
         Writer<?> writer1 = createMockWriter(1L);
         deleteEngine.createDeleter(writer1);
-        deleteEngine.recordWrite("test", 1L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(1L, -1L));
 
         deleteEngine.onWriterCheckedOut(1L);
 
@@ -1150,7 +1151,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         assertNotNull(result);
         assertTrue(result instanceof DeleteResult.Success);
 
-        deleteEngine.recordWrite("test", 2L, -1L);
+        deleteEngine.recordWrite("test", new DocumentLocation(2L, -1L));
     }
 
     public void testConcurrentIndexAndDeleteDuringRefreshEquivalent() throws Exception {
@@ -1169,7 +1170,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             try {
                 barrier.await();
                 for (int i = 0; i < numDocs && !done.get(); i++) {
-                    deleteEngine.recordWrite("doc" + i, 1L, -1L);
+                    deleteEngine.recordWrite("doc" + i, new DocumentLocation(1L, -1L));
                     indexed.incrementAndGet();
                     Thread.yield();
                 }
@@ -1225,7 +1226,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             Writer<?> writer = createMockWriter(gen);
             Deleter deleter = deleteEngine.createDeleter(writer);
             for (int doc = 0; doc < docsPerGeneration; doc++) {
-                deleteEngine.recordWrite("gen" + gen + "_doc" + doc, gen, -1L);
+                deleteEngine.recordWrite("gen" + gen + "_doc" + doc, new DocumentLocation(gen, -1L));
                 deleter.recordBufferedDeletes("gen" + gen + "_doc" + doc);
             }
         }
@@ -1458,7 +1459,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         // === updateDocs flow ===
         WriterHolder lockedWriter = writerPool.getAndLock(h -> h.get().generation() == 2L);
@@ -1467,7 +1468,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             DeleteResult result = deleteEngine.deleteDocument(deleteInput, lockedWriter.get());
 
             assertTrue(result instanceof DeleteResult.Success);
-            deleteEngine.recordWrite("doc1", lockedWriter.get().generation(), -1L);
+            deleteEngine.recordWrite("doc1", new DocumentLocation(lockedWriter.get().generation(), -1L));
         } finally {
             writerPool.releaseAndUnlock(lockedWriter);
         }
@@ -1512,7 +1513,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         // deleteDocument buffers "doc1" on gen 1's deleter
         DeleteInput deleteInput = new DeleteInput(IdFieldMapper.NAME, "doc1", 1L);
@@ -1579,7 +1580,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -1594,7 +1595,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
                 try {
                     DeleteInput di = new DeleteInput(IdFieldMapper.NAME, "doc1", locked.get().generation());
                     deleteEngine.deleteDocument(di, locked.get());
-                    deleteEngine.recordWrite("doc1", locked.get().generation(), -1L);
+                    deleteEngine.recordWrite("doc1", new DocumentLocation(locked.get().generation(), -1L));
                 } finally {
                     writerPool.releaseAndUnlock(locked);
                 }
@@ -1677,7 +1678,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         // Updater grabs the CURRENT writer (gen2) FIRST — the exact precondition of the old deadlock.
         WriterHolder current = writerPool.getAndLock(h -> h.get().generation() == 2L);
@@ -1704,7 +1705,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         // via gen1's OWN deleter lock — no second writer-holder lock — so this cannot deadlock against
         // the refresh block-locking gen2. Then release gen2 so checkoutAll can finish.
         deleteEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, "doc1", current.get().generation()), current.get());
-        deleteEngine.recordWrite("doc1", current.get().generation(), -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(current.get().generation(), -1L));
         writerPool.releaseAndUnlock(current);
 
         refresh.get(30, TimeUnit.SECONDS);
@@ -1773,12 +1774,12 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docA = new LuceneDocumentInput();
         docA.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docA);
-        deleteEngine.recordWrite("doc_a", 1L, -1L);
+        deleteEngine.recordWrite("doc_a", new DocumentLocation(1L, -1L));
 
         LuceneDocumentInput docB = new LuceneDocumentInput();
         docB.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer2.addDoc(docB);
-        deleteEngine.recordWrite("doc_b", 2L, -1L);
+        deleteEngine.recordWrite("doc_b", new DocumentLocation(2L, -1L));
 
         ExecutorService executor = Executors.newFixedThreadPool(3);
         CyclicBarrier barrier = new CyclicBarrier(3);
@@ -1794,7 +1795,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
                 try {
                     DeleteInput di = new DeleteInput(IdFieldMapper.NAME, "doc_a", locked.get().generation());
                     deleteEngine.deleteDocument(di, locked.get());
-                    deleteEngine.recordWrite("doc_a", locked.get().generation(), -1L);
+                    deleteEngine.recordWrite("doc_a", new DocumentLocation(locked.get().generation(), -1L));
                 } finally {
                     writerPool.releaseAndUnlock(locked);
                 }
@@ -1812,7 +1813,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
                 try {
                     DeleteInput di = new DeleteInput(IdFieldMapper.NAME, "doc_b", locked.get().generation());
                     deleteEngine.deleteDocument(di, locked.get());
-                    deleteEngine.recordWrite("doc_b", locked.get().generation(), -1L);
+                    deleteEngine.recordWrite("doc_b", new DocumentLocation(locked.get().generation(), -1L));
                 } finally {
                     writerPool.releaseAndUnlock(locked);
                 }
@@ -1908,7 +1909,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         // Update 1: gen 2 updates doc1 (prior copy in gen 1 deleted directly via gen 1's deleter)
         WriterHolder locked2 = writerPool.getAndLock(h -> h.get().generation() == 2L);
@@ -1916,7 +1917,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             DeleteInput d1 = new DeleteInput(IdFieldMapper.NAME, "doc1", locked2.get().generation());
             DeleteResult r1 = deleteEngine.deleteDocument(d1, locked2.get());
             assertTrue(r1 instanceof DeleteResult.Success);
-            deleteEngine.recordWrite("doc1", locked2.get().generation(), -1L);
+            deleteEngine.recordWrite("doc1", new DocumentLocation(locked2.get().generation(), -1L));
         } finally {
             writerPool.releaseAndUnlock(locked2);
         }
@@ -1927,7 +1928,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             DeleteInput d2 = new DeleteInput(IdFieldMapper.NAME, "doc1", locked3.get().generation());
             DeleteResult r2 = deleteEngine.deleteDocument(d2, locked3.get());
             assertTrue(r2 instanceof DeleteResult.Success);
-            deleteEngine.recordWrite("doc1", locked3.get().generation(), -1L);
+            deleteEngine.recordWrite("doc1", new DocumentLocation(locked3.get().generation(), -1L));
         } finally {
             writerPool.releaseAndUnlock(locked3);
         }
@@ -2007,7 +2008,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDocumentInput docInput = new LuceneDocumentInput();
         docInput.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
         writer1.addDoc(docInput);
-        deleteEngine.recordWrite("doc1", 1L, -1L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, -1L));
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -2070,19 +2071,19 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         assertEquals("nothing tracked yet", 0L, deleteEngine.ramBytesUsed());
 
-        deleteEngine.recordWrite("doc1", 1L, 0L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 0L));
         long afterFirstId = deleteEngine.ramBytesUsed();
         assertTrue("tracking an id must account for it", afterFirstId > 0L);
 
-        deleteEngine.recordWrite("doc2", 1L, 1L);
+        deleteEngine.recordWrite("doc2", new DocumentLocation(1L, 1L));
         assertEquals("footprint is a fixed cost per tracked entry", 2 * afterFirstId, deleteEngine.ramBytesUsed());
 
         // The per-entry cost is a nominal estimate, so it does not vary with the id's length.
-        deleteEngine.recordWrite("a-considerably-longer-document-identifier", 1L, 2L);
+        deleteEngine.recordWrite("a-considerably-longer-document-identifier", new DocumentLocation(1L, 2L));
         assertEquals("entry cost must not depend on id length", 3 * afterFirstId, deleteEngine.ramBytesUsed());
 
         // Re-recording a tracked id overwrites the value in place: no new entry, no growth.
-        deleteEngine.recordWrite("doc1", 1L, 3L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 3L));
         assertEquals("overwriting an id must not grow the footprint", 3 * afterFirstId, deleteEngine.ramBytesUsed());
 
         // Retiring the generation releases everything it tracked.
@@ -2094,7 +2095,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngine();
         Writer<?> mockWriter = createMockWriter(1L);
         deleteEngine.createDeleter(mockWriter);
-        deleteEngine.recordWrite("doc1", 1L, 0L);
+        deleteEngine.recordWrite("doc1", new DocumentLocation(1L, 0L));
         assertTrue(deleteEngine.ramBytesUsed() > 0L);
 
         deleteEngine.close();

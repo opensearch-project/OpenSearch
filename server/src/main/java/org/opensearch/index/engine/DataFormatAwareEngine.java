@@ -41,6 +41,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.DocumentLocation;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
@@ -764,8 +765,8 @@ public class DataFormatAwareEngine implements Indexer {
                 }
                 assert currentWriter instanceof RowIdAwareWriter : "writer pool must wrap every writer in a RowIdAwareWriter; got "
                     + currentWriter.getClass().getName();
-                long insertionRowId = ((RowIdAwareWriter<?>) currentWriter).lastAssignedRowId();
-                deleteExecutionEngine.recordWrite(index.id(), currentWriter.generation(), insertionRowId);
+                long insertionRowId = ((RowIdAwareWriter<?>) currentWriter).docCount() - 1;
+                deleteExecutionEngine.recordWrite(index.id(), new DocumentLocation(currentWriter.generation(), insertionRowId));
                 pendingRowCount.incrementAndGet();
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;

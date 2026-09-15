@@ -62,11 +62,6 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
         return rowIdCounter.get();
     }
 
-    /** Returns the last assigned insertion row ID, or {@code -1} if empty. */
-    public long lastAssignedRowId() {
-        return rowIdCounter.get() - 1;
-    }
-
     /**
      * Returns the wrapped delegate writer.
      * <p>

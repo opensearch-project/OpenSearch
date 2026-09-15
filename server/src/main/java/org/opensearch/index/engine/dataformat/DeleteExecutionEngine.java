@@ -56,16 +56,8 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      */
     DeleteResult deleteDocument(DeleteInput deleteInput, Writer<?> writer) throws IOException;
 
-    /**
-     * Records that document {@code id} now lives at {@code rowId} within the active writer
-     * {@code generation}. The rowId is the insertion position (0-based) within that
-     * generation's segment.
-     *
-     * @param id         the document id
-     * @param generation the writer generation the document was written to
-     * @param rowId      the insertion row id within that generation
-     */
-    void recordWrite(String id, long generation, long rowId);
+    /** Records the active writer location for a document. */
+    void recordWrite(String id, DocumentLocation location);
 
     /**
      * Retires a writer generation, removes its document locations, and applies its buffered IDs to the

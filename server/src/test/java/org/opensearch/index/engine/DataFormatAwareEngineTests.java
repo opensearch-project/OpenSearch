@@ -34,6 +34,7 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.NoOpDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -5067,5 +5068,32 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("unpublishedDeletes");
         field.setAccessible(true);
         return ((AtomicBoolean) field.get(engine)).get();
+    }
+
+    /** An unsupported delete does not fail the engine. */
+    public void testDeleteWithoutDeleteCapableFormatFailsOperationNotEngine() throws IOException {
+        AtomicBoolean engineFailed = new AtomicBoolean();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception e) {
+                engineFailed.set(true);
+            }
+        };
+        MockDataFormatPlugin noDeletePlugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> null);
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(buildFailingEngineConfig(noDeletePlugin, listener))) {
+            Engine.IndexResult indexed = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(indexed.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(deleteOp("1")));
+            assertEquals(NoOpDeleteExecutionEngine.UNSUPPORTED_MESSAGE, e.getMessage());
+
+            assertFalse("an unsupported delete must not fail the engine", engineFailed.get());
+            engine.ensureOpen();
+
+            Engine.IndexResult indexedAfter = engine.index(indexOp(createParsedDocWithInput("2", null)));
+            assertThat(indexedAfter.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            engine.refresh("after-rejected-delete");
+        }
     }
 }

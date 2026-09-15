@@ -31,7 +31,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -61,7 +60,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ArrowBasePlugin.class, TestPPLPlugin.class, CompositeDataFormatPlugin.class, MockCommitterEnginePlugin.class, MockDataFormatPlugin.class);
+        return List.of(ArrowBasePlugin.class, TestPPLPlugin.class, CompositeDataFormatPlugin.class, MockCommitterEnginePlugin.class);
     }
 
     @Override

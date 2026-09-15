@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.Deleter;
 import org.opensearch.index.engine.dataformat.DeleterImpl;
+import org.opensearch.index.engine.dataformat.DocumentLocation;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -53,18 +54,14 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
     private final IndexWriter parentWriter;
-    private final ConcurrentMap<String, GenRow> idToGen;
+    private final ConcurrentMap<String, DocumentLocation> idToGen;
     private final Store store;
     private final AtomicBoolean parentDeleteApplied = new AtomicBoolean();
 
     private static final int ESTIMATED_ID_LENGTH = 24;
 
     private static final long BYTES_PER_ID_TO_GEN_ENTRY = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
-        .shallowSizeOfInstance(GenRow.class) + RamUsageEstimator.sizeOf("0".repeat(ESTIMATED_ID_LENGTH));
-
-    /** Generation + insertion rowId where a document currently lives in an active child writer. */
-    private record GenRow(long generation, long rowId) {
-    }
+        .shallowSizeOfInstance(DocumentLocation.class) + RamUsageEstimator.sizeOf("0".repeat(ESTIMATED_ID_LENGTH));
 
     public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
@@ -151,8 +148,8 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public void recordWrite(String id, long generation, long rowId) {
-        idToGen.put(id, new GenRow(generation, rowId));
+    public void recordWrite(String id, DocumentLocation location) {
+        idToGen.put(id, location);
     }
 
     /**
@@ -172,9 +169,9 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     public boolean onWriterCheckedOut(long generation) throws IOException {
         boolean parentDeleted = parentDeleteApplied.getAndSet(false);
         // Conditional removal prevents a concurrent write from losing a re-added entry.
-        idToGen.forEach((trackedId, genRow) -> {
-            if (genRow.generation() == generation) {
-                idToGen.remove(trackedId, genRow);
+        idToGen.forEach((trackedId, location) -> {
+            if (location.generation() == generation) {
+                idToGen.remove(trackedId, location);
             }
         });
 
@@ -201,7 +198,7 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     /** Records a positional delete for the tracked previous copy, if its generation is active. */
     private void recordPreviousPositionalDelete(String id) {
-        GenRow previous = idToGen.get(id);
+        DocumentLocation previous = idToGen.get(id);
         if (previous == null) {
             return;
         }

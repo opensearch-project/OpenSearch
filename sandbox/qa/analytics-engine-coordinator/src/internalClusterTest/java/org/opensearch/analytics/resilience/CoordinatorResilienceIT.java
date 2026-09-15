@@ -30,7 +30,6 @@ import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -149,7 +148,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockCommitterEnginePlugin.class, MockDataFormatPlugin.class
+            MockCommitterEnginePlugin.class
         );
     }
 

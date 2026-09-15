@@ -431,17 +431,16 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("Multiple DataFormatPlugins provide a DeleteExecutionEngine"));
     }
 
-    public void testGetDeleteExecutionEngineThrowsWhenNoPluginProvides() {
+    public void testGetDeleteExecutionEngineReturnsNoOpWhenNoPluginProvides() {
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
-        assertTrue(e.getMessage().contains("No DataFormatPlugin provides a DeleteExecutionEngine"));
+        assertSame(NoOpDeleteExecutionEngine.INSTANCE, registry.getDeleteExecutionEngine(mock(Committer.class)));
     }
 
-    public void testGetDeleteExecutionEngineSkipsPluginReturningNull() {
+    public void testGetDeleteExecutionEngineReturnsNoOpWhenPluginReturnsNull() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -454,7 +453,6 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
-        assertTrue(e.getMessage().contains("No DataFormatPlugin provides a DeleteExecutionEngine"));
+        assertSame(NoOpDeleteExecutionEngine.INSTANCE, registry.getDeleteExecutionEngine(mock(Committer.class)));
     }
 }

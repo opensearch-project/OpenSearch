@@ -31,7 +31,6 @@ import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -96,8 +95,7 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockCommitterEnginePlugin.class,
-            MockDataFormatPlugin.class
+            MockCommitterEnginePlugin.class
         );
     }
 

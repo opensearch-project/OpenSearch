@@ -13,6 +13,7 @@ import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.Deleter;
+import org.opensearch.index.engine.dataformat.DocumentLocation;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -74,7 +75,7 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
     }
 
     @Override
-    public void recordWrite(String id, long generation, long rowId) {
+    public void recordWrite(String id, DocumentLocation location) {
 
     }
 

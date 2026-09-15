@@ -14,7 +14,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.dataformat.stub.FileBackedDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
-import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
@@ -38,12 +37,7 @@ public class CompositeEngineCreationFailureIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            FileBackedDataFormatPlugin.class,
-            MockDataFormatPlugin.class,
-            CompositeDataFormatPlugin.class,
-            FailOnCreationCommitterPlugin.class
-        );
+        return Arrays.asList(FileBackedDataFormatPlugin.class, CompositeDataFormatPlugin.class, FailOnCreationCommitterPlugin.class);
     }
 
     @Override
