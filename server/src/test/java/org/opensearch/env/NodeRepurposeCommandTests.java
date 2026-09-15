@@ -31,7 +31,6 @@
 
 package org.opensearch.env;
 
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.MockTerminal;
@@ -346,10 +345,8 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     private static void executeRepurposeCommand(MockTerminal terminal, Settings settings, int ordinal) throws Exception {
         NodeRepurposeCommand nodeRepurposeCommand = new NodeRepurposeCommand();
-        OptionSet options = nodeRepurposeCommand.getParser()
-            .parse(ordinal != 0 ? new String[] { "--ordinal", Integer.toString(ordinal) } : new String[0]);
         Environment env = TestEnvironment.newEnvironment(settings);
-        nodeRepurposeCommand.testExecute(terminal, options, env);
+        nodeRepurposeCommand.testExecute(terminal, env);
     }
 
     private void createIndexDataFiles(Settings settings, int shardCount, boolean writeClusterState) throws IOException {
