@@ -9,7 +9,6 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 
@@ -19,7 +18,7 @@ import java.nio.file.Path;
  * the MethodHandles link successfully and the methods can be invoked without
  * a symbol-not-found error.
  */
-public class NativeBridgePreparedPlanTests extends OpenSearchTestCase {
+public class NativeBridgePreparedPlanTests extends NativeSpillDirTestCase {
 
     public void testPreparePartialPlanRejectsNullPointer() {
         // Validates the Java-side pointer check fires before the native call.
@@ -41,7 +40,7 @@ public class NativeBridgePreparedPlanTests extends OpenSearchTestCase {
      */
     public void testPrepareFinalPlanWithInvalidBytesThrowsDecodeError() {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
         DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());

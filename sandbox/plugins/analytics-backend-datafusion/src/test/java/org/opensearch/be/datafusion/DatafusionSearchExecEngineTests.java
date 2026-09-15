@@ -18,7 +18,6 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.plugins.NativeStoreHandle;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -33,7 +32,7 @@ import java.util.List;
  * DatafusionReader → DatafusionContext → DatafusionSearchExecEngine → EngineResultStream → EngineResultBatch.
  * Uses sqlToSubstrait to generate plan bytes, then exercises the real plugin classes.
  */
-public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
+public class DatafusionSearchExecEngineTests extends NativeSpillDirTestCase {
 
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
@@ -44,7 +43,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
 

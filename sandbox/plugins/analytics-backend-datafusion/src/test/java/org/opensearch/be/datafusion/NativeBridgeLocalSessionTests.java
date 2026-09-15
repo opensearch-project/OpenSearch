@@ -28,7 +28,6 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -48,11 +47,13 @@ import io.substrait.extension.SimpleExtension;
  * ({@link NativeRuntimeHandle}, {@link DatafusionLocalSession}) so they are registered in the
  * live-handle set that {@link NativeBridge}'s {@code validatePointer} guards check.
  */
-public class NativeBridgeLocalSessionTests extends OpenSearchTestCase {
+public class NativeBridgeLocalSessionTests extends NativeSpillDirTestCase {
 
     private NativeRuntimeHandle createRuntime() {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        // newSpillDir() (not createTempDir) — see NativeSpillDirTestCase for why the spill dir must not
+        // be Lucene-tracked: the native cleanup thread races Lucene's strict temp-dir rm.
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         return new NativeRuntimeHandle(runtimePtr);
