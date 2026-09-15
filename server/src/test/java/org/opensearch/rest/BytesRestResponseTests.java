@@ -44,6 +44,7 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.shard.ShardId;
@@ -67,6 +68,23 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BytesRestResponseTests extends OpenSearchTestCase {
+
+    /**
+     * Reproducer for opensearch-project/OpenSearch#22311 Bug A: {@link BytesRestResponse} maps overflow guard failures to
+     * HTTP 413 instead of surfacing a raw {@link ArithmeticException} from Lucene.
+     */
+    public void testToBytesArrayMapsOverflowGuardFailureToRequestEntityTooLarge() {
+        int overflowingLength = (Integer.MAX_VALUE / 3) + 1;
+        IllegalArgumentException cause = expectThrows(
+            IllegalArgumentException.class,
+            () -> BytesArray.ensureUTF16LengthIsValidForUTF8Encoding(overflowingLength)
+        );
+
+        OpenSearchStatusException exception = BytesRestResponse.overflowGuardFailureToRequestEntityTooLarge(cause);
+
+        assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, exception.status());
+        assertSame(cause, exception.getCause());
+    }
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {
