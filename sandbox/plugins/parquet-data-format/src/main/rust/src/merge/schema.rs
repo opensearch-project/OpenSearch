@@ -8,13 +8,12 @@
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, ListArray, RecordBatch};
-use arrow::buffer::OffsetBuffer;
-use arrow::datatypes::{DataType, Schema as ArrowSchema};
+use arrow::array::{ArrayRef, Int64Array, RecordBatch};
+use arrow::datatypes::Schema as ArrowSchema;
 use parquet::arrow::ArrowSchemaConverter;
 use parquet::schema::types::Type;
 
-use super::error::{MergeError, MergeResult};
+use super::error::MergeResult;
 
 /// Reserved column name for the synthetic row identifier added during merge.
 pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
@@ -115,25 +114,8 @@ impl ColumnMapping {
                     let target_field = &self.target_schema.fields()[i];
                     if source.data_type() == target_field.data_type() {
                         columns.push(source.clone());
-                    } else if let DataType::List(child) = target_field.data_type() {
-                        if source.data_type() != child.data_type() {
-                            return Err(MergeError::Logic(format!(
-                                "Cannot promote field '{}' from {:?} to {:?}",
-                                target_field.name(),
-                                source.data_type(),
-                                target_field.data_type()
-                            )));
-                        }
-                        let offsets =
-                            OffsetBuffer::new((0..=num_rows as i32).collect::<Vec<_>>().into());
-                        columns.push(Arc::new(ListArray::new(
-                            Arc::clone(child),
-                            offsets,
-                            source.clone(),
-                            source.nulls().cloned(),
-                        )));
                     } else {
-                        return Err(MergeError::Logic(format!(
+                        return Err(super::error::MergeError::Logic(format!(
                             "Cannot adapt field '{}' from {:?} to {:?}",
                             target_field.name(),
                             source.data_type(),

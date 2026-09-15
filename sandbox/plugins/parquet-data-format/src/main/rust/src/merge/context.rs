@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -52,53 +51,6 @@ pub struct MergeContext {
     tracked_writer_bytes: usize,
 }
 
-fn merge_arrow_schemas_with_list_promotion(schemas: Vec<ArrowSchema>) -> MergeResult<ArrowSchema> {
-    let mut list_fields: HashMap<String, Arc<ArrowField>> = HashMap::new();
-    for schema in &schemas {
-        for field in schema.fields() {
-            if matches!(field.data_type(), ArrowDataType::List(_)) {
-                list_fields.insert(field.name().clone(), Arc::clone(field));
-            }
-        }
-    }
-
-    let normalized = schemas
-        .into_iter()
-        .map(|schema| {
-            let fields = schema
-                .fields()
-                .iter()
-                .map(|field| {
-                    let Some(list_field) = list_fields.get(field.name()) else {
-                        return field.as_ref().clone();
-                    };
-                    let ArrowDataType::List(child) = list_field.data_type() else {
-                        return field.as_ref().clone();
-                    };
-                    // child.data_type() in schema with promoted List field would be equal to
-                    // field.data_type in schema containing same field as scaler
-                    if field.data_type() == child.data_type() {
-                        list_field
-                            .as_ref()
-                            .clone()
-                            .with_nullable(list_field.is_nullable() || field.is_nullable())
-                    } else {
-                        field.as_ref().clone()
-                    }
-                })
-                .collect::<Vec<_>>();
-            ArrowSchema::new_with_metadata(fields, schema.metadata().clone())
-        })
-        .collect::<Vec<_>>();
-
-    ArrowSchema::try_merge(normalized).map_err(|e| {
-        MergeError::Logic(format!(
-            "Failed to compute union schema across input files after scalar-to-LIST promotion: {}",
-            e
-        ))
-    })
-}
-
 impl MergeContext {
     /// Creates a new merge context: builds union schemas, opens the output
     /// writer, and spawns the background IO task.
@@ -121,7 +73,12 @@ impl MergeContext {
             }
         }
 
-        let union_data_schema = merge_arrow_schemas_with_list_promotion(arrow_schemas)?;
+        let union_data_schema = ArrowSchema::try_merge(arrow_schemas).map_err(|e| {
+            MergeError::Logic(format!(
+                "Failed to compute union schema across input files: {}",
+                e
+            ))
+        })?;
         let data_schema = Arc::new(union_data_schema);
 
         let mut output_fields: Vec<ArrowField> = data_schema
