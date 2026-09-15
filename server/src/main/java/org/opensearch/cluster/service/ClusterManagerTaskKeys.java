@@ -21,6 +21,7 @@ public final class ClusterManagerTaskKeys {
     public static final String DELETE_DANGLING_INDEX_KEY = "delete-dangling-index";
     public static final String CREATE_DATA_STREAM_KEY = "create-data-stream";
     public static final String REMOVE_DATA_STREAM_KEY = "remove-data-stream";
+    public static final String MODIFY_DATA_STREAM_KEY = "modify-data-stream";
     public static final String ROLLOVER_INDEX_KEY = "rollover-index";
     public static final String INDEX_ALIASES_KEY = "index-aliases";
     public static final String PUT_MAPPING_KEY = "put-mapping";

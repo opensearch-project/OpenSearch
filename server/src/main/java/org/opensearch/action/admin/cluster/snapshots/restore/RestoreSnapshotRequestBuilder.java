@@ -302,4 +302,13 @@ public class RestoreSnapshotRequestBuilder extends ClusterManagerNodeOperationRe
         request.setSourceRemoteTranslogRepository(repositoryName);
         return this;
     }
+
+    /**
+     * If set to true, a restored index whose name matches the data stream backing-index convention is attached to a
+     * pre-existing data stream of the same name instead of being restored as a standalone index.
+     */
+    public RestoreSnapshotRequestBuilder setAttachToDataStream(boolean attachToDataStream) {
+        request.attachToDataStream(attachToDataStream);
+        return this;
+    }
 }
