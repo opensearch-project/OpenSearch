@@ -492,6 +492,16 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns whether the indexed terms of this field enumerate the same values as its doc values.
+     * Fields that index transformed tokens rather than the original value (such as {@code wildcard},
+     * which indexes ngrams) must return {@code false} so that aggregations do not substitute the
+     * postings term dictionary for doc values.
+     */
+    public boolean indexedTermsMatchDocValues() {
+        return true;
+    }
+
+    /**
      * Whether this field is declared to hold multiple values per document in columnar data
      * formats ({@code multi_value} mapping parameter). Lucene is inherently multi-valued, so
      * this flag only matters to pluggable formats whose column type is fixed per file (e.g.
