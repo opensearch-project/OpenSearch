@@ -54,7 +54,11 @@ public class UnifiedQueryService {
      * PPL text → RelNode → planExecutor.execute() → PPLResponse.
      */
     public PPLResponse execute(String pplText) {
-        return execute(pplText, false);
+        return execute(pplText, false, null);
+    }
+
+    public PPLResponse execute(String pplText, Integer targetPartitions) {
+        return execute(pplText, false, targetPartitions);
     }
 
     /**
@@ -62,10 +66,14 @@ public class UnifiedQueryService {
      * planExecutor.executeWithProfile() → PPLResponse with profile.
      */
     public PPLResponse executeWithProfile(String pplText) {
-        return execute(pplText, true);
+        return execute(pplText, true, null);
     }
 
-    private PPLResponse execute(String pplText, boolean profile) {
+    public PPLResponse executeWithProfile(String pplText, Integer targetPartitions) {
+        return execute(pplText, true, targetPartitions);
+    }
+
+    private PPLResponse execute(String pplText, boolean profile, Integer targetPartitions) {
         // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
         // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
         // lazily via getTable(name) — a static copy would lose that.
@@ -126,7 +134,13 @@ public class UnifiedQueryService {
             }
 
             QueryRequestContext baseCtx = contextProvider.getContext();
-            QueryRequestContext queryCtx = new QueryRequestContext(baseCtx.clusterState(), baseCtx.schema(), pplText);
+            QueryRequestContext queryCtx = new QueryRequestContext(
+                baseCtx.clusterState(),
+                baseCtx.schema(),
+                pplText,
+                baseCtx.parentTask(),
+                targetPartitions
+            );
 
             if (profile) {
                 PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
