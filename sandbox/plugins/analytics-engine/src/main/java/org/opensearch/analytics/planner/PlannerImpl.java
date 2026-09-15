@@ -51,6 +51,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchNestedFieldRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
@@ -134,6 +135,7 @@ public class PlannerImpl {
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
+        modifiedRelNode = OpenSearchNestedFieldRewriter.rewrite(modifiedRelNode);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         RelNodeUtils.logPlan(LOGGER, "After marking", modifiedRelNode);
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);

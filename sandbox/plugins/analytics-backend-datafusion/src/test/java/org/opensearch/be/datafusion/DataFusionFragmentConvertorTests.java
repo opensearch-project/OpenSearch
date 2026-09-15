@@ -884,4 +884,69 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         }
         assertEquals("int cell stays i32", 30, read.getVirtualTable().getExpressions(0).getFields(1).getLiteral().getI32());
     }
+
+    // ---- flattenOutputNames: depth-first Substrait Root.names for nested columns ----
+
+    private static RelDataType varcharMap(RelDataTypeFactory tf) {
+        return tf.createMapType(tf.createSqlType(SqlTypeName.VARCHAR), tf.createSqlType(SqlTypeName.VARCHAR));
+    }
+
+    public void testFlattenOutputNamesScalarRowUnchanged() {
+        RelDataTypeFactory tf = new JavaTypeFactoryImpl();
+        RelDataType row = tf.builder()
+            .add("a", tf.createSqlType(SqlTypeName.VARCHAR))
+            .add("b", tf.createSqlType(SqlTypeName.BIGINT))
+            .build();
+        assertEquals(
+            java.util.List.of("a", "b"),
+            DataFusionFragmentConvertor.flattenOutputNames(java.util.List.of("a", "b"), row)
+        );
+    }
+
+    public void testFlattenOutputNamesNestedArrayOfRow() {
+        RelDataTypeFactory tf = new JavaTypeFactoryImpl();
+        RelDataType element = tf.builder()
+            .add("x", tf.createSqlType(SqlTypeName.VARCHAR))
+            .add("y", tf.createSqlType(SqlTypeName.INTEGER))
+            .build();
+        RelDataType row = tf.builder()
+            .add("id", tf.createSqlType(SqlTypeName.VARCHAR))
+            .add("events", tf.createArrayType(element, -1))
+            .add("z", tf.createSqlType(SqlTypeName.VARCHAR))
+            .build();
+        // depth-first: id, events, (its children x, y), z
+        assertEquals(
+            java.util.List.of("id", "events", "x", "y", "z"),
+            DataFusionFragmentConvertor.flattenOutputNames(java.util.List.of("id", "events", "z"), row)
+        );
+    }
+
+    public void testFlattenOutputNamesNestedInNested() {
+        RelDataTypeFactory tf = new JavaTypeFactoryImpl();
+        RelDataType innerEl = tf.builder().add("k", tf.createSqlType(SqlTypeName.VARCHAR)).build();
+        RelDataType outerEl = tf.builder()
+            .add("name", tf.createSqlType(SqlTypeName.VARCHAR))
+            .add("sub", tf.createArrayType(innerEl, -1))
+            .build();
+        RelDataType row = tf.builder().add("events", tf.createArrayType(outerEl, -1)).build();
+        // events, its children (name, sub), then sub's child k
+        assertEquals(
+            java.util.List.of("events", "name", "sub", "k"),
+            DataFusionFragmentConvertor.flattenOutputNames(java.util.List.of("events"), row)
+        );
+    }
+
+    public void testFlattenOutputNamesMapChildEmitsNoInnerNames() {
+        RelDataTypeFactory tf = new JavaTypeFactoryImpl();
+        RelDataType element = tf.builder()
+            .add("attributes", varcharMap(tf))
+            .add("name", tf.createSqlType(SqlTypeName.VARCHAR))
+            .build();
+        RelDataType row = tf.builder().add("events", tf.createArrayType(element, -1)).build();
+        // a MAP child contributes NO inner names — just attributes + name
+        assertEquals(
+            java.util.List.of("events", "attributes", "name"),
+            DataFusionFragmentConvertor.flattenOutputNames(java.util.List.of("events"), row)
+        );
+    }
 }

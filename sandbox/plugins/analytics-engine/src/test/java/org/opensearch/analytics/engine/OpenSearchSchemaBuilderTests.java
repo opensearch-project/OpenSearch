@@ -136,9 +136,11 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that nested/object fields are skipped.
+     * A nested or object field with NO sub-properties has nothing to expose, so it is dropped.
+     * (A nested field WITH sub-properties is exposed as ARRAY&lt;ROW&lt;...&gt;&gt; — see
+     * {@link #testNestedFieldExposedAsArrayOfRow}.)
      */
-    public void testNestedAndObjectFieldsSkipped() throws Exception {
+    public void testNestedAndObjectFieldsWithoutSubPropertiesDropped() throws Exception {
         ClusterState clusterState = buildClusterState(
             Map.of("nested_index", Map.of("name", "keyword", "address", "object", "tags", "nested"))
         );
@@ -149,8 +151,138 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNotNull(table);
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
-        assertEquals("Should only have 'name' field, skipping object/nested", 1, rowType.getFieldCount());
+        assertEquals("property-less object/nested fields are dropped, leaving only 'name'", 1, rowType.getFieldCount());
         assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * A nested field with sub-properties is exposed as ARRAY&lt;ROW&lt;...&gt;&gt;, its struct children
+     * ordered by name (must match the parquet write side, which orders struct children by name).
+     */
+    public void testNestedFieldExposedAsArrayOfRow() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"events\":{\"type\":\"nested\",\"properties\":{"
+            + "\"name\":{\"type\":\"keyword\"},"
+            + "\"droppedAttributesCount\":{\"type\":\"integer\"},"
+            + "\"time\":{\"type\":\"date_nanos\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_events", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("nested_events").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataTypeField events = rowType.getField("events", true, false);
+        assertNotNull(events);
+        assertEquals(SqlTypeName.ARRAY, events.getType().getSqlTypeName());
+        RelDataType struct = events.getType().getComponentType();
+        assertNotNull("ARRAY element must be a ROW", struct);
+        assertTrue(struct.isStruct());
+        assertEquals(java.util.List.of("droppedAttributesCount", "name", "time"), struct.getFieldNames());
+        assertEquals(SqlTypeName.INTEGER, struct.getField("droppedAttributesCount", true, false).getType().getSqlTypeName());
+        assertEquals(SqlTypeName.VARCHAR, struct.getField("name", true, false).getType().getSqlTypeName());
+    }
+
+    /** A top-level flat_object is unsupported and dropped; only a flat_object child of a nested field is exposed (as a MAP). */
+    public void testTopLevelFlatObjectIsDropped() throws Exception {
+        ClusterState clusterState = buildClusterStateRaw(
+            "fo_idx",
+            "{\"properties\":{\"name\":{\"type\":\"keyword\"},\"attributes\":{\"type\":\"flat_object\"}}}"
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("fo_idx").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        assertNull("top-level flat_object must be dropped", rowType.getField("attributes", true, false));
+        assertNotNull("sibling scalar stays", rowType.getField("name", true, false));
+    }
+
+    /** A flat_object child inside a nested field becomes a MAP struct child (matches the parquet MAP). */
+    public void testFlatObjectAsNestedChildIsMap() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"events\":{\"type\":\"nested\",\"properties\":{"
+            + "\"attributes\":{\"type\":\"flat_object\"},"
+            + "\"name\":{\"type\":\"keyword\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_fo", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("nested_fo").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType struct = rowType.getField("events", true, false).getType().getComponentType();
+
+        RelDataTypeField attrs = struct.getField("attributes", true, false);
+        assertEquals(SqlTypeName.MAP, attrs.getType().getSqlTypeName());
+        assertEquals(SqlTypeName.VARCHAR, attrs.getType().getValueType().getSqlTypeName());
+    }
+
+    /**
+     * A scaled_float child of a nested field must resolve (reading scaling_factor), not silently drop —
+     * a dropped child would shift every later struct child's position (children match by position).
+     */
+    public void testScaledFloatNestedChildResolves() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"events\":{\"type\":\"nested\",\"properties\":{"
+            + "\"price\":{\"type\":\"scaled_float\",\"scaling_factor\":100},"
+            + "\"name\":{\"type\":\"keyword\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_sf", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("nested_sf").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType struct = rowType.getField("events", true, false).getType().getComponentType();
+
+        RelDataTypeField price = struct.getField("price", true, false);
+        assertNotNull("scaled_float child must not be dropped", price);
+        assertTrue("Expected ScaledFloatType, got " + price.getType().getClass(), price.getType() instanceof ScaledFloatType);
+        assertEquals(100.0, ((ScaledFloatType) price.getType()).getScalingFactor(), 0.0);
+        assertEquals(java.util.List.of("name", "price"), struct.getFieldNames());
+    }
+
+    /** A nested field whose child is itself nested is exposed as ARRAY&lt;ROW&lt;... inner: ARRAY&lt;ROW&gt; ...&gt;&gt;. */
+    public void testNestedInNestedExposedAsArrayOfRow() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"events\":{\"type\":\"nested\",\"properties\":{"
+            + "\"name\":{\"type\":\"keyword\"},"
+            + "\"links\":{\"type\":\"nested\",\"properties\":{\"url\":{\"type\":\"keyword\"}}}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_in_nested", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("nested_in_nested").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType outer = rowType.getField("events", true, false).getType().getComponentType();
+        assertEquals(java.util.List.of("links", "name"), outer.getFieldNames());
+
+        RelDataType links = outer.getField("links", true, false).getType();
+        assertEquals(SqlTypeName.ARRAY, links.getSqlTypeName());
+        RelDataType linksRow = links.getComponentType();
+        assertTrue("inner nested element must be a ROW", linksRow.isStruct());
+        assertEquals(SqlTypeName.VARCHAR, linksRow.getField("url", true, false).getType().getSqlTypeName());
+    }
+
+    /**
+     * A plain {@code object} child inside a nested field is deliberately unsupported: it is dropped from
+     * the struct while the remaining scalar children stay intact (object-in-nested is the known-broken
+     * shape; {@code flat_object} is the supported alternative — see {@link #testFlatObjectAsNestedChildIsMap}).
+     */
+    public void testObjectChildInsideNestedIsDropped() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"events\":{\"type\":\"nested\",\"properties\":{"
+            + "\"name\":{\"type\":\"keyword\"},"
+            + "\"meta\":{\"type\":\"object\",\"properties\":{\"k\":{\"type\":\"keyword\"}}},"
+            + "\"droppedAttributesCount\":{\"type\":\"integer\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_obj_child", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("nested_obj_child").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType struct = rowType.getField("events", true, false).getType().getComponentType();
+
+        assertEquals(java.util.List.of("droppedAttributesCount", "name"), struct.getFieldNames());
+        assertNull("object child 'meta' must be dropped", struct.getField("meta", true, false));
     }
 
     /**
