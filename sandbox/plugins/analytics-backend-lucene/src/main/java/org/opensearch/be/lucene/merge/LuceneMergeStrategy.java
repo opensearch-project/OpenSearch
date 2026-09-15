@@ -16,16 +16,17 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Strategy interface for Lucene merge behavior based on whether Lucene is the
  * primary or secondary data format in a composite index.
  *
  * <p>When Lucene is the <b>primary</b> format, it performs a standard merge and
- * produces a {@link RowIdMapping} that secondary formats use to align their
+ * produces per-generation {@link RowIdMapping}s that secondary formats use to align their
  * document order.
  *
- * <p>When Lucene is a <b>secondary</b> format, it receives a {@link RowIdMapping}
+ * <p>When Lucene is a <b>secondary</b> format, it receives per-generation {@link RowIdMapping}s
  * from the primary format and remaps its row ID doc values + reorders documents
  * to match the primary's merged output.
  *
@@ -42,26 +43,27 @@ public interface LuceneMergeStrategy {
      * with {@link RowIdRemappingCodecReader} for row ID remapping.
      *
      * @param segments the segments to merge
-     * @param rowIdMapping the row ID mapping from the primary format, or null if this is the primary
-     * @param outputWriterGeneration the writer generation to assign to the merged output segment;
-     *                               strategies that produce a {@link RowIdRemappingOneMerge} use this
-     *                               to stamp the {@code writer_generation} attribute onto the merged
-     *                               {@code .si} file via {@code setMergeInfo}
+     * @param rowIdMappings per-generation row ID mappings from the primary format, or empty if this is the primary
+     * @param outputWriterGeneration the writer generation to assign to the merged output segment
      * @return the configured OneMerge for execution
      */
-    MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration);
+    MergePolicy.OneMerge createOneMerge(
+        List<SegmentCommitInfo> segments,
+        Map<Long, RowIdMapping> rowIdMappings,
+        long outputWriterGeneration
+    );
 
     /**
-     * Builds or resolves the {@link RowIdMapping} after the merge completes.
+     * Builds or resolves the per-generation {@link RowIdMapping}s after the merge completes.
      *
-     * <p>Primary strategy: builds a new mapping by reading the merged segment to determine
+     * <p>Primary strategy: builds new mappings by reading the merged segment to determine
      * how old row IDs map to new positions in the merged output.
-     * <p>Secondary strategy: passes through the input mapping (already provided by the primary).
+     * <p>Secondary strategy: passes through the input mappings (already provided by the primary).
      *
      * @param completedMerge the merge that was executed (contains merged segment info)
-     * @param mergeInput the original merge input (contains input row ID mapping and segment list)
-     * @return the row ID mapping for the merge result, or null if not applicable
+     * @param mergeInput the original merge input (contains input row ID mappings and segment list)
+     * @return the per-generation row ID mappings for the merge result, or null if not applicable
      * @throws IOException if reading the merged segment fails
      */
-    RowIdMapping buildRowIdMapping(MergePolicy.OneMerge completedMerge, MergeInput mergeInput) throws IOException;
+    Map<Long, RowIdMapping> buildRowIdMappings(MergePolicy.OneMerge completedMerge, MergeInput mergeInput) throws IOException;
 }

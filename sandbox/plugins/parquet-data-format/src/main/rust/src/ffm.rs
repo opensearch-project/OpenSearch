@@ -153,7 +153,9 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     crc32_out: *mut i64,
     num_row_groups_out: *mut i64,
     sort_perm_ptr_out: *mut i64,
-    sort_perm_len_out: *mut i64,
+    sort_perm_byte_len_out: *mut i64,
+    sort_perm_count_out: *mut i64,
+    sort_perm_bpv_out: *mut i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_finalize_writer: {}", e))?
@@ -186,19 +188,45 @@ pub unsafe extern "C" fn parquet_finalize_writer(
                 *num_row_groups_out = result.metadata.num_row_groups() as i64;
             }
 
-            // Return sort permutation if present
-            if !sort_perm_ptr_out.is_null() && !sort_perm_len_out.is_null() {
+            // Return the sort permutation, if present, as a single bit-packed buffer:
+            // [forward packed | reverse packed]. Each direction stores `count` values at
+            // `bpv = bits_per_value(count)` bits (~3 bytes/value for 10M rows instead of 8).
+            // Java wraps this buffer zero-copy in NativePackedRowIdMapping and frees it via
+            // parquet_free_row_id_mapping when the mapping is closed.
+            if !sort_perm_ptr_out.is_null()
+                && !sort_perm_byte_len_out.is_null()
+                && !sort_perm_count_out.is_null()
+                && !sort_perm_bpv_out.is_null()
+            {
                 if let Some(perm) = result.row_id_mapping {
-                    let len = perm.len();
-                    let mapping_bytes = len * std::mem::size_of::<i64>();
+                    let count = perm.len();
+                    let bpv = crate::packed_mapping::bits_per_value(count);
+                    let section_len = crate::packed_mapping::packed_byte_len(count, bpv);
+                    let total_len = section_len * 2;
+
+                    let mut buf = vec![0u8; total_len];
+                    let (fwd, rev) = buf.split_at_mut(section_len);
+                    // Forward: fwd[oldId] = newId (sequential pack).
+                    // Reverse: rev[newId] = oldId (scatter pack into the zeroed section) —
+                    // built directly from the permutation, no intermediate 8N reverse array.
+                    for (old_id, &new_id) in perm.iter().enumerate() {
+                        crate::packed_mapping::pack_one(fwd, bpv, old_id, new_id as u64);
+                        crate::packed_mapping::pack_one(rev, bpv, new_id as usize, old_id as u64);
+                    }
+                    drop(perm); // release the raw 8N permutation before handing off
+
                     // Track mapping handoff to Java — Java holds until parquet_free_row_id_mapping
-                    crate::memory::write_pool().grow(mapping_bytes);
-                    let boxed = perm.into_boxed_slice();
-                    *sort_perm_len_out = len as i64;
-                    *sort_perm_ptr_out = Box::into_raw(boxed) as *mut i64 as i64;
+                    crate::memory::write_pool().grow(total_len);
+                    let boxed = buf.into_boxed_slice();
+                    *sort_perm_byte_len_out = total_len as i64;
+                    *sort_perm_count_out = count as i64;
+                    *sort_perm_bpv_out = bpv as i64;
+                    *sort_perm_ptr_out = Box::into_raw(boxed) as *mut u8 as i64;
                 } else {
-                    *sort_perm_len_out = 0;
                     *sort_perm_ptr_out = 0;
+                    *sort_perm_byte_len_out = 0;
+                    *sort_perm_count_out = 0;
+                    *sort_perm_bpv_out = 0;
                 }
             }
             Ok(0)
@@ -915,16 +943,16 @@ pub unsafe extern "C" fn parquet_read_as_json(
 // Sort permutation memory management
 // ---------------------------------------------------------------------------
 
-/// Frees the heap-allocated row ID mapping array returned as part of `parquet_finalize_writer`.
+/// Frees the bit-packed row ID mapping buffer returned as part of `parquet_finalize_writer`.
+/// `byte_len` must be the exact `sort_perm_byte_len_out` value from the finalize call.
 #[no_mangle]
-pub unsafe extern "C" fn parquet_free_row_id_mapping(mapping_ptr: i64, mapping_len: i64) {
-    if mapping_ptr != 0 && mapping_len > 0 {
-        let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
+pub unsafe extern "C" fn parquet_free_row_id_mapping(mapping_ptr: i64, byte_len: i64) {
+    if mapping_ptr != 0 && byte_len > 0 {
         // Java released write mapping — free from pool
-        crate::memory::write_pool().shrink(mapping_bytes);
+        crate::memory::write_pool().shrink(byte_len as usize);
         let _ = Box::from_raw(slice::from_raw_parts_mut(
-            mapping_ptr as *mut i64,
-            mapping_len as usize,
+            mapping_ptr as *mut u8,
+            byte_len as usize,
         ));
     }
 }

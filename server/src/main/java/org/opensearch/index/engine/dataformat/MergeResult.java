@@ -23,7 +23,7 @@ import java.util.Optional;
 public class MergeResult {
 
     private final Map<DataFormat, WriterFileSet> mergedWriterFileSet;
-    private final RowIdMapping rowIdMapping;
+    private final Map<Long, RowIdMapping> rowIdMappings;
 
     /**
      * Constructs a merge result with the given merged writer file sets.
@@ -32,18 +32,18 @@ public class MergeResult {
      */
     public MergeResult(Map<DataFormat, WriterFileSet> mergedWriterFileSet) {
         this.mergedWriterFileSet = mergedWriterFileSet;
-        this.rowIdMapping = null;
+        this.rowIdMappings = null;
     }
 
     /**
-     * Constructs a merge result with the given merged writer file sets and row ID mapping.
+     * Constructs a merge result with the given merged writer file sets and row ID mappings.
      *
      * @param mergedWriterFileSet map of data formats to merged writer file sets
-     * @param rowIdMapping the row ID mapping produced during the merge
+     * @param rowIdMappings the row ID mappings keyed by writer generation produced during the merge
      */
-    public MergeResult(Map<DataFormat, WriterFileSet> mergedWriterFileSet, RowIdMapping rowIdMapping) {
+    public MergeResult(Map<DataFormat, WriterFileSet> mergedWriterFileSet, Map<Long, RowIdMapping> rowIdMappings) {
         this.mergedWriterFileSet = mergedWriterFileSet;
-        this.rowIdMapping = rowIdMapping;
+        this.rowIdMappings = rowIdMappings;
     }
 
     /**
@@ -66,11 +66,11 @@ public class MergeResult {
     }
 
     /**
-     * Gets the row id mapping.
+     * Gets the row ID mappings keyed by writer generation.
      *
-     * @return the row id mapping
+     * @return optional containing the mappings, or empty if none produced
      */
-    public Optional<RowIdMapping> rowIdMapping() {
-        return Optional.ofNullable(rowIdMapping);
+    public Optional<Map<Long, RowIdMapping>> rowIdMappings() {
+        return Optional.ofNullable(rowIdMappings);
     }
 }

@@ -65,7 +65,7 @@ public class FileInfosTests extends OpenSearchTestCase {
 
         assertNotNull(infos.rowIdMapping());
         assertEquals(3, infos.rowIdMapping().size());
-        assertEquals(2L, infos.rowIdMapping().getNewRowId(0, RowIdMapping.SINGLE_GEN));
+        assertEquals(2L, infos.rowIdMapping().getNewRowId(0));
     }
 
     public void testConstructorWithoutMapping() {

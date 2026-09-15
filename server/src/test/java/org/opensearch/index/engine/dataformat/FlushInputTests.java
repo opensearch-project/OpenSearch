@@ -32,8 +32,8 @@ public class FlushInputTests extends OpenSearchTestCase {
         assertTrue(input.hasRowIdMapping());
         assertNotNull(input.rowIdMapping());
         assertEquals(3, input.rowIdMapping().size());
-        assertEquals(2L, input.rowIdMapping().getNewRowId(0, RowIdMapping.SINGLE_GEN));
-        assertEquals(0L, input.rowIdMapping().getNewRowId(1, RowIdMapping.SINGLE_GEN));
-        assertEquals(1L, input.rowIdMapping().getNewRowId(2, RowIdMapping.SINGLE_GEN));
+        assertEquals(2L, input.rowIdMapping().getNewRowId(0));
+        assertEquals(0L, input.rowIdMapping().getNewRowId(1));
+        assertEquals(1L, input.rowIdMapping().getNewRowId(2));
     }
 }

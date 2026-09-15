@@ -129,27 +129,27 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         // position 1: rowId=1 → doc_3 (gen=2, original rowId=0)
         // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
         // position 3: rowId=3 → doc_4 (gen=2, original rowId=1)
-        // Build a PackedRowIdMapping for the interleaved merge:
-        // gen=1 has 3 rows (offsets 0,1,2), gen=2 has 2 rows (offsets 3,4)
-        // position 0: rowId=0 → doc_0 (gen=1, original rowId=0)
-        // position 1: rowId=1 → doc_a (gen=2, original rowId=0)
-        // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
-        // position 3: rowId=3 → doc_b (gen=2, original rowId=1)
-        // position 4: rowId=4 → doc_2 (gen=1, original rowId=2)
-        long[] mappingArray = new long[] { 0, 2, 4, 1, 3 };
-        Map<Long, Integer> genOffsets = Map.of(1L, 0, 2L, 3);
-        Map<Long, Integer> genSizes = Map.of(1L, 3, 2L, 2);
-        RowIdMapping rowIdMapping = new PackedRowIdMapping(mappingArray, genOffsets, genSizes);
+        // Build per-generation PackedRowIdMappings for the interleaved merge:
+        // gen=1 has 3 rows: 0→0, 1→2, 2→4
+        // gen=2 has 2 rows: 0→1, 1→3
+        long[] gen1Mapping = new long[] { 0, 2, 4 };
+        long[] gen2Mapping = new long[] { 1, 3 };
+        Map<Long, RowIdMapping> rowIdMappings = Map.of(
+            1L,
+            new PackedRowIdMapping(gen1Mapping, false),
+            2L,
+            new PackedRowIdMapping(gen2Mapping, false)
+        );
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
-        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(rowIdMapping).newWriterGeneration(10L).build();
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMappings(rowIdMappings).newWriterGeneration(10L).build();
 
         MergeResult result = merger.merge(input);
         assertNotNull(result);
-        assertTrue(result.rowIdMapping().isPresent());
+        assertTrue(result.rowIdMappings().isPresent());
 
         writer.commit();
 
@@ -203,12 +203,16 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         // Identity mapping — writeSegmentWithRichFields already writes globally-unique row IDs
         // (0,1,2 in gen=1 and 3,4 in gen=2), so returning the original row ID is well-formed.
-        long[] identityArray = new long[] { 0, 1, 2, 3, 4 };
-        Map<Long, Integer> identityOffsets = Map.of(1L, 0, 2L, 3);
-        Map<Long, Integer> identitySizes = Map.of(1L, 3, 2L, 2);
-        RowIdMapping identityMapping = new PackedRowIdMapping(identityArray, identityOffsets, identitySizes);
+        long[] gen1Identity = new long[] { 0, 1, 2 };
+        long[] gen2Identity = new long[] { 3, 4 };
+        Map<Long, RowIdMapping> identityMappings = Map.of(
+            1L,
+            new PackedRowIdMapping(gen1Identity, false),
+            2L,
+            new PackedRowIdMapping(gen2Identity, false)
+        );
 
-        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identityMapping).newWriterGeneration(10L).build();
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMappings(identityMappings).newWriterGeneration(10L).build();
         merger.merge(input);
         writer.commit();
 
@@ -265,7 +269,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         RowIdMapping identity = new RowIdMapping() {
             @Override
-            public long getNewRowId(long oldId, long oldGeneration) {
+            public long getNewRowId(long oldId) {
                 return oldId;
             }
 
@@ -276,15 +280,16 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
             @Override
             public boolean isNewToOldSupported() {
-                return true;
+                return false;
             }
 
             @Override
             public int size() {
-                return 0;
+                return Integer.MAX_VALUE;
             }
         };
-        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identity).newWriterGeneration(newGeneration).build();
+        Map<Long, RowIdMapping> mappings = Map.of(1L, identity, 2L, identity);
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMappings(mappings).newWriterGeneration(newGeneration).build();
 
         merger.merge(input);
 
