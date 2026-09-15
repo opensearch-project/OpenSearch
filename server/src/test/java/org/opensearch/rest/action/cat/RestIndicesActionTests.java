@@ -33,13 +33,17 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.pagination.PageToken;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
@@ -48,6 +52,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -57,6 +62,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -71,7 +77,10 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends OpenSearchTestCase {
@@ -220,7 +229,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertTableHeaders(table);
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(1));
-        assertThat(rows.get(0).get(2).value, equalTo(SYSTEM_INDEX_NAME));
+        assertThat(rows.get(0).get(headerIndex(table, "index")).value, equalTo(SYSTEM_INDEX_NAME));
         assertThat(rows.get(0).get(headerIndex(table, "system")).value, equalTo(true));
         assertThat(rows.get(0).get(headerIndex(table, "system.description")).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
     }
@@ -243,6 +252,14 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
 
     public void testSystemOmittedPreservesDefaultHiddenIndexExpansion() {
         assertFalse(RestIndicesAction.getIndicesOptions(new FakeRestRequest()).expandWildcardsHidden());
+    }
+
+    public void testSelectingSystemColumnDoesNotExpandHiddenIndices() {
+        final IndicesOptions indicesOptions = RestIndicesAction.getIndicesOptions(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("h", "index,system")).build()
+        );
+
+        assertFalse(indicesOptions.expandWildcardsHidden());
     }
 
     public void testExplicitExpandWildcardsOverridesSystemDefault() {
@@ -277,6 +294,57 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDescriptorDescriptionExposesMetadataMismatch() {
+        final RestIndicesAction action = newAction(systemIndices());
+        final Map<String, IndexMetadata> mismatchedMetadata = new LinkedHashMap<>(indicesMetadatas);
+        mismatchedMetadata.put(SYSTEM_INDEX_NAME, IndexMetadata.builder(indicesMetadatas.get(SYSTEM_INDEX_NAME)).system(false).build());
+
+        final Table table = action.buildTable(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "false")).build(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            mismatchedMetadata,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
+        );
+
+        final List<Table.Cell> row = table.getRows()
+            .stream()
+            .filter(candidate -> SYSTEM_INDEX_NAME.equals(candidate.get(headerIndex(table, "index")).value))
+            .findFirst()
+            .orElseThrow();
+        assertThat(row.get(headerIndex(table, "system")).value, equalTo(false));
+        assertThat(row.get(headerIndex(table, "system.description")).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
+    }
+
+    public void testResponseLimitCountsOnlyRequestedSystemClassification() {
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings(1), systemIndices());
+        final Metadata.Builder metadata = Metadata.builder();
+        indicesMetadatas.values().forEach(indexMetadata -> metadata.put(indexMetadata, false));
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        final ClusterStateResponse response = new ClusterStateResponse(state.getClusterName(), state, false);
+        @SuppressWarnings("unchecked")
+        final ActionListener<Table> listener = mock(ActionListener.class);
+
+        assertTrue(action.validateRequestLimit(response, true, listener));
+        verifyNoInteractions(listener);
+        assertFalse(action.validateRequestLimit(response, false, listener));
+        verify(listener).onFailure(any());
+    }
+
+    public void testListIndicesRejectsSystemFilter() {
+        final RestIndicesListAction action = new RestIndicesListAction(responseLimitSettings(), systemIndices());
+        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true"))
+            .build();
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
+        assertEquals("parameter [system] is not supported by the [_list/indices] API", exception.getMessage());
+    }
+
     public void testSystemColumnsAreHiddenByDefault() {
         final Table table = newAction(systemIndices()).getTableWithHeader(new FakeRestRequest());
 
@@ -304,8 +372,8 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertThat(headers.get(3).value, equalTo("uuid"));
         assertThat(headers.get(4).value, equalTo("pri"));
         assertThat(headers.get(5).value, equalTo("rep"));
-        assertTrue(headerIndex(table, "system") > 5);
-        assertTrue(headerIndex(table, "system.description") > 5);
+        assertEquals(headers.size() - 2, headerIndex(table, "system"));
+        assertEquals(headers.size() - 1, headerIndex(table, "system.description"));
         boolean foundRaw = false;
         boolean foundString = false;
         for (Table.Cell cell : headers) {
@@ -362,7 +430,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
     }
 
     public void testLastIndexRequestTimestampColumns() {
-        final RestIndicesAction action = newAction(emptySystemIndices());
+        final RestIndicesAction action = newAction(systemIndicesWithoutTestDescriptor());
         long knownTs = 1710000000000L;
         IndexStats indexStats = mock(IndexStats.class);
         CommonStats commonStats = mock(CommonStats.class);
@@ -422,15 +490,22 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
     }
 
     private ResponseLimitSettings responseLimitSettings() {
+        return responseLimitSettings(-1);
+    }
+
+    private ResponseLimitSettings responseLimitSettings(int catIndicesLimit) {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        return new ResponseLimitSettings(clusterSettings, Settings.EMPTY);
+        Settings settings = Settings.builder()
+            .put(ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING.getKey(), catIndicesLimit)
+            .build();
+        return new ResponseLimitSettings(clusterSettings, settings);
     }
 
     private SystemIndices systemIndices() {
         return new SystemIndices(Map.of("testplugin", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, SYSTEM_INDEX_DESCRIPTION))));
     }
 
-    private SystemIndices emptySystemIndices() {
+    private SystemIndices systemIndicesWithoutTestDescriptor() {
         return new SystemIndices(Collections.emptyMap());
     }
 }
