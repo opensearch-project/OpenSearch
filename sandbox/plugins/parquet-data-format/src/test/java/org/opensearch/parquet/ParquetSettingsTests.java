@@ -13,6 +13,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -30,6 +31,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
             .build();
         Map<String, String> encodings = ParquetSettings.getFieldEncodings(settings);
         assertEquals("DELTA_BYTE_ARRAY", encodings.get("name"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.ENCODING_FIELD_SETTING, ParquetSettings.ENCODING_VALUE_SETTING }
+        );
     }
 
     public void testFieldSettingsInvalidEncodingThrows() {
@@ -40,6 +44,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getFieldEncodings(settings));
         assertTrue(e.getMessage().contains("Invalid encoding"));
         assertTrue(e.getMessage().contains("INVALID"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.ENCODING_FIELD_SETTING, ParquetSettings.ENCODING_VALUE_SETTING }
+        );
     }
 
     public void testFieldSettingsValidCompression() {
@@ -49,6 +56,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
             .build();
         Map<String, String> compressions = ParquetSettings.getFieldCompressions(settings);
         assertEquals("SNAPPY", compressions.get("name"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.COMPRESSION_FIELD_SETTING, ParquetSettings.COMPRESSION_VALUE_SETTING }
+        );
     }
 
     public void testFieldSettingsInvalidCompressionThrows() {
@@ -59,6 +69,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getFieldCompressions(settings));
         assertTrue(e.getMessage().contains("Invalid compression"));
         assertTrue(e.getMessage().contains("INVALID"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.COMPRESSION_FIELD_SETTING, ParquetSettings.COMPRESSION_VALUE_SETTING }
+        );
     }
 
     // --- TYPE_ENCODING_SETTINGS validation tests ---
@@ -196,6 +209,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
             .build();
         Map<String, String> encodings = ParquetSettings.getFieldEncodings(settings);
         assertEquals("DELTA_BYTE_ARRAY", encodings.get("name"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.ENCODING_FIELD_SETTING, ParquetSettings.ENCODING_VALUE_SETTING }
+        );
     }
 
     public void testCompressionCaseInsensitive() {
@@ -205,6 +221,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
             .build();
         Map<String, String> compressions = ParquetSettings.getFieldCompressions(settings);
         assertEquals("SNAPPY", compressions.get("name"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.COMPRESSION_FIELD_SETTING, ParquetSettings.COMPRESSION_VALUE_SETTING }
+        );
     }
 
     // --- Field-level bloom filter tests ---
@@ -217,6 +236,9 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, Boolean> result = ParquetSettings.getFieldBloomFilterEnabled(settings);
         assertEquals(Boolean.TRUE, result.get("name"));
         assertEquals(Boolean.FALSE, result.get("value"));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.BLOOM_FILTER_ENABLED_FIELD_SETTING, ParquetSettings.BLOOM_FILTER_ENABLED_VALUE_SETTING }
+        );
     }
 
     public void testFieldBloomFilterFpp() {
@@ -380,6 +402,40 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
                 ParquetSettings.MERGE_BATCH_SIZE_FLOOR,
                 ParquetSettings.MERGE_BATCH_SIZE_CEIL
             )
+        );
+    }
+
+    /**
+     * The per-field parallel-array settings are superseded by the {@code codec} / {@code bloom_filter} mapping
+     * parameters: they must be flagged deprecated (so their use emits a deprecation warning) yet remain registered
+     * and functional.
+     */
+    @SuppressWarnings("deprecation")
+    public void testLegacyFieldSettingsAreDeprecatedButRegistered() {
+        List<Setting<?>> legacy = List.of(
+            ParquetSettings.ENCODING_FIELD_SETTING,
+            ParquetSettings.ENCODING_VALUE_SETTING,
+            ParquetSettings.COMPRESSION_FIELD_SETTING,
+            ParquetSettings.COMPRESSION_VALUE_SETTING,
+            ParquetSettings.BLOOM_FILTER_ENABLED_FIELD_SETTING,
+            ParquetSettings.BLOOM_FILTER_ENABLED_VALUE_SETTING
+        );
+        for (Setting<?> setting : legacy) {
+            assertTrue(setting.getKey() + " must be deprecated", setting.isDeprecated());
+            assertTrue(setting.getKey() + " must stay registered", ParquetSettings.getSettings().contains(setting));
+        }
+        // Index-wide defaults are not deprecated.
+        assertFalse(ParquetSettings.COMPRESSION_TYPE.isDeprecated());
+        assertFalse(ParquetSettings.BLOOM_FILTER_ENABLED.isDeprecated());
+
+        // Still functional: values resolve exactly as before.
+        Settings settings = Settings.builder()
+            .putList(ParquetSettings.ENCODING_FIELD_SETTING.getKey(), "f")
+            .putList(ParquetSettings.ENCODING_VALUE_SETTING.getKey(), "PLAIN")
+            .build();
+        assertEquals(Map.of("f", "PLAIN"), ParquetSettings.getFieldEncodings(settings));
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ParquetSettings.ENCODING_FIELD_SETTING, ParquetSettings.ENCODING_VALUE_SETTING }
         );
     }
 }

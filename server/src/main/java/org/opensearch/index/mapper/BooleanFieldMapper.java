@@ -58,6 +58,7 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -132,17 +133,29 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder(String name, Settings settings) {
+            this(name, settings, List.of());
+        }
+
+        /**
+         * Creates a builder that also carries the mapping parameters contributed by the index's data-format plugin,
+         * so they are parsed, serialized and merged alongside the core parameters.
+         */
+        public Builder(String name, Settings settings, List<Parameter<?>> pluginParameters) {
             super(name);
             this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
+            setPluginMappingParameters(pluginParameters);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored);
+            List<Parameter<?>> parameters = new ArrayList<>(Arrays.asList(meta, boost, docValues, indexed, nullValue, stored));
+            parameters.addAll(pluginMappingParameters());
+            return parameters;
         }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             MappedFieldType ft = new BooleanFieldType(
                 buildFullName(context),
                 indexed.getValue(),
@@ -156,7 +169,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null || c.mapperService() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, c.getSettings(), pluginParameters);
+    });
 
     /**
      * Field type for boolean field mapper
@@ -360,6 +378,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -373,6 +393,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     @Override
@@ -429,7 +456,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(simpleName(), Settings.EMPTY, mappingPluginParameters).init(this);
     }
 
     @Override
