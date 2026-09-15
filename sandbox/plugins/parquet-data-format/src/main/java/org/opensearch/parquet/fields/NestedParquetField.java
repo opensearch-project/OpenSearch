@@ -119,7 +119,7 @@ public class NestedParquetField extends ParquetField {
 
     /**
      * Groups the document's top-level nested elements by path and delegates each field value to
-     * {@link #addToVector}. Rows without nested elements leave their LIST columns null.
+     * {@link #writeNestedValue}. Rows without nested elements leave their LIST columns null.
      *
      * @throws MismatchedInputException if the active VSR is missing a nested LIST vector
      */
@@ -132,18 +132,17 @@ public class NestedParquetField extends ParquetField {
             byPath.computeIfAbsent(child.path, k -> new ArrayList<>()).add(child);
         }
         for (Map.Entry<String, List<ParquetDocumentInput.NestedChild>> entry : byPath.entrySet()) {
-            addToVector(activeVSR.getVector(entry.getKey()), rowIndex, entry.getValue());
+            writeNestedValue(activeVSR.getVector(entry.getKey()), rowIndex, entry.getValue());
         }
     }
 
     /**
      * Writes one nested field value as a LIST of STRUCT elements at {@code rowIndex}. Recursive
      * nested fields re-enter this same hook, so every Parquet field owns its vector write through
-     * {@link ParquetField#addToVector}.
+     * {@link #writeNestedValue}.
      */
-    @Override
     @SuppressWarnings("unchecked")
-    protected void addToVector(FieldVector vector, int rowIndex, Object value) {
+    void writeNestedValue(FieldVector vector, int rowIndex, Object value) {
         List<ParquetDocumentInput.NestedChild> children = (List<ParquetDocumentInput.NestedChild>) value;
         if (children.isEmpty()) {
             throw new IllegalArgumentException("nested field value must contain at least one child element");
@@ -199,7 +198,7 @@ public class NestedParquetField extends ParquetField {
                 }
                 for (Map.Entry<String, List<ParquetDocumentInput.NestedChild>> entry : innerByPath.entrySet()) {
                     String innerLeaf = entry.getKey().substring(path.length() + 1);
-                    addToVector(structVector.getChild(innerLeaf), elemIndex, entry.getValue());
+                    writeNestedValue(structVector.getChild(innerLeaf), elemIndex, entry.getValue());
                 }
             }
         }

@@ -50,8 +50,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Tests {@link NestedParquetField}'s protected {@code addToVector} path and the per-type
- * {@link ParquetField#addToVector} dispatch it delegates every leaf write to. A
+ * Tests {@link NestedParquetField}'s package-visible {@code writeNestedValue} path and its nested-only
+ * scalar vector dispatch. A
  * {@code LIST<STRUCT>} vector is hand-built on a plain {@link RootAllocator}, fed via a real
  * {@link ParquetDocumentInput} using the marker-based {@code addField} signal, then read back to verify.
  */
@@ -366,7 +366,7 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
     }
 
     private void addNestedToVector(ListVector list, int rowIndex, List<ParquetDocumentInput.NestedChild> children) {
-        nestedParquetField.addToVector(list, rowIndex, children);
+        nestedParquetField.writeNestedValue(list, rowIndex, children);
     }
 
     /** Closes open nested elements through the normal field-routing path. */
