@@ -88,6 +88,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -157,6 +158,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
 
+    // Counters exposed through TransportStats / _nodes/stats.
+    private final EnumMap<TransportRequestOptions.Type, AtomicLong> channelCloseByType;
+    // Connect-time counters. A slow or hung connection open blocks the cluster applier thread, and no
+    // request-level metric observes it, so these are the only signal for connection-open impairment.
+    private final AtomicLong connectFailures = new AtomicLong();
+    private final AtomicLong connectTimeMillis = new AtomicLong();
+    private final AtomicLong connectTimeMillisMax = new AtomicLong();
+
     public TcpTransport(
         Settings settings,
         Version version,
@@ -173,6 +182,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
+        EnumMap<TransportRequestOptions.Type, AtomicLong> closeMap = new EnumMap<>(TransportRequestOptions.Type.class);
+        for (TransportRequestOptions.Type t : TransportRequestOptions.Type.values()) {
+            closeMap.put(t, new AtomicLong());
+        }
+        this.channelCloseByType = closeMap;
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
@@ -306,6 +320,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public final class NodeChannels extends CloseableConnection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
+        private final List<Set<TransportRequestOptions.Type>> typesByChannel;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
@@ -325,8 +340,50 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 for (TransportRequestOptions.Type type : handle.getTypes())
                     typeMapping.put(type, handle);
             }
+            // Reverse of typeMapping: for each socket slot, the set of types multiplexed onto it.
+            final List<Set<TransportRequestOptions.Type>> reverseMapping = new ArrayList<>(
+                Collections.nCopies(channels.size(), Collections.emptySet())
+            );
+            for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
+                for (int i = handle.offset; i < handle.offset + handle.length; i++) {
+                    reverseMapping.set(i, handle.getTypes());
+                }
+            }
+            typesByChannel = Collections.unmodifiableList(reverseMapping);
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
+        }
+
+        /**
+         * Records that the socket at {@code channelIndex} closed while this connection was still live, meaning that
+         * socket is what brought the connection down. Closing any single socket tears down the whole connection via
+         * {@link #close()}, so the remaining sockets close as a consequence and must not be counted; likewise a
+         * deliberate close of the connection (node left the cluster, transport shutting down) is not a socket failure
+         * at all. Both of those cases are filtered out by the {@link #isClosing} check, which is why this has to run
+         * before the connection is closed.
+         * <p>
+         * A teardown therefore contributes exactly one socket, the first to close. Sockets that fail at almost the
+         * same moment as that one are not counted separately, because once teardown is under way a closing socket is
+         * indistinguishable from one the teardown itself closed. Sampling the first failure is enough to show which
+         * channel types are unhealthy, which is what this breakdown is for.
+         */
+        void recordChannelClose(int channelIndex, long openTimeMillis) {
+            if (isClosing.get()) {
+                return;
+            }
+            final Set<TransportRequestOptions.Type> types = typesByChannel.get(channelIndex);
+            if (types.isEmpty()) {
+                return;
+            }
+            logger.debug(
+                "individual [{}] channel socket closed to [{}] (connection age [{}ms])",
+                types,
+                node,
+                threadPool.relativeTimeInMillis() - openTimeMillis
+            );
+            for (TransportRequestOptions.Type type : types) {
+                channelCloseByType.get(type).incrementAndGet();
+            }
         }
 
         @Override
@@ -368,10 +425,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             if (isClosing.get()) {
+                logger.debug("send [{}] rejected: [{}] channel to [{}] already closed", action, options.type(), node);
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            handshakerHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            try {
+                handshakerHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            } catch (IOException e) {
+                logger.debug("send [{}] failed with IOException on [{}] channel to [{}]", action, options.type(), node, e);
+                throw e;
+            }
         }
     }
 
@@ -407,6 +470,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
         final List<TcpChannel> channels = new ArrayList<>(numConnections);
+        final long startNanos = System.nanoTime();
 
         for (int i = 0; i < numConnections; ++i) {
             try {
@@ -414,10 +478,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.trace(() -> new ParameterizedMessage("Tcp transport channel opened: {}", channel));
                 channels.add(channel);
             } catch (ConnectTransportException e) {
+                connectFailures.incrementAndGet();
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(e);
                 return channels;
             } catch (Exception e) {
+                connectFailures.incrementAndGet();
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
                 return channels;
@@ -428,7 +494,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             node,
             connectionProfile,
             channels,
-            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener, false)
+            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener, false),
+            startNanos
         );
 
         for (TcpChannel channel : channels) {
@@ -970,12 +1037,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();
         final long bytesRead = statsTracker.getBytesRead();
+        Map<String, Long> closeSnapshot = new HashMap<>();
+        for (TransportRequestOptions.Type t : TransportRequestOptions.Type.values()) {
+            closeSnapshot.put(t.name().toLowerCase(Locale.ROOT), channelCloseByType.get(t).get());
+        }
         return new TransportStats.Builder().serverOpen(acceptedChannels.size())
             .totalOutboundConnections(outboundConnectionCount.get())
             .rxCount(messagesReceived)
             .rxSize(bytesRead)
             .txCount(messagesSent)
             .txSize(bytesWritten)
+            .channelCloseByType(closeSnapshot)
+            .connectFailures(connectFailures.get())
+            .connectTimeMillis(connectTimeMillis.get())
+            .connectTimeMillisMax(connectTimeMillisMax.get())
             .build();
     }
 
@@ -1061,18 +1136,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final List<TcpChannel> channels;
         private final ActionListener<Transport.Connection> listener;
         private final CountDown countDown;
+        /** Taken before the first socket is opened, so measured latency covers socket setup, connect and handshake. */
+        private final long startNanos;
 
         private ChannelsConnectedListener(
             DiscoveryNode node,
             ConnectionProfile connectionProfile,
             List<TcpChannel> channels,
-            ActionListener<Transport.Connection> listener
+            ActionListener<Transport.Connection> listener,
+            long startNanos
         ) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.channels = channels;
             this.listener = listener;
             this.countDown = new CountDown(channels.size());
+            this.startNanos = startNanos;
         }
 
         @Override
@@ -1083,14 +1162,31 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 try {
                     executeHandshake(node, handshakeChannel, connectionProfile, ActionListener.wrap(version -> {
                         final long connectionId = outboundConnectionCount.incrementAndGet();
-                        logger.debug("opened transport connection [{}] to [{}] using channels [{}]", connectionId, node, channels);
+                        final long connectMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                        connectTimeMillis.addAndGet(connectMillis);
+                        connectTimeMillisMax.updateAndGet(prev -> Math.max(prev, connectMillis));
+                        logger.debug(
+                            "opened transport connection [{}] to [{}] in [{}ms] using channels [{}]",
+                            connectionId,
+                            node,
+                            connectMillis,
+                            channels
+                        );
                         NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
                         long relativeMillisTime = threadPool.relativeTimeInMillis();
-                        nodeChannels.channels.forEach(ch -> {
+                        for (int i = 0; i < nodeChannels.channels.size(); i++) {
+                            final TcpChannel ch = nodeChannels.channels.get(i);
+                            final int channelIndex = i;
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
-                        });
+                            ch.addCloseListener(ActionListener.wrap(() -> {
+                                // Attribute the close before tearing the connection down, while we can still tell
+                                // whether this socket is the cause. Attribution per channel type helps spot failures
+                                // isolated to one type (e.g. REG/BULK/RECOVERY bad while PING/STATE stay healthy).
+                                nodeChannels.recordChannelClose(channelIndex, relativeMillisTime);
+                                nodeChannels.close();
+                            }));
+                        }
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));
                         listener.onResponse(nodeChannels);
@@ -1121,6 +1217,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         private void closeAndFail(Exception e) {
+            connectFailures.incrementAndGet();
             try {
                 CloseableChannel.closeChannels(channels, false);
             } catch (Exception ex) {
