@@ -473,6 +473,12 @@ public class FunctionScoreQuery extends Query {
                     factorExplanation = functionsExplanations.get(0);
                 } else {
                     FunctionFactorScorer scorer = functionScorer(context);
+                    if (scorer == null) {
+                        // The sub-query explains this document as a match but produces no scorer for this segment.
+                        // functionScorer() returns null there, and scorerSupplier() treats that state as "no matches
+                        // on this segment", so report no match instead of dereferencing a null scorer.
+                        return Explanation.noMatch("sub-query produced no scorer for this segment", expl);
+                    }
                     int actualDoc = scorer.iterator().advance(doc);
                     assert (actualDoc == doc);
                     double score = scorer.computeScore(doc, expl.getValue().floatValue());
