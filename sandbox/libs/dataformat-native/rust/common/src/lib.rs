@@ -10,6 +10,7 @@
 
 pub mod allocator;
 pub mod error;
+pub mod format_version;
 pub mod io_runtime;
 pub mod logger;
 pub mod memory_pool;
