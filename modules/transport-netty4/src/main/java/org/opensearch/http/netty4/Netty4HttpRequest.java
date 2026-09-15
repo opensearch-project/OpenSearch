@@ -152,6 +152,11 @@ public class Netty4HttpRequest implements HttpRequest {
             return RestRequest.Method.CONNECT;
         }
 
+        // QUERY (RFC 10008) is not a cached Netty constant, so compare by name rather than identity.
+        if (HttpMethod.valueOf("QUERY").equals(httpMethod)) {
+            return RestRequest.Method.QUERY;
+        }
+
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 
