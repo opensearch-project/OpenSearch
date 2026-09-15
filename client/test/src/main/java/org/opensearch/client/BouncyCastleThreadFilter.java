@@ -20,6 +20,6 @@ public class BouncyCastleThreadFilter implements ThreadFilter {
     public boolean reject(Thread t) {
         String n = t.getName();
         // Ignore BC’s global background threads
-        return "BC Disposal Daemon".equals(n) || "BC Cleanup Executor".equals(n);
+        return "BC Disposal Daemon".equals(n);
     }
 }

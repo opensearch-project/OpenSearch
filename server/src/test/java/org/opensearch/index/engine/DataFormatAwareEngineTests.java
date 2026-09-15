@@ -4243,6 +4243,25 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRejectsNonDefaultPrimaryOperationPolicy() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = buildDFAEngineConfig(store, createTempDir()).toBuilder()
+                .primaryOperationPolicy(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE)
+                .build();
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new DataFormatAwareEngine(config));
+            assertTrue(e.getMessage(), e.getMessage().contains("does not support primary operation policy"));
+        }
+    }
+
+    /** The default provider must be accepted, so the check above cannot reject every index. */
+    public void testAcceptsDefaultPrimaryOperationPolicy() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = buildDFAEngineConfig(store, createTempDir());
+            assertSame(DefaultPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+        }
+    }
+
     /**
      * Tests that engine close is graceful when concurrent index, refresh, and flush operations
      * are in flight. Verifies no unhandled exceptions escape and the engine transitions to closed.

@@ -137,8 +137,8 @@ import static java.util.Collections.singletonList;
  * <p>
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  *
- * @deprecated the {@code RestClient} is deprecated is going to be removed in future releases, please consider using official
- * OpenSearch Java Client or {@code RestHighLevelClient}
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
 @Deprecated
 public class RestClient implements Closeable {
