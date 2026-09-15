@@ -21,6 +21,13 @@ pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
 
 /// Builds the output Parquet schema as the union of pre-read schema descriptors.
 ///
+/// TODO: recurse into struct children. The union is by TOP-LEVEL name with first-writer-wins, so a
+/// nested group's subtree is taken wholesale from whichever segment is seen first. If a struct gains
+/// a field in a later segment, the merged schema keeps the older, narrower type and the merge then
+/// fails in `ColumnMapping::pad_batch` at `RecordBatch::try_new` on a type mismatch. This is the
+/// blocker for storing OpenSearch `object` fields as native structs (and `nested` as
+/// `LIST<STRUCT<..>>`); dynamic mapping makes a struct gaining a field routine.
+///
 /// The output schema contains every column seen across all inputs, except:
 /// - Any existing `__row_id__` column is removed.
 /// - A fresh `__row_id__` INT64 REQUIRED column is appended at the end.
@@ -121,6 +128,9 @@ impl ColumnMapping {
     }
 
     /// Remap a batch using the precomputed mapping. Zero-copy when schemas match.
+    ///
+    /// TODO: null-fill a missing struct *child*, not just a whole missing column. Paired with the
+    /// recursive union in `build_parquet_root_schema`, this is what native struct storage needs.
     #[inline]
     pub fn pad_batch(&self, batch: &RecordBatch) -> MergeResult<RecordBatch> {
         if self.is_identity {

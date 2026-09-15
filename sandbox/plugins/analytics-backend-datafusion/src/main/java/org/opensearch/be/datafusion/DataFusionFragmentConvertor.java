@@ -57,6 +57,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -66,6 +67,7 @@ import io.substrait.expression.FunctionArg;
 import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.extension.ExtensionCollector;
 import io.substrait.extension.SimpleExtension;
+import io.substrait.isthmus.CallConverter;
 import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
@@ -577,7 +579,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
         }
 
-        List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
+        // Root output names; flattened so struct columns contribute their nested names too.
+        List<String> fieldNames = flattenNamesForSubstrait(root.fields, preprocessed.getRowType());
 
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
@@ -610,7 +613,59 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Wrapper's output column names from its Calcite row type. */
     private static List<String> fieldNames(RelNode fragment) {
-        return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
+        return flattenNamesForSubstrait(fragment.getRowType());
+    }
+
+    /**
+     * Flattens column names for a Substrait {@code Plan.Root} / {@code NamedStruct}: one flat
+     * depth-first list naming every field at every nesting level.
+     *
+     * <pre>
+     * row type:  id INTEGER, meta ROW(top VARCHAR, props ROW(name VARCHAR))
+     * Substrait: ["id", "meta", "top", "props", "name"]
+     * </pre>
+     *
+     * It must be complete because a Substrait struct expression is positional — values only, no
+     * names — so emitting just the top level fails with "Named schema must contain names for all
+     * fields".
+     *
+     * <p>This overload takes {@link RelRoot} fields, whose names may be aliases and whose index into
+     * {@code rowType} need not match list position, so types are looked up by that index. The
+     * {@link #flattenNamesForSubstrait(RelDataType)} overload pairs by position instead.
+     */
+    private static List<String> flattenNamesForSubstrait(List<? extends Map.Entry<Integer, String>> rootFields, RelDataType rowType) {
+        List<RelDataTypeField> fields = rowType.getFieldList();
+        List<String> flattened = new ArrayList<>(rootFields.size());
+        for (Map.Entry<Integer, String> rootField : rootFields) {
+            flattened.add(rootField.getValue());
+            int index = rootField.getKey();
+            if (index >= 0 && index < fields.size() && fields.get(index).getType().isStruct()) {
+                appendNestedNames(flattened, fields.get(index).getType());
+            }
+        }
+        return flattened;
+    }
+
+    /** Row-type-driven overload: names come from the row type itself, so positions align by construction. */
+    private static List<String> flattenNamesForSubstrait(RelDataType rowType) {
+        List<String> flattened = new ArrayList<>(rowType.getFieldCount());
+        for (RelDataTypeField field : rowType.getFieldList()) {
+            flattened.add(field.getName());
+            if (field.getType().isStruct()) {
+                appendNestedNames(flattened, field.getType());
+            }
+        }
+        return flattened;
+    }
+
+    /** Appends a struct's field names depth-first (children before the next sibling). */
+    private static void appendNestedNames(List<String> out, RelDataType structType) {
+        for (RelDataTypeField child : structType.getFieldList()) {
+            out.add(child.getName());
+            if (child.getType().isStruct()) {
+                appendNestedNames(out, child.getType());
+            }
+        }
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
@@ -798,7 +853,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             aggConverter,
             windowConverter,
             typeConverter
-        );
+        ) {
+            @Override
+            public List<CallConverter> getCallConverters() {
+                // Struct construction is offered before signature matching — see
+                // MakeStructCallConverter for why the matcher can't handle it.
+                List<CallConverter> converters = new ArrayList<>();
+                converters.add(new MakeStructCallConverter(extensions, typeConverter));
+                converters.addAll(super.getCallConverters());
+                return converters;
+            }
+        };
         return new SubstraitRelVisitor(converterProvider) {
             @Override
             public Rel visit(org.apache.calcite.rel.core.Aggregate aggregate) {

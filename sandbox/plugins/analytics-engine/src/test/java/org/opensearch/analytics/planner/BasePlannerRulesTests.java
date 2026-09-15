@@ -253,7 +253,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         return mockTable(tableName, rowTypeBuilder.build());
     }
 
-    private RelOptTable mockTable(String tableName, RelDataType rowType) {
+    protected RelOptTable mockTable(String tableName, RelDataType rowType) {
         RelOptTable table = mock(RelOptTable.class);
         when(table.getQualifiedName()).thenReturn(List.of(tableName));
         when(table.getRowType()).thenReturn(rowType);
