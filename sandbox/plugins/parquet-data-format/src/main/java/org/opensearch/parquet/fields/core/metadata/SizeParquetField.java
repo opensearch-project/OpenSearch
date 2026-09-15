@@ -8,11 +8,12 @@
 
 package org.opensearch.parquet.fields.core.metadata;
 
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for _size metadata stored as 32-bit integer using {@link IntVector}.
@@ -23,8 +24,8 @@ public class SizeParquetField extends ParquetField {
     public SizeParquetField() {}
 
     @Override
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        ((IntVector) vector).setSafe(index, (Integer) value);
+    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        ((IntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Integer) parseValue);
     }
 
     @Override
