@@ -20,7 +20,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Adds implicit element expansion for LIST-valued GROUP BY keys. */
+/**
+ * Adds implicit element expansion for LIST-valued GROUP BY keys.
+ *
+ * <p>This rewriter appends a scalar unnested column per LIST GROUP BY key and remaps
+ * the grouping set indices so that Substrait serialisation sees scalar types throughout.
+ * It currently runs at Substrait-conversion time (inside
+ * {@code DataFusionFragmentConvertor.preprocessForSubstrait}), which is <em>after</em>
+ * {@code PlannerImpl.decomposeAggregates} has already split the aggregate into
+ * PARTIAL/FINAL halves.  In a multi-shard query the FINAL fragment therefore receives
+ * a {@code List(Utf8)} GROUP BY key where Calcite expects the element type
+ * ({@code Utf8View}), causing a type mismatch 500.
+ *
+ * <p><b>Known issue</b>: the correct fix is to move this expansion into
+ * {@code PlannerImpl.runAllOptimizations} <em>before</em> the
+ * {@code decomposeAggregates} call so that Calcite propagates element types into both
+ * the PARTIAL and FINAL fragments.  That requires relocating
+ * {@link MultiValueExpandRel} into a module that {@code analytics-engine} can depend
+ * on (the dependency currently flows the other way: {@code analytics-backend-datafusion}
+ * extends {@code analytics-engine}).  This is tracked for a follow-up PR.
+ */
 final class MultiValueRelRewriter {
 
     private MultiValueRelRewriter() {}

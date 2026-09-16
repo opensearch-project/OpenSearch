@@ -39,17 +39,21 @@ impl ExpandSpec {
                 bytes.len()
             );
         }
-        let read_i32 = |offset| {
-            i32::from_be_bytes(
+        let read_i32 = |offset: usize| -> datafusion::common::Result<i32> {
+            Ok(i32::from_be_bytes(
                 bytes[offset..offset + 4]
                     .try_into()
-                    .expect("four-byte slice"),
-            )
+                    .map_err(|_| {
+                        datafusion::common::DataFusionError::Substrait(format!(
+                            "multi-value expand: failed to read i32 at offset {offset}"
+                        ))
+                    })?,
+            ))
         };
-        let field_index = read_i32(0);
-        let limit = read_i32(4);
-        let append = read_i32(8);
-        let distinct = read_i32(12);
+        let field_index = read_i32(0)?;
+        let limit = read_i32(4)?;
+        let append = read_i32(8)?;
+        let distinct = read_i32(12)?;
         if field_index < 0 || !matches!(append, 0 | 1) || !matches!(distinct, 0 | 1) || limit < -1 {
             return substrait_err!("invalid multi-value expand payload");
         }
@@ -126,6 +130,13 @@ impl SubstraitConsumer for OpenSearchSubstraitConsumer<'_> {
     }
 }
 
+/// Converts a Substrait [`Plan`] into a DataFusion [`LogicalPlan`], routing any
+/// OpenSearch extension relations through [`OpenSearchSubstraitConsumer`] while
+/// delegating all standard relations to DataFusion's built-in consumer.
+///
+/// The overall structure mirrors the upstream DataFusion entry-point; see
+/// <https://github.com/apache/datafusion/blob/branch-55/datafusion/substrait/src/logical_plan/consumer/plan.rs#L28-L40>
+/// for context on the `Extensions` / consumer wiring pattern.
 pub async fn from_substrait_plan(
     state: &SessionState,
     plan: &Plan,
@@ -138,6 +149,23 @@ pub async fn from_substrait_plan(
     from_substrait_plan_with_consumer(&consumer, plan).await
 }
 
+/// Lowers a multi-value expand spec to a DataFusion `Unnest` plan.
+///
+/// Two modes are supported, controlled by [`ExpandSpec::append`]:
+///
+/// * **Replace** (`append = false`): the source LIST column at `field_index` is
+///   replaced in-place with its scalar element.  Used for implicit GROUP BY
+///   expansion where the downstream aggregate already references the same column
+///   position.
+///
+/// * **Append** (`append = true`): the original source LIST column is **kept** and
+///   a new scalar column is appended under a collision-free internal name
+///   (`___mvexpand_<N>`), which is then unnested.  This is required for explicit
+///   `mvexpand` when the source field also appears as an aggregate argument in the
+///   same query (e.g. `stats list(tags) by tags`): the aggregate must receive the
+///   original LIST values while the GROUP BY key expands to individual elements.
+///   Keeping both columns allows the planner to route each reference to the right
+///   physical column.
 fn expand_multivalue(
     input: LogicalPlan,
     spec: ExpandSpec,
