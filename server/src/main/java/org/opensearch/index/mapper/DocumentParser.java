@@ -885,7 +885,14 @@ final class DocumentParser {
      * Handles ObjectMapper parsing with disable_objects logic.
      */
     private static void parseObjectMapper(ParseContext context, ObjectMapper objectMapper) throws IOException {
-        if (objectMapper.disableObjects()) {
+        if (objectMapper.nested().isNested()) {
+            // A nested mapper must go through parseObjectOrNested even when disable_objects is set, so the
+            // per-element child document is still created. disable_objects only governs how the leaf names
+            // inside the element are resolved (literal dotted names), which innerParseObject already honors
+            // via resolvePathForParsing. Checking disableObjects first would silently drop the nested
+            // declaration and flatten the array into multi-valued root fields, losing element correlation.
+            parseObjectOrNested(context, objectMapper);
+        } else if (objectMapper.disableObjects()) {
             parseDisableObjectsFields(context, objectMapper);
         } else {
             parseObjectOrNested(context, objectMapper);
