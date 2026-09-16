@@ -31,14 +31,17 @@ use async_trait::async_trait;
 use datafusion::arrow::compute::SortOptions;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
+use datafusion::common::config::ConfigOptions;
 use datafusion::common::{Result, Statistics};
 use datafusion::datasource::TableType;
 use datafusion::execution::SendableRecordBatchStream;
+use datafusion::functions_nested::min_max::{array_max_udf, array_min_udf};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_expr::expressions::col as physical_col;
 use datafusion::physical_expr::{
-    EquivalenceProperties, LexOrdering, Partitioning, PhysicalSortExpr,
+    EquivalenceProperties, LexOrdering, Partitioning, PhysicalExpr, PhysicalSortExpr,
+    ScalarFunctionExpr,
 };
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
@@ -138,9 +141,10 @@ pub type EvaluatorFactory = Arc<
 /// Direction strings are `"asc"` / `"desc"` (lowercase, as plumbed from Java).
 /// Nulls placement matches Lucene's convention: ASC → NULLS FIRST,
 /// DESC → NULLS LAST. Same as the vanilla path's `build_file_sort_order` in
-/// `session_context.rs`, including the LIST reduction choice: `list_min` for
-/// ASC, `list_max` for DESC (see that function's doc for why direction alone
-/// — not an explicit per-query mode — decides the reduction).
+/// `session_context.rs`, including the LIST reduction choice: DataFusion's
+/// built-in `array_min` for ASC, `array_max` for DESC (see that function's doc
+/// for why direction alone — not an explicit per-query mode — decides the
+/// reduction).
 fn build_projected_lex_ordering(
     projected_schema: &SchemaRef,
     sort_fields: &[String],
@@ -162,13 +166,18 @@ fn build_projected_lex_ordering(
                 .map(|field| field.data_type())
             {
                 Ok(DataType::List(_)) => {
-                    let reduced = if ascending {
-                        crate::udf::list_min::physical_expr(expr, projected_schema.as_ref())
+                    let udf = if ascending {
+                        array_min_udf()
                     } else {
-                        crate::udf::list_max::physical_expr(expr, projected_schema.as_ref())
+                        array_max_udf()
                     };
-                    match reduced {
-                        Ok(expr) => expr,
+                    match ScalarFunctionExpr::try_new(
+                        udf,
+                        vec![expr],
+                        projected_schema.as_ref(),
+                        Arc::new(ConfigOptions::default()),
+                    ) {
+                        Ok(expr) => Arc::new(expr) as Arc<dyn PhysicalExpr>,
                         Err(_) => break,
                     }
                 }
@@ -885,7 +894,7 @@ mod tests {
     }
 
     #[test]
-    fn list_sort_key_advertises_list_min_for_asc_and_list_max_for_desc_physical_ordering() {
+    fn list_sort_key_advertises_array_min_for_asc_and_array_max_for_desc_physical_ordering() {
         let child = Arc::new(Field::new("element", DataType::Utf8View, true));
         let schema = Arc::new(Schema::new(vec![Field::new(
             "tags",
@@ -895,13 +904,13 @@ mod tests {
 
         let desc_ordering =
             build_projected_lex_ordering(&schema, &["tags".into()], &["desc".into()]).unwrap();
-        assert!(format!("{}", desc_ordering[0].expr).contains("list_max"));
+        assert!(format!("{}", desc_ordering[0].expr).contains("array_max"));
         assert!(desc_ordering[0].options.descending);
         assert!(!desc_ordering[0].options.nulls_first);
 
         let asc_ordering =
             build_projected_lex_ordering(&schema, &["tags".into()], &["asc".into()]).unwrap();
-        assert!(format!("{}", asc_ordering[0].expr).contains("list_min"));
+        assert!(format!("{}", asc_ordering[0].expr).contains("array_min"));
         assert!(!asc_ordering[0].options.descending);
         assert!(asc_ordering[0].options.nulls_first);
     }

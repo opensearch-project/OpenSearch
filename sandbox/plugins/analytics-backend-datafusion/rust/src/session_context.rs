@@ -739,13 +739,14 @@ fn try_acquire_budget(
 /// # Multi-value (LIST) sort fields
 ///
 /// A LIST column has no native DataFusion ordering, so it is replaced with a
-/// scalar reduction of its elements: `list_min(col)` when the field sorts
-/// ascending, `list_max(col)` when it sorts descending. This mirrors the
-/// writer-side reduction chosen by `ParquetSortConfig::deriveMaxSortModes`
-/// (`index.sort.mode`, defaulting to MIN for ASC / MAX for DESC) so the
-/// declared ordering here matches the physical row order already on disk.
-/// There is no independent per-query sort-mode setting — direction is the
-/// only signal, exactly as it is for the writer's default branch.
+/// scalar reduction of its elements using DataFusion's built-in nested
+/// functions: `array_min(col)` when the field sorts ascending, `array_max(col)`
+/// when it sorts descending. This mirrors the writer-side reduction chosen by
+/// `ParquetSortConfig::deriveMaxSortModes` (`index.sort.mode`, defaulting to
+/// MIN for ASC / MAX for DESC) so the declared ordering here matches the
+/// physical row order already on disk. There is no independent per-query
+/// sort-mode setting — direction is the only signal, exactly as it is for the
+/// writer's default branch.
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
@@ -755,6 +756,7 @@ pub(crate) fn build_file_sort_order(
         return None;
     }
     use datafusion::common::Column;
+    use datafusion::functions_nested::expr_fn::{array_max, array_min};
     use datafusion::logical_expr::{Expr, SortExpr};
     let sort_exprs: Vec<SortExpr> = sort_fields
         .iter()
@@ -766,9 +768,9 @@ pub(crate) fn build_file_sort_order(
             let key = match schema.field_with_name(name).map(|field| field.data_type()) {
                 Ok(arrow::datatypes::DataType::List(_)) => {
                     if ascending {
-                        crate::udf::list_min::expr(column)
+                        array_min(column)
                     } else {
-                        crate::udf::list_max::expr(column)
+                        array_max(column)
                     }
                 }
                 _ => column,
@@ -797,7 +799,7 @@ mod tests {
     use crate::query_tracker::QueryTrackingContext;
 
     #[test]
-    fn file_sort_order_uses_list_min_for_asc_and_list_max_for_desc() {
+    fn file_sort_order_uses_array_min_for_asc_and_array_max_for_desc() {
         let child = Arc::new(Field::new("element", DataType::Utf8View, true));
         let schema = Schema::new(vec![
             Field::new("tags", DataType::List(child), true),
@@ -805,7 +807,7 @@ mod tests {
         ]);
 
         for (order, ascending, reduction) in
-            [("asc", true, "list_min"), ("desc", false, "list_max")]
+            [("asc", true, "array_min"), ("desc", false, "array_max")]
         {
             let ordering =
                 build_file_sort_order(&["tags".into()], &[order.into()], &schema).unwrap();
@@ -819,8 +821,8 @@ mod tests {
         }
 
         let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
-        assert!(!format!("{}", scalar[0].expr).contains("list_min"));
-        assert!(!format!("{}", scalar[0].expr).contains("list_max"));
+        assert!(!format!("{}", scalar[0].expr).contains("array_min"));
+        assert!(!format!("{}", scalar[0].expr).contains("array_max"));
     }
 
     #[tokio::test]

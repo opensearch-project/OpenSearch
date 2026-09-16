@@ -343,25 +343,26 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
-     * DESC sort on a LIST column must reduce through the hidden key using {@code list_max}
-     * (mirrors the writer-side default: {@code ParquetSortConfig.deriveMaxSortModes} defaults
-     * to MAX for a descending field when no explicit {@code index.sort.mode} override applies —
-     * there is no separate query-level mode setting, so collation direction is the only signal).
+     * DESC sort on a LIST column must reduce through the hidden key using DataFusion's built-in
+     * {@code array_max} (Calcite {@code SqlLibraryOperators.ARRAY_MAX}). Mirrors the writer-side
+     * default: {@code ParquetSortConfig.deriveMaxSortModes} defaults to MAX for a descending field
+     * when no explicit {@code index.sort.mode} override applies — there is no separate query-level
+     * mode setting, so collation direction is the only signal.
      */
-    public void testListSortDescUsesHiddenFixedMaximumKey() throws Exception {
-        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.DESCENDING, "list_max");
+    public void testListSortDescUsesHiddenArrayMaxKey() throws Exception {
+        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.DESCENDING, "array_max");
     }
 
     /**
-     * ASC sort on a LIST column must reduce through the hidden key using {@code list_min},
-     * mirroring the writer-side default (MIN for an ascending field).
+     * ASC sort on a LIST column must reduce through the hidden key using DataFusion's built-in
+     * {@code array_min} (Calcite {@code SqlLibraryOperators.ARRAY_MIN}), mirroring the writer-side
+     * default (MIN for an ascending field).
      */
-    public void testListSortAscUsesHiddenFixedMinimumKey() throws Exception {
-        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.ASCENDING, "list_min");
+    public void testListSortAscUsesHiddenArrayMinKey() throws Exception {
+        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.ASCENDING, "array_min");
     }
 
-    private void assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction direction, String expectedReductionFn)
-        throws Exception {
+    private void assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction direction, String expectedReductionFn) throws Exception {
         RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
         RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
         RelDataType rowType = typeFactory.builder().add("tags", list).build();
