@@ -2665,14 +2665,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Indexer indexer = getIndexer();
-        if (indexer instanceof EngineBackedIndexer engineBacked) {
-            // Legacy Lucene-backed engine path
-            return engineBacked.getEngine().acquireSearcherSupplier(this::wrapSearcher, scope);
-        }
-        // Format-aware indexer that builds a searcher from its own
-        // reader. IndexShard never references the concrete engine type.
-        return indexer.acquireSearcherSupplier(this::wrapSearcher, scope);
+        // Dispatched through the Indexer interface: EngineBackedIndexer delegates to its wrapped
+        // engine, format-aware indexers build a searcher from their own reader. IndexShard never
+        // references a concrete engine type.
+        return getIndexer().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2689,13 +2685,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Indexer indexer = getIndexer();
-        if (indexer instanceof EngineBackedIndexer engineBacked) {
-            // Legacy Lucene-backed engine path - unchanged.
-            return engineBacked.getEngine().acquireSearcher(source, scope, this::wrapSearcher);
-        }
-        // Format-aware indexer (e.g. the composite engine). IndexShard never references the concrete type.
-        return indexer.acquireSearcher(source, scope, this::wrapSearcher);
+        // Dispatched through the Indexer interface; see acquireSearcherSupplier above.
+        return getIndexer().acquireSearcher(source, scope, this::wrapSearcher);
     }
 
     /**

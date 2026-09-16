@@ -94,8 +94,8 @@ public interface Indexer
      * {@link org.opensearch.index.shard.IndexShard} ever depending on the concrete engine type.
      * <p>
      * The default implementation throws {@link UnsupportedOperationException}; indexers that are
-     * backed by a legacy {@link org.opensearch.index.engine.Engine} are handled by the caller via
-     * {@link org.opensearch.index.engine.EngineBackedIndexer} and never reach this method.
+     * backed by a legacy {@link org.opensearch.index.engine.Engine} override this in
+     * {@link org.opensearch.index.engine.EngineBackedIndexer} by delegating to the wrapped engine.
      *
      * @param wrapper a function applied to each acquired {@link Engine.Searcher} (e.g. reader wrapping)
      * @param scope   the searcher scope
@@ -111,8 +111,8 @@ public interface Indexer
     /**
      * Acquires a single {@link Engine.Searcher} for the given source. The default implementation
      * delegates to {@link #acquireSearcherSupplier(Function, Engine.SearcherScope)} and acquires a
-     * searcher from the returned supplier. Indexers backed by a legacy engine are handled by the
-     * caller and never reach this method.
+     * searcher from the returned supplier. Indexers backed by a legacy engine override this in
+     * {@link org.opensearch.index.engine.EngineBackedIndexer} by delegating to the wrapped engine.
      *
      * @param source  description of why the searcher is being acquired
      * @param scope   the searcher scope
