@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Generic provisioner that creates an index from a {@link Dataset} descriptor.
@@ -95,6 +96,64 @@ public final class DatasetProvisioner {
     }
 
     /**
+     * Provision a single-index {@code dataset} as a parquet/composite index and verify the parquet
+     * data format actually took effect, failing loudly on any per-item bulk ingest error.
+     *
+     * <p>Unlike {@link #provision(RestClient, Dataset)}, this variant reads the created index's
+     * settings back to assert parquet is in effect — guarding against a silent fall-back to plain
+     * Lucene if the {@code number_of_shards} anchor is ever missing — and treats a bulk response with
+     * per-item errors ({@code "errors":true}) as a provisioning failure rather than a silent partial
+     * ingest (e.g. a multi-valued keyword rejected by the parquet backend). Used by suites whose
+     * purpose is to surface such ingest rejections as findings rather than let them pass silently.
+     */
+    public static void provisionAndVerifyParquet(RestClient client, Dataset dataset) throws IOException {
+        // Delete if it already exists — ignore "not found".
+        try {
+            client.performRequest(new Request("DELETE", "/" + dataset.indexName));
+        } catch (Exception e) {
+            // index may not exist — ignore
+        }
+
+        String mapping = loadResource(dataset.mappingResourcePath());
+        Request createIndex = new Request("PUT", "/" + dataset.indexName);
+        createIndex.setJsonEntity(injectParquetSettings(mapping));
+        client.performRequest(createIndex);
+
+        // Confirm the index really came up as a parquet/composite index; fail loudly otherwise.
+        assertParquetFormat(client, dataset.indexName);
+
+        String bulk = loadResource(dataset.bulkResourcePath());
+        Request bulkRequest = new Request("POST", "/" + dataset.indexName + "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk);
+        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
+        Response bulkResponse = client.performRequest(bulkRequest);
+        assertEquals("bulk ingest failed for " + dataset.indexName, 200, bulkResponse.getStatusLine().getStatusCode());
+        // The _bulk API returns HTTP 200 even when individual items fail (e.g. a document rejected by
+        // the parquet/composite backend). Fail loudly on per-item errors so a silent zero-ingest can't
+        // masquerade as a successful provision.
+        String bulkBody = new String(bulkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        if (bulkBody.contains("\"errors\":true")) {
+            throw new IOException("bulk ingest reported item errors for " + dataset.indexName + ": " + bulkBody);
+        }
+
+        Request flush = new Request("POST", "/" + dataset.indexName + "/_flush");
+        flush.addParameter("force", "true");
+        client.performRequest(flush);
+
+        // Wait for the primary to be active before the first query. YELLOW (not GREEN): these datasets
+        // use number_of_replicas=0, so a plain yellow wait is sufficient and never blocks on replicas
+        // that would stay unassigned on a single-node dev server.
+        Request health = new Request("GET", "/_cluster/health/" + dataset.indexName);
+        health.addParameter("wait_for_status", "yellow");
+        health.addParameter("wait_for_no_initializing_shards", "true");
+        health.addParameter("timeout", "60s");
+        client.performRequest(health);
+
+        logger.info("Dataset [{}] provisioned into parquet index [{}]", dataset.name, dataset.indexName);
+    }
+
+    /**
      * Provision one index. {@code numberOfShards} overrides the mapping's value ({@code 0} keeps it).
      * {@code layout} pins the per-shard segment layout ({@code null} = single bulk + flush, engine-
      * decided). Used by tests needing multi-shard / multi-segment coverage of planner paths.
@@ -158,6 +217,23 @@ public final class DatasetProvisioner {
         client.performRequest(healthRequest);
 
         logger.info("Dataset [{}] provisioned into index [{}]", dataset.name, indexName);
+    }
+
+    /**
+     * Read the created index's settings back and assert the parquet/composite data format is actually in
+     * effect. Guards against a silent fall-back to plain Lucene (e.g. if the {@code injectParquetSettings}
+     * anchor token is ever missing), which would otherwise let the suite pass against the wrong backend.
+     */
+    private static void assertParquetFormat(RestClient client, String indexName) throws IOException {
+        Request settings = new Request("GET", "/" + indexName + "/_settings");
+        settings.addParameter("flat_settings", "true");
+        Response response = client.performRequest(settings);
+        String body = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(
+            "index [" + indexName + "] was not created with the parquet data format (settings: " + body + ")",
+            body.contains("\"index.composite.primary_data_format\":\"parquet\"")
+                && body.contains("\"index.pluggable.dataformat.enabled\":\"true\"")
+        );
     }
 
     /** Bulk-ingest one ndjson body (refresh=true) and force a flush so its segment is committed. */
