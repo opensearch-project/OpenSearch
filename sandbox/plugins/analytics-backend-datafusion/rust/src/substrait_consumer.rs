@@ -41,13 +41,11 @@ impl ExpandSpec {
         }
         let read_i32 = |offset: usize| -> datafusion::common::Result<i32> {
             Ok(i32::from_be_bytes(
-                bytes[offset..offset + 4]
-                    .try_into()
-                    .map_err(|_| {
-                        datafusion::common::DataFusionError::Substrait(format!(
-                            "multi-value expand: failed to read i32 at offset {offset}"
-                        ))
-                    })?,
+                bytes[offset..offset + 4].try_into().map_err(|_| {
+                    datafusion::common::DataFusionError::Substrait(format!(
+                        "multi-value expand: failed to read i32 at offset {offset}"
+                    ))
+                })?,
             ))
         };
         let field_index = read_i32(0)?;
