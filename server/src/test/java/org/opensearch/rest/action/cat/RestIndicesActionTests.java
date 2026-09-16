@@ -81,6 +81,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends OpenSearchTestCase {
@@ -331,6 +332,37 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         verifyNoInteractions(listener);
         assertFalse(action.validateRequestLimit(response, false, listener));
         verify(listener).onFailure(any());
+    }
+
+    public void testDisabledResponseLimitDoesNotInspectMetadata() {
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings(randomFrom(-1, 0)), systemIndices());
+        final ClusterState state = mock(ClusterState.class);
+        final ClusterStateResponse response = new ClusterStateResponse(new ClusterName("test"), state, false);
+        @SuppressWarnings("unchecked")
+        final ActionListener<Table> listener = mock(ActionListener.class);
+
+        assertTrue(action.validateRequestLimit(response, randomBoolean(), listener));
+        verifyNoInteractions(state, listener);
+    }
+
+    public void testDescriptorLookupSkipsNonDotIndices() {
+        final SystemIndices systemIndices = mock(SystemIndices.class);
+        final RestIndicesAction action = newAction(systemIndices);
+        final Table table = action.buildTable(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
+        );
+
+        verify(systemIndices).findMatchingDescriptor(SYSTEM_INDEX_NAME);
+        verifyNoMoreInteractions(systemIndices);
+        for (List<Table.Cell> row : table.getRows()) {
+            assertNull(row.get(headerIndex(table, "system.description")).value);
+        }
     }
 
     public void testListIndicesRejectsSystemFilter() {

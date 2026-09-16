@@ -283,11 +283,13 @@ public class RestIndicesAction extends AbstractListAction {
                     INDICES,
                     limit
                 );
-            } else {
+            } else if (limit > 0) {
                 long matchingIndices = StreamSupport.stream(clusterStateResponse.getState().getMetadata().spliterator(), false)
                     .filter(indexMetadata -> indexMetadata.isSystem() == systemParam)
                     .count();
-                limitBreached = limit > 0 && matchingIndices > limit;
+                limitBreached = matchingIndices > limit;
+            } else {
+                limitBreached = false;
             }
             if (limitBreached) {
                 listener.onFailure(new ResponseLimitBreachedException("Too many indices requested.", limit, INDICES));
@@ -1269,7 +1271,8 @@ public class RestIndicesAction extends AbstractListAction {
             );
 
             table.addCell(indexMetadata.isSystem());
-            SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+            // Descriptors require a dot prefix; do not gate on metadata so disagreements remain visible.
+            SystemIndexDescriptor descriptor = indexName.startsWith(".") ? systemIndices.findMatchingDescriptor(indexName) : null;
             table.addCell(descriptor == null ? null : descriptor.getDescription());
 
             table.endRow();
