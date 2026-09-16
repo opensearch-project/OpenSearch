@@ -2301,11 +2301,16 @@ mod tests {
     use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
     use arrow_schema::{Field, Schema};
 
-    /// Shared lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR
-    /// or that observe the global runtime state from `create_global_runtime`. cargo test
-    /// runs tests in parallel by default; without serialization, two runtime-construction
-    /// tests would race on these globals and produce flaky assertions.
-    static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// Lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR or that
+    /// observe the global runtime state from `create_global_runtime`. cargo test runs tests in
+    /// parallel by default; without serialization, two runtime-construction tests would race on
+    /// these globals and produce flaky assertions.
+    ///
+    /// `crate::test_process_globals::lock` rather than a lock of its own, because
+    /// `create_global_runtime` also replaces the global `RuntimeEnv` registration and
+    /// `close_global_runtime` then leaves it dangling — which fails any doc-values test reading it
+    /// at that moment with "no global DataFusion runtime environment".
+    use crate::test_process_globals::lock as lock_process_globals;
 
     /// Test helper: poll until `predicate` returns true or `timeout_ms` elapses.
     /// Used to wait on the background spill-cleanup thread without an arbitrary sleep.
@@ -2328,7 +2333,7 @@ mod tests {
         // instead of writing to an unintended path. Construction must also flip the
         // memory_guard SPILL_ENABLED flag off so per_query_spill_budget returns
         // Disabled (not Critical) — preventing the 1-partition clamp.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
@@ -2354,7 +2359,7 @@ mod tests {
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2414,7 +2419,7 @@ mod tests {
         // them in a background thread (remove_file for files/symlinks, remove_dir_all
         // for dirs). The original names are gone immediately after phase 1; wait
         // briefly for phase 2 to clear the *.stale entries.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2474,7 +2479,7 @@ mod tests {
         // spill disabled (empty path), no filesystem operation should run — an
         // accidental fs::remove_dir_all("") would error and break boot. This test
         // guards against future refactors that hoist the cleanup out of the else-branch.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
@@ -2487,7 +2492,7 @@ mod tests {
         // at boot with full context. Trigger the failure path by pointing spill_dir
         // at a regular file: spill_path.exists() returns true, but read_dir refuses
         // to enumerate a non-directory and returns ErrorKind::NotADirectory.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let bad_path = tmp.path().join("regular_file");
         fs::write(&bad_path, b"not a directory").expect("seed regular file");
@@ -2542,7 +2547,7 @@ mod tests {
             return;
         }
 
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let parent = tempfile::tempdir().expect("parent tempdir");
         let spill_path = parent.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill mount-point dir");
@@ -2632,7 +2637,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn create_global_runtime_unlinks_top_level_symlink_without_following() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill dir");
@@ -2685,7 +2690,7 @@ mod tests {
     /// inline recursive removal would be flagged.
     #[test]
     fn create_global_runtime_renames_orphan_subdirs_to_stale_then_async_removes() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2720,7 +2725,7 @@ mod tests {
     /// double-suffix them (no datafusion-old.stale.stale).
     #[test]
     fn create_global_runtime_cleans_prior_boot_stale_entries() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
