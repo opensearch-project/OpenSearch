@@ -238,6 +238,25 @@ public class LuceneFilterDelegationHandleDeletedDocsTests extends OpenSearchTest
         assertEquals(all, collectAll(handle, LIVE_DOCS_MATCH_ALL_ANNOTATION_ID));
     }
 
+    public void testMatchAllCopyLiveWordsHandlesUnalignedOffset() throws Exception {
+        buildIndex(1000, i -> i % 4 == 0); // dense → copyLiveWords word-copy path
+        assertDenseLiveDocs();
+        LuceneFilterDelegationHandle handle = newHandle(List.of());
+        int providerKey = handle.createProvider(LIVE_DOCS_MATCH_ALL_ANNOTATION_ID);
+        int collectorKey = handle.createCollector(providerKey, 1L, 0, leaf().maxDoc());
+
+        // A sub-range starting mid-word (70 & 63 == 6) forces copyLiveWords' bit-shift branch, not the
+        // aligned fast copy — asserts the shift + trailing mask are correct.
+        int from = 70;
+        Set<Integer> expected = new TreeSet<>();
+        for (int i : liveDocIds()) {
+            if (i >= from) {
+                expected.add(i);
+            }
+        }
+        assertEquals(expected, collectRange(handle, collectorKey, from, leaf().maxDoc()));
+    }
+
     // ── predicate provider: scorer path excludes deleted docs ──
 
     public void testPredicateExcludesDeletedDocsForDenseDeletions() throws Exception {
@@ -263,6 +282,20 @@ public class LuceneFilterDelegationHandleDeletedDocsTests extends OpenSearchTest
         Set<Integer> expected = new TreeSet<>();
         for (int i = 0; i < 1000; i++) {
             if (i % 2 == 0 && deleted.contains(i) == false) {
+                expected.add(i);
+            }
+        }
+        assertEquals(expected, collectAll(handle, PREDICATE_ANNOTATION_ID));
+    }
+
+    public void testPredicateWithoutDeletionsCollectsAllMatches() throws Exception {
+        buildIndex(1000, i -> false); // no deletions → raw scorer, liveDocs == null (no per-doc filtering)
+        assertNull("no deletions should leave liveDocs null", leaf().getLiveDocs());
+        LuceneFilterDelegationHandle handle = newHandle(List.of(termExpression(PREDICATE_ANNOTATION_ID, "tag", PREDICATE_TAG)));
+
+        Set<Integer> expected = new TreeSet<>();
+        for (int i = 0; i < 1000; i++) {
+            if (i % 2 == 0) { // all tag=hello docs match and are live
                 expected.add(i);
             }
         }
