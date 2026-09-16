@@ -452,7 +452,7 @@ public class DataFormatAwareEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, snapshot -> EngineReaderManager.firstReportedDocCounts(readerManagers.values(), snapshot), logger);
             this.refreshListeners.add(this.statsCache);
             this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
                 // First get active writes as active writes are only reduced after catalog snapshot refresh
@@ -2375,6 +2375,12 @@ public class DataFormatAwareEngine implements Indexer {
                     refreshListener.afterRefresh(true);
                 }
             }
+            // A merge replaces segments and drops rows that were hidden by a delete or an update, so
+            // doc counts and per-segment stats change even though no checkpoint moved. applyMergeResults
+            // ends by committing the post-merge snapshot, which registers a reader for it, so liveness
+            // can be read here. Without this the stats cache would keep serving pre-merge numbers until
+            // the next ordinary refresh.
+            statsCache.forceRefresh();
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);

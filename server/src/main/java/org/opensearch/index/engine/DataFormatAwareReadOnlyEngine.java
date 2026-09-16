@@ -250,7 +250,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, snapshot -> EngineReaderManager.firstReportedDocCounts(this.readerManagers.values(), snapshot), logger);
             this.statsCache.forceRefresh();
 
             success = true;

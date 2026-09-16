@@ -17,9 +17,11 @@ import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -95,6 +97,29 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
+    }
+
+    /**
+     * Reads live and deleted counts straight off the reader registered for this snapshot.
+     */
+    @Override
+    public Map<Long, DocCounts> docCountsByGeneration(CatalogSnapshot catalogSnapshot) throws IOException {
+        LuceneReader reader = readers.get(catalogSnapshot.getId());
+        if (reader == null) {
+            return Map.of();
+        }
+        List<LeafReaderContext> leaves = reader.directoryReader().leaves();
+        Map<Long, DocCounts> counts = new HashMap<>(leaves.size());
+        for (LeafReaderContext lrc : leaves) {
+            SegmentCommitInfo sci = Lucene.segmentReader(lrc.reader()).getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                // Not written by LuceneWriter, so it cannot be attributed to a catalog generation.
+                continue;
+            }
+            counts.put(Long.parseLong(genAttr), new DocCounts(lrc.reader().numDocs(), lrc.reader().numDeletedDocs()));
+        }
+        return counts;
     }
 
     @Override

@@ -206,7 +206,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
             this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
 
-            // Create and register stats cache as refresh listener
+            // Create and register stats cache as refresh listener. The reader managers are captured
+            // through a local because the field they are assigned to further down is still blank here.
+            final Map<DataFormat, EngineReaderManager<?>> statsReaderManagers = readerManagersRef;
             this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManager, store, engineConfig, () -> {
                 try {
                     return committer.getLastCommittedData();
@@ -214,7 +216,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, snapshot -> EngineReaderManager.firstReportedDocCounts(statsReaderManagers.values(), snapshot), logger);
             this.internalRefreshListeners.add(statsCache);
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());

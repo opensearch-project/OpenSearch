@@ -10,7 +10,9 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -41,6 +43,7 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
     private final Store store;
     private final EngineConfig engineConfig;
     private final Supplier<Map<String, String>> lastCommitDataSupplier;
+    private final CheckedFunction<CatalogSnapshot, Map<Long, DocCounts>, IOException> docCountsResolver;
     private final Logger logger;
 
     public CatalogSnapshotStatsCache(
@@ -48,12 +51,14 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
         Store store,
         EngineConfig engineConfig,
         Supplier<Map<String, String>> lastCommitDataSupplier,
+        CheckedFunction<CatalogSnapshot, Map<Long, DocCounts>, IOException> docCountsResolver,
         Logger logger
     ) {
         this.snapshotManager = snapshotManager;
         this.store = store;
         this.engineConfig = engineConfig;
         this.lastCommitDataSupplier = lastCommitDataSupplier;
+        this.docCountsResolver = docCountsResolver;
         this.logger = logger;
     }
 
@@ -82,13 +87,21 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
         try (GatedCloseable<CatalogSnapshot> snapshotRef = snapshotManager.acquireSnapshot()) {
             CatalogSnapshot snapshot = snapshotRef.get();
 
+            // Liveness, resolved once and shared by the docs stats and the per-segment stats so both
+            // report the same numbers even if a refresh lands midway through this method.
+            Map<Long, DocCounts> docCounts = docCountsResolver.apply(snapshot);
+
             // Precompute catalog-specific stats
-            DocsStats newDocsStats = computeDocsStats(snapshot);
+            DocsStats newDocsStats = computeDocsStats(snapshot, docCounts);
             SegmentsStats newSegmentsStats = computeSegmentsStats(snapshot);
 
             // Build engine segments with commit data and index sort
             Map<String, String> commitData = lastCommitDataSupplier.get();
-            List<Segment> newSegments = snapshot.buildEngineSegments(commitData, engineConfig != null ? engineConfig.getIndexSort() : null);
+            List<Segment> newSegments = snapshot.buildEngineSegments(
+                commitData,
+                engineConfig != null ? engineConfig.getIndexSort() : null,
+                docCounts
+            );
 
             // Atomic replacement - all or nothing for consistency
             this.cachedDocsStats = newDocsStats;
@@ -103,17 +116,22 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
         }
     }
 
-    private DocsStats computeDocsStats(CatalogSnapshot snapshot) {
-        // Compute docs stats from catalog snapshot
-        long totalDocs = snapshot.getNumDocs();
-        long deletedDocs = 0; // TODO: Add deleted docs support when available
+    /**
+     * Builds the shard's docs stats from the snapshot.
+     */
+    private DocsStats computeDocsStats(CatalogSnapshot snapshot, Map<Long, DocCounts> docCounts) {
+        DocCounts counts = snapshot.aggregateDocCounts(docCounts);
         long totalSizeInBytes = snapshot.getSegments()
             .stream()
             .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
             .mapToLong(WriterFileSet::getTotalSize)
             .sum();
 
-        return new DocsStats.Builder().count(totalDocs).deleted(deletedDocs).totalSizeInBytes(totalSizeInBytes).build();
+        return new DocsStats.Builder()
+            .count(counts.liveDocs())
+            .deleted(counts.deletedDocs())
+            .totalSizeInBytes(totalSizeInBytes)
+            .build();
     }
 
     private SegmentsStats computeSegmentsStats(CatalogSnapshot snapshot) {
