@@ -49,6 +49,49 @@ pub fn pool_limit_error(
     ))
 }
 
+/// Refused by the pre-CAS RSS guard, not by pool accounting.
+///
+/// The two are routinely confused because the old message for this path reported
+/// `0 available out of {pool limit} limit`, which reads as "the pool is full" — while the
+/// pool can have nothing reserved at all. Diagnosing one production instance of that
+/// misattribution took weeks, so this message names the guard, the branch, the signal it
+/// compared, the threshold it crossed, and the pool's actual `used`.
+///
+/// The `"Failed to allocate {n} bytes"` prefix is preserved verbatim: `NativeErrorConverter`
+/// matches on it to build the `CircuitBreakingException` / HTTP 429, and it parses the byte
+/// count and limit out of it. Extra trailing detail is safe — `critical_pressure_error`
+/// already appends a clause the same way.
+///
+/// Java conversion: `CircuitBreakingException` → HTTP 429
+/// Key phrase: "Failed to allocate"
+#[allow(clippy::too_many_arguments)]
+pub fn rss_guard_error(
+    bytes_requested: usize,
+    consumer_name: &str,
+    consumer_reserved: usize,
+    limit: usize,
+    guard_bytes: usize,
+    threshold_bytes: usize,
+    pool_used: usize,
+    branch: &str,
+) -> DataFusionError {
+    DataFusionError::ResourcesExhausted(format!(
+        "Failed to allocate {} bytes for {} ({} already reserved) \
+         — 0 available out of {} limit. \
+         Refused by RSS guard [{}]: jemalloc active {} exceeds threshold {} \
+         (pool used {} of {}). Not pool exhaustion — the pool's own accounting had room.",
+        bytes_requested,
+        consumer_name,
+        consumer_reserved,
+        limit,
+        branch,
+        guard_bytes,
+        threshold_bytes,
+        pool_used,
+        limit,
+    ))
+}
+
 /// Query cancelled due to critical RSS pressure during execution.
 ///
 /// Produced when `DynamicLimitPool.try_grow` fails, jemalloc confirms pressure,

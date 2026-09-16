@@ -220,12 +220,15 @@ impl MemoryPool for DynamicLimitPool {
             // Absolute and pre-CAS for every consumer, spillable or not.
             if resident_usize > critical_bytes {
                 self.tripped_count.fetch_add(1, Ordering::Relaxed);
-                return Err(crate::native_error::pool_limit_error(
+                return Err(crate::native_error::rss_guard_error(
                     additional,
                     reservation.consumer().name(),
                     reservation.size(),
-                    0,
                     limit,
+                    resident_usize,
+                    critical_bytes,
+                    self.used.load(Ordering::Relaxed),
+                    "critical",
                 ));
             }
 
@@ -243,12 +246,15 @@ impl MemoryPool for DynamicLimitPool {
                     SpillGateDecision::Exempt => exempted = true,
                     _ => {
                         self.tripped_count.fetch_add(1, Ordering::Relaxed);
-                        return Err(crate::native_error::pool_limit_error(
+                        return Err(crate::native_error::rss_guard_error(
                             additional,
                             reservation.consumer().name(),
                             reservation.size(),
-                            0,
                             limit,
+                            resident_usize,
+                            spill_bytes,
+                            self.used.load(Ordering::Relaxed),
+                            "spill-band",
                         ));
                     }
                 }

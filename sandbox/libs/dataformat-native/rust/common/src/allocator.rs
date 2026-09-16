@@ -15,11 +15,16 @@
 use crate::error::{ffm_wrap, into_error_ptr};
 use crate::log_info;
 use std::sync::OnceLock;
-use tikv_jemalloc_ctl::{epoch, epoch_mib, stats, stats::allocated_mib, stats::resident_mib};
+use tikv_jemalloc_ctl::{
+    epoch, epoch_mib, stats, stats::active_mib, stats::allocated_mib, stats::metadata_mib,
+    stats::resident_mib,
+};
 
 struct StatsMib {
     epoch: epoch_mib,
     allocated: allocated_mib,
+    active: active_mib,
+    metadata: metadata_mib,
     resident: resident_mib,
 }
 
@@ -29,12 +34,29 @@ fn mib() -> &'static StatsMib {
     MIB.get_or_init(|| StatsMib {
         epoch: epoch::mib().unwrap(),
         allocated: stats::allocated::mib().unwrap(),
+        active: stats::active::mib().unwrap(),
+        metadata: stats::metadata::mib().unwrap(),
         resident: stats::resident::mib().unwrap(),
     })
 }
 
-/// Advances the jemalloc epoch and reads both stats atomically.
-fn refresh_stats() -> Result<(i64, i64), String> {
+/// Advances the jemalloc epoch and reads the stats atomically.
+///
+/// Returns `(allocated, active, metadata, resident)`. They differ in what they count, and
+/// the distinction is load-bearing for the memory guard:
+/// * `allocated` — bytes in live objects.
+/// * `active` — bytes in pages backing live allocations. Excludes freed-but-retained
+///   (dirty) pages.
+/// * `metadata` — bytes jemalloc holds for its own bookkeeping (arena and extent
+///   structures, the radix tree). Live and not reclaimable, so it belongs in any
+///   admission signal. Usually small, but `metadata_thp:always` backs it with huge pages
+///   where it is compiled in, which can inflate it.
+/// * `resident` — `active` + dirty + `metadata`. Includes memory already freed that
+///   jemalloc has not yet returned to the OS and will hand straight back to the next
+///   allocation. Correct for reporting physical footprint; wrong as an admission signal,
+///   because those dirty pages are the very pages that would satisfy the allocation
+///   being judged.
+fn refresh_stats() -> Result<(i64, i64, i64, i64), String> {
     let m = mib();
     m.epoch
         .advance()
@@ -43,11 +65,19 @@ fn refresh_stats() -> Result<(i64, i64), String> {
         .allocated
         .read()
         .map_err(|e| format!("jemalloc allocated read failed: {}", e))? as i64;
+    let act = m
+        .active
+        .read()
+        .map_err(|e| format!("jemalloc active read failed: {}", e))? as i64;
+    let meta = m
+        .metadata
+        .read()
+        .map_err(|e| format!("jemalloc metadata read failed: {}", e))? as i64;
     let res = m
         .resident
         .read()
         .map_err(|e| format!("jemalloc resident read failed: {}", e))? as i64;
-    Ok((alloc, res))
+    Ok((alloc, act, meta, res))
 }
 
 /// Returns current jemalloc allocated bytes (live malloc'd objects).
@@ -57,7 +87,7 @@ fn refresh_stats() -> Result<(i64, i64), String> {
 /// TODO: integrate with node/stats
 pub fn allocated_bytes() -> i64 {
     match refresh_stats() {
-        Ok((alloc, _)) => alloc,
+        Ok((alloc, _, _, _)) => alloc,
         Err(msg) => into_error_ptr(msg),
     }
 }
@@ -69,16 +99,48 @@ pub fn allocated_bytes() -> i64 {
 /// TODO: integrate with node/stats
 pub fn resident_bytes() -> i64 {
     match refresh_stats() {
-        Ok((_, res)) => res,
+        Ok((_, _, _, res)) => res,
         Err(msg) => into_error_ptr(msg),
     }
+}
+
+/// Returns the bytes jemalloc cannot reclaim on demand: `stats.active` + `stats.metadata`.
+///
+/// This is the quantity admission decisions should use. It counts pages backing live
+/// allocations plus jemalloc's own bookkeeping, and excludes freed-but-retained dirty
+/// pages — which are immediately reusable, so refusing an allocation because of them
+/// refuses it over the very memory that would satisfy it. On an idle node,
+/// `resident_bytes()` read 12.76 GB while only 82 MB was live: 99.4 % of it was awaiting
+/// reuse rather than under pressure.
+///
+/// Metadata is included deliberately. It is live and unreclaimable, so leaving it out
+/// would under-report real pressure, and `metadata_thp:always` (compiled in on some
+/// builds) backs it with huge pages, which can make it larger than intuition suggests.
+///
+/// This is not a node-protection signal: dirty pages are still real RSS to the kernel, so
+/// a node approaching physical exhaustion will not be visible here. That is the purge
+/// thread's job, which keys off `resident_bytes()`.
+/// On error: returns negative error pointer (use `native_error_message` to read).
+pub fn unreclaimable_bytes() -> i64 {
+    match refresh_stats() {
+        Ok((_, act, meta, _)) => act.saturating_add(meta),
+        Err(msg) => into_error_ptr(msg),
+    }
+}
+
+/// FFI: Returns `active + metadata` bytes, or negative error pointer.
+#[no_mangle]
+pub extern "C" fn native_jemalloc_unreclaimable_bytes() -> i64 {
+    ffm_wrap("native_jemalloc_unreclaimable_bytes", || {
+        Ok(unreclaimable_bytes())
+    })
 }
 
 /// FFI: Returns current jemalloc allocated bytes, or negative error pointer.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_allocated_bytes() -> i64 {
     ffm_wrap("native_jemalloc_allocated_bytes", || {
-        refresh_stats().map(|(alloc, _)| alloc)
+        refresh_stats().map(|(alloc, _, _, _)| alloc)
     })
 }
 
@@ -86,7 +148,7 @@ pub extern "C" fn native_jemalloc_allocated_bytes() -> i64 {
 #[no_mangle]
 pub extern "C" fn native_jemalloc_resident_bytes() -> i64 {
     ffm_wrap("native_jemalloc_resident_bytes", || {
-        refresh_stats().map(|(_, res)| res)
+        refresh_stats().map(|(_, _, _, res)| res)
     })
 }
 
@@ -168,7 +230,7 @@ fn purge_thread_loop() {
 
         let threshold = PURGE_THRESHOLD_BYTES.load(Ordering::Relaxed);
         let resident = match refresh_stats() {
-            Ok((_, res)) => res,
+            Ok((_, _, _, res)) => res,
             Err(_) => continue,
         };
 

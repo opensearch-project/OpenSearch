@@ -26,7 +26,17 @@ static CACHED_RESIDENT: AtomicI64 = AtomicI64::new(0);
 static LAST_CHECK_MS: AtomicU64 = AtomicU64::new(u64::MAX);
 static EPOCH_BASE: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
-/// Returns jemalloc resident bytes, cached for up to 100ms on the happy path.
+/// Returns the guard's memory signal, cached for up to 100ms on the happy path.
+///
+/// Reads jemalloc `stats.active` — pages backing live allocations — NOT `stats.resident`.
+/// `resident` additionally counts freed-but-retained dirty pages, which jemalloc hands
+/// straight back to the next allocation. Using it as an admission signal refuses requests
+/// on the strength of the very memory that would satisfy them: measured on an idle Mustang
+/// node, `resident` read 12.76 GB against 82 MB live, so 99.4% of the signal was reusable
+/// memory. `active` excludes those pages.
+///
+/// The name is retained so the 100ms-cache contract and every call site read the same,
+/// unchanged. It is no longer literally "resident" — rename in a follow-up.
 ///
 /// When the cached value is above the spill threshold, bypasses the cache and
 /// reads fresh — because a stale-high value can incorrectly block the override
@@ -36,6 +46,21 @@ static EPOCH_BASE: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 /// On the happy path (RSS below threshold), only one thread per 100ms interval pays
 /// the epoch.advance() cost; all others get the cached value in <1ns.
 pub fn cached_resident_bytes() -> i64 {
+    #[cfg(test)]
+    {
+        // Tests that need a specific resident level — 13.6 GiB, say — cannot get there
+        // by allocating. `test_support::ScopedGuardState::force_resident` pins a value
+        // here and short-circuits every reader below, including the 100ms refresh that
+        // would otherwise clobber it. Thread-local rather than a `static`: the harness
+        // runs tests concurrently, and a process-wide override would make an unrelated
+        // test's small pool see this test's forced resident and refuse. Compiled out
+        // entirely in non-test builds.
+        let forced = test_support::forced_resident();
+        if forced > 0 {
+            return forced;
+        }
+    }
+
     let cached = CACHED_RESIDENT.load(Ordering::Relaxed);
 
     // If last known value was above spill threshold, bypass cache and read fresh.
@@ -46,7 +71,7 @@ pub fn cached_resident_bytes() -> i64 {
         if limit > 0 {
             let threshold = (limit as u64 * spill_x1000 / 1000) as i64;
             if cached >= threshold {
-                let fresh = native_bridge_common::allocator::resident_bytes();
+                let fresh = native_bridge_common::allocator::unreclaimable_bytes();
                 CACHED_RESIDENT.store(fresh, Ordering::Relaxed);
                 return fresh;
             }
@@ -62,7 +87,7 @@ pub fn cached_resident_bytes() -> i64 {
             .compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed)
             .is_ok()
         {
-            let r = native_bridge_common::allocator::resident_bytes();
+            let r = native_bridge_common::allocator::unreclaimable_bytes();
             CACHED_RESIDENT.store(r, Ordering::Relaxed);
             return r;
         }
@@ -81,6 +106,97 @@ pub fn set_pool_limit_for_guard(limit: i64) {
 
 fn pool_limit_for_guard() -> i64 {
     POOL_LIMIT_FOR_GUARD.load(Ordering::Relaxed)
+}
+
+/// Test-only seams for driving the guard deterministically.
+///
+/// The guard's thresholds and pool limit are process-global `statics`, so tests that
+/// mutate them are mutually exclusive — `cargo test` runs the harness multi-threaded
+/// and would otherwise interleave one test's threshold change with another's read.
+/// [`ScopedGuardState`] serialises them on a single mutex and restores the previous
+/// values on drop, so a panicking test cannot leak state into the next one.
+///
+/// The forced resident value is deliberately *not* global: it is thread-local, so a
+/// test forcing 14 GiB cannot make a concurrently running test's 1 GiB pool refuse.
+/// The mutex would not have prevented that, since the tests it would have to exclude
+/// are the ones that never acquire it.
+#[cfg(test)]
+pub mod test_support {
+    use super::*;
+    use std::cell::Cell;
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    thread_local! {
+        static RESIDENT_OVERRIDE: Cell<i64> = const { Cell::new(0) };
+    }
+
+    /// The calling thread's forced resident value, or 0 for "not forced".
+    pub(super) fn forced_resident() -> i64 {
+        RESIDENT_OVERRIDE.get()
+    }
+
+    fn state_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    /// Exclusive access to the guard's global state, restored on drop.
+    pub struct ScopedGuardState {
+        // Held for the lifetime of the guard; never read.
+        _lock: MutexGuard<'static, ()>,
+        prev_resident_override: i64,
+        prev_pool_limit: i64,
+        prev_thresholds: MemoryThresholds,
+        prev_cached_resident: i64,
+    }
+
+    impl ScopedGuardState {
+        /// Acquire the lock and snapshot current global state.
+        ///
+        /// Recovers from a poisoned mutex rather than propagating the panic: the
+        /// `Drop` impl restores state unconditionally, so a previously panicking
+        /// test leaves the globals consistent even though it poisoned the lock.
+        pub fn acquire() -> Self {
+            let lock = state_lock().lock().unwrap_or_else(|e| e.into_inner());
+            Self {
+                _lock: lock,
+                prev_resident_override: RESIDENT_OVERRIDE.get(),
+                prev_pool_limit: POOL_LIMIT_FOR_GUARD.load(Ordering::Relaxed),
+                prev_thresholds: get_thresholds(),
+                prev_cached_resident: CACHED_RESIDENT.load(Ordering::Relaxed),
+            }
+        }
+
+        /// Force [`cached_resident_bytes`] to report `bytes`, bypassing both the
+        /// 100ms cache and the real jemalloc read. `bytes` must be positive; zero
+        /// is the "no override" sentinel.
+        pub fn force_resident(&self, bytes: i64) -> &Self {
+            assert!(bytes > 0, "resident override must be positive, got {bytes}");
+            RESIDENT_OVERRIDE.set(bytes);
+            self
+        }
+
+        /// Stop forcing resident; subsequent reads see real jemalloc again.
+        pub fn clear_forced_resident(&self) -> &Self {
+            RESIDENT_OVERRIDE.set(0);
+            self
+        }
+
+        /// Set the pool limit the guard uses for its cache-bypass threshold.
+        pub fn set_pool_limit(&self, limit: i64) -> &Self {
+            set_pool_limit_for_guard(limit);
+            self
+        }
+    }
+
+    impl Drop for ScopedGuardState {
+        fn drop(&mut self) {
+            RESIDENT_OVERRIDE.set(self.prev_resident_override);
+            POOL_LIMIT_FOR_GUARD.store(self.prev_pool_limit, Ordering::Release);
+            set_thresholds(self.prev_thresholds);
+            CACHED_RESIDENT.store(self.prev_cached_resident, Ordering::Relaxed);
+        }
+    }
 }
 
 // --- Thresholds ---
@@ -454,18 +570,17 @@ mod tests {
 
     #[test]
     fn is_memory_pressured_true_when_rss_exceeds_limit() {
-        // Set pool limit to something well below current process RSS.
-        // A Rust test process typically uses 50-200MB RSS, so a 20MB limit
-        // should always be exceeded.
+        // Formerly this read `allocator::resident_bytes()` fresh to decide whether to
+        // assert, while `is_memory_pressured` reads `cached_resident_bytes()` — a
+        // different, up-to-100ms-stale number. The two can disagree whenever another
+        // test allocates or frees, and while the test binary had no `#[global_allocator]`
+        // the fresh read returned 4.6 MB of jemalloc metadata, never cleared the 14 MB
+        // precondition, and the test silently asserted nothing. Forcing the value makes
+        // the precondition and the predicate read the same number.
         let small_pool = 20 * 1024 * 1024; // 20MB — above MIN_POOL_FOR_OVERRIDE
-        let resident = native_bridge_common::allocator::resident_bytes();
-        if resident <= 0 {
-            return; // jemalloc not available
-        }
-        // Only assert if RSS is actually above 70% of 20MB = 14MB (which it will be)
-        if resident as usize > small_pool * 70 / 100 {
-            assert!(is_memory_pressured(small_pool));
-        }
+        let guard = test_support::ScopedGuardState::acquire();
+        guard.force_resident((small_pool as i64) * 80 / 100); // 80% — above the 70% mark
+        assert!(is_memory_pressured(small_pool));
     }
 
     #[test]
@@ -506,61 +621,71 @@ mod tests {
 
     #[test]
     fn should_cancel_query_true_when_rss_exceeds_limit() {
-        // With a 20MB pool limit (above MIN_POOL_FOR_OVERRIDE), the current test
-        // process RSS should exceed 95% of 20MB = 19MB. A Rust test process
-        // typically uses 50-200MB RSS.
+        // See is_memory_pressured_true_when_rss_exceeds_limit: this compared a fresh
+        // `allocator::resident_bytes()` against a `cached_resident_bytes()`-based
+        // predicate, so it was racy against concurrent allocation and skipped entirely
+        // whenever the fresh read fell below 19 MB.
         let small_pool = 20 * 1024 * 1024; // 20MB
-        let resident = native_bridge_common::allocator::resident_bytes();
-        if resident <= 0 {
-            return; // jemalloc not available in this test env
-        }
-        // Only assert if RSS actually exceeds the critical threshold
-        let critical_bytes = (small_pool as f64 * 0.95) as i64;
-        if resident >= critical_bytes {
-            assert!(
-                should_cancel_query(small_pool),
-                "should_cancel_query should return true when RSS ({}) exceeds 95% of pool ({})",
-                resident,
-                small_pool
-            );
-        }
+        let resident = (small_pool as f64 * 0.96) as i64; // just past the 95% critical mark
+        let guard = test_support::ScopedGuardState::acquire();
+        guard.force_resident(resident);
+        assert!(
+            should_cancel_query(small_pool),
+            "should_cancel_query should return true when RSS ({}) exceeds 95% of pool ({})",
+            resident,
+            small_pool
+        );
     }
 
     #[test]
     fn override_respects_spill_vs_admission_threshold() {
-        // Operator threshold (85%) is more permissive than admission (75%).
-        // For a pool where RSS is between 70% and 85%:
-        // - Admission override should NOT fire (RSS >= 70% threshold)
-        // - Operator override SHOULD fire (RSS < 85% threshold)
+        // Asserts that `should_override` reads a *different* threshold per context:
+        // `admission_reject` for Admission, `execution_spill` for Execution. With RSS
+        // between the two, the stricter context must refuse to override and the more
+        // permissive one must allow it.
         //
-        // We can't precisely control RSS in a unit test, but we can verify
-        // that the thresholds are read correctly by setting them and checking
-        // behavior with known pool sizes.
-        let resident = native_bridge_common::allocator::resident_bytes();
-        if resident <= 0 {
-            return; // jemalloc not available in this test env
-        }
-        let resident = resident as usize;
+        // Two things about this test changed. It used to read
+        // `allocator::resident_bytes()` fresh and size the pool from it, while
+        // `should_override` reads `cached_resident_bytes()` — a different number — so it
+        // was racy against concurrent allocation. It also never actually ran: with no
+        // `#[global_allocator]` in the test binary the fresh read was 4.6 MB of jemalloc
+        // metadata, `4.6 MB / 0.77` fell under `MIN_POOL_FOR_OVERRIDE`, and the test
+        // early-returned without asserting anything.
+        //
+        // Running it exposed that its premise was also wrong: it assumed Admission maps
+        // to `admission_throttle` (0.75), but it maps to `admission_reject`, whose
+        // default is 0.85 — identical to `execution_spill`. At default settings the two
+        // contexts therefore behave the same, and the distinction this test exists to
+        // check is inert unless an operator moves one. The thresholds are now set
+        // explicitly so the test verifies the wiring rather than a coincidence of
+        // defaults.
+        let guard = test_support::ScopedGuardState::acquire();
+        set_thresholds(MemoryThresholds {
+            admission_throttle: 0.60,
+            admission_reject: 0.70,
+            execution_spill: 0.85,
+            execution_critical: 0.95,
+        });
 
-        // Set pool limit so that resident is exactly between 70% and 85%
-        // pool = resident / 0.77 (midpoint) → resident/pool ≈ 77%
+        let resident = 64 * 1024 * 1024_usize;
+        guard.force_resident(resident as i64);
+
+        // Pool limit chosen so resident sits at 77% of it — between the 70% admission
+        // threshold and the 85% execution one.
         let pool_at_midpoint = (resident as f64 / 0.77) as usize;
-        if pool_at_midpoint < MIN_POOL_FOR_OVERRIDE {
-            return;
-        }
-
-        // At 77% utilization: admission (75%) should NOT override, operator (85%) SHOULD override
-        let admission_result = should_override(pool_at_midpoint, OverrideContext::Admission);
-        let spill_result = should_override(pool_at_midpoint, OverrideContext::Execution);
+        assert!(
+            pool_at_midpoint >= MIN_POOL_FOR_OVERRIDE,
+            "pool must exceed the override floor for this test to mean anything"
+        );
 
         // admission: resident (77%) >= threshold (70%) → NOT below → override = false
         assert!(
-            !admission_result,
+            !should_override(pool_at_midpoint, OverrideContext::Admission),
             "At 77% RSS, admission override should NOT fire (threshold 70%)"
         );
-        // operator: resident (77%) < threshold (85%) → below → override = true
+        // execution: resident (77%) < threshold (85%) → below → override = true
         assert!(
-            spill_result,
+            should_override(pool_at_midpoint, OverrideContext::Execution),
             "At 77% RSS, spill override SHOULD fire (threshold 85%)"
         );
     }

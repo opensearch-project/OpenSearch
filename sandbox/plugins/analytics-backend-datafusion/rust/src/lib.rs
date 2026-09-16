@@ -27,10 +27,8 @@ pub mod can_match;
 pub mod cancellation;
 pub mod cross_rt_stream;
 pub mod datafusion_query_config;
-pub mod doc_values_cursor;
 pub mod executor;
 pub mod ffm;
-pub mod forward_reader;
 pub mod helper;
 pub mod indexed_executor;
 pub mod indexed_table;
@@ -51,7 +49,6 @@ pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
 pub mod shard_table_provider;
-pub mod substrait_consumer;
 
 pub mod native_node_stats;
 pub mod scoped_index_optimizer;
@@ -68,6 +65,23 @@ pub use cache::custom_cache_manager;
 pub use cache::eviction_policy;
 pub use cache::page_index as parquet_page_cache;
 pub use cache::statistics_cache;
+
+/// jemalloc as the unit-test harness's global allocator.
+///
+/// In production this crate is linked into `opensearch-native-lib`, which installs
+/// jemalloc globally (`libs/dataformat-native/rust/lib/src/lib.rs`), so
+/// `memory_guard`'s resident readings cover every Rust allocation on the node. The
+/// `cargo test --lib` harness links no such crate. Without this declaration the
+/// test binary allocates through the system allocator while jemalloc sits linked
+/// but unused, `native_bridge_common::allocator::resident_bytes()` returns only
+/// jemalloc's own arena metadata (~4.6 MB), and every RSS-gate test that compares
+/// resident against a pool fraction silently early-returns instead of asserting.
+#[cfg(test)]
+#[global_allocator]
+static TEST_GLOBAL_ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(test)]
+mod memory_guard_signal_test;
 
 #[cfg(test)]
 mod spill_e2e_test;

@@ -98,6 +98,11 @@ base64 = "0.22"
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
+# Installs jemalloc as the test harness's global allocator (see `lib.rs`). Without
+# it the test binary allocates through the system allocator, so every
+# `memory_guard` resident reading is jemalloc metadata only and the RSS-gate tests
+# silently skip.
+tikv-jemallocator = { workspace = true }
 rand = "=0.8.6"
 proptest = { workspace = true }
 # Used only by tiered_storage_integration_tests.rs, which exercise FoyerCache /
