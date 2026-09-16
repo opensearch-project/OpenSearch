@@ -843,18 +843,13 @@ public class AnalyticsSearchService implements AutoCloseable {
             );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
-            // Lucene backend both (a) sources the shard's hasDeletions signal (probed just below so
-            // instruction handlers can route pure-DF queries with deletes through the SingleCollector
-            // path) and (b) serves the reserved match-all collector (LIVE_DOCS_MATCH_ALL_ANNOTATION_ID
-            // → segment liveDocs) that the native executor injects into its filter tree on shards
-            // with deletions (registered further below when there is no delegation).
+            // Lucene backend both sources the shard's hasDeletions signal (probed just below) and
+            // serves the reserved match-all collector (registered further below when there is no
+            // delegation). See FilterDelegationHandle#LIVE_DOCS_MATCH_ALL_ANNOTATION_ID.
             AnalyticsSearchBackendPlugin luceneBackend = backends.get("lucene");
 
-            // Per-shard hasDeletions probe: stamps ctx.hasDeletedDocs so ShardScanInstructionHandler
-            // can route pure-DF (zero-delegation) queries through the indexed SingleCollector path
-            // (CONJUNCTIVE), where the native executor ANDs the injected match-all Collector — whose
-            // bitset is the segment's liveDocs — into candidates. When false, the vanilla
-            // ListingTable path is used with no liveDocs work.
+            // Stamp ctx.hasDeletedDocs so ShardScanInstructionHandler can route deletion-bearing
+            // shards through the indexed deleted-doc filtering path.
             ctx.setHasDeletedDocs(luceneBackend != null && luceneBackend.hasDeletedDocs(ctx));
 
             backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
@@ -881,15 +876,10 @@ public class AnalyticsSearchService implements AutoCloseable {
                 // binding after query execution completes.
                 trackerCleanup = backend.configureFilterDelegation(contextId, handle, buildDelegationThreadTracker(task), backendContext);
             } else if (ctx.hasDeletedDocs() && luceneBackend != null && task != null && !"lucene".equals(resolved.plan.getBackendId())) {
-                // No delegation, but the shard has deletions and a non-Lucene driving backend (e.g.
-                // DataFusion) will inject the reserved match-all Collector
-                // (LIVE_DOCS_MATCH_ALL_ANNOTATION_ID) into its filter tree. Register a Lucene handle
-                // so the ordinary createProvider/createCollector/collectDocs FFM callbacks can serve
-                // that collector — its bitset is the segment's liveDocs. The handle compiles no
-                // coordinator expressions (empty list); the match-all entry is registered by the
-                // handle itself. Skip when Lucene is the driving backend: it applies liveDocs
-                // natively via its Collector and does not implement configureFilterDelegation.
-                // Shards without deletions skip this entirely (vanilla ListingTable, no binding).
+                // No delegation, but a non-Lucene driving backend will inject the reserved match-all
+                // Collector for deleted-doc filtering. Register a Lucene handle (no coordinator
+                // expressions) so the FFM callbacks can serve it. Skipped when Lucene is the driving
+                // backend (it applies liveDocs natively) or the shard has no deletions.
                 long contextId = task.getId();
                 FilterDelegationHandle handle = luceneBackend.getFilterDelegationHandle(java.util.List.of(), ctx);
                 trackerCleanup = backend.configureFilterDelegation(contextId, handle, buildDelegationThreadTracker(task), backendContext);

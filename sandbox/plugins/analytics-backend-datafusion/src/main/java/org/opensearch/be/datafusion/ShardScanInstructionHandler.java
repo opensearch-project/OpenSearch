@@ -64,26 +64,18 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
-            // Per-shard hasDeletions signal, stamped by AnalyticsSearchService from the Lucene backend's
-            // hasDeletedDocs probe. When true and the query has no delegation, route the pure-DF scan
-            // through the indexed SingleCollector path (CONJUNCTIVE): the native executor ANDs a
-            // synthetic match-all Collector (reserved annotation id, resolved by the Lucene handle to
-            // the segment's liveDocs) into the decoded filter tree, so deleted rows are excluded via
-            // the ordinary collector machinery. When false, the vanilla ListingTable path runs with
-            // zero extra work.
-            boolean deletedDocFilteringRequired = context.hasDeletedDocs();
+            boolean requestsRowIds = node.requestsRowIds();
+            // Per-shard hasDeletions signal (stamped by AnalyticsSearchService). Deletions force the
+            // indexed SingleCollector path (CONJUNCTIVE) so the synthetic live-docs collector filters
+            // deleted docs from candidates; row-ids then index into the live-only bitmap.
+            boolean requiresLiveDocs = context.hasDeletedDocs();
             SessionContextHandle sessionCtxHandle;
-            if (node.requestsRowIds()) {
-                // QTF query phase — narrowed scan emits __row_id__. Use the indexed session
-                // context so the IndexedTableProvider injects shard-global row ids during scan.
-                // No delegated predicates here (delegation goes through ShardScanWithDelegationHandler),
-                // so delegatedPredicateCount=0. When the shard has deletions, route through
-                // SingleCollector (CONJUNCTIVE) so the injected match-all Collector excludes deleted
-                // docs from candidates before the row-ids are emitted. Otherwise NO_DELEGATION →
-                // PredicateOnlyEvaluator (no liveDocs work). Row-ids stay correct: they index into
-                // the Collector's live-only candidate bitmap, so deleted docs get no row-id.
-                // hasPartialAggregate is orthogonal (aggregate-mode stripping) and forwarded as-is.
-                int rowIdTreeShape = deletedDocFilteringRequired
+            // Indexed execution is required either for QTF row IDs or for liveDocs masking. No
+            // delegated predicates here (delegation goes through ShardScanWithDelegationHandler), so
+            // delegatedPredicateCount=0. Otherwise the vanilla ListingTable path runs with zero extra
+            // work (its plan bytes let Rust widen the schema for multi-index queries).
+            if (requestsRowIds || requiresLiveDocs) {
+                int treeShape = requiresLiveDocs
                     ? FilterTreeShape.CONJUNCTIVE.ordinal()
                     : FilterTreeShape.NO_DELEGATION.ordinal();
                 sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
@@ -91,34 +83,15 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     runtimePtr,
                     tableName,
                     contextId,
-                    rowIdTreeShape,
+                    treeShape,
                     0,
-                    true,
-                    deletedDocFilteringRequired,
-                    context.hasPartialAggregate(),
-                    segment.address(),
-                    context.getFragmentBytes()
-                );
-            } else if (deletedDocFilteringRequired) {
-                // Pure-DF query on a shard with deletions: force the indexed SingleCollector path
-                // (CONJUNCTIVE, 0 delegated, no row-ids). The native executor injects the match-all
-                // Collector into the decoded tree, so per-RG candidates are exactly the live docs
-                // (optionally intersected with the query's own predicates as residual).
-                sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
-                    readerPtr,
-                    runtimePtr,
-                    tableName,
-                    contextId,
-                    FilterTreeShape.CONJUNCTIVE.ordinal(),
-                    0,
-                    false,
-                    true,
+                    requestsRowIds,
+                    requiresLiveDocs,
                     context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
             } else {
-                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
                 sessionCtxHandle = NativeBridge.createSessionContext(
                     readerPtr,
                     runtimePtr,

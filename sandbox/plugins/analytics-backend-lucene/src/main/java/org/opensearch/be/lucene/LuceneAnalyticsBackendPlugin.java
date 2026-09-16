@@ -237,9 +237,8 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     }
 
     @Override
-    public boolean hasDeletedDocs(CommonExecutionContext ctx) {
-        ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
-        IndexReaderProvider.Reader reader = shardCtx.getReader();
+    public boolean hasDeletedDocs(ShardScanExecutionContext ctx) {
+        IndexReaderProvider.Reader reader = ctx.getReader();
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
         if (luceneReader == null) {
             return false;

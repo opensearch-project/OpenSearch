@@ -128,9 +128,6 @@ impl BoolNode {
             BoolNode::And(children) => children.iter().any(|c| c.is_covered_by_live_docs()),
             BoolNode::Or(children) => children.iter().all(|c| c.is_covered_by_live_docs()),
             BoolNode::Not(_) => false,
-            // Conservative fallback for any other/future variant: inject the match-all mask.
-            #[allow(unreachable_patterns)]
-            _ => false,
         }
     }
 

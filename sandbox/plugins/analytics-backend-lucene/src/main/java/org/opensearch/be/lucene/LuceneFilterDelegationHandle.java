@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -22,7 +23,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LiveDocs;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
@@ -71,10 +75,19 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final BooleanSupplier isCancelledSupplier;
     private final Map<Long, String> generationToSegmentName;
 
-    private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, ProviderEntry> weightsByProviderKey = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ScorerHandle> scorersByCollectorKey = new ConcurrentHashMap<>();
-    /** Provider keys created from {@link #LIVE_DOCS_MATCH_ALL_ANNOTATION_ID} — their collectors emit liveDocs directly. */
-    private final java.util.Set<Integer> liveDocsProviderKeys = ConcurrentHashMap.newKeySet();
+
+    /** Distinguishes the reserved live-docs match-all provider from ordinary delegated predicates. */
+    private enum ProviderKind {
+        PREDICATE,
+        LIVE_DOCS_MATCH_ALL
+    }
+
+    /** A compiled provider: its {@link Weight} plus what kind of provider it is. */
+    private record ProviderEntry(Weight weight, ProviderKind kind) {
+    }
+
     private final AtomicInteger nextProviderKey = new AtomicInteger(1);
     private final AtomicInteger nextCollectorKey = new AtomicInteger(1);
 
@@ -130,11 +143,9 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                 );
             }
         }
-        // Deleted-doc filtering: always register the reserved match-all query so the driving
-        // backend can AND a synthetic live-docs Collector into its filter tree when the shard has
-        // deletions — including for pure-DF queries where `expressions` is empty. Its collector
-        // short-circuits to the segment's liveDocs in collectDocs (see ScorerHandle#emitLiveDocs).
-        // Registration is a single map entry; no Weight is created unless the id is actually used.
+        // Deleted-doc filtering: always register the reserved match-all query (even when
+        // `expressions` is empty) so its collector can emit the segment's live docs. A single map
+        // entry; no Weight is created unless the id is actually used.
         queries.put(LIVE_DOCS_MATCH_ALL_ANNOTATION_ID, new MatchAllDocsQuery());
         return queries;
     }
@@ -148,12 +159,10 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         try {
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
-            weightsByProviderKey.put(providerKey, weight);
-            if (annotationId == LIVE_DOCS_MATCH_ALL_ANNOTATION_ID) {
-                // Collectors created from this provider emit the segment's liveDocs directly
-                // (word-wise copy) instead of iterating a match-all scorer doc-by-doc.
-                liveDocsProviderKeys.add(providerKey);
-            }
+            ProviderKind kind = annotationId == LIVE_DOCS_MATCH_ALL_ANNOTATION_ID
+                ? ProviderKind.LIVE_DOCS_MATCH_ALL
+                : ProviderKind.PREDICATE;
+            weightsByProviderKey.put(providerKey, new ProviderEntry(weight, kind));
             LOGGER.debug("[scf] createProvider annotationId={} → providerKey={}", annotationId, providerKey);
             return providerKey;
         } catch (IOException exception) {
@@ -164,10 +173,11 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     @Override
     public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
-        Weight weight = weightsByProviderKey.get(providerKey);
-        if (weight == null) {
+        ProviderEntry provider = weightsByProviderKey.get(providerKey);
+        if (provider == null) {
             return -1;
         }
+        Weight weight = provider.weight();
         String segName = generationToSegmentName.get(writerGeneration);
         if (segName == null) {
             LOGGER.error(
@@ -210,16 +220,15 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             + leafMaxDoc;
 
         try {
-            // Segment live docs (null when the segment has no deletions). Captured per collector so
-            // collectDocs can (a) drop deleted docs from ordinary scorer iteration, and (b) emit the
-            // live set directly for the reserved match-all provider (deleted-doc filtering path).
-            org.apache.lucene.util.Bits liveDocs = leaf.reader().getLiveDocs();
-            boolean emitLiveDocs = liveDocsProviderKeys.contains(providerKey);
-            // The match-all provider never iterates a scorer — its bitset is exactly the live docs
-            // (all-ones when the segment has no deletions) — so skip scorer creation entirely.
-            Scorer scorer = emitLiveDocs ? null : weight.scorer(leaf);
+            // Segment live docs (null when the segment has no deletions); collectDocs uses them to
+            // drop deleted docs. Scorer is always created — for the match-all provider it's the
+            // correctness fallback when the live docs can't be emitted directly (see collectDocs).
+            Bits liveDocs = leaf.reader().getLiveDocs();
+            boolean emitLiveDocs = provider.kind() == ProviderKind.LIVE_DOCS_MATCH_ALL;
+            Scorer scorer = weight.scorer(leaf);
+            DocIdSetIterator liveIntersection = liveIntersection(scorer, liveDocs, emitLiveDocs);
             int collectorKey = nextCollectorKey.getAndIncrement();
-            scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc, liveDocs, emitLiveDocs));
+            scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc, liveDocs, emitLiveDocs, liveIntersection));
             LOGGER.debug(
                 "[scf] createCollector providerKey={} writerGeneration={} range=[{},{}) → collectorKey={}",
                 providerKey,
@@ -238,6 +247,23 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
     }
 
+    /**
+     * Intersect the scorer with live docs, leading with the lower-cardinality side so heavy-delete
+     * leaves skip the deleted majority. Returns {@code null} (collectDocs falls back to per-doc
+     * {@code liveDocs.get}) when there's nothing to intersect.
+     */
+    private static DocIdSetIterator liveIntersection(Scorer scorer, Bits liveDocs, boolean emitLiveDocs) {
+        if (emitLiveDocs || scorer == null || liveDocs instanceof LiveDocs == false) {
+            return null;
+        }
+        LiveDocs ld = (LiveDocs) liveDocs;
+        FixedBitSet liveBits = BitSetIterator.getFixedBitSetOrNull(ld.liveDocsIterator());
+        if (liveBits == null) {
+            return null;
+        }
+        return ConjunctionUtils.intersectIterators(List.of(new BitSetIterator(liveBits, liveBits.cardinality()), scorer.iterator()));
+    }
+
     @Override
     public boolean isCancelled() {
         return isCancelledSupplier != null && isCancelledSupplier.getAsBoolean();
@@ -253,54 +279,33 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             return 0;
         }
         int span = maxDoc - minDoc;
-        FixedBitSet bits = new FixedBitSet(span);
-        int nextDoc = Integer.MAX_VALUE;
-
+        int wordCount = (span + 63) >>> 6;
         if (handle.emitLiveDocs) {
-            // Reserved match-all provider (deleted-doc filtering): the bitset is exactly the
-            // segment's live docs over the requested range — no scorer iteration. nextDoc is
-            // reported as maxDoc (match-all never exhausts), so callers never skip later RGs.
-            int scanFrom = Math.max(minDoc, handle.partitionMinDoc);
-            int scanTo = Math.min(maxDoc, handle.partitionMaxDoc);
-            int wordCount = (span + 63) >>> 6;
-            if (scanFrom < scanTo && handle.liveDocs != null && scanFrom == minDoc && scanTo == maxDoc) {
-                // Common case (RG chunk fully inside the partition): word-wise copy of the
-                // liveDocs slice straight into out (set bit == live). Returns early, bypassing the
-                // shared bits→out copy below; encoding matches it (nextDoc=maxDoc, same wordCount).
-                fillLiveDocsWords(handle.liveDocs, minDoc, span, wordCount, out);
+            // Reserved match-all provider (deleted-doc filtering): emit the segment's live docs
+            // directly (see fillLiveDocsWords). nextDoc = maxDoc (match-all never exhausts). If the
+            // liveDocs can't be materialized cheaply, fall through to the scorer path below.
+            if (fillLiveDocsWords(handle.liveDocs, minDoc, span, wordCount, out)) {
                 return ((long) maxDoc << 32) | (wordCount & 0xFFFFFFFFL);
             }
-            if (scanFrom < scanTo) {
-                if (handle.liveDocs == null) {
-                    // Segment has no deletions — every doc in range is live.
-                    bits.set(scanFrom - minDoc, scanTo - minDoc);
-                } else {
-                    for (int doc = scanFrom; doc < scanTo; doc++) {
-                        if (handle.liveDocs.get(doc)) {
-                            bits.set(doc - minDoc);
-                        }
-                    }
-                }
-            }
-            nextDoc = maxDoc;
-        } else if (handle.scorer != null) {
+        }
+        FixedBitSet bits = new FixedBitSet(span);
+        int nextDoc = Integer.MAX_VALUE;
+        if (handle.scorer != null) {
             int scanFrom = Math.max(minDoc, handle.partitionMinDoc);
             int scanTo = Math.min(maxDoc, handle.partitionMaxDoc);
 
             if (scanFrom < scanTo) {
                 try {
-                    DocIdSetIterator iterator = handle.scorer.iterator();
+                    // liveIntersection already excludes deleted docs; otherwise drop them via liveDocs.get below.
+                    boolean preFiltered = handle.liveIntersection != null;
+                    DocIdSetIterator iterator = preFiltered ? handle.liveIntersection : handle.scorer.iterator();
                     int docId = handle.currentDoc;
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                         if (docId < scanFrom) {
                             docId = iterator.advance(scanFrom);
                         }
                         while (docId != DocIdSetIterator.NO_MORE_DOCS && docId < scanTo) {
-                            // Deleted-doc filtering: Weight.scorer iterators do NOT consult liveDocs
-                            // (Lucene applies them as acceptDocs in BulkScorer, which this path
-                            // bypasses), so drop deleted docs here. No-op on segments without
-                            // deletions (liveDocs == null).
-                            if (handle.liveDocs == null || handle.liveDocs.get(docId)) {
+                            if (preFiltered || handle.liveDocs == null || handle.liveDocs.get(docId)) {
                                 bits.set(docId - minDoc);
                             }
                             docId = iterator.nextDoc();
@@ -321,7 +326,6 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
 
         long[] words = bits.getBits();
-        int wordCount = (span + 63) >>> 6;
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
@@ -349,27 +353,43 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     /**
-     * Pack the LIVE-docs slice {@code [minDoc, minDoc+span)} into {@code out} as {@code wordCount}
-     * LSB-first longs (set bit == live). Used by the reserved match-all collector (deleted-doc
-     * filtering path) in {@link #collectDocs}. Dense segments recover the backing {@link FixedBitSet}
-     * (O(words)); sparse segments fill all-alive then clear the O(deletions) deleted bits; anything
-     * else falls back to a per-bit loop. Caller guarantees {@code liveDocs != null} and {@code span > 0}.
+     * Write {@code span} all-alive bits (all-ones, trailing partial word masked to {@code span & 63})
+     * into {@code out} as {@code wordCount} LSB-first longs. Used when a segment has no deletions —
+     * every doc in range is live — so no liveDocs lookup is needed.
      */
-    private static void fillLiveDocsWords(org.apache.lucene.util.Bits liveDocs, int minDoc, int span, int wordCount, MemorySegment out) {
+    private static void fillAllAliveWords(MemorySegment out, int span, int wordCount) {
+        for (int w = 0; w < wordCount; w++) {
+            out.setAtIndex(ValueLayout.JAVA_LONG, w, -1L);
+        }
+        int trailing = span & 63;
+        if (trailing != 0) {
+            out.setAtIndex(ValueLayout.JAVA_LONG, wordCount - 1, (1L << trailing) - 1);
+        }
+    }
+
+    /**
+     * Try to pack the LIVE-docs slice {@code [minDoc, minDoc+span)} into {@code out} as {@code wordCount}
+     * LSB-first longs (set bit == live), without scorer iteration. No deletions ({@code liveDocs == null})
+     * emits all-ones; dense segments recover the backing {@link FixedBitSet} (O(words)); sparse segments
+     * fill all-alive then clear the O(deletions) deleted bits. Returns {@code true} if the live set was
+     * emitted into {@code out}; returns {@code false} if the liveDocs representation can't be materialized
+     * cheaply, in which case {@code out} may be partially written and the caller must fall back to the
+     * match-all scorer (which fully rewrites {@code out}). Caller guarantees {@code span > 0}.
+     */
+    private static boolean fillLiveDocsWords(Bits liveDocs, int minDoc, int span, int wordCount, MemorySegment out) {
+        if (liveDocs == null) {
+            // Segment has no deletions — every doc is live (all-ones, trailing word masked).
+            fillAllAliveWords(out, span, wordCount);
+            return true;
+        }
         int maxDoc = minDoc + span;
-        if (liveDocs instanceof org.apache.lucene.util.LiveDocs ld) {
+        if (liveDocs instanceof LiveDocs ld) {
             FixedBitSet liveBits = org.apache.lucene.util.BitSetIterator.getFixedBitSetOrNull(ld.liveDocsIterator());
             if (liveBits != null) {
                 copyLiveWords(liveBits, out, minDoc, span, wordCount);
-                return;
+                return true;
             }
-            for (int w = 0; w < wordCount; w++) {
-                out.setAtIndex(ValueLayout.JAVA_LONG, w, -1L);
-            }
-            int trailingBits = span & 63;
-            if (trailingBits != 0) {
-                out.setAtIndex(ValueLayout.JAVA_LONG, wordCount - 1, (1L << trailingBits) - 1);
-            }
+            fillAllAliveWords(out, span, wordCount);
             try {
                 DocIdSetIterator deleted = ld.deletedDocsIterator();
                 int doc = deleted.advance(minDoc);
@@ -380,32 +400,15 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                     out.setAtIndex(ValueLayout.JAVA_LONG, w, cur & ~(1L << (rel & 63)));
                     doc = deleted.nextDoc();
                 }
-                return;
+                return true;
             } catch (IOException e) {
-                LOGGER.warn("[scf] fillLiveDocsWords deletedDocsIterator failed; falling back to per-bit", e);
+                LOGGER.warn("[scf] fillLiveDocsWords deletedDocsIterator failed; falling back to scorer", e);
+                return false;
             }
         }
 
-        if (liveDocs instanceof FixedBitSet fbs) {
-            copyLiveWords(fbs, out, minDoc, span, wordCount);
-            return;
-        }
-
-        long word = 0;
-        int wordIdx = 0;
-        for (int i = 0; i < span; i++) {
-            if (liveDocs.get(minDoc + i)) {
-                word |= (1L << (i & 63));
-            }
-            if ((i & 63) == 63) {
-                out.setAtIndex(ValueLayout.JAVA_LONG, wordIdx, word);
-                word = 0;
-                wordIdx++;
-            }
-        }
-        if ((span & 63) != 0) {
-            out.setAtIndex(ValueLayout.JAVA_LONG, wordIdx, word);
-        }
+        // Unexpected liveDocs representation — let the caller fall back to the match-all scorer.
+        return false;
     }
 
     /**
@@ -463,20 +466,30 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         final int partitionMinDoc;
         final int partitionMaxDoc;
         /** Segment live docs at collector creation ({@code null} = no deletions in the segment). */
-        final org.apache.lucene.util.Bits liveDocs;
+        final Bits liveDocs;
         /**
          * True for collectors of the reserved match-all provider (deleted-doc filtering path):
          * {@code collectDocs} emits the live-docs bitset directly, {@code scorer} is {@code null}.
          */
         final boolean emitLiveDocs;
+        /** Persistent scorer ∩ live-docs conjunction (DenseLiveDocs); {@code null} → use liveDocs.get. */
+        final DocIdSetIterator liveIntersection;
         int currentDoc = -1;
 
-        ScorerHandle(Scorer scorer, int partitionMinDoc, int partitionMaxDoc, org.apache.lucene.util.Bits liveDocs, boolean emitLiveDocs) {
+        ScorerHandle(
+            Scorer scorer,
+            int partitionMinDoc,
+            int partitionMaxDoc,
+            Bits liveDocs,
+            boolean emitLiveDocs,
+            DocIdSetIterator liveIntersection
+        ) {
             this.scorer = scorer;
             this.partitionMinDoc = partitionMinDoc;
             this.partitionMaxDoc = partitionMaxDoc;
             this.liveDocs = liveDocs;
             this.emitLiveDocs = emitLiveDocs;
+            this.liveIntersection = liveIntersection;
         }
     }
 }
