@@ -23,7 +23,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -89,7 +88,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
         Query actual = ft.termQuery("apple", null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "apple"), actual);
+        assertEquals(expectedQuery("field", builder.build(), "apple"), actual);
         WildcardFieldMapper.WildcardMatchingQuery actualTermQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualTermQuery.getSecondPhaseMatcher().test("apple"));
         assertFalse(actualTermQuery.getSecondPhaseMatcher().test("Apple"));
@@ -111,30 +110,21 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
 
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "apple"),
-            ft.wildcardQuery("apple", null, null)
-        );
+        assertEquals(expectedQuery("field", builder.build(), "apple"), ft.wildcardQuery("apple", null, null));
 
         expectedTerms.remove(prefixAnchored("ap"));
         builder = new BooleanQuery.Builder();
         for (String term : expectedTerms) {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "*apple"),
-            ft.wildcardQuery("*apple", null, null)
-        );
+        assertEquals(expectedQuery("field", builder.build(), "*apple"), ft.wildcardQuery("*apple", null, null));
 
         expectedTerms.remove(suffixAnchored("le"));
         builder = new BooleanQuery.Builder();
         for (String term : expectedTerms) {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "*apple*"),
-            ft.wildcardQuery("*apple*", null, null)
-        );
+        assertEquals(expectedQuery("field", builder.build(), "*apple*"), ft.wildcardQuery("*apple*", null, null));
     }
 
     public void testEscapedWildcardQuery() {
@@ -148,20 +138,17 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
 
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**\\*"),
-            ft.wildcardQuery("\\**\\*", null, null)
-        );
+        assertEquals(expectedQuery("field", builder.build(), "\\**\\*"), ft.wildcardQuery("\\**\\*", null, null));
 
         expectedTerms.add(prefixAnchored("*" + (char) 0));
         builder = new BooleanQuery.Builder();
         for (String term : expectedTerms) {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"), ft.wildcardQuery("\\*", null, null));
+        assertEquals(expectedQuery("field", builder.build(), "\\*"), ft.wildcardQuery("\\*", null, null));
         builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", prefixAnchored("*"))), BooleanClause.Occur.FILTER);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**"), ft.wildcardQuery("\\**", null, null));
+        assertEquals(expectedQuery("field", builder.build(), "\\**"), ft.wildcardQuery("\\**", null, null));
     }
 
     public void testMultipleWildcardsInQuery() {
@@ -177,7 +164,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         }
 
         Query actual = ft.wildcardQuery(pattern, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), pattern), actual);
+        assertEquals(expectedQuery("field", builder.build(), pattern), actual);
         WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdzzzefgqh"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("abcdzzzefgqqh"));
@@ -192,7 +179,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
         String pattern = "*a*b*";
         Query actual = ft.wildcardQuery(pattern, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), pattern), actual);
+        assertEquals(expectedQuery("field", builder.build(), pattern), actual);
         WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("zzazbzz"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("zzbza"));
@@ -202,7 +189,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         builder.add(new TermQuery(new Term("field", "cde")), BooleanClause.Occur.FILTER);
 
         actual = ft.wildcardQuery(pattern, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), pattern), actual);
+        assertEquals(expectedQuery("field", builder.build(), pattern), actual);
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("zzabzzcdezz"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("zzcdezzabzz"));
@@ -252,7 +239,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         }
 
         Query actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "/" + pattern + "/"), actual);
+        assertEquals(expectedQuery("field", builder.build(), "/" + pattern + "/"), actual);
         WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_apple_foo"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_apply_foo"));
@@ -274,7 +261,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             BooleanClause.Occur.FILTER
         );
         actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "/" + pattern + "/"), actual);
+        assertEquals(expectedQuery("field", builder.build(), "/" + pattern + "/"), actual);
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdefmno"));
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcghiqwertyjkl"));
@@ -286,17 +273,14 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         String pattern = ".*ab.*a.*";
 
         Query actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", new PrefixQuery(new Term("field", "ab")), "/" + pattern + "/"),
-            actual
-        );
+        assertEquals(expectedQuery("field", new PrefixQuery(new Term("field", "ab")), "/" + pattern + "/"), actual);
         WildcardFieldMapper.WildcardMatchingQuery actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_ab_a"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_a_ab"));
 
         pattern = ".*(ab|cd).*";
         actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/" + pattern + "/"), actual);
+        assertEquals(expectedQuery("field", ft.existsQuery(null), "/" + pattern + "/"), actual);
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("xxabxx"));
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("xxcdxx"));
@@ -304,10 +288,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
         pattern = ".*a.*cde.*";
         actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(
-            new WildcardFieldMapper.WildcardMatchingQuery("field", new TermQuery(new Term("field", "cde")), "/" + pattern + "/"),
-            actual
-        );
+        assertEquals(expectedQuery("field", new TermQuery(new Term("field", "cde")), "/" + pattern + "/"), actual);
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_a_cde"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_cde_a"));
@@ -317,7 +298,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         String pattern = "???";
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         Query actual = ft.wildcardQuery(pattern, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "???"), actual);
+        assertEquals(expectedQuery("field", ft.existsQuery(null), "???"), actual);
 
         pattern = "*";
         actual = ft.wildcardQuery(pattern, null, null);
@@ -326,15 +307,15 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     public void testWildcardMatchingQueryEquality() {
         BooleanQuery bq = new BooleanQuery.Builder().build();
-        WildcardFieldMapper.WildcardMatchingQuery q1 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "test*");
-        WildcardFieldMapper.WildcardMatchingQuery q2 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "test*");
+        WildcardFieldMapper.WildcardMatchingQuery q1 = expectedQuery("field", bq, "test*");
+        WildcardFieldMapper.WildcardMatchingQuery q2 = expectedQuery("field", bq, "test*");
         assertEquals(q1, q2);
         assertEquals(q1.hashCode(), q2.hashCode());
 
-        WildcardFieldMapper.WildcardMatchingQuery q3 = new WildcardFieldMapper.WildcardMatchingQuery("field", bq, "other*");
+        WildcardFieldMapper.WildcardMatchingQuery q3 = expectedQuery("field", bq, "other*");
         assertNotEquals(q1, q3);
 
-        WildcardFieldMapper.WildcardMatchingQuery q4 = new WildcardFieldMapper.WildcardMatchingQuery("other_field", bq, "test*");
+        WildcardFieldMapper.WildcardMatchingQuery q4 = expectedQuery("other_field", bq, "test*");
         assertNotEquals(q1, q4);
     }
 
@@ -391,7 +372,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         Query caseInsensitive = ft.regexpQuery(pattern, 0, RegExp.ASCII_CASE_INSENSITIVE, 1000, null, null);
 
         // Same field, same approximation, same pattern string.
-        Query sameFieldAndApproximation = new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/" + pattern + "/");
+        Query sameFieldAndApproximation = expectedQuery("field", ft.existsQuery(null), "/" + pattern + "/");
         assertEquals(sameFieldAndApproximation, caseSensitive);
         assertNotEquals(sameFieldAndApproximation, caseInsensitive);
         assertNotEquals(caseSensitive, caseInsensitive);
@@ -523,10 +504,10 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
     }
 
     /**
-     * Queries built without a {@link QueryShardContext} cannot fetch field values, so they cannot verify
-     * candidates. Running one has to fail loudly rather than silently returning first-phase false positives.
+     * A query built without a {@link QueryShardContext} has no way to fetch field values, so it can be compared but
+     * never searched. Searching one has to fail loudly rather than silently returning first-phase false positives.
      */
-    public void testQueryWithoutShardContextCannotVerifyCandidates() throws IOException {
+    public void testQueryWithoutShardContextCannotBeSearched() throws IOException {
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
@@ -534,14 +515,9 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-
-                Query needsVerification = ft.wildcardQuery("*a?ple*", null, null);
-                IllegalStateException e = expectThrows(IllegalStateException.class, () -> countMatches(searcher, needsVerification));
+                Query noContext = ft.wildcardQuery("*a?ple*", null, null);
+                IllegalStateException e = expectThrows(IllegalStateException.class, () -> countMatches(searcher, noContext));
                 assertThat(e.getMessage(), containsString("built without a QueryShardContext"));
-
-                // A second phase that accepts everything needs no verification.
-                Query matchAllSecondPhase = new WildcardFieldMapper.WildcardMatchingQuery("field", new MatchAllDocsQuery(), "*a?ple*");
-                assertEquals(1, countMatches(searcher, matchAllSecondPhase));
             }
         }
     }
@@ -584,11 +560,20 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         String pattern = "...";
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         Query actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/.../"), actual);
+        assertEquals(expectedQuery("field", ft.existsQuery(null), "/.../"), actual);
 
         // The following pattern has a predicate that matches everything. We can just return the field exists query.
         pattern = ".*";
         actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
         assertEquals(ft.existsQuery(null), actual);
+    }
+
+    /**
+     * Builds the query the field type is expected to produce, for equality assertions only. The matcher is a
+     * placeholder because it takes no part in {@code equals}, and there is no shard context, so the result cannot
+     * be searched.
+     */
+    private static WildcardFieldMapper.WildcardMatchingQuery expectedQuery(String field, Query firstPhase, String pattern) {
+        return new WildcardFieldMapper.WildcardMatchingQuery(field, firstPhase, s -> true, pattern, 0, 0, null, null);
     }
 }

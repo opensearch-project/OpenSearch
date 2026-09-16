@@ -849,13 +849,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     static class WildcardMatchingQuery extends Query {
         private static final long MATCH_COST_ESTIMATE = 1000L;
 
-        /**
-         * Second-phase matcher used by queries built without a {@link QueryShardContext}, which cannot verify
-         * candidates because they have no way to fetch field values. Compared by identity in
-         * {@link #createWeight(IndexSearcher, ScoreMode, float)}.
-         */
-        private static final Predicate<String> MATCH_ALL_SECOND_PHASE = s -> true;
-
         private final String fieldName;
         private final Query firstPhaseQuery;
         private final Predicate<String> secondPhaseMatcher;
@@ -870,11 +863,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
          */
         private final int syntaxFlags;
         private final int matchFlags;
+        /**
+         * Resolved from the {@link QueryShardContext} at construction time and {@code null} when the query was
+         * built without one. Such a query can be compared, hashed and rewritten, but not searched: see
+         * {@link #createWeight(IndexSearcher, ScoreMode, float)}.
+         */
         private final Supplier<ValueFetcher> valueFetcherSupplier;
-
-        WildcardMatchingQuery(String fieldName, Query firstPhaseQuery, String patternString) {
-            this(fieldName, firstPhaseQuery, MATCH_ALL_SECOND_PHASE, patternString, 0, 0, (QueryShardContext) null, null);
-        }
 
         public WildcardMatchingQuery(
             String fieldName,
@@ -963,6 +957,13 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            if (valueFetcherSupplier == null) {
+                throw new IllegalStateException(
+                    "Cannot search "
+                        + this
+                        + ": the query was built without a QueryShardContext, so field values cannot be fetched to verify candidates"
+                );
+            }
             Weight firstPhaseWeight = firstPhaseQuery.createWeight(searcher, scoreMode, boost);
             return new ConstantScoreWeight(this, boost) {
                 @Override
@@ -976,18 +977,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         public Scorer get(long leadCost) throws IOException {
                             Scorer approximateScorer = firstPhaseSupplier.get(leadCost);
                             DocIdSetIterator approximation = approximateScorer.iterator();
-                            if (valueFetcherSupplier == null) {
-                                // Only queries built without a QueryShardContext get here, and they cannot verify
-                                // candidates. That is only sound when the second phase accepts everything.
-                                if (secondPhaseMatcher != MATCH_ALL_SECOND_PHASE) {
-                                    throw new IllegalStateException(
-                                        "Cannot run the second phase of "
-                                            + WildcardMatchingQuery.this
-                                            + ": the query was built without a QueryShardContext, so field values cannot be fetched"
-                                    );
-                                }
-                                return new ConstantScoreScorer(score(), scoreMode, approximation);
-                            }
                             // A fresh SourceLookup and ValueFetcher per scorer: ValueFetcher.setNextReader and
                             // SourceLookup are not thread safe, and a scorer is confined to one slice.
                             SourceLookup sourceLookup = new SourceLookup();
@@ -1018,10 +1007,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                         @Override
                         public long cost() {
                             long firstPhaseCost = firstPhaseSupplier.cost();
-                            if (valueFetcherSupplier == null) {
-                                // No second phase to pay for.
-                                return firstPhaseCost;
-                            }
                             if (firstPhaseCost >= Long.MAX_VALUE / MATCH_COST_ESTIMATE) {
                                 return Long.MAX_VALUE;
                             }
@@ -1041,7 +1026,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             };
         }
 
-        // Visible for testing
+        // ---------------------------------------------------------------------------------------------
+        // Visible for testing only. Nothing below is used by production code.
+        // ---------------------------------------------------------------------------------------------
+
         Predicate<String> getSecondPhaseMatcher() {
             return secondPhaseMatcher;
         }
