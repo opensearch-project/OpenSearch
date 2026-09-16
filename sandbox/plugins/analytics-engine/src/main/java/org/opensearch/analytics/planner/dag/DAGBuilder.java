@@ -452,10 +452,11 @@ public class DAGBuilder {
      * org.opensearch.analytics.spi.BroadcastInjectionInstructionNode} attached at dispatch time
      * and in the data-node-side memtable registration name.
      *
-     * <p>Build stages run on shards (the input is a TableScan in M1); a future M2+ shape could
-     * produce a coordinator-side build (e.g. broadcast over an aggregate result), at which point
-     * the empty-grandchildren branch would need to gain a sink provider just like the other
-     * cutters. For now the build always reduces to a leaf shard fragment.
+     * <p>A build stage runs on shards when its fragment scans a shard table, and at the coordinator
+     * otherwise (e.g. broadcast over an aggregate result) — decided the same way {@code cutReducer} and
+     * {@code cutShuffle} decide it, by inspecting the fragment rather than by counting grandchildren. A build
+     * is NOT necessarily a leaf: under nested broadcast it is itself a broadcast probe and has its own build
+     * child, which {@code UnifiedDispatch} captures in an earlier wave and strips before this one runs.
      */
     private static RelNode cutBroadcast(
         OpenSearchBroadcastExchange broadcast,
@@ -469,11 +470,19 @@ public class DAGBuilder {
         RelNode childFragment = sever(broadcast.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
 
         int childStageId = counter[0]++;
-        TargetResolver targetResolver = grandchildren.isEmpty()
+        // Decide the build's locality by whether its fragment has a shard scan, NOT by grandchild count —
+        // the same rule cutReducer and cutShuffle use. A build fragment can BOTH scan a shard table and have
+        // a grandchild stage: that is NESTED BROADCAST, where this build is itself a broadcast probe. Keying
+        // off grandchildren alone then leaves it with no ShardTargetResolver and an ExchangeSinkProvider
+        // instead, so Stage classifies it COORDINATOR_REDUCE while its instruction list still carries a shard
+        // scan; ReduceStageExecutionFactory hands that instruction an ExchangeSinkContext and
+        // ShardScanInstructionHandler fails casting it to ShardScanExecutionContext.
+        boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
+        TargetResolver targetResolver = fragmentHasShardScan
             ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
             : null;
         ExchangeSinkProvider childSinkProvider = null;
-        if (!grandchildren.isEmpty()) {
+        if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, broadcast.getViableBackends());
             childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }

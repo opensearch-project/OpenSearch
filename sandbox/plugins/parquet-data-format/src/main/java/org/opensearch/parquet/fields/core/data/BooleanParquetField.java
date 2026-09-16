@@ -38,11 +38,7 @@ public class BooleanParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        return Set.of(
-            FieldTypeCapabilities.Capability.BLOOM_FILTER,
-            FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
-            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH // This can be supported directly via stats
-        );
+        return Set.of(FieldTypeCapabilities.Capability.BLOOM_FILTER, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
     }
 
     @Override

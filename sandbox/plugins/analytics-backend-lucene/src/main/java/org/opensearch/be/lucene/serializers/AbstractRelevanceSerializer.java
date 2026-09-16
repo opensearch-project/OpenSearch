@@ -32,6 +32,10 @@ import java.util.Map;
  */
 public abstract class AbstractRelevanceSerializer extends AbstractQuerySerializer {
 
+    // Optional-param keys shared with the translator's MAP operand keys — a mismatch silently drops the param.
+    protected static final String PARAM_CASE_INSENSITIVE = "case_insensitive";
+    protected static final String PARAM_REWRITE = "rewrite";
+
     @Override
     public final QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
         ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(call, fieldStorage);

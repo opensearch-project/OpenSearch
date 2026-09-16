@@ -78,11 +78,8 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         // Compare the FULL join output as multisets between coord-centric and hash-shuffle:
         // any row dropped, duplicated, or mis-joined by the shuffle path shows up as a
-        // multiset mismatch. We deliberately do NOT use `sort L.id | head N` as an invariant
-        // — that PPL shape is non-deterministic on its own (reproduces on a single coord-
-        // centric path, two back-to-back runs return disjoint 100-row sets). The bug lives
-        // between Calcite's `Sort(fetch=N)` and DataFusion's substrait consumer; it is
-        // independent of M2 hash-shuffle.
+        // multiset mismatch. Kept as a full-multiset comparison because it is the strictest
+        // check available here — `sort L.id | head N` would only pin a 100-row prefix.
         String ppl = "source = " + LEFT_INDEX + " | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
         StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
@@ -260,13 +257,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         );
     }
 
-    /**
-     * Sort + head DOWNSTREAM of a hash-shuffle join. PPL {@code sort | head N} is non-deterministic
-     * on its own (see {@code PPL-SORT-HEAD-NONDETERMINISM-BUG.md}) so we cannot pin specific rows;
-     * we only assert that the query runs end-to-end on the shuffle path, returns N rows, and the
-     * HASH_SHUFFLE counter advances. Catches "shuffle pipeline can't be followed by Sort+Limit at
-     * the coordinator" plan-shape regressions.
-     */
+    /** Sort + head DOWNSTREAM of a hash-shuffle join. */
     public void testInnerEquiJoin_sortHeadAfterJoin_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
         applySetting("analytics.mpp.broadcast.probe_estimate", "20");

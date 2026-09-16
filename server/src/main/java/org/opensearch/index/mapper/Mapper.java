@@ -96,6 +96,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             return this.indexSettings;
         }
 
+        private boolean multiField = false;
+
+        public boolean isMultiField() {
+            return multiField;
+        }
+
+        public void setMultiField(boolean multiField) {
+            this.multiField = multiField;
+        }
+
         public void assignCapabilities(MappedFieldType fieldType) {
             if (capabilityAssigner != null) {
                 capabilityAssigner.accept(fieldType);
