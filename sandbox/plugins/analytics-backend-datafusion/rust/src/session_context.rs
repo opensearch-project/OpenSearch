@@ -735,6 +735,17 @@ fn try_acquire_budget(
 ///   the override isn't propagated yet. A wrong nulls claim at worst causes
 ///   DataFusion's per-file chain validator to reject the ordering and fall back
 ///   to a regular `SortExec` — never wrong results.
+///
+/// # Multi-value (LIST) sort fields
+///
+/// A LIST column has no native DataFusion ordering, so it is replaced with a
+/// scalar reduction of its elements: `list_min(col)` when the field sorts
+/// ascending, `list_max(col)` when it sorts descending. This mirrors the
+/// writer-side reduction chosen by `ParquetSortConfig::deriveMaxSortModes`
+/// (`index.sort.mode`, defaulting to MIN for ASC / MAX for DESC) so the
+/// declared ordering here matches the physical row order already on disk.
+/// There is no independent per-query sort-mode setting — direction is the
+/// only signal, exactly as it is for the writer's default branch.
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
@@ -753,7 +764,13 @@ pub(crate) fn build_file_sort_order(
             let nulls_first = ascending;
             let column = Expr::Column(Column::from_name(name.clone()));
             let key = match schema.field_with_name(name).map(|field| field.data_type()) {
-                Ok(arrow::datatypes::DataType::List(_)) => crate::udf::list_min::expr(column),
+                Ok(arrow::datatypes::DataType::List(_)) => {
+                    if ascending {
+                        crate::udf::list_min::expr(column)
+                    } else {
+                        crate::udf::list_max::expr(column)
+                    }
+                }
                 _ => column,
             };
             key.sort(ascending, nulls_first)
@@ -780,23 +797,30 @@ mod tests {
     use crate::query_tracker::QueryTrackingContext;
 
     #[test]
-    fn file_sort_order_uses_fixed_list_min_for_both_directions() {
+    fn file_sort_order_uses_list_min_for_asc_and_list_max_for_desc() {
         let child = Arc::new(Field::new("element", DataType::Utf8View, true));
         let schema = Schema::new(vec![
             Field::new("tags", DataType::List(child), true),
             Field::new("id", DataType::Int64, true),
         ]);
 
-        for (order, ascending) in [("asc", true), ("desc", false)] {
+        for (order, ascending, reduction) in
+            [("asc", true, "list_min"), ("desc", false, "list_max")]
+        {
             let ordering =
                 build_file_sort_order(&["tags".into()], &[order.into()], &schema).unwrap();
-            assert!(format!("{}", ordering[0].expr).contains("list_min"));
+            let rendered = format!("{}", ordering[0].expr);
+            assert!(
+                rendered.contains(reduction),
+                "{order} sort should use {reduction}, got: {rendered}"
+            );
             assert_eq!(ordering[0].asc, ascending);
             assert_eq!(ordering[0].nulls_first, ascending);
         }
 
         let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
         assert!(!format!("{}", scalar[0].expr).contains("list_min"));
+        assert!(!format!("{}", scalar[0].expr).contains("list_max"));
     }
 
     #[tokio::test]

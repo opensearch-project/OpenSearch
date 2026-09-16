@@ -138,7 +138,9 @@ pub type EvaluatorFactory = Arc<
 /// Direction strings are `"asc"` / `"desc"` (lowercase, as plumbed from Java).
 /// Nulls placement matches Lucene's convention: ASC → NULLS FIRST,
 /// DESC → NULLS LAST. Same as the vanilla path's `build_file_sort_order` in
-/// `session_context.rs`.
+/// `session_context.rs`, including the LIST reduction choice: `list_min` for
+/// ASC, `list_max` for DESC (see that function's doc for why direction alone
+/// — not an explicit per-query mode — decides the reduction).
 fn build_projected_lex_ordering(
     projected_schema: &SchemaRef,
     sort_fields: &[String],
@@ -149,13 +151,23 @@ fn build_projected_lex_ordering(
     }
     let mut exprs: Vec<PhysicalSortExpr> = Vec::with_capacity(sort_fields.len());
     for (i, field) in sort_fields.iter().enumerate() {
+        let descending = sort_orders
+            .get(i)
+            .map(|s| s.eq_ignore_ascii_case("desc"))
+            .unwrap_or(false);
+        let ascending = !descending;
         let phys = match physical_col(field, projected_schema) {
             Ok(expr) => match projected_schema
                 .field_with_name(field)
                 .map(|field| field.data_type())
             {
                 Ok(DataType::List(_)) => {
-                    match crate::udf::list_min::physical_expr(expr, projected_schema.as_ref()) {
+                    let reduced = if ascending {
+                        crate::udf::list_min::physical_expr(expr, projected_schema.as_ref())
+                    } else {
+                        crate::udf::list_max::physical_expr(expr, projected_schema.as_ref())
+                    };
+                    match reduced {
                         Ok(expr) => expr,
                         Err(_) => break,
                     }
@@ -164,11 +176,6 @@ fn build_projected_lex_ordering(
             },
             Err(_) => break,
         };
-        let descending = sort_orders
-            .get(i)
-            .map(|s| s.eq_ignore_ascii_case("desc"))
-            .unwrap_or(false);
-        let ascending = !descending;
         let opts = SortOptions {
             descending,
             // ASC → NULLS FIRST, DESC → NULLS LAST (matches Lucene + vanilla path).
@@ -878,18 +885,25 @@ mod tests {
     }
 
     #[test]
-    fn list_sort_key_advertises_list_min_physical_ordering() {
+    fn list_sort_key_advertises_list_min_for_asc_and_list_max_for_desc_physical_ordering() {
         let child = Arc::new(Field::new("element", DataType::Utf8View, true));
         let schema = Arc::new(Schema::new(vec![Field::new(
             "tags",
             DataType::List(child),
             true,
         )]));
-        let ordering =
+
+        let desc_ordering =
             build_projected_lex_ordering(&schema, &["tags".into()], &["desc".into()]).unwrap();
-        assert!(format!("{}", ordering[0].expr).contains("list_min"));
-        assert!(ordering[0].options.descending);
-        assert!(!ordering[0].options.nulls_first);
+        assert!(format!("{}", desc_ordering[0].expr).contains("list_max"));
+        assert!(desc_ordering[0].options.descending);
+        assert!(!desc_ordering[0].options.nulls_first);
+
+        let asc_ordering =
+            build_projected_lex_ordering(&schema, &["tags".into()], &["asc".into()]).unwrap();
+        assert!(format!("{}", asc_ordering[0].expr).contains("list_min"));
+        assert!(!asc_ordering[0].options.descending);
+        assert!(asc_ordering[0].options.nulls_first);
     }
 
     // QueryShardExec holds an ExecutionPlanMetricsSet (not Clone). We only

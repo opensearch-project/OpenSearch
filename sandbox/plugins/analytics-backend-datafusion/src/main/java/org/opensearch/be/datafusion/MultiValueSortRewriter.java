@@ -26,13 +26,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Rewrites LIST sort keys to fixed {@code MIN(list)} scalar keys. */
+/** Rewrites LIST sort keys to a fixed {@code MIN(list)}/{@code MAX(list)} scalar key. */
 final class MultiValueSortRewriter {
 
     static final SqlFunction LIST_MIN_OP = new SqlFunction("list_min", SqlKind.OTHER_FUNCTION, opBinding -> {
         var component = opBinding.getOperandType(0).getComponentType();
         if (component == null) {
             throw new IllegalArgumentException("list_min requires an ARRAY operand");
+        }
+        return opBinding.getTypeFactory().createTypeWithNullability(component, true);
+    }, null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
+
+    static final SqlFunction LIST_MAX_OP = new SqlFunction("list_max", SqlKind.OTHER_FUNCTION, opBinding -> {
+        var component = opBinding.getOperandType(0).getComponentType();
+        if (component == null) {
+            throw new IllegalArgumentException("list_max requires an ARRAY operand");
         }
         return opBinding.getTypeFactory().createTypeWithNullability(component, true);
     }, null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
@@ -49,6 +57,19 @@ final class MultiValueSortRewriter {
         });
     }
 
+    /**
+     * Picks the reduction operator for a LIST sort key from its collation direction:
+     * {@code MIN} for ascending, {@code MAX} for descending. This mirrors the default
+     * branch of the native writer's {@code ParquetSortConfig.deriveMaxSortModes} (which
+     * defaults to MIN for ASC / MAX for DESC when {@code index.sort.mode} is not set
+     * explicitly for that field). There is no separate query-level sort-mode setting for
+     * an ad-hoc {@code sort <list_field> [asc|desc]} clause — direction is the only
+     * signal available here, so it is also the only one this rewriter needs.
+     */
+    private static SqlFunction reductionOpFor(RelFieldCollation.Direction direction) {
+        return direction == RelFieldCollation.Direction.DESCENDING ? LIST_MAX_OP : LIST_MIN_OP;
+    }
+
     private static RelNode rewriteSort(Sort sort) {
         RelNode input = sort.getInput();
         List<RelFieldCollation> oldFields = sort.getCollation().getFieldCollations();
@@ -63,6 +84,15 @@ final class MultiValueSortRewriter {
             return sort;
         }
 
+        // One reduction operator per hidden column, keyed by input index. Multiple sort
+        // keys can reference the same LIST column with different directions only in
+        // pathological plans; the first collation entry for that column wins, matching
+        // how hiddenByInput itself is built (first-seen index assignment).
+        Map<Integer, SqlFunction> reductionByInput = new LinkedHashMap<>();
+        for (RelFieldCollation field : oldFields) {
+            reductionByInput.computeIfAbsent(field.getFieldIndex(), ignored -> reductionOpFor(field.getDirection()));
+        }
+
         RexBuilder rexBuilder = sort.getCluster().getRexBuilder();
         List<RexNode> projects = new ArrayList<>(input.getRowType().getFieldCount() + hiddenByInput.size());
         List<String> names = new ArrayList<>(input.getRowType().getFieldNames());
@@ -71,7 +101,7 @@ final class MultiValueSortRewriter {
         }
         for (int inputIndex : hiddenByInput.keySet()) {
             RexNode list = rexBuilder.makeInputRef(input, inputIndex);
-            projects.add(rexBuilder.makeCall(LIST_MIN_OP, list));
+            projects.add(rexBuilder.makeCall(reductionByInput.get(inputIndex), list));
             names.add("___mv_sort_" + inputIndex);
         }
         RelNode withKeys = LogicalProject.create(input, List.of(), projects, names);

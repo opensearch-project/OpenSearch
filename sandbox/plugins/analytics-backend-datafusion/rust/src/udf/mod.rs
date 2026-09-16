@@ -144,6 +144,7 @@ pub mod json_keys;
 pub mod json_object;
 pub mod json_set;
 pub mod json_valid;
+pub mod list_max;
 pub mod list_min;
 pub mod makedate;
 pub mod maketime;
@@ -198,6 +199,7 @@ pub fn register_all(ctx: &SessionContext) {
     json_object::register_all(ctx);
     json_set::register_all(ctx);
     json_valid::register_all(ctx);
+    list_max::register_all(ctx);
     list_min::register_all(ctx);
     makedate::register_all(ctx);
     maketime::register_all(ctx);

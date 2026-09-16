@@ -342,16 +342,31 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         );
     }
 
-    public void testListSortUsesHiddenFixedMinimumKey() throws Exception {
+    /**
+     * DESC sort on a LIST column must reduce through the hidden key using {@code list_max}
+     * (mirrors the writer-side default: {@code ParquetSortConfig.deriveMaxSortModes} defaults
+     * to MAX for a descending field when no explicit {@code index.sort.mode} override applies —
+     * there is no separate query-level mode setting, so collation direction is the only signal).
+     */
+    public void testListSortDescUsesHiddenFixedMaximumKey() throws Exception {
+        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.DESCENDING, "list_max");
+    }
+
+    /**
+     * ASC sort on a LIST column must reduce through the hidden key using {@code list_min},
+     * mirroring the writer-side default (MIN for an ascending field).
+     */
+    public void testListSortAscUsesHiddenFixedMinimumKey() throws Exception {
+        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.ASCENDING, "list_min");
+    }
+
+    private void assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction direction, String expectedReductionFn)
+        throws Exception {
         RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
         RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
         RelDataType rowType = typeFactory.builder().add("tags", list).build();
         RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
-        RelFieldCollation collation = new RelFieldCollation(
-            0,
-            RelFieldCollation.Direction.DESCENDING,
-            RelFieldCollation.NullDirection.LAST
-        );
+        RelFieldCollation collation = new RelFieldCollation(0, direction, RelFieldCollation.NullDirection.LAST);
         RelNode sort = LogicalSort.create(scan, RelCollations.of(collation), null, null);
 
         Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
@@ -366,18 +381,22 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Rel hiddenProject = sorted.getSort().getInput();
         assertTrue(hiddenProject.hasProject());
         assertTrue(
-            "hidden LIST sort key must be computed by list_min",
+            "hidden LIST sort key must be computed by a scalar function",
             hiddenProject.getProject().getExpressionsList().stream().anyMatch(Expression::hasScalarFunction)
         );
-        assertTrue(sorted.getSort().getSorts(0).getDirection().name().contains("DESC"));
         assertTrue(
-            "Substrait extensions must declare list_min",
+            direction == RelFieldCollation.Direction.DESCENDING
+                ? sorted.getSort().getSorts(0).getDirection().name().contains("DESC")
+                : sorted.getSort().getSorts(0).getDirection().name().contains("ASC")
+        );
+        assertTrue(
+            "Substrait extensions must declare " + expectedReductionFn,
             plan.getExtensionsList()
                 .stream()
                 .filter(SimpleExtensionDeclaration::hasExtensionFunction)
                 .map(declaration -> declaration.getExtensionFunction().getName())
                 .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
-                .anyMatch("list_min"::equals)
+                .anyMatch(expectedReductionFn::equals)
         );
     }
 

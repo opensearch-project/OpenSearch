@@ -590,7 +590,17 @@ scalar_functions:
   - name: list_min
     description: >-
       Fixed minimum non-null element of a LIST value. Used as the hidden query and
-      physical-order key for multi-value keyword sorting in both ASC and DESC directions.
+      physical-order key for multi-value keyword sorting in the ASC direction.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "input"
+        return: any1
+
+  - name: list_max
+    description: >-
+      Fixed maximum non-null element of a LIST value. Used as the hidden query and
+      physical-order key for multi-value keyword sorting in the DESC direction.
     impls:
       - args:
           - value: "list<any1>"
