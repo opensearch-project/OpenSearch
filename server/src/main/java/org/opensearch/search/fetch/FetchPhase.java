@@ -55,9 +55,12 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -522,6 +525,13 @@ public class FetchPhase {
             });
 
             String id = fieldsVisitor.id();
+            if (id == null) {
+                // Composite indexes (parquet primary + Lucene secondary) index the _id term into the
+                // secondary but do not store the _id field, so FieldsVisitor cannot recover it. Fall back to
+                // resolving the id from doc values (see loadIdFromDocValues). Plain indexes always carry the
+                // stored _id field, so this branch never runs for them and their behaviour is unchanged.
+                id = loadIdFromDocValues(context, subReaderContext, subDocId);
+            }
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -745,6 +755,34 @@ public class FetchPhase {
             }
         } while (current != null);
         return nestedIdentity;
+    }
+
+    /**
+     * Recovers a hit's {@code _id} from doc values when it is absent from the stored fields.
+     * <p>
+     * Composite indexes (parquet primary + Lucene secondary) index the {@code _id} term into the Lucene
+     * secondary but neither store the {@code _id} field nor write doc values for it, so
+     * {@link FieldsVisitor#id()} returns {@code null} for their hits. The id is recovered here from the
+     * exact same source that serves {@code docvalue_fields:["_id"]}: {@link IdFieldMapper}'s field data,
+     * which uninverts the indexed {@code _id} term and Uid-decodes it to the user-facing string id. This
+     * is a read-side recovery that works on already-indexed data without reindexing. It is only invoked on
+     * the {@code id == null} path, so plain indexes (which always store the {@code _id} field) are
+     * unaffected.
+     *
+     * @return the decoded string id, or {@code null} if it cannot be resolved for this document
+     */
+    private static String loadIdFromDocValues(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
+        MappedFieldType idFieldType = context.mapperService().fieldType(IdFieldMapper.NAME);
+        if (idFieldType == null) {
+            return null;
+        }
+        IndexFieldData<?> indexFieldData = context.getQueryShardContext().getForField(idFieldType);
+        SortedBinaryDocValues values = indexFieldData.load(subReaderContext).getBytesValues();
+        if (values.advanceExact(subDocId) == false) {
+            return null;
+        }
+        // IdFieldMapper's field data already Uid-decodes each value to the user-facing string id.
+        return values.nextValue().utf8ToString();
     }
 
     private void loadStoredFields(
