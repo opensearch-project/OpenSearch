@@ -38,7 +38,6 @@ use datafusion::{
     physical_plan::stream::RecordBatchStreamAdapter,
     physical_plan::ExecutionPlan,
 };
-use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use native_bridge_common::log_debug;
 use prost::Message;
 use substrait::proto::Plan;
@@ -850,15 +849,17 @@ async unsafe fn execute_indexed_with_context_inner(
         let context_id_early = handle.query_context.context_id();
         // engine-native-merge: borrow the partial-state schema from the prepared plan so the
         // empty stream matches the populated shards' wire shape (e.g. Binary HLL for dc()).
-        let plan_schema: arrow::datatypes::SchemaRef =
-            if let Some(prepared) = handle.prepared_plan.as_ref() {
-                Arc::new(prepared.schema().as_ref().clone())
-            } else {
-                let plan = Plan::decode(substrait_bytes.as_slice())
-                    .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
-                let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
-                Arc::new(logical_plan.schema().as_arrow().clone())
-            };
+        let plan_schema: arrow::datatypes::SchemaRef = if let Some(prepared) =
+            handle.prepared_plan.as_ref()
+        {
+            Arc::new(prepared.schema().as_ref().clone())
+        } else {
+            let plan = Plan::decode(substrait_bytes.as_slice())
+                .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+            let logical_plan =
+                crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &plan).await?;
+            Arc::new(logical_plan.schema().as_arrow().clone())
+        };
         let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
@@ -963,7 +964,7 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let plan = Plan::decode(substrait_bytes.as_slice())
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
-    let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    let logical_plan = crate::substrait_consumer::from_substrait_plan(&ctx.state(), &plan).await?;
 
     // Sort-aware segment iteration. Mirror of `ContextIndexSearcher.shouldUseTimeSeriesDescSortOptimization`
     // for the indexed-parquet path. When the index has `index.sort.field` and the query's leading
@@ -1415,7 +1416,7 @@ async unsafe fn execute_indexed_with_context_inner(
     }));
     ctx.register_table(&register_name, provider)?;
 
-    let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    let logical_plan = crate::substrait_consumer::from_substrait_plan(&ctx.state(), &plan).await?;
     log_debug!(
         "DataFusion logical plan:\n{}",
         logical_plan.display_indent()
