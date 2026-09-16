@@ -47,6 +47,8 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
     private final RexNode original;
     private final List<String> viableBackends;
     private final int annotationId;
+    /** Derived fields cannot be independently evaluated by a peer storage backend. */
+    private final boolean performanceDelegationAllowed;
     /**
      * Peer backends that could have evaluated this predicate but lost the narrow.
      * Empty when the predicate is single-viable (no peer to consult) or hasn't
@@ -67,7 +69,17 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
     private final List<String> performanceDelegationBackends;
 
     public AnnotatedPredicate(RelDataType type, RexNode original, List<String> viableBackends, int annotationId) {
-        this(type, original, viableBackends, annotationId, List.of());
+        this(type, original, viableBackends, annotationId, true, List.of());
+    }
+
+    public AnnotatedPredicate(
+        RelDataType type,
+        RexNode original,
+        List<String> viableBackends,
+        int annotationId,
+        boolean performanceDelegationAllowed
+    ) {
+        this(type, original, viableBackends, annotationId, performanceDelegationAllowed, List.of());
     }
 
     private AnnotatedPredicate(
@@ -75,12 +87,14 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
         RexNode original,
         List<String> viableBackends,
         int annotationId,
+        boolean performanceDelegationAllowed,
         List<String> performanceDelegationBackends
     ) {
         super(type, ANNOTATED_PREDICATE_OP, List.of(original));
         this.original = original;
         this.viableBackends = viableBackends;
         this.annotationId = annotationId;
+        this.performanceDelegationAllowed = performanceDelegationAllowed;
         this.performanceDelegationBackends = performanceDelegationBackends;
     }
 
@@ -108,10 +122,10 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
 
     @Override
     public OperatorAnnotation narrowTo(String backend) {
-        List<String> peers = (viableBackends.size() > 1 && viableBackends.contains(backend))
+        List<String> peers = (performanceDelegationAllowed && viableBackends.size() > 1 && viableBackends.contains(backend))
             ? viableBackends.stream().filter(b -> !b.equals(backend)).toList()
             : List.of();
-        return new AnnotatedPredicate(type, original, List.of(backend), annotationId, peers);
+        return new AnnotatedPredicate(type, original, List.of(backend), annotationId, performanceDelegationAllowed, peers);
     }
 
     @Override
@@ -121,7 +135,14 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
 
     @Override
     public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
-        return new AnnotatedPredicate(type, adaptedOriginal, viableBackends, annotationId, performanceDelegationBackends);
+        return new AnnotatedPredicate(
+            type,
+            adaptedOriginal,
+            viableBackends,
+            annotationId,
+            performanceDelegationAllowed,
+            performanceDelegationBackends
+        );
     }
 
     @Override
@@ -146,7 +167,14 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
                 "AnnotatedPredicate must wrap exactly one operand (the original predicate); got " + operands.size()
             );
         }
-        return new AnnotatedPredicate(type, operands.get(0), viableBackends, annotationId, performanceDelegationBackends);
+        return new AnnotatedPredicate(
+            type,
+            operands.get(0),
+            viableBackends,
+            annotationId,
+            performanceDelegationAllowed,
+            performanceDelegationBackends
+        );
     }
 
     @Override

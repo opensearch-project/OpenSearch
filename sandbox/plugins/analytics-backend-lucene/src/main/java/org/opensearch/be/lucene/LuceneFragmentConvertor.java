@@ -10,32 +10,27 @@ package org.opensearch.be.lucene;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.WireFormat;
 import org.opensearch.be.lucene.serializers.AbstractQuerySerializer;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -48,21 +43,13 @@ import io.substrait.proto.RelRoot;
 import io.substrait.proto.Type;
 
 /**
- * Lucene-as-driver {@link FragmentConvertor}. Walks the resolved fragment, finds the
- * {@link OpenSearchFilter}, and serializes its condition as a {@link BoolQueryBuilder}'s
- * NamedWriteable bytes. Empty bytes when the fragment has no filter ({@code count(*)} over
- * MatchAllDocs at the data node).
+ * Converts a {@link LuceneFragmentPlanner} result into a typed Lucene shard payload.
+ * Metadata counts stay on Lucene; supported doc-values fragments include an
+ * {@link ArrowBatchSourcePlan} compiled for DataFusion. Unsupported fragments remain
+ * available only as planner alternatives and are not selected for Lucene execution.
  *
- * <p>Reuses the same leaf-serializer registry as {@link LuceneSubtreeConvertor} via
- * {@link QuerySerializerRegistry} — keyword equality, MATCH, MATCH_PHRASE, etc. all
- * round-trip through the same {@link DelegatedPredicateSerializer} → {@link QueryBuilder}
- * path. The data-node Lucene driver deserializes the bytes via NamedWriteable and runs
- * {@code IndexSearcher.count} on the resulting {@link QueryBuilder#toQuery(QueryShardContext)}.
- *
- * <p>Multi-stage / non-shard-scan fragments aren't supported: Lucene drives shard-local
- * count fragments only. Reduce or coordinator stages still run on DataFusion, so this
- * convertor is invoked only when the planner picked Lucene as the StagePlan's backend —
- * which happens exclusively for count-fast-path-eligible shards today.
+ * <p>Filters reuse {@link QuerySerializerRegistry}, so delegated and driver execution use
+ * the same {@link QueryBuilder} conversion.
  *
  * @opensearch.internal
  */
@@ -71,140 +58,97 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
     private static final Logger LOGGER = LogManager.getLogger(LuceneFragmentConvertor.class);
 
     private final Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers;
+    private final AnalyticsSearchBackendPlugin arrowSourceBackend;
 
     LuceneFragmentConvertor(Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers) {
-        this.leafSerializers = leafSerializers;
+        this(leafSerializers, null);
     }
 
-    /**
-     * True iff the top is an {@link Aggregate} with empty group-set whose every call is
-     * {@link SqlKind#COUNT} — what {@code IndexSearcher.count} can answer from the term
-     * dictionary. Read by {@link LuceneShardPreference} to score this fragment.
-     *
-     * <p>Defense-in-depth: PlanForker's chain-agreement filter already narrows aggregate
-     * alternatives to declared capabilities (prod Lucene declares only COUNT), so this
-     * guards against capability-declaration drift.
-     */
-    static boolean isCountFastPath(RelNode fragment) {
-        if (fragment instanceof Aggregate == false) return false;
-        Aggregate agg = (Aggregate) fragment;
-        if (agg.getGroupSet().isEmpty() == false) return false;
-        for (AggregateCall call : agg.getAggCallList()) {
-            if (call.getAggregation().getKind() != SqlKind.COUNT) return false;
-        }
-        return true;
+    LuceneFragmentConvertor(
+        Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers,
+        AnalyticsSearchBackendPlugin arrowSourceBackend
+    ) {
+        this.leafSerializers = leafSerializers;
+        this.arrowSourceBackend = arrowSourceBackend;
     }
 
     @Override
     public byte[] convertFragment(RelNode fragment) {
-        // Lucene-driver wire format: [columnNames StringCollection] [hasFilter boolean]
-        // [QueryBuilder NamedWriteable]?. Both ends are controlled (this convertor on the
-        // coordinator, LuceneScanInstructionHandler on the data node), so a tiny custom
-        // format is fine — beats threading column names through the InstructionNode.
-        // columnNames may be empty when the convertor runs against a non-count Lucene
-        // alternative kept around for delegation (e.g. DF drives, Lucene is the peer); the
-        // bytes are produced but the data node never invokes them — selector or runtime
-        // alternative-selection drops this plan before dispatch.
-        List<String> columnNames = extractAggCallNames(fragment);
-        QueryBuilder filterQuery = null;
-        Filter filter = findFilter(fragment);
-        if (filter != null) {
-            // strip() in FragmentConversionDriver replaces OpenSearchFilter with a plain
-            // LogicalFilter, so the field-storage info lives on the OpenSearch ancestor
-            // below (the TableScan). Walk down past LogicalFilter to find the nearest
-            // OpenSearchRelNode and use its output field storage. The condition itself was
-            // already resolved (annotation placeholders unwrapped) by the resolver in strip().
-            List<FieldStorageInfo> fieldStorage = findFieldStorage(filter);
-            filterQuery = toQueryBuilder(filter.getCondition(), fieldStorage);
+        LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(fragment);
+        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape arrowSource) {
+            return convertArrowSourceShape(arrowSource, false);
         }
-        byte[] bytes;
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeStringCollection(columnNames);
-            if (filterQuery == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeNamedWriteable(filterQuery);
-            }
-            bytes = BytesReference.toBytes(out.bytes());
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialize Lucene-driver fragment", e);
-        }
-        LOGGER.debug("[lucene-count] convertFragment columnNames={} filterQuery={} bytes={}", columnNames, filterQuery, bytes.length);
+
+        QueryBuilder filterQuery = toQueryBuilder(shape.filter());
+        byte[] bytes = LuceneFragmentWirePlan.create(shape.outputNames(), filterQuery, null).toBytes();
+        LOGGER.debug(
+            "[lucene-count] convertFragment outputNames={} filterQuery={} bytes={}",
+            shape.outputNames(),
+            filterQuery,
+            bytes.length
+        );
         return bytes;
     }
 
-    /**
-     * Walks down to find an Aggregate (Calcite {@link Aggregate} or {@code OpenSearchAggregate})
-     * and extracts the user-facing call names. These become the Arrow output column names so
-     * the coordinator's reduce sink sees the schema it expects.
-     */
-    private static List<String> extractAggCallNames(RelNode root) {
-        RelNode current = root;
-        while (current != null) {
-            if (current instanceof Aggregate agg) {
-                List<String> names = new ArrayList<>(agg.getAggCallList().size());
-                for (AggregateCall call : agg.getAggCallList()) {
-                    names.add(call.getName());
-                }
-                return names;
-            }
-            if (current.getInputs().isEmpty()) break;
-            current = current.getInputs().getFirst();
-        }
-        return List.of();
+    private byte[] convertArrowSourceShape(LuceneFragmentPlanner.ArrowSourceShape shape, boolean partialAggregate) {
+        byte[] planBytes = arrowSourceBackend().compileArrowBatchSourcePlan(shape.rebasedFragment(), partialAggregate);
+        QueryBuilder filterQuery = toQueryBuilder(shape.filter());
+        ArrowBatchSourcePlan sourcePlan = new ArrowBatchSourcePlan(shape.inputId(), planBytes, shape.inputColumns());
+        byte[] bytes = LuceneFragmentWirePlan.create(shape.outputNames(), filterQuery, sourcePlan).toBytes();
+        LOGGER.debug(
+            "[lucene-arrow-source] inputColumns={} outputNames={} plan={}B filter={} bytes={}",
+            shape.inputColumns(),
+            shape.outputNames(),
+            planBytes.length,
+            filterQuery,
+            bytes.length
+        );
+        return bytes;
+    }
+
+    private QueryBuilder toQueryBuilder(Filter filter) {
+        return filter == null ? null : toQueryBuilder(filter.getCondition(), findFieldStorage(filter));
     }
 
     @Override
     public byte[] attachPartialAggOnTop(RelNode partialAggFragment, byte[] innerBytes) {
-        // Lucene-as-driver count fragments DO go through the partial-agg split — the driver's
-        // FragmentConversionDriver invokes convertFragment on the input subtree (the
-        // TableScan / Filter, no Aggregate above), then attachPartialAggOnTop on the
-        // OpenSearchAggregate node. Without this rewrite, innerBytes carries an empty
-        // columnNames list (extractAggCallNames found no Aggregate in the input) and the
-        // data-node Lucene exec engine emits a 0-column Arrow batch — the coordinator
-        // reduce sink then stalls waiting for the count column.
-        //
-        // Strategy: re-decode innerBytes' columnNames length-prefix (always present, possibly
-        // empty), then preserve the remaining tail (hasFilter + optional QueryBuilder)
-        // verbatim. Re-emit with the partialAggFragment's aggregate-call names as the new
-        // columnNames. Avoids needing a NamedWriteableRegistry at coordinator-side conversion.
-        if (!(partialAggFragment instanceof Aggregate agg)) {
+        if (partialAggFragment instanceof Aggregate == false) {
             throw new IllegalStateException(
                 "Lucene attachPartialAggOnTop expected an Aggregate fragment, got " + partialAggFragment.getClass().getSimpleName()
             );
         }
-        List<String> columnNames = new ArrayList<>(agg.getAggCallList().size());
-        for (AggregateCall call : agg.getAggCallList()) {
-            columnNames.add(call.getName());
+        LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(partialAggFragment);
+        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape arrowSource) {
+            return convertArrowSourceShape(arrowSource, true);
         }
 
-        // Read past the inner columnNames StringCollection to get the byte offset of the
-        // hasFilter + optional QueryBuilder tail. We then copy the tail verbatim into the new
-        // bytes prefixed by the aggregate's column names.
-        int tailOffset;
-        try (StreamInput in = StreamInput.wrap(innerBytes)) {
-            in.readStringList(); // discard inner columnNames; we'll write the agg names instead
-            tailOffset = innerBytes.length - in.available();
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to decode Lucene innerBytes during partial-agg attach", e);
-        }
+        byte[] bytes = LuceneFragmentWirePlan.fromBytes(innerBytes).withOutputNames(shape.outputNames()).toBytes();
+        LOGGER.debug("[lucene-count] attachPartialAggOnTop outputNames={} bytes={}", shape.outputNames(), bytes.length);
+        return bytes;
+    }
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeStringCollection(columnNames);
-            out.writeBytes(innerBytes, tailOffset, innerBytes.length - tailOffset);
-            byte[] bytes = BytesReference.toBytes(out.bytes());
-            LOGGER.debug("[lucene-count] attachPartialAggOnTop columnNames={} bytes={}", columnNames, bytes.length);
-            return bytes;
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialize Lucene-driver partial-agg bytes", e);
+    @Override
+    public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
+        LuceneFragmentWirePlan inner = LuceneFragmentWirePlan.fromBytes(innerBytes);
+        ArrowBatchSourcePlan innerPlan = inner.arrowSourcePlan();
+        if (innerPlan == null) {
+            throw new UnsupportedOperationException("Cannot attach a fragment to the Lucene count wire format");
         }
+        byte[] planBytes = arrowSourceBackend().attachArrowBatchSourcePlan(fragment, innerPlan.planBytes());
+        ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan(innerPlan.inputId(), planBytes, innerPlan.inputColumns());
+        return inner.withArrowSourcePlan(plan, LuceneFragmentPlanner.resultNames(fragment)).toBytes();
+    }
+
+    private AnalyticsSearchBackendPlugin arrowSourceBackend() {
+        if (arrowSourceBackend == null) {
+            throw new IllegalStateException("No Arrow batch source execution backend is available");
+        }
+        return arrowSourceBackend;
     }
 
     @Override
     public WireFormat wireFormat() {
-        // convertFragment emits a custom NamedWriteable wire format ([columnNames][hasFilter]
-        // [BoolQueryBuilder]?), not self-describing. The orchestrator queries this so it
+        // convertFragment emits a typed OpenSearch wire payload, not Substrait. The orchestrator queries this so it
         // knows to emit a separate schema-only stub via convertSchemaOnlyRead for the
         // coordinator's reduce-sink partition registration.
         return WireFormat.OPAQUE;
@@ -290,26 +234,13 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
             case DOUBLE -> Type.newBuilder().setFp64(Type.FP64.newBuilder().setNullability(n)).build();
             case FLOAT, REAL -> Type.newBuilder().setFp32(Type.FP32.newBuilder().setNullability(n)).build();
             case VARCHAR, CHAR -> Type.newBuilder().setString(Type.String.newBuilder().setNullability(n)).build();
+            case DATE, TIMESTAMP, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> Type.newBuilder()
+                .setPrecisionTimestamp(Type.PrecisionTimestamp.newBuilder().setPrecision(3).setNullability(n))
+                .build();
             default -> throw new IllegalStateException(
                 "Lucene convertSchemaOnlyRead: unmapped Calcite type " + type.getSqlTypeName() + " for field of type " + type
             );
         };
-    }
-
-    /**
-     * Walks the linear input chain looking for any Calcite {@link Filter} (covers both
-     * {@link OpenSearchFilter} and the plain {@code LogicalFilter} that
-     * {@code FragmentConversionDriver.strip} produces once annotation resolution unwraps the
-     * filter's condition into native predicate calls).
-     */
-    private static Filter findFilter(RelNode node) {
-        RelNode current = node;
-        while (current != null) {
-            if (current instanceof Filter filter) return filter;
-            if (current.getInputs().isEmpty()) return null;
-            current = current.getInputs().getFirst();
-        }
-        return null;
     }
 
     /**

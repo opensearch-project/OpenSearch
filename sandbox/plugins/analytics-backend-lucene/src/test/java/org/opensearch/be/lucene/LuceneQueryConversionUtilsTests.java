@@ -50,6 +50,11 @@ public class LuceneQueryConversionUtilsTests extends OpenSearchTestCase {
         assertExistsRewrite(LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(exists("severityText")), "severityText");
     }
 
+    public void testFieldExistsIsPreservedWhenReaderHasDocValues() {
+        FieldExistsQuery query = exists("metric");
+        assertSame(query, LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(query, "metric"::equals));
+    }
+
     public void testFieldExistsUnderConstantScore() {
         Query in = new ConstantScoreQuery(exists("f"));
         Query out = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(in);

@@ -21,6 +21,7 @@ import org.apache.lucene.search.TermRangeQuery;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Helpers for adapting Lucene {@link Query} trees so they can execute against the
@@ -62,21 +63,29 @@ public final class LuceneQueryConversionUtils {
      *         when nothing changed
      */
     public static Query rewriteFieldExistsForSecondary(Query query) {
+        return rewriteFieldExistsForSecondary(query, field -> false);
+    }
+
+    /** Preserves native existence queries for fields whose reader has doc values. */
+    static Query rewriteFieldExistsForSecondary(Query query, Predicate<String> hasDocValues) {
         // IndexOrDocValuesQuery wraps an index query + a doc-values query; the secondary has no
         // doc-values, so unwrap to just the index query (TermRangeQuery against the term dictionary).
         if (query instanceof IndexOrDocValuesQuery idv) {
-            return rewriteFieldExistsForSecondary(idv.getIndexQuery());
+            return rewriteFieldExistsForSecondary(idv.getIndexQuery(), hasDocValues);
         }
         if (query instanceof FieldExistsQuery fieldExists) {
+            if (hasDocValues.test(fieldExists.getField())) {
+                return fieldExists;
+            }
             // null lower/upper bound = unbounded both ends = "any term present for this field".
             return new TermRangeQuery(fieldExists.getField(), null, null, true, true);
         }
         if (query instanceof ConstantScoreQuery constantScore) {
-            Query inner = rewriteFieldExistsForSecondary(constantScore.getQuery());
+            Query inner = rewriteFieldExistsForSecondary(constantScore.getQuery(), hasDocValues);
             return inner == constantScore.getQuery() ? constantScore : new ConstantScoreQuery(inner);
         }
         if (query instanceof BoostQuery boost) {
-            Query inner = rewriteFieldExistsForSecondary(boost.getQuery());
+            Query inner = rewriteFieldExistsForSecondary(boost.getQuery(), hasDocValues);
             return inner == boost.getQuery() ? boost : new BoostQuery(inner, boost.getBoost());
         }
         if (query instanceof BooleanQuery bool) {
@@ -84,7 +93,7 @@ public final class LuceneQueryConversionUtils {
             builder.setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
             boolean changed = false;
             for (BooleanClause clause : bool.clauses()) {
-                Query rewritten = rewriteFieldExistsForSecondary(clause.query());
+                Query rewritten = rewriteFieldExistsForSecondary(clause.query(), hasDocValues);
                 changed |= rewritten != clause.query();
                 builder.add(rewritten, clause.occur());
             }
@@ -94,7 +103,7 @@ public final class LuceneQueryConversionUtils {
             List<Query> rewritten = new ArrayList<>(disjunctionMax.getDisjuncts().size());
             boolean changed = false;
             for (Query disjunct : disjunctionMax.getDisjuncts()) {
-                Query r = rewriteFieldExistsForSecondary(disjunct);
+                Query r = rewriteFieldExistsForSecondary(disjunct, hasDocValues);
                 changed |= r != disjunct;
                 rewritten.add(r);
             }

@@ -18,6 +18,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -97,6 +98,11 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    protected Set<ScanCapability> scanCapabilities() {
+        return Set.of(new ScanCapability.Index(LUCENE_FORMATS, STANDARD_TYPES));
     }
 
     @Override

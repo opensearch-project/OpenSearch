@@ -244,10 +244,9 @@ public class PlannerContext {
 
     /**
      * Mirrors the {@code analytics.planner.prefer_metadata_driver} cluster setting at planning
-     * time. When {@code false}, {@code OpenSearchTableScanRule} skips the permissive
-     * metadata-only-driver gate, so the metadata backend (Lucene today) is never admitted as a
-     * scan alternative — value-producing peers handle every shape, no late-stage alternative
-     * pruning needed.
+     * time. When {@code false}, {@code OpenSearchTableScanRule} does not admit Lucene through
+     * its permissive index or doc-values gate. Value-producing peers handle every shape, with
+     * no late-stage Lucene alternative selection.
      */
     public boolean preferMetadataDriver() {
         return preferMetadataDriver;
