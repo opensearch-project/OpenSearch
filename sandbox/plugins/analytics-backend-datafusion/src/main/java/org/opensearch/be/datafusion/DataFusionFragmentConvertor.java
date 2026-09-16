@@ -49,6 +49,7 @@ import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
+import org.opensearch.analytics.planner.rel.OpenSearchMultiValueExpand;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
@@ -596,7 +597,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private static RelNode preprocessForSubstrait(RelNode rel) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
-        preprocessed = MultiValueRelRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
@@ -855,11 +855,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return ExtensionSingle.from(new MultiValueExpandDetail(spec), apply(correlate.getLeft())).build();
             }
 
+            /**
+             * Implicit LIST GROUP BY expansion arrives as the engine-side
+             * {@link OpenSearchMultiValueExpand} (emitted by the planner BEFORE aggregate
+             * decomposition — see that class). It lowers to the SAME extension as an explicit
+             * {@code mvexpand} Correlate: append=true (source LIST kept), distinct=true
+             * (one bucket contribution per element per document), no limit.
+             */
             @Override
             public Rel visitOther(RelNode other) {
-                if (other instanceof MultiValueExpandRel expand) {
+                if (other instanceof OpenSearchMultiValueExpand expand) {
                     MultiValueExpandSpec spec = new MultiValueExpandSpec(
-                        expand.fieldIndex(),
+                        expand.getFieldIndex(),
                         null,
                         true,
                         true,
@@ -885,14 +892,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             limit = literal.getValueAs(Integer.class);
             right = sort.getInput();
         }
-        if (!(right instanceof Uncollect)) {
+        if (!(right instanceof Uncollect uncollect)
+            || !(uncollect.getInput() instanceof org.apache.calcite.rel.logical.LogicalProject project)
+            || project.getProjects().size() != 1) {
             return null;
         }
+        // Both `mvexpand` (append, keeps duplicates) and the planner's implicit LIST GROUP BY
+        // expansion (append, de-duplicates within each document) lower to this same
+        // Correlate+Uncollect shape — see OpenSearchMultiValueGroupByRewriter's class doc. The
+        // only shape difference is whether the projected expression is wrapped in ARRAY_DISTINCT;
+        // recognize that here instead of relying on a distinguishing RelNode subtype.
+        boolean distinct = project.getProjects().get(0) instanceof org.apache.calcite.rex.RexCall call
+            && call.getOperator() == org.apache.calcite.sql.fun.SqlLibraryOperators.ARRAY_DISTINCT;
         return new MultiValueExpandSpec(
             correlate.getRequiredColumns().nextSetBit(0),
             limit,
             true,
-            false,
+            distinct,
             typeConverter.toNamedStruct(correlate.getRowType()).struct()
         );
     }

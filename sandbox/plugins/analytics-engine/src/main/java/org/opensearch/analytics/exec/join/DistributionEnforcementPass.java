@@ -202,7 +202,9 @@ public final class DistributionEnforcementPass {
         // intermediate-Project-rides-the-lower-worker case (demand flows to the lower join's output, which
         // stays WORKER+HASH) with one rule. A window/pinned Project does NOT reach here — it imposes a
         // SINGLETON requirement (requiredInputDistribution != null), so it is handled by the generic step 4.
-        boolean rowTransparent = (n instanceof OpenSearchProject || n instanceof OpenSearchFilter) && n.getInputs().size() == 1;
+        boolean rowTransparent = (n instanceof OpenSearchProject
+            || n instanceof OpenSearchFilter
+            || n instanceof org.opensearch.analytics.planner.rel.OpenSearchMultiValueExpand) && n.getInputs().size() == 1;
         if (rowTransparent && n instanceof DistributionAware ta && ta.requiredInputDistribution(0, partitionCount, traitDef) == null) {
             Visited child = visit(n.getInput(0), demand);
             RelNode rebuilt = copyWithInputs(n, List.of(child.rel));

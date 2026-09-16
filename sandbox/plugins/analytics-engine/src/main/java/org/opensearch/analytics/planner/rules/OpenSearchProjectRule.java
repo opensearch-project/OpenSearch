@@ -237,6 +237,15 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private boolean hasFieldRef(RexNode node) {
         if (node instanceof RexInputRef) return true;
+        // A correlated field access ($cor0.col) is a reference to the outer row's column — a
+        // field ref in every sense that matters here (it is NOT a literal, and its value varies
+        // per row). Correlate right-hand Projects (e.g. the multi-value expansion's
+        // ARRAY_DISTINCT($cor0.tags), or a frontend mvexpand's plain $cor0.tags) are built from
+        // these; without this arm they were routed to literalScalarBackends and rejected.
+        if (node instanceof org.apache.calcite.rex.RexFieldAccess fieldAccess) {
+            return fieldAccess.getReferenceExpr() instanceof org.apache.calcite.rex.RexCorrelVariable
+                || hasFieldRef(fieldAccess.getReferenceExpr());
+        }
         if (node instanceof RexCall rexCall) {
             for (RexNode operand : rexCall.getOperands()) {
                 if (hasFieldRef(operand)) return true;

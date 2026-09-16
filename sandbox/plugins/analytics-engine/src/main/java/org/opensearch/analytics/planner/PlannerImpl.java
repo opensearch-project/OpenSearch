@@ -52,6 +52,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchMultiValueExpandRule;
+import org.opensearch.analytics.planner.rules.OpenSearchMultiValueGroupByRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
@@ -134,6 +136,11 @@ public class PlannerImpl {
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
+        // Runs before decomposeAggregates (not after, and not backend-side) so Calcite's own
+        // PARTIAL/FINAL aggregate split observes the expanded scalar GROUP BY key type on both
+        // fragments — see OpenSearchMultiValueGroupByRewriter's class doc for the type-mismatch
+        // this ordering avoids.
+        modifiedRelNode = OpenSearchMultiValueGroupByRewriter.rewrite(modifiedRelNode);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
@@ -525,6 +532,7 @@ public class PlannerImpl {
                     new OpenSearchFilterRule(context),
                     new OpenSearchProjectRule(context),
                     new OpenSearchAggregateRule(context),
+                    new OpenSearchMultiValueExpandRule(context),
                     new OpenSearchJoinRule(context),
                     new OpenSearchSortRule(context),
                     new OpenSearchUnionRule(context),

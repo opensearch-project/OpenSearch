@@ -721,70 +721,27 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertListAggregateUses("input-7", "list_merge");
     }
 
-    public void testListAggregateGroupedBySameMultiValueFieldPreservesListInput() {
-        RelNode scan = buildListTableScan("test_index");
-        LogicalAggregate aggregate = LogicalAggregate.create(
-            scan,
-            List.of(),
-            ImmutableBitSet.of(0),
-            null,
-            List.of(buildListAggregateCall(scan, 1))
-        );
-
-        RelNode rewritten = MultiValueRelRewriter.rewrite(PplAggregateCallRewriter.rewrite(aggregate));
-        assertTrue(rewritten instanceof LogicalProject);
-        LogicalProject output = (LogicalProject) rewritten;
-        assertEquals(List.of("tags", "values"), output.getRowType().getFieldNames());
-        assertTrue(output.getInput() instanceof org.apache.calcite.rel.core.Aggregate);
-
-        org.apache.calcite.rel.core.Aggregate grouped = (org.apache.calcite.rel.core.Aggregate) output.getInput();
-        assertEquals("GROUP BY must use the appended scalar field", ImmutableBitSet.of(1), grouped.getGroupSet());
-        assertEquals("aggregate argument must remain on the source LIST", List.of(0), grouped.getAggCallList().get(0).getArgList());
-        assertEquals(DataFusionFragmentConvertor.LOCAL_MV_COLLECT_OP, grouped.getAggCallList().get(0).getAggregation());
-        assertTrue(grouped.getInput() instanceof MultiValueExpandRel);
-        assertNotNull(grouped.getInput().getRowType().getFieldList().get(0).getType().getComponentType());
-        assertNull(grouped.getInput().getRowType().getFieldList().get(1).getType().getComponentType());
-    }
-
-    public void testListGroupByRemapsGroupingSetsAndRestoresOutputOrder() {
-        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
-        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
-        RelDataType inputType = typeFactory.builder()
-            .add("tags", list)
-            .add("category", typeFactory.createSqlType(SqlTypeName.VARCHAR))
-            .build();
-        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", inputType);
-        AggregateCall count = AggregateCall.create(
-            SqlStdOperatorTable.COUNT,
-            false,
-            List.of(),
-            -1,
-            typeFactory.createSqlType(SqlTypeName.BIGINT),
-            "count"
-        );
-        LogicalAggregate aggregate = LogicalAggregate.create(
-            scan,
-            List.of(),
-            ImmutableBitSet.of(0, 1),
-            ImmutableBitSet.ORDERING.immutableSortedCopy(List.of(ImmutableBitSet.of(0), ImmutableBitSet.of(1), ImmutableBitSet.of(0, 1))),
-            List.of(count)
-        );
-
-        LogicalProject output = (LogicalProject) MultiValueRelRewriter.rewrite(aggregate);
-        org.apache.calcite.rel.core.Aggregate grouped = (org.apache.calcite.rel.core.Aggregate) output.getInput();
-        assertEquals(ImmutableBitSet.of(1, 2), grouped.getGroupSet());
-        assertEquals(
-            ImmutableBitSet.ORDERING.immutableSortedCopy(List.of(ImmutableBitSet.of(2), ImmutableBitSet.of(1), ImmutableBitSet.of(1, 2))),
-            grouped.getGroupSets()
-        );
-        assertEquals(List.of("tags", "category", "count"), output.getRowType().getFieldNames());
-        assertEquals(1, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(0)).getIndex());
-        assertEquals(0, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(1)).getIndex());
-        assertEquals(2, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(2)).getIndex());
-    }
-
+    /**
+     * {@code MultiValueRelRewriter}/{@code MultiValueExpandRel} moved to
+     * {@code analytics-engine}: {@code OpenSearchMultiValueGroupByRewriter} runs in
+     * {@code PlannerImpl.runAllOptimizations} before {@code decomposeAggregates} (instead of here at
+     * Substrait-conversion time — see that class's Javadoc for why) and emits an
+     * {@code OpenSearchMultiValueExpand}. This test constructs that same rel directly (as the
+     * planner would hand to fragment conversion) rather than invoking a rewriter, and checks it
+     * lowers to the same {@code MULTI_VALUE_EXPAND} extension an explicit {@code mvexpand}
+     * Correlate does — differing only in the {@code distinct=1} vs {@code distinct=0} payload flag
+     * (see {@link #testExplicitMvExpandCorrelateEmitsAppendExtensionWithLimit}).
+     */
     public void testListGroupByAddsDistinctAppendExpansion() throws Exception {
         RelNode scan = buildListTableScan("test_index");
+        RelNode expanded = new org.opensearch.analytics.planner.rel.OpenSearchMultiValueExpand(
+            cluster,
+            cluster.traitSet(),
+            scan,
+            0,
+            List.of("datafusion")
+        );
+
         AggregateCall count = AggregateCall.create(
             SqlStdOperatorTable.COUNT,
             false,
@@ -793,22 +750,48 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "count"
         );
-        LogicalAggregate aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        LogicalAggregate aggregate = LogicalAggregate.create(expanded, List.of(), ImmutableBitSet.of(1), null, List.of(count));
 
         Plan plan = decodeSubstrait(newConvertor().convertFragment(aggregate));
         Rel root = rootRel(plan);
-        assertTrue("output projection restores the original group field name", root.hasProject());
-        Rel aggregateRel = root.getProject().getInput();
-        assertTrue(aggregateRel.hasAggregate());
-        Rel expanded = aggregateRel.getAggregate().getInput();
-        assertTrue("LIST GROUP BY must use an ExtensionSingleRel", expanded.hasExtensionSingle());
-        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
-        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertTrue(root.hasAggregate());
+        Rel expandedRel = root.getAggregate().getInput();
+        assertTrue("LIST GROUP BY must use an ExtensionSingleRel", expandedRel.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expandedRel.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expandedRel.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
         assertEquals(0, payload.getInt());
         assertEquals(-1, payload.getInt());
         assertEquals("implicit GROUP BY expansion appends a scalar field", 1, payload.getInt());
         assertEquals("implicit GROUP BY expansion de-duplicates within each document", 1, payload.getInt());
-        assertEquals(List.of("tags", "count"), plan.getRelations(0).getRoot().getNamesList());
+    }
+
+    /**
+     * Negative: a Correlate whose right side is NOT the {@code Uncollect(Project(...))} mvexpand
+     * shape (here a plain correlated Project with no Uncollect) must fall through to the generic
+     * Correlate path and never be classified as a multi-value expand. Guards the recognizer in
+     * {@code explicitMultiValueExpand} against over-matching now that it also inspects the
+     * right-hand Project for {@code ARRAY_DISTINCT}.
+     */
+    public void testNonExpandCorrelateIsNotRecognizedAsMultiValueExpand() {
+        RelNode left = buildListTableScan("test_index");
+        CorrelationId correlationId = cluster.createCorrel();
+        RexNode correlatedTags = rexBuilder.makeFieldAccess(rexBuilder.makeCorrel(left.getRowType(), correlationId), 0);
+        RelNode values = LogicalValues.createOneRow(cluster);
+        // No Uncollect: just a correlated projection of the outer LIST column.
+        RelNode project = LogicalProject.create(values, List.of(), List.of(correlatedTags), List.of("tags"), java.util.Set.of(correlationId));
+        RelNode correlate = LogicalCorrelate.create(left, project, correlationId, ImmutableBitSet.of(0), JoinRelType.INNER);
+
+        boolean producedExpand;
+        try {
+            Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(correlate)));
+            producedExpand = root.hasExtensionSingle()
+                && "opensearch://analytics/multi_value_expand/v1".equals(root.getExtensionSingle().getDetail().getTypeUrl());
+        } catch (Exception | AssertionError e) {
+            // Generic Correlate is not something isthmus lowers today — a rejection is the expected
+            // (and correct) outcome. What must NOT happen is a silent lowering to the expand extension.
+            producedExpand = false;
+        }
+        assertFalse("a non-Uncollect Correlate must not be lowered as a multi-value expand", producedExpand);
     }
 
     /**

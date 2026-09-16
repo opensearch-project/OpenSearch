@@ -98,7 +98,11 @@ public class OpenSearchDistributionDeriveRule extends RelOptRule {
         RelNode rel = call.rel(0);
         // Only fire on single-input operators we know how to recreate at SINGLETON.
         // Excludes OpenSearchTableScan (source), OpenSearchExchangeReducer (already SINGLETON),
-        // OpenSearchJoin (has its own split rule), OpenSearchUnion (N-ary; handled via arms).
+        // OpenSearchJoin (has its own split rule), OpenSearchUnion (N-ary; handled via arms), and
+        // OpenSearchMultiValueExpand: it sits BELOW its Aggregate (expansion feeds the GROUP BY),
+        // so like a PARTIAL Aggregate it is shard-side by contract. Offering a SINGLETON variant
+        // let Volcano gather the raw rows FIRST and run a SINGLE aggregate on the coordinator,
+        // shipping every expanded row instead of pre-aggregated partials.
         if (!(rel instanceof OpenSearchFilter
             || rel instanceof OpenSearchProject
             || rel instanceof OpenSearchSort

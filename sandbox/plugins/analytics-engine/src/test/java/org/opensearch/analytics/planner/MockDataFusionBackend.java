@@ -81,7 +81,11 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     // Project-split plan-shape tests. Registered via the stateExpanding factory (not simple()).
     private static final Set<AggregateFunction> STATE_EXPANDING_AGG_FUNCTIONS = Set.of(
         AggregateFunction.PERCENTILE_APPROX,
-        AggregateFunction.TAKE
+        AggregateFunction.TAKE,
+        // LIST(list_col) — exercised by the multi-value `stats list(tags) by tags` plan-shape test,
+        // which checks the aggregate argument keeps referencing the SOURCE LIST column while the
+        // GROUP BY uses the expanded scalar element.
+        AggregateFunction.LIST
     );
 
     private static final Set<FilterCapability> FILTER_CAPS;
@@ -209,11 +213,24 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         ScalarFunction.ABS
     );
 
+    /**
+     * Array-returning scalar ops — mirrors {@code DataFusionAnalyticsBackendPlugin}'s
+     * {@code ARRAY_RETURNING_PROJECT_OPS}. The planner keys scalar capability lookups on the
+     * call's RETURN type ({@code FieldType.fromSqlTypeName}), so these must be registered against
+     * {@link FieldType#ARRAY}, not the scalar {@code SUPPORTED_TYPES} set. {@code ARRAY_DISTINCT} is
+     * emitted by {@code OpenSearchMultiValueGroupByRewriter} on the Correlate's right-hand Project
+     * for implicit LIST GROUP BY expansion.
+     */
+    private static final Set<ScalarFunction> ARRAY_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.ARRAY_DISTINCT);
+
     private static final Set<ProjectCapability> PROJECT_CAPS;
     static {
         Set<ProjectCapability> caps = new HashSet<>();
         for (ScalarFunction op : PROJECT_OPS) {
             caps.add(new ProjectCapability.Scalar(op, SUPPORTED_TYPES, DATAFUSION_FORMATS, false));
+        }
+        for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
+            caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), DATAFUSION_FORMATS, false));
         }
         PROJECT_CAPS = caps;
     }

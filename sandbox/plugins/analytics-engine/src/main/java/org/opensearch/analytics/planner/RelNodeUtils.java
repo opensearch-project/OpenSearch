@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchMultiValueExpand;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
@@ -113,6 +114,14 @@ public class RelNodeUtils {
                 project.getProjects(),
                 project.getRowType(),
                 project.getViableBackends()
+            );
+        } else if (node instanceof OpenSearchMultiValueExpand expand) {
+            return new OpenSearchMultiValueExpand(
+                newCluster,
+                newTraits,
+                newInputs.getFirst(),
+                expand.getFieldIndex(),
+                expand.getViableBackends()
             );
         } else if (node instanceof OpenSearchJoin join) {
             return new OpenSearchJoin(
