@@ -1394,7 +1394,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
                 ._query_tracking_context
                 .apply_pending_phantom_correction();
 
-            let batch = align_batch_to_stream_schema(batch, expected_schema)?;
+            ensure_batch_matches_stream_schema(&batch, &expected_schema)?;
             let batch = if handle.has_views {
                 compact_string_view_columns(batch)
             } else {
@@ -1409,46 +1409,47 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
     }
 }
 
-/// Casts runtime batch columns to the schema advertised by the stream.
+/// Tripwire at the FFI export boundary — checks, never casts.
 ///
-/// Arrow C exports arrays and schemas through separate calls. DataFusion operators can
-/// preserve an equivalent LIST element type while changing child field metadata, or select
-/// Utf8 versus Utf8View at runtime. Rebuild mismatched columns against the advertised type
-/// before export so Java never imports one buffer layout under a different schema.
-fn align_batch_to_stream_schema(
-    batch: RecordBatch,
-    expected: arrow_schema::SchemaRef,
-) -> Result<RecordBatch, DataFusionError> {
-    if batch.schema().as_ref() == expected.as_ref()
-        && batch
-            .columns()
-            .iter()
-            .zip(expected.fields().iter())
-            .all(|(column, field)| column.data_type() == field.data_type())
-    {
-        return Ok(batch);
+/// Java imports every batch against the schema returned once by `stream_get_schema`,
+/// and an Arrow C Data array carries no type information of its own. A batch whose
+/// buffer layout differs from that schema is therefore read as garbage (the
+/// `List<Utf8>` vs `List<Utf8View>` JVM SIGSEGV). DataFusion guarantees that a
+/// stream's batches match its `schema()`; this turns any violation into a query
+/// error instead of native memory corruption.
+///
+/// Field names and metadata are ignored: they are not part of the buffer layout, and
+/// DataFusion is lax about them. A mismatch here is a planning-time bug (see
+/// `derive_schema_from_partial_plan`) and must be fixed there, not papered over per
+/// batch.
+fn ensure_batch_matches_stream_schema(
+    batch: &RecordBatch,
+    expected: &SchemaRef,
+) -> Result<(), DataFusionError> {
+    let actual = batch.schema();
+    if Arc::ptr_eq(&actual, expected) {
+        return Ok(());
     }
-    if batch.num_columns() != expected.fields().len() {
+    if actual.fields().len() != expected.fields().len() {
         return Err(DataFusionError::Execution(format!(
-            "stream batch width {} does not match declared schema width {}",
-            batch.num_columns(),
+            "stream_next: batch column count {} does not match declared schema width {}",
+            actual.fields().len(),
             expected.fields().len()
         )));
     }
-    let columns = batch
-        .columns()
-        .iter()
-        .zip(expected.fields().iter())
-        .map(|(column, field)| {
-            if column.data_type() == field.data_type() {
-                Ok(Arc::clone(column))
-            } else {
-                arrow::compute::cast(column.as_ref(), field.data_type())
-                    .map_err(DataFusionError::from)
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    RecordBatch::try_new(expected, columns).map_err(DataFusionError::from)
+    for (i, (a, e)) in actual.fields().iter().zip(expected.fields()).enumerate() {
+        if !a.data_type().equals_datatype(e.data_type()) {
+            return Err(DataFusionError::Execution(format!(
+                "stream_next: column {} ('{}') has type {:?} but the stream schema declares {:?}; \
+                 exporting it would misread buffers across FFI",
+                i,
+                e.name(),
+                a.data_type(),
+                e.data_type()
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Prevents sliced StringView batches from carrying full backing buffers across FFI.
@@ -1719,7 +1720,15 @@ fn derive_schema_from_partial_plan(
             .parquet
             .schema_force_view_types;
         let arrow_schema = if view_types {
-            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+            // Use the recursive variant so nested types (e.g. List<Utf8> child fields)
+            // are also rewritten to view types. DataFusion's non-recursive
+            // `transform_schema_to_view` only touches top-level fields, which left
+            // `List<Utf8>` here while the data node (which uses
+            // `transform_schema_to_view_recursive`) produced `List<Utf8View>`. The
+            // reduce stage's Arrow C Data import then read the view child's buffers as
+            // Utf8 offsets: "Offset buffer for type Utf8 is malformed", surfacing as
+            // "RefCnt has gone negative".
+            crate::schema_coerce::transform_schema_to_view_recursive(&arrow_schema)
         } else {
             arrow_schema
         };
@@ -1886,6 +1895,23 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
         }
         Some(RelType::Set(s)) => {
             for input in &s.inputs {
+                collect_reads(input, out);
+            }
+        }
+        // Extension rels wrap a normal input. The multi-value expand
+        // (MULTI_VALUE_EXPAND_TYPE_URL) places its parquet ReadRel beneath an
+        // ExtensionSingleRel. Without these arms the ReadRel is invisible here,
+        // no synthetic MemTable is registered for it, and planning the producer
+        // plan on the coordinator fails with "No table named '<index>'" — only
+        // reachable with more than one shard since a single shard has no reduce
+        // stage to derive a producer schema for.
+        Some(RelType::ExtensionSingle(e)) => {
+            if let Some(input) = e.input.as_ref() {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::ExtensionMulti(e)) => {
+            for input in &e.inputs {
                 collect_reads(input, out);
             }
         }
@@ -2211,11 +2237,14 @@ pub unsafe fn sender_send(
 
 /// Conforms a producer batch to the consumer-side `StreamingTable` schema.
 ///
-/// Exact data types are rebuilt with the declared fields so advisory field metadata agrees.
-/// Nested LIST/STRUCT/MAP types that differ only in child field metadata are relabeled without
-/// copying buffers. Utf8/Utf8View mismatches still require a real value-preserving cast because
-/// their buffer layouts differ. Other divergences, such as timestamp precision, retain their
-/// actual field and column so this boundary does not silently truncate values.
+/// Three tiers, checked per column against the declared field:
+/// 1. Exact type match: reuse the column, adopt the declared field (metadata agrees).
+/// 2. Layout-identical nested types ([`DataType::equals_datatype`]: same buffers and
+///    nullability, child names/metadata may differ): zero-copy relabel. This is the
+///    `List<element>` (parquet) vs `List<item>` (Substrait) case.
+/// 3. Utf8/Utf8View: a real value-preserving cast, because their buffer layouts differ.
+/// Anything else (e.g. timestamp precision) keeps its actual field and column so this
+/// boundary never silently truncates values.
 fn conform_batch_to_schema(
     batch: RecordBatch,
     declared: &SchemaRef,
@@ -2239,20 +2268,22 @@ fn conform_batch_to_schema(
         if col.data_type() == want.data_type() {
             columns.push(Arc::clone(col));
             fields.push(Arc::clone(want));
-        } else if same_storage_layout_ignoring_field_metadata(col.data_type(), want.data_type()) {
-            let data = col
-                .to_data()
-                .into_builder()
-                .data_type(want.data_type().clone())
-                .build()
-                .map_err(|e| {
-                    DataFusionError::Execution(format!(
-                        "sender_send: failed to relabel column {} ('{}') to declared nested schema: {}",
-                        i,
-                        want.name(),
-                        e
-                    ))
-                })?;
+        } else if col.data_type().equals_datatype(want.data_type()) {
+            // Same buffer layout and nullability, differing only in child field
+            // names/metadata (parquet emits `List<element>`, Substrait declares
+            // `List<item>`). Relabel the ArrayData in place.
+            //
+            // SAFETY: `data` was taken from a valid array and only its data_type
+            // is replaced with one `equals_datatype` has proven layout-identical,
+            // so every buffer/offset/null invariant validate_data() would check
+            // still holds. Skipping validation keeps this O(1) instead of a full
+            // per-value UTF-8 and offset scan on every batch.
+            let data = unsafe {
+                col.to_data()
+                    .into_builder()
+                    .data_type(want.data_type().clone())
+                    .build_unchecked()
+            };
             columns.push(arrow_array::make_array(data));
             fields.push(Arc::clone(want));
         } else if is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
@@ -2284,48 +2315,6 @@ fn conform_batch_to_schema(
             e
         ))
     })
-}
-
-fn same_storage_layout_ignoring_field_metadata(actual: &DataType, declared: &DataType) -> bool {
-    if actual == declared {
-        return true;
-    }
-    match (actual, declared) {
-        (DataType::List(actual), DataType::List(declared))
-        | (DataType::LargeList(actual), DataType::LargeList(declared)) => {
-            same_storage_layout_ignoring_field_metadata(actual.data_type(), declared.data_type())
-        }
-        (
-            DataType::FixedSizeList(actual, actual_size),
-            DataType::FixedSizeList(declared, declared_size),
-        ) => {
-            actual_size == declared_size
-                && same_storage_layout_ignoring_field_metadata(
-                    actual.data_type(),
-                    declared.data_type(),
-                )
-        }
-        (DataType::Struct(actual), DataType::Struct(declared)) => {
-            actual.len() == declared.len()
-                && actual
-                    .iter()
-                    .zip(declared.iter())
-                    .all(|(actual, declared)| {
-                        same_storage_layout_ignoring_field_metadata(
-                            actual.data_type(),
-                            declared.data_type(),
-                        )
-                    })
-        }
-        (DataType::Map(actual, actual_sorted), DataType::Map(declared, declared_sorted)) => {
-            actual_sorted == declared_sorted
-                && same_storage_layout_ignoring_field_metadata(
-                    actual.data_type(),
-                    declared.data_type(),
-                )
-        }
-        _ => false,
-    }
 }
 
 /// Utf8 / Utf8View — the string-view family whose two variants share byte-identical
@@ -2449,6 +2438,76 @@ mod tests {
             .expect("aligned child remains Utf8View");
         assert_eq!(aligned_values.value(0), "prod");
         assert_eq!(aligned_values.value(1), "error");
+    }
+
+    /// A child-nullability mismatch is NOT layout-equivalent: relabeling a nullable
+    /// child as non-nullable would hand the consumer nulls it does not expect. The
+    /// column must fall through to the pass-through tier and keep its actual field.
+    #[test]
+    fn conform_keeps_actual_field_when_list_child_nullability_differs() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let declared_child = Arc::new(Field::new("item", DataType::Utf8View, false));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["a"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let actual_field = Field::new("tags", DataType::List(actual_child), true);
+        let actual_schema = Arc::new(Schema::new(vec![actual_field.clone()]));
+        let declared = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(declared_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)]).unwrap();
+
+        let out = conform_batch_to_schema(batch, &declared).unwrap();
+        assert_eq!(out.schema().field(0), &actual_field);
+    }
+
+    #[test]
+    fn stream_schema_tripwire_ignores_child_names_but_rejects_layout_mismatch() {
+        let mk = |child_name: &str, child_ty: DataType| {
+            Arc::new(Schema::new(vec![Field::new(
+                "tags",
+                DataType::List(Arc::new(Field::new(child_name, child_ty, true))),
+                true,
+            )]))
+        };
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["x"]));
+        let list = ListArray::new(
+            Arc::new(Field::new("element", DataType::Utf8View, true)),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let batch =
+            RecordBatch::try_new(mk("element", DataType::Utf8View), vec![Arc::new(list)]).unwrap();
+
+        // Same layout, different child name: fine.
+        ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8View))
+            .expect("child field name is not part of the buffer layout");
+        // Utf8 vs Utf8View child: the SIGSEGV class, must be rejected.
+        let err = ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8))
+            .expect_err("view vs offset buffers must not be exported");
+        assert!(err.to_string().contains("misread buffers"), "{err}");
+    }
+
+    #[test]
+    fn stream_schema_tripwire_rejects_column_count_mismatch() {
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, false)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1]))],
+        )
+        .unwrap();
+        let wider = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, false),
+            Field::new("b", DataType::Int64, false),
+        ]));
+        assert!(ensure_batch_matches_stream_schema(&batch, &wider).is_err());
     }
 
     #[test]
