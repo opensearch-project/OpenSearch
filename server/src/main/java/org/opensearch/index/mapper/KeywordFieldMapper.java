@@ -80,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -440,6 +441,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
+
+        /**
+         * Even with {@code index: false}, terms remain useful to a data format that can serve
+         * them (uninverted into segment ordinals for aggregations).
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> optionalCapabilities() {
+            return Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
         }
 
         @Override
