@@ -816,6 +816,8 @@ impl NativeParquetWriter {
             nulls_first,
             writer_generation,
             &mut merge_reservation,
+            // Chunk finalization merges freshly written chunks; no deletes apply here.
+            &[],
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()
