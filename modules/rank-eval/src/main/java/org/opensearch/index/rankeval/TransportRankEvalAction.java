@@ -184,20 +184,26 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         @Override
         public void onResponse(MultiSearchResponse multiSearchResponse) {
-            int responsePosition = 0;
-            Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
-            for (Item response : multiSearchResponse.getResponses()) {
-                RatedRequest specification = specifications[responsePosition];
-                if (response.isFailure() == false) {
-                    SearchHit[] hits = response.getResponse().getHits().getHits();
-                    EvalQueryQuality queryQuality = this.metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
-                    responseDetails.put(specification.getId(), queryQuality);
-                } else {
-                    errors.put(specification.getId(), response.getFailure());
+            // Guard the whole evaluation: metric.evaluate/combine can throw (e.g. an IllegalArgumentException
+            // from a hit with a null _id) and, without this, the failure would strand the REST channel forever.
+            try {
+                int responsePosition = 0;
+                Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
+                for (Item response : multiSearchResponse.getResponses()) {
+                    RatedRequest specification = specifications[responsePosition];
+                    if (response.isFailure() == false) {
+                        SearchHit[] hits = response.getResponse().getHits().getHits();
+                        EvalQueryQuality queryQuality = this.metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
+                        responseDetails.put(specification.getId(), queryQuality);
+                    } else {
+                        errors.put(specification.getId(), response.getFailure());
+                    }
+                    responsePosition++;
                 }
-                responsePosition++;
+                listener.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
-            listener.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
         }
 
         @Override

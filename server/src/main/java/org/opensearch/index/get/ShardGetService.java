@@ -181,7 +181,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            GetResult getResult;
+            if (engineGetResult instanceof DocumentLookupResult.PreMaterialized) {
+                // Composite shards return a PreMaterialized result with no docId/searcher; its lookup already
+                // carries the materialized source and fields, so build directly from it (mirrors innerGet).
+                getResult = buildFromLookup(((DocumentLookupResult.PreMaterialized) engineGetResult).lookup(), fetchSourceContext);
+            } else {
+                getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            }
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {

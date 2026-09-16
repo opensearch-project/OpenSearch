@@ -32,24 +32,37 @@
 
 package org.opensearch.index.rankeval;
 
+import org.apache.lucene.search.TotalHits;
+import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 
@@ -106,5 +119,60 @@ public class TransportRankEvalActionTests extends OpenSearchTestCase {
             NamedXContentRegistry.EMPTY
         );
         action.doExecute(null, rankEvalRequest, null);
+    }
+
+    /**
+     * A hit with a {@code null} _id (as produced today by composite indexes) makes metric evaluation throw an
+     * {@link IllegalArgumentException} while joining hits with ratings. This verifies the failure is routed to
+     * {@link ActionListener#onFailure} rather than stranding the REST channel (the previous behaviour).
+     */
+    public void testEvaluationFailureIsPropagatedToListener() {
+        String indexName = "test_index";
+        RatedRequest specification = new RatedRequest(
+            "query_with_null_id_hit",
+            Arrays.asList(new RatedDocument(indexName, "1", 3)),
+            new SearchSourceBuilder()
+        );
+
+        // A hit whose _id is null; joinHitsWithRatings builds a DocumentKey from it and throws.
+        SearchHit hitWithNullId = new SearchHit(0, null, Collections.emptyMap(), Collections.emptyMap());
+        hitWithNullId.shard(new SearchShardTarget("node", new ShardId(indexName, "uuid", 0), null, OriginalIndices.NONE));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hitWithNullId }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = new SearchResponse(
+            new InternalSearchResponse(searchHits, null, null, null, false, false, 1),
+            null,
+            1,
+            1,
+            0,
+            100,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(searchResponse, null) },
+            100
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicReference<RankEvalResponse> success = new AtomicReference<>();
+        ActionListener<RankEvalResponse> capturingListener = ActionListener.wrap(success::set, failure::set);
+
+        Map<String, Exception> errors = new HashMap<>();
+        TransportRankEvalAction action = new TransportRankEvalAction(
+            mock(ActionFilters.class),
+            new NodeClient(settings, null),
+            mock(TransportService.class),
+            mock(ScriptService.class),
+            NamedXContentRegistry.EMPTY
+        );
+        TransportRankEvalAction.RankEvalActionListener listener = action.new RankEvalActionListener(
+            capturingListener, new PrecisionAtK(), new RatedRequest[] { specification }, errors
+        );
+
+        listener.onResponse(multiSearchResponse);
+
+        assertNull("evaluation must not have produced a response", success.get());
+        assertNotNull("evaluation failure must be propagated to the listener", failure.get());
+        assertTrue(failure.get() instanceof IllegalArgumentException);
     }
 }
