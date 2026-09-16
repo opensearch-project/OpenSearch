@@ -57,6 +57,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchUngroupedDistinctToGroupByRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
@@ -440,9 +441,10 @@ public class PlannerImpl {
      * <ul>
      *   <li>{@link OpenSearchCheckedLongSumRule} and {@link OpenSearchCheckedLongSumWindowRule} —
      *       PPL's reflective {@code CHECKED_LONG_SUM} marker → Calcite's canonical {@code SUM}.</li>
-     *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
-     *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
-     *       HLL sketch merge instead of additive SUM-of-counts.</li>
+     *   <li>{@link OpenSearchDistinctCountRule} — rewrites only PPL's {@code distinct_count_approx} marker
+     *       to {@code APPROX_COUNT_DISTINCT} (engine-native HLL); exact {@code COUNT(DISTINCT)} stays exact.</li>
+     *   <li>{@link OpenSearchUngroupedDistinctToGroupByRule} — ungrouped single-arg exact
+     *       {@code COUNT(DISTINCT x)} → {@code COUNT(*)} over inner {@code GROUP BY x} so the dedup parallelizes.</li>
      *   <li>{@link OpenSearchAggregateReduceRule} — {@code AVG} / {@code STDDEV} / {@code VAR} →
      *       primitive {@code SUM} / {@code COUNT} (+ {@code SUM_SQ} for variance) plus a scalar
      *       {@link org.apache.calcite.rel.logical.LogicalProject} computing the quotient.</li>
@@ -454,6 +456,7 @@ public class PlannerImpl {
             .addRuleInstance(new OpenSearchCheckedLongSumRule())
             .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
+            .addRuleInstance(new OpenSearchUngroupedDistinctToGroupByRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
             .addRuleInstance(CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS)
             // AGGREGATE_PROJECT_PULL_UP_CONSTANTS lifts constant group keys into a Project above

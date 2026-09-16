@@ -263,32 +263,48 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         );
     }
 
-    // ---- COUNT(DISTINCT x) → APPROX_COUNT_DISTINCT(x) (engine-native HLL sketch merge) ----
+    // ---- EXACT COUNT(DISTINCT x): NOT rewritten (stays exact); approx is opt-in via the marker ----
 
     /**
-     * 1-shard {@code COUNT(DISTINCT x)} — the HEP {@code OpenSearchDistinctCountRule} rewrites to
-     * {@code APPROX_COUNT_DISTINCT(x)}, then no split (single shard). SINGLE at the shard.
+     * 1-shard exact {@code COUNT(DISTINCT x)} — left exact by {@code OpenSearchDistinctCountRule}; with a
+     * single shard no split is needed, so it stays a plain SINGLE aggregate over the scan.
      */
     public void testCountDistinct_1shard() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
         RelNode plan = makeAggregate(scan, countDistinctCall(scan));
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape("""
-            OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+            OpenSearchAggregate(group=[{0}], dc=[COUNT(DISTINCT $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
               OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
             """, result);
     }
 
     /**
-     * Multi-shard {@code COUNT(DISTINCT x)} — rewritten to {@code APPROX_COUNT_DISTINCT(x)} and then
-     * split via {@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule}. FINAL
-     * keeps the {@code APPROX_COUNT_DISTINCT} operator (engine-native merge: reducer == self), reads
-     * column $1 of the gathered exchange. {@code DistributedAggregateRewriter} retypes the exchange
-     * column to {@code VARBINARY} (HLL sketch state) downstream during DAG-cut + fragment conversion.
+     * Multi-shard exact {@code COUNT(DISTINCT x)} — left exact, so {@code OpenSearchAggregateSplitRule}
+     * gathers all rows to the coordinator (SINGLE over an ExchangeReducer over the scan) and dedupes there.
+     * No PARTIAL/FINAL split — a per-shard exact distinct can't be summed.
      */
     public void testCountDistinct_2shard() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
         RelNode plan = makeAggregate(scan, countDistinctCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], dc=[COUNT(DISTINCT $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Multi-shard explicit approx ({@code distinct_count_approx}) still splits PARTIAL/FINAL and keeps
+     * {@code APPROX_COUNT_DISTINCT} (engine-native mergeable HLL state) — the opt-in approx path is unchanged.
+     */
+    public void testApproxCountDistinct_2shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, approxCountDistinctCall(scan));
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
