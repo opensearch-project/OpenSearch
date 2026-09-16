@@ -29,6 +29,7 @@ import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecution;
 import org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecution;
 import org.opensearch.analytics.planner.ArrowCalciteTypes;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.dag.InputSinkDecorator;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
@@ -251,7 +252,12 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
      */
     @Override
     public ExchangeSink inputSink(int childStageId) {
-        return childInputBuffer;
+        // Multi-shard: the child COORDINATOR_REDUCE already stamped ___ugsi (its own input sink
+        // carried the OrdinalAppendingSink), so no decorator is set and the raw buffer is returned.
+        // Single-shard: there is no reduce stage, so the DAG installs an OrdinalAppendingSink
+        // decorator on THIS stage to materialize ___ugsi (= ordinal 0) before the Phase-A drain.
+        InputSinkDecorator decorator = stage.getInputSinkDecorator();
+        return decorator != null ? decorator.decorate(childInputBuffer, config.bufferAllocator()) : childInputBuffer;
     }
 
     /**

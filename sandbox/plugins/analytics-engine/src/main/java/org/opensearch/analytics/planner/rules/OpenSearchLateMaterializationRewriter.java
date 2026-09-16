@@ -61,6 +61,12 @@ import java.util.Set;
  * If every above-anchor reference is already in the reduce-set, the non-QTF path reads
  * the same physical fields and skips the fetch round-trip — strictly cheaper.
  *
+ * <h2>Single-shard cost gate</h2>
+ * Single-shard plans (no {@link OpenSearchExchangeReducer} below the anchor) also fire QTF, except
+ * when the below-anchor physical fields are only the anchor's sort key(s): there the baseline sorted
+ * early-termination reads just the K survivors, so a fetch round-trip only adds a stage. Multi-shard
+ * is never gated. See {@code declinedBySingleShardCostGate}.
+ *
  * <h2>Allow-lists</h2>
  * Above-anchor: {@link OpenSearchProject} (no {@code RexOver}), {@link OpenSearchFilter},
  * {@link OpenSearchSort}. {@link OpenSearchAggregate} is rejected for now — group / agg-call
@@ -139,12 +145,9 @@ public final class OpenSearchLateMaterializationRewriter {
             return null;
         }
 
-        // Single-shard plans don't trigger late materialization.
-        if (!belowChain.hasExchangeReducer()) {
-            LOGGER.debug("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
-            return null;
-        }
-
+        // Single-shard plans also trigger QTF (no ExchangeReducer to skip, but the intra-node fetch
+        // still avoids decoding wide fetch-only columns for Sort+Limit non-survivors). ___ugsi is
+        // stamped at runtime by the DAG cut's OrdinalAppendingSink, not declared in the RelNode.
         Set<String> belowAnchorPhysicalFields = computeBelowAnchorPhysicalFields(anchorCtx.anchor, belowChain);
         LinkedHashSet<String> aboveAnchorPhysicalFields = computeAboveAnchorPhysicalFields(
             anchorCtx.aboveAnchorOperators,
@@ -155,6 +158,13 @@ public final class OpenSearchLateMaterializationRewriter {
         boolean hasFetchOnly = aboveAnchorPhysicalFields.stream().anyMatch(name -> !belowAnchorPhysicalFields.contains(name));
         if (!hasFetchOnly) {
             LOGGER.debug("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
+            return null;
+        }
+
+        // Cost gate: on a single-shard plan whose below-anchor input reads only the sort key(s),
+        // the baseline sorted early-termination is cheaper than a fetch round-trip (Q3 37ms→138ms).
+        if (declinedBySingleShardCostGate(anchorCtx.anchor, belowChain, belowAnchorPhysicalFields)) {
+            LOGGER.debug("[QTF] single-shard, below-anchor reads only sort keys — baseline sorted path is cheaper; skipping");
             return null;
         }
 
@@ -299,6 +309,37 @@ public final class OpenSearchLateMaterializationRewriter {
                     fields.add(scanFields.get(refIdx).getName());
                 }
             }
+        }
+        return fields;
+    }
+
+    /**
+     * Single-shard cost gate. Declines QTF when there is no ExchangeReducer below the anchor and the
+     * below-anchor physical fields are exactly the sort key(s) — no predicate column is decoded below
+     * the anchor, so the non-QTF sorted early-termination path already reads only the K survivors and
+     * a fetch round-trip would only add a stage. Multi-shard is never gated: per-shard local top-K
+     * still ships fetch-only columns for rows that lose the global merge.
+     */
+    private static boolean declinedBySingleShardCostGate(
+        OpenSearchSort anchor,
+        BelowChain belowChain,
+        Set<String> belowAnchorPhysicalFields
+    ) {
+        if (belowChain.hasExchangeReducer()) return false;
+        return computeSortKeyPhysicalFields(anchor, belowChain).containsAll(belowAnchorPhysicalFields);
+    }
+
+    /**
+     * Physical (Scan-level) field names referenced by the anchor's sort collation, resolved through
+     * an optional below-Project. The sort-key-only subset of {@link #computeBelowAnchorPhysicalFields}
+     * (excludes below-filter columns); used solely by {@link #declinedBySingleShardCostGate}.
+     */
+    private static Set<String> computeSortKeyPhysicalFields(OpenSearchSort anchor, BelowChain belowChain) {
+        Set<String> fields = new HashSet<>();
+        List<RelDataTypeField> scanFields = belowChain.scan.getRowType().getFieldList();
+        for (RelFieldCollation fc : anchor.getCollation().getFieldCollations()) {
+            int scanIdx = (belowChain.belowProjOutToScan == null) ? fc.getFieldIndex() : belowChain.belowProjOutToScan[fc.getFieldIndex()];
+            fields.add(scanFields.get(scanIdx).getName());
         }
         return fields;
     }

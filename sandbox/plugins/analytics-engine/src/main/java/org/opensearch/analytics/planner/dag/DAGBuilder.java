@@ -155,18 +155,20 @@ public class DAGBuilder {
     }
 
     /**
-     * Cuts at an {@link OpenSearchLateMaterialization} wrapper. Two cuts happen:
+     * Cuts at an {@link OpenSearchLateMaterialization} wrapper into two (single-shard) or three
+     * stages. The wrapper's input subtree becomes the LM stage's query-phase child; its topology
+     * depends on whether the CBO inserted an {@link OpenSearchExchangeReducer} below the anchor:
      *
      * <ol>
-     *   <li><b>Reduce child:</b> the wrapper's input subtree (Sort+Limit + ER + scans
-     *       below) becomes the LM stage's child stage — a {@code COORDINATOR_REDUCE}
-     *       gathering shard scans. QTF only fires multi-shard (single-shard collapse
-     *       short-circuits in the rewriter), so the reduce child always has
-     *       grandchildren and always gets a sink provider.</li>
-     *   <li><b>LM stage itself:</b> a fresh {@link Stage} with fragment
-     *       {@code Wrapper ← StageInputScan(reduce-child)}. Returned to the caller
-     *       as a {@link OpenSearchStageInputScan} so the caller's parent fragment
-     *       slots in a schema-bearing placeholder.</li>
+     *   <li><b>Multi-shard:</b> the subtree (Sort+Limit + ER + shard scans) is a
+     *       {@code COORDINATOR_REDUCE} that stamps {@code ___ugsi} per shard as it gathers.</li>
+     *   <li><b>Single-shard / intra-node:</b> no ER — the whole subtree
+     *       ({@code Sort+Limit ← Filter? ← narrowed Scan+___row_id}) is one {@code SHARD_FRAGMENT}
+     *       running the query phase on the data node; {@code ___ugsi} (ordinal 0) is stamped by an
+     *       {@code OrdinalAppendingSink} installed on the LM stage's own input sink instead.</li>
+     *   <li><b>LM stage:</b> a fresh {@link Stage} with fragment
+     *       {@code Wrapper ← StageInputScan(child)}, returned to the caller as an
+     *       {@link OpenSearchStageInputScan} placeholder.</li>
      * </ol>
      *
      * <p>The caller (the {@link #sever} walk for the wrapper's parent) attaches whatever
@@ -187,39 +189,26 @@ public class DAGBuilder {
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        // 1. Reduce child — Sort+Limit reduce above shard scans. Multi-shard QTF only.
+        // 1. Query-phase child. Sever the wrapper's input subtree; the presence of an
+        // ExchangeReducer below the anchor decides the topology.
         List<Stage> reduceChildren = new ArrayList<>();
-        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService, indexNameExpressionResolver);
-        if (reduceChildren.isEmpty()) {
-            throw new IllegalStateException(
-                "QTF rewriter fired but the wrapper's input has no ExchangeReducer below it — "
-                    + "single-shard collapse should have short-circuited the rewriter."
-            );
-        }
-        int reduceStageId = counter[0]++;
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
-        ExchangeSinkProvider reduceSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
-        Stage reduceStage = new Stage(
-            reduceStageId,
-            reduceFragment,
-            reduceChildren,
-            /*exchangeInfo=*/ null,
-            reduceSinkProvider,
-            /*targetResolver=*/ null
-        );
-        // Reducer feeds the LM stage. Stamp every shard's batches with their target.ordinal()
-        // as ___ugsi BEFORE the backend's reduce sees them so the LM stage can group rows by
-        // source shard for fan-out fetches.
-        reduceStage.setInputSinkDecorator(
-            (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
-        );
+        RelNode childFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService, indexNameExpressionResolver);
+        LateMaterializationTopology topology = reduceChildren.isEmpty()
+            ? LateMaterializationTopology.SINGLE_SHARD
+            : LateMaterializationTopology.MULTI_SHARD;
 
-        // 2. LM stage itself — fragment is the wrapper rooted at StageInputScan(reduceStage).
+        int childStageId = counter[0]++;
+        Stage childStage = switch (topology) {
+            case SINGLE_SHARD -> buildSingleShardQueryStage(childStageId, childFragment, clusterService, indexNameExpressionResolver);
+            case MULTI_SHARD -> buildMultiShardReduceStage(childStageId, childFragment, reduceChildren, lm, registry);
+        };
+
+        // 2. LM stage itself — fragment is the wrapper rooted at StageInputScan(childStage).
         OpenSearchRelNode lmInput = (OpenSearchRelNode) lm.getInput();
-        OpenSearchStageInputScan reduceStageInput = new OpenSearchStageInputScan(
+        OpenSearchStageInputScan childStageInput = new OpenSearchStageInputScan(
             lm.getCluster(),
             lm.getTraitSet(),
-            reduceStageId,
+            childStageId,
             lm.getInput().getRowType(),
             lm.getViableBackends(),
             lmInput.getOutputFieldStorage()
@@ -227,7 +216,7 @@ public class DAGBuilder {
         OpenSearchLateMaterialization lmFragment = new OpenSearchLateMaterialization(
             lm.getCluster(),
             lm.getTraitSet(),
-            reduceStageInput,
+            childStageInput,
             lm.getAboveAnchorPhysicalFields(),
             lm.getAboveAnchorPhysicalFieldStorage(),
             lm.getViableBackends()
@@ -236,11 +225,18 @@ public class DAGBuilder {
         Stage lmStage = new Stage(
             lmStageId,
             lmFragment,
-            List.of(reduceStage),
+            List.of(childStage),
             /*exchangeInfo=*/ null,
             /*sinkProvider=*/ null,
             /*targetResolver=*/ null
         );
+        // Single-shard has no ExchangeReducer to append ___ugsi, so the LM stage's own input sink
+        // stamps it (ordinal 0). Multi-shard leaves this null — the reduce stage already stamped it.
+        if (topology == LateMaterializationTopology.SINGLE_SHARD) {
+            lmStage.setInputSinkDecorator(
+                (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
+            );
+        }
         parentChildStages.add(lmStage);
 
         // 3. Hand back StageInputScan(LM) so post-LM ops end up in their own COORDINATOR_REDUCE.
@@ -262,6 +258,65 @@ public class DAGBuilder {
             lm.getViableBackends(),
             lm.getAboveAnchorPhysicalFieldStorage()
         );
+    }
+
+    /** Query-phase topology of a QTF cut: a single data-node shard fragment, or a multi-shard reduce. */
+    private enum LateMaterializationTopology {
+        SINGLE_SHARD,
+        MULTI_SHARD
+    }
+
+    /**
+     * Single-shard / intra-node query phase: the wrapper's whole input subtree
+     * ({@code Sort+Limit ← Filter? ← narrowed Scan+___row_id}) runs as one {@code SHARD_FRAGMENT} on
+     * the data node. QTF only fires over a Scan-rooted anchor input, so the fragment always contains
+     * a TableScan and therefore always resolves to a shard target.
+     */
+    private static Stage buildSingleShardQueryStage(
+        int stageId,
+        RelNode fragment,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        if (RelNodeUtils.findNode(fragment, OpenSearchTableScan.class) == null) {
+            throw new IllegalStateException("QTF single-shard cut expected a TableScan in the wrapper's input fragment: " + fragment);
+        }
+        return new Stage(
+            stageId,
+            fragment,
+            List.of(),
+            /*exchangeInfo=*/ null,
+            /*sinkProvider=*/ null,
+            new ShardTargetResolver(fragment, clusterService, indexNameExpressionResolver)
+        );
+    }
+
+    /**
+     * Multi-shard query phase: a {@code COORDINATOR_REDUCE} gathering shard scans. An
+     * {@link OrdinalAppendingSink} stamps {@code ___ugsi} with each shard's ordinal before the
+     * backend reduce so the LM stage can group survivors by source shard for fan-out fetches.
+     */
+    private static Stage buildMultiShardReduceStage(
+        int stageId,
+        RelNode fragment,
+        List<Stage> reduceChildren,
+        OpenSearchLateMaterialization lm,
+        CapabilityRegistry registry
+    ) {
+        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
+        ExchangeSinkProvider reduceSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        Stage reduceStage = new Stage(
+            stageId,
+            fragment,
+            reduceChildren,
+            /*exchangeInfo=*/ null,
+            reduceSinkProvider,
+            /*targetResolver=*/ null
+        );
+        reduceStage.setInputSinkDecorator(
+            (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
+        );
+        return reduceStage;
     }
 
     private static RelNode cutAtExchange(
