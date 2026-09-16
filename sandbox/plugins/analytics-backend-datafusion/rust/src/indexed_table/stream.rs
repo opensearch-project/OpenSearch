@@ -684,7 +684,10 @@ impl IndexedStream {
         }
     }
 
-    fn projection_for_rg(&self, required_predicate_columns: Option<&[usize]>) -> Option<Vec<usize>> {
+    fn projection_for_rg(
+        &self,
+        required_predicate_columns: Option<&[usize]>,
+    ) -> Option<Vec<usize>> {
         // No per-RG ownership info, or row-id emission (its synthetic column has its own
         // projection semantics): keep the query-wide projection.
         let Some(required) = required_predicate_columns else {

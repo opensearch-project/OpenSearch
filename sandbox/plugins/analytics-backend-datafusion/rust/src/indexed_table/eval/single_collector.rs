@@ -37,8 +37,8 @@ use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner, StatsPrune
 use crate::indexed_table::row_selection::{
     bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
 };
-use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::logical_expr::Operator;
+use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_expr::expressions::BinaryExpr;
 use datafusion::physical_expr::utils::collect_columns;
 use datafusion::physical_expr::PhysicalExpr;
@@ -540,24 +540,20 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                     perf_residual = Some(match perf_residual {
                         None => Arc::clone(&leaf.expr),
                         Some(acc) => {
-                            Arc::new(BinaryExpr::new(
-                                acc,
-                                Operator::And,
-                                Arc::clone(&leaf.expr),
-                            ))
+                            Arc::new(BinaryExpr::new(acc, Operator::And, Arc::clone(&leaf.expr)))
                         }
                     });
                 }
                 LeafOwner::Lucene => {
-                    let lock =
-                        self.performance_provider_locks
-                            .get(&leaf.annotation_id)
-                            .ok_or_else(|| {
-                                format!(
-                                    "performance leaf annotation_id {} has no provider lock",
-                                    leaf.annotation_id
-                                )
-                            })?;
+                    let lock = self
+                        .performance_provider_locks
+                        .get(&leaf.annotation_id)
+                        .ok_or_else(|| {
+                            format!(
+                                "performance leaf annotation_id {} has no provider lock",
+                                leaf.annotation_id
+                            )
+                        })?;
                     let context_id = self.context_id;
                     let annotation_id = leaf.annotation_id;
                     let mut just_initialized = false;
@@ -687,11 +683,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 (Some(r), None) => Arc::clone(r),
                 (None, Some(p)) => Arc::clone(p),
                 (Some(r), Some(p)) => {
-                    Arc::new(BinaryExpr::new(
-                        Arc::clone(r),
-                        Operator::And,
-                        Arc::clone(p),
-                    ))
+                    Arc::new(BinaryExpr::new(Arc::clone(r), Operator::And, Arc::clone(p)))
                 }
             };
         let residual = &residual;
