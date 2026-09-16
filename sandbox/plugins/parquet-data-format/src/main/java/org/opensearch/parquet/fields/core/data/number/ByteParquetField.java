@@ -8,10 +8,11 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 8-bit signed byte values using {@link TinyIntVector}.
@@ -22,8 +23,8 @@ public class ByteParquetField extends NumericParquetField {
     public ByteParquetField() {}
 
     @Override
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        ((TinyIntVector) vector).setSafe(index, ((Number) value).byteValue());
+    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        ((TinyIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), ((Number) parseValue).byteValue());
     }
 
     @Override

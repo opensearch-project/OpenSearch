@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet.fields;
 
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -36,39 +34,18 @@ public abstract class ParquetField {
     public ParquetField() {}
 
     /**
-     * Writes the parsed field value into the appropriate vector in the managed VSR. Scalar and
-     * nested writes share the same {@link #addToVector} conversion hook.
-     *
+     * Writes the parsed field value into the appropriate vector in the managed VSR.
      * @param fieldType the mapped field type
      * @param managedVSR the managed vector schema root
      * @param parseValue the parsed value to write
      */
-    protected void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
-        addToVector(managedVSR.getVector(fieldType.name()), managedVSR.getRowCount(), parseValue);
-    }
+    protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
-     * Writes one scalar value at an explicit vector index. This is the format-internal conversion
-     * hook used for top-level fields, nested struct leaves, and LIST elements. Implementations stay
-     * protected; callers outside the field package use {@link #createField}.
+     * Returns whether this field can be stored as a Parquet LIST column. Supporting types handle
+     * their LIST representation inside {@link #addToGroup}.
      *
-     * <p>{@link #supportsMultiValue()} independently controls whether this conversion may back a
-     * top-level LIST column. A type can support scalar nested placement without supporting
-     * multi-valued storage.
-     *
-     * @param vector the target vector
-     * @param index the position to write
-     * @param value the parsed non-null value
-     */
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        throw new UnsupportedOperationException("addToVector is not implemented for " + getClass().getSimpleName());
-    }
-
-    /**
-     * Returns whether this field can be stored as a Parquet LIST column. This is independent of
-     * {@link #addToVector}: scalar types also use that hook for nested struct placement.
-     *
-     * @return true if multi-valued LIST storage is supported
+     * @return true if multi-valued storage is supported
      */
     public boolean supportsMultiValue() {
         return false;
@@ -112,39 +89,7 @@ public abstract class ParquetField {
     public final void createField(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
         assert fieldType != null : "MappedFieldType cannot be null";
         assert managedVSR != null : "ManagedVSR cannot be null";
-        FieldVector vector = managedVSR.getVector(fieldType.name());
-        if (vector instanceof ListVector listVector) {
-            writeList(fieldType, managedVSR, listVector, parseValue);
-            return;
-        }
         addToGroup(fieldType, managedVSR, parseValue);
-    }
-
-    /**
-     * Writes all values collected for one document into a list column at the current row.
-     * <p>
-     * A null {@code parseValue} is written as a null list, which is how an absent field is
-     * represented. An empty list is written as a zero-length, non-null list, preserving the
-     * distinction between {@code "tags": []} and no {@code tags} at all.
-     */
-    private void writeList(MappedFieldType fieldType, ManagedVSR managedVSR, ListVector listVector, Object parseValue) {
-        int row = managedVSR.getRowCount();
-        if (parseValue == null) {
-            listVector.setNull(row);
-            return;
-        }
-        List<?> values = parseValue instanceof List<?> list ? list : List.of(parseValue);
-        int start = listVector.startNewValue(row);
-        FieldVector dataVector = listVector.getDataVector();
-        for (int i = 0; i < values.size(); i++) {
-            Object value = values.get(i);
-            if (value == null) {
-                dataVector.setNull(start + i);
-            } else {
-                addToVector(dataVector, start + i, value);
-            }
-        }
-        listVector.endValue(row, values.size());
     }
 
     /**

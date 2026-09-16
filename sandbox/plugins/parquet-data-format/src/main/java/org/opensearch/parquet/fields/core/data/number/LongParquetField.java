@@ -9,9 +9,10 @@
 package org.opensearch.parquet.fields.core.data.number;
 
 import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 64-bit signed long values using {@link BigIntVector}.
@@ -30,8 +31,8 @@ public class LongParquetField extends NumericParquetField {
     }
 
     @Override
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        ((BigIntVector) vector).setSafe(index, (Long) value);
+    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        ((BigIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Long) parseValue);
     }
 
     @Override

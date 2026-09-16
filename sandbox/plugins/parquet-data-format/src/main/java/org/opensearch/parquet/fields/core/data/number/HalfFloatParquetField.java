@@ -8,11 +8,12 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for half-precision (16-bit) floating-point values using {@link Float2Vector}.
@@ -23,8 +24,11 @@ public class HalfFloatParquetField extends NumericParquetField {
     public HalfFloatParquetField() {}
 
     @Override
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        ((Float2Vector) vector).setSafeWithPossibleTruncate(index, ((Number) value).floatValue());
+    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafeWithPossibleTruncate(
+            managedVSR.getRowCount(),
+            ((Number) parseValue).floatValue()
+        );
     }
 
     @Override

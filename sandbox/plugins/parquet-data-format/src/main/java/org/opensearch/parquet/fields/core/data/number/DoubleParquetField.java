@@ -8,11 +8,12 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for double-precision floating-point values using {@link Float8Vector}.
@@ -23,8 +24,8 @@ public class DoubleParquetField extends NumericParquetField {
     public DoubleParquetField() {}
 
     @Override
-    protected void addToVector(FieldVector vector, int index, Object value) {
-        ((Float8Vector) vector).setSafe(index, (Double) value);
+    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        ((Float8Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Double) parseValue);
     }
 
     @Override
