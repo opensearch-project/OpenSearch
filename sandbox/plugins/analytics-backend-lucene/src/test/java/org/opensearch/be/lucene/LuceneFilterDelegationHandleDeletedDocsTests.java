@@ -59,8 +59,8 @@ import static org.mockito.Mockito.when;
  * <ul>
  *   <li>the reserved match-all provider's live-docs fast path ({@code fillLiveDocsWords}) for dense,
  *       sparse, and no-deletion segments, and
- *   <li>a delegated predicate's scorer path — the {@code scorer ∩ liveDocs} intersection (dense) and
- *       the per-doc {@code liveDocs.get} fallback (sparse) — asserting deleted docs are excluded.
+ *   <li>a delegated predicate's scorer path — the {@code scorer ∩ liveDocs} intersection (dense) and the
+ *       raw scorer with per-doc {@code liveDocs.get} (sparse) — asserting deleted docs are excluded.
  * </ul>
  *
  * <p>Deletion density is chosen to force Lucene's live-docs representation: {@code SPARSE_DENSE_THRESHOLD}
@@ -240,8 +240,8 @@ public class LuceneFilterDelegationHandleDeletedDocsTests extends OpenSearchTest
 
     // ── predicate provider: scorer path excludes deleted docs ──
 
-    public void testPredicateExcludesDeletedViaDenseIntersection() throws Exception {
-        buildIndex(1000, i -> i % 4 == 0); // dense; deletes half of the matching (even) docs
+    public void testPredicateExcludesDeletedDocsForDenseDeletions() throws Exception {
+        buildIndex(1000, i -> i % 4 == 0); // 25% deleted → dense; docsIterator intersects with the live FixedBitSet
         assertDenseLiveDocs();
         LuceneFilterDelegationHandle handle = newHandle(List.of(termExpression(PREDICATE_ANNOTATION_ID, "tag", PREDICATE_TAG)));
 
@@ -254,8 +254,8 @@ public class LuceneFilterDelegationHandleDeletedDocsTests extends OpenSearchTest
         assertEquals(expected, collectAll(handle, PREDICATE_ANNOTATION_ID));
     }
 
-    public void testPredicateExcludesDeletedViaLiveDocsFallback() throws Exception {
-        Set<Integer> deleted = Set.of(2, 6, 10); // even (matching) docs, 0.3% → sparse → liveDocs.get fallback
+    public void testPredicateExcludesDeletedDocsForSparseDeletions() throws Exception {
+        Set<Integer> deleted = Set.of(2, 6, 10); // even (matching) docs, 0.3% → sparse; raw scorer + per-doc liveDocs.get
         buildIndex(1000, deleted::contains);
         assertSparseLiveDocs();
         LuceneFilterDelegationHandle handle = newHandle(List.of(termExpression(PREDICATE_ANNOTATION_ID, "tag", PREDICATE_TAG)));
