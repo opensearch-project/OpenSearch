@@ -403,7 +403,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     @Override
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
-        if (requested.isEmpty()) {
+        Set<FieldTypeCapabilities.Capability> optional = fieldType.optionalCapabilities();
+        if (requested.isEmpty() && optional.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
@@ -455,6 +456,35 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                     + ". Configured formats: "
                     + formats.stream().map(DataFormat::name).collect(Collectors.toList())
             );
+        }
+
+        Set<FieldTypeCapabilities.Capability> remainingOptional = new HashSet<>(optional);
+        assigned.values().forEach(remainingOptional::removeAll);
+        for (DataFormat format : formats) {
+            if (remainingOptional.isEmpty()) {
+                break;
+            }
+            Set<FieldTypeCapabilities.Capability> claimed = format.supportedFields()
+                .stream()
+                .filter(ftc -> ftc.fieldType().equals(typeName))
+                .findFirst()
+                .map(ftc -> {
+                    Set<FieldTypeCapabilities.Capability> intersection = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+                    for (FieldTypeCapabilities.Capability cap : remainingOptional) {
+                        if (ftc.capabilities().contains(cap)) {
+                            intersection.add(cap);
+                        }
+                    }
+                    return intersection;
+                })
+                .orElse(Set.of());
+            if (claimed.isEmpty() == false) {
+                Set<FieldTypeCapabilities.Capability> combined = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+                combined.addAll(assigned.getOrDefault(format, Set.of()));
+                combined.addAll(claimed);
+                assigned.put(format, Set.copyOf(combined));
+                remainingOptional.removeAll(claimed);
+            }
         }
         fieldType.setCapabilityMap(Map.copyOf(assigned));
     }

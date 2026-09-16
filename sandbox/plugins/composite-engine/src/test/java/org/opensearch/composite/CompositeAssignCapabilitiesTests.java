@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.index.mapper.IpFieldMapper.IpFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -84,6 +85,62 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         assertEquals(2, map.size());
         assertEquals(Set.of(Capability.COLUMNAR_STORAGE), map.get(parquet));
         assertEquals(Set.of(Capability.FULL_TEXT_SEARCH), map.get(lucene));
+    }
+
+    public void testOptionalIpTermIndexingRoutesToSecondary() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("ip", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("ip", Set.of(Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet, lucene));
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        // not indexed + doc values, as on a pluggable index: COLUMNAR_STORAGE required, FULL_TEXT_SEARCH optional
+        MappedFieldType field = new IpFieldType("client_ip", false, false, true, null, Map.of());
+        new CompositeDataFormatPlugin().assignCapabilities(field, indexSettings, registry);
+
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), field.getCapabilityMap().get(parquet));
+        assertEquals(Set.of(Capability.FULL_TEXT_SEARCH), field.getCapabilityMap().get(lucene));
+    }
+
+    public void testOptionalKeywordTermIndexingRoutesToSecondary() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet, lucene));
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        // index: false — requests COLUMNAR_STORAGE only; FULL_TEXT_SEARCH arrives optionally
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("status", false, true, Map.of());
+        new CompositeDataFormatPlugin().assignCapabilities(field, indexSettings, registry);
+
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), field.getCapabilityMap().get(parquet));
+        assertEquals(Set.of(Capability.FULL_TEXT_SEARCH), field.getCapabilityMap().get(lucene));
     }
 
     public void testNeitherFormatCoversAll_Throws() {

@@ -9,15 +9,18 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
@@ -63,6 +66,48 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         assertTrue("text: should omit norms", ft.omitNorms());
         assertEquals("text: should have no doc values", DocValuesType.NONE, ft.docValuesType());
         assertNotEquals("text: should be indexed", IndexOptions.NONE, ft.indexOptions());
+    }
+
+    public void testIpFieldWritesEncodedBinaryTerm() throws Exception {
+        MappedFieldType ipField = mockIpField("client_ip");
+
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        InetAddress address = InetAddress.getByName("10.1.2.3");
+        input.addField(ipField, address);
+
+        Document doc = input.getFinalInput();
+        IndexableField field = doc.getField("client_ip");
+        assertNotNull("ip field should be present in document", field);
+        assertEquals(
+            "ip term must be the same 16-byte encoded form the Parquet column stores",
+            new BytesRef(InetAddressPoint.encode(address)),
+            field.binaryValue()
+        );
+
+        IndexableFieldType ft = field.fieldType();
+        assertEquals("ip: terms-only postings", IndexOptions.DOCS, ft.indexOptions());
+        assertFalse("ip: should not be stored", ft.stored());
+        assertTrue("ip: should omit norms", ft.omitNorms());
+        assertEquals("ip: should have no doc values", DocValuesType.NONE, ft.docValuesType());
+        assertFalse("ip: should not be tokenized", ft.tokenized());
+    }
+
+    public void testNonIndexedKeywordStillWritesPostingsWhenCapabilityAssigned() {
+        MappedFieldType keywordField = mockNonIndexedKeywordField("status");
+
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addField(keywordField, "active");
+
+        Document doc = input.getFinalInput();
+        IndexableField field = doc.getField("status");
+        assertNotNull("keyword field should be present in document", field);
+        IndexableFieldType ft = field.fieldType();
+        assertEquals(
+            "FULL_TEXT_SEARCH assigned to this format must force postings on despite index:false",
+            IndexOptions.DOCS,
+            ft.indexOptions()
+        );
+        assertEquals("no doc values here — COLUMNAR_STORAGE is not assigned to this format", DocValuesType.NONE, ft.docValuesType());
     }
 
     public void testKeywordFieldProperties() {

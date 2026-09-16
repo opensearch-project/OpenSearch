@@ -12,6 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -153,6 +154,12 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
                 // Disable doc values even if core mappers have set it on lucene fields
                 // once we introduce more frontend params, we can remove this check.
                 luceneFieldType.setDocValuesType(DocValuesType.NONE);
+            }
+            if (capabilities.contains(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)
+                && luceneFieldType.indexOptions() == IndexOptions.NONE) {
+                // This format was assigned term search, so the mapping's index:false template
+                // must not leave it writing no postings (terms feed uninverted ordinals).
+                luceneFieldType.setIndexOptions(IndexOptions.DOCS);
             }
             luceneFieldType.setStored(false);
             luceneFieldType.setOmitNorms(true);

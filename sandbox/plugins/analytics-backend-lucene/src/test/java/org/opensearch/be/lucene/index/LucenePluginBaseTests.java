@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
@@ -54,5 +55,24 @@ public abstract class LucenePluginBaseTests extends OpenSearchTestCase {
         KeywordFieldMapper.KeywordFieldType kft = new KeywordFieldMapper.KeywordFieldType(name, keywordFieldType);
         kft.setCapabilityMap(Map.of(LucenePlugin.DATA_FORMAT, Set.of(FULL_TEXT_SEARCH)));
         return kft;
+    }
+
+    /** A keyword whose mapping-level Lucene field type says index:false (no postings). */
+    protected MappedFieldType mockNonIndexedKeywordField(String name) {
+        final FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setTokenized(false);
+        keywordFieldType.setStored(false);
+        keywordFieldType.setOmitNorms(true);
+        keywordFieldType.setIndexOptions(IndexOptions.NONE);
+        keywordFieldType.freeze();
+        KeywordFieldMapper.KeywordFieldType kft = new KeywordFieldMapper.KeywordFieldType(name, keywordFieldType);
+        kft.setCapabilityMap(Map.of(LucenePlugin.DATA_FORMAT, Set.of(FULL_TEXT_SEARCH)));
+        return kft;
+    }
+
+    protected MappedFieldType mockIpField(String name) {
+        IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType(name);
+        ipFieldType.setCapabilityMap(Map.of(LucenePlugin.DATA_FORMAT, Set.of(FULL_TEXT_SEARCH)));
+        return ipFieldType;
     }
 }
