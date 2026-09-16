@@ -1858,17 +1858,10 @@ fn collect_plan_reads(plan: &substrait::proto::Plan) -> Vec<substrait::proto::Re
     reads
 }
 
-/// Extracts the table name from the first NamedTable read in the plan bytes.
-pub(crate) fn first_named_table_name(plan_bytes: &[u8]) -> Option<String> {
-    use substrait::proto::read_rel::ReadType;
-    let plan: substrait::proto::Plan = prost::Message::decode(plan_bytes).ok()?;
-    for read in collect_plan_reads(&plan) {
-        if let Some(ReadType::NamedTable(nt)) = read.read_type {
-            return nt.names.last().cloned();
-        }
-    }
-    None
-}
+// `first_named_table_name` was removed deliberately: a fragment's FIRST NamedTable read is not
+// necessarily the shard's index — it can be a stage placeholder (`input-N`, `broadcast-N`) — so it
+// is never a safe way to decide which name to register the shard's table under. Use
+// `session_context::resolve_register_name`, the single decision point, instead.
 
 /// Extracts the `base_schema` NamedStruct from the plan's first ReadRel matching `table_name`.
 pub(crate) fn base_schema_for_table(

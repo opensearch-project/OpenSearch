@@ -165,7 +165,12 @@ pub(crate) fn widen_schema_from_plan(
 /// parameter is kept so this stays the single decision point — a future upstream merge that tries
 /// to reintroduce plan-bytes extraction must change THIS function, tripping
 /// `register_name_uses_logical_table_not_plan_placeholder`.
-fn resolve_register_name(table_name: &str, _plan_bytes: &[u8]) -> String {
+///
+/// Shared with `indexed_executor`, which re-registers the shard's table as an
+/// `IndexedTableProvider` and must land on the SAME name this function chose. It previously kept
+/// its own `first_named_table_name` call, which bound the indexed provider to `broadcast-N` and
+/// silently returned zero rows for a broadcast join whose build is the join's left input.
+pub(crate) fn resolve_register_name(table_name: &str, _plan_bytes: &[u8]) -> String {
     table_name.to_string()
 }
 
@@ -963,6 +968,56 @@ mod tests {
         assert_eq!(resolve_register_name("my_index", &plan_bytes), "my_index");
         // And for single-index queries with empty plan bytes, the logical name is used directly.
         assert_eq!(resolve_register_name("my_index", &[]), "my_index");
+    }
+
+    /// Regression guard for the broadcast-probe fragment: a broadcast build on the join's LEFT
+    /// input puts the injected `broadcast-N` memtable FIRST among the plan's `NamedTable` reads
+    /// (Substrait emits a Join's left input first). Picking that first read is what bound the
+    /// shard's `IndexedTableProvider` to the memtable's name and made the query silently return
+    /// zero rows, so a plan with BOTH names present must still resolve to the real index.
+    #[tokio::test]
+    async fn register_name_ignores_leading_broadcast_read_in_join_plan() {
+        let ctx = SessionContext::new();
+        let build_schema = Arc::new(Schema::new(vec![Field::new("d_id", DataType::Int64, true)]));
+        let build_batch = RecordBatch::try_new(
+            Arc::clone(&build_schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("build batch");
+        let probe_schema = Arc::new(Schema::new(vec![Field::new("f_id", DataType::Int64, true)]));
+        let probe_batch = RecordBatch::try_new(
+            Arc::clone(&probe_schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("probe batch");
+        ctx.register_table(
+            "broadcast-0",
+            Arc::new(
+                MemTable::try_new(Arc::clone(&build_schema), vec![vec![build_batch]])
+                    .expect("build memtable"),
+            ),
+        )
+        .expect("register build");
+        ctx.register_table(
+            "my_index",
+            Arc::new(
+                MemTable::try_new(Arc::clone(&probe_schema), vec![vec![probe_batch]])
+                    .expect("probe memtable"),
+            ),
+        )
+        .expect("register probe");
+
+        // Broadcast build on the LEFT — its read is emitted before the index's.
+        let df = ctx
+            .sql("SELECT b.d_id FROM \"broadcast-0\" b JOIN my_index f ON b.d_id = f.f_id")
+            .await
+            .expect("sql");
+        let substrait =
+            to_substrait_plan(&df.logical_plan().clone(), &ctx.state()).expect("to_substrait");
+        let mut plan_bytes = Vec::new();
+        substrait.encode(&mut plan_bytes).expect("encode");
+
+        assert_eq!(resolve_register_name("my_index", &plan_bytes), "my_index");
     }
 
     /// Regression: a shard whose parquet files have FEWER columns than the widened (alias/pattern
