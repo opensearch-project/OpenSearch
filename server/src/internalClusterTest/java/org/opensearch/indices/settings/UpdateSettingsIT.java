@@ -93,6 +93,24 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(exception.getMessage(), "Unknown char_filter type [invalid] for [invalid_char]");
     }
 
+    public void testExplicitEmptyStoreTypeIsRejectedOnClosedIndex() {
+        createIndex("test");
+        assertAcked(client().admin().indices().prepareClose("test").get());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), ""))
+                .get()
+        );
+        assertThat(exception.getMessage(), equalTo("Unknown store type []"));
+
+        IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().metadata().index("test");
+        assertFalse(IndexModule.INDEX_STORE_TYPE_SETTING.exists(indexMetadata.getSettings()));
+    }
+
     public void testInvalidDynamicUpdate() {
         createIndex("test");
         IllegalArgumentException exception = expectThrows(
