@@ -69,6 +69,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -452,7 +453,7 @@ public class DataFormatAwareEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, snapshot -> EngineReaderManager.firstReportedDocCounts(readerManagers.values(), snapshot), logger);
+            }, LiveDocsSource.docCountsResolver(readerManagers.values()), logger);
             this.refreshListeners.add(this.statsCache);
             this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
                 // First get active writes as active writes are only reduced after catalog snapshot refresh

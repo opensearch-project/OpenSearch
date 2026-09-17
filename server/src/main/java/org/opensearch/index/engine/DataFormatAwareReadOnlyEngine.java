@@ -37,6 +37,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -250,7 +251,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, snapshot -> EngineReaderManager.firstReportedDocCounts(this.readerManagers.values(), snapshot), logger);
+            }, LiveDocsSource.docCountsResolver(this.readerManagers.values()), logger);
             this.statsCache.forceRefresh();
 
             success = true;

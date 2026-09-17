@@ -373,7 +373,7 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @param lastCommitData commit data map from the committer
      * @param indexSort      the index sort, or null if unsorted
      * @param docCountsByGeneration per-generation live and deleted counts from
-     *        {@link org.opensearch.index.engine.exec.EngineReaderManager#docCountsByGeneration};
+     *        {@link org.opensearch.index.engine.exec.LiveDocsSource#docCountsByGeneration};
      *        a segment absent from this map reports all of its rows live and none deleted
      * @return list of engine segments sorted by generation
      */

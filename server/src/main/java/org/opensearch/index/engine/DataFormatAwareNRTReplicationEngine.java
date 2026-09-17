@@ -40,6 +40,7 @@ import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
@@ -216,7 +217,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, snapshot -> EngineReaderManager.firstReportedDocCounts(statsReaderManagers.values(), snapshot), logger);
+            }, LiveDocsSource.docCountsResolver(statsReaderManagers.values()), logger);
             this.internalRefreshListeners.add(statsCache);
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());

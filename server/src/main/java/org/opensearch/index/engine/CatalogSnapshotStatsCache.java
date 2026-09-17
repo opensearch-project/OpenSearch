@@ -127,11 +127,7 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
             .mapToLong(WriterFileSet::getTotalSize)
             .sum();
 
-        return new DocsStats.Builder()
-            .count(counts.liveDocs())
-            .deleted(counts.deletedDocs())
-            .totalSizeInBytes(totalSizeInBytes)
-            .build();
+        return new DocsStats.Builder().count(counts.liveDocs()).deleted(counts.deletedDocs()).totalSizeInBytes(totalSizeInBytes).build();
     }
 
     private SegmentsStats computeSegmentsStats(CatalogSnapshot snapshot) {
