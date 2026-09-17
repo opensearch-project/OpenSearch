@@ -145,16 +145,17 @@ public class TransferManager {
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         try {
             // This local file cache is ref counted and may not strictly enforce configured capacity.
-            // If we find available capacity is exceeded, deny further BlobFetchRequests.
+            // If we find available capacity is exceeded, log a warning and continue instead of
+            // throwing an IOException. This method is called from code paths that run during
+            // IndexWriter.commit, where any IOException marks the IndexWriter as unrecoverable
+            // and causes the shard to fail. The local cache is a performance optimization, not
+            // a correctness requirement — the data is still available from the remote store.
             if (fileCache.capacity() < fileCache.usage()) {
                 fileCache.prune();
-                throw new IOException(
-                    "Local file cache capacity ("
-                        + fileCache.capacity()
-                        + ") exceeded ("
-                        + fileCache.usage()
-                        + ") - BlobFetchRequest failed: "
-                        + request.getFilePath()
+                logger.warn(
+                    "Local file cache capacity ({}) exceeded ({}), continuing after pruning",
+                    fileCache.capacity(),
+                    fileCache.usage()
                 );
             }
             if (Files.exists(request.getFilePath()) == false) {
