@@ -778,7 +778,13 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         RexNode correlatedTags = rexBuilder.makeFieldAccess(rexBuilder.makeCorrel(left.getRowType(), correlationId), 0);
         RelNode values = LogicalValues.createOneRow(cluster);
         // No Uncollect: just a correlated projection of the outer LIST column.
-        RelNode project = LogicalProject.create(values, List.of(), List.of(correlatedTags), List.of("tags"), java.util.Set.of(correlationId));
+        RelNode project = LogicalProject.create(
+            values,
+            List.of(),
+            List.of(correlatedTags),
+            List.of("tags"),
+            java.util.Set.of(correlationId)
+        );
         RelNode correlate = LogicalCorrelate.create(left, project, correlationId, ImmutableBitSet.of(0), JoinRelType.INNER);
 
         boolean producedExpand;
@@ -804,7 +810,16 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
      * extension survives re-serialization unchanged.
      */
     public void testAttachFragmentOnTopDecodesMultiValueExpandExtension() throws Exception {
+        // Shard (PARTIAL) fragment as the planner hands it over: COUNT grouped by the expanded
+        // scalar column that OpenSearchMultiValueExpand appends after the LIST input column.
         RelNode scan = buildListTableScan("test_index");
+        RelNode expanded = new org.opensearch.analytics.planner.rel.OpenSearchMultiValueExpand(
+            cluster,
+            cluster.traitSet(),
+            scan,
+            0,
+            List.of("datafusion")
+        );
         AggregateCall count = AggregateCall.create(
             SqlStdOperatorTable.COUNT,
             false,
@@ -813,11 +828,11 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "count"
         );
-        LogicalAggregate partial = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        LogicalAggregate partial = LogicalAggregate.create(expanded, List.of(), ImmutableBitSet.of(1), null, List.of(count));
         byte[] innerBytes = newConvertor().convertFragment(partial);
         assertTrue(
             "shard fragment must carry the expand extension",
-            rootRel(decodeSubstrait(innerBytes)).getProject().getInput().getAggregate().getInput().hasExtensionSingle()
+            rootRel(decodeSubstrait(innerBytes)).getAggregate().getInput().hasExtensionSingle()
         );
 
         // FINAL half: SUM(count) grouped by the expanded (now scalar VARCHAR) tags column.
@@ -841,14 +856,12 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         Rel root = rootRel(decodeSubstrait(combined));
         assertTrue("root must be the FINAL aggregate", root.hasAggregate());
-        Rel inner = root.getAggregate().getInput();
-        assertTrue("FINAL aggregate must sit on the shard fragment's output projection", inner.hasProject());
-        Rel partialAgg = inner.getProject().getInput();
-        assertTrue(partialAgg.hasAggregate());
-        Rel expanded = partialAgg.getAggregate().getInput();
-        assertTrue("expand extension must survive decode + re-encode", expanded.hasExtensionSingle());
-        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
-        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        Rel partialAgg = root.getAggregate().getInput();
+        assertTrue("FINAL aggregate must sit directly on the PARTIAL aggregate", partialAgg.hasAggregate());
+        Rel expandedRel = partialAgg.getAggregate().getInput();
+        assertTrue("expand extension must survive decode + re-encode", expandedRel.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expandedRel.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expandedRel.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
         assertEquals(0, payload.getInt());
         assertEquals(-1, payload.getInt());
         assertEquals(1, payload.getInt());
@@ -856,7 +869,13 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertEquals(
             "PARTIAL GROUP BY key must still reference the appended expanded column",
             1,
-            partialAgg.getAggregate().getGroupings(0).getGroupingExpressions(0).getSelection().getDirectReference().getStructField().getField()
+            partialAgg.getAggregate()
+                .getGroupings(0)
+                .getGroupingExpressions(0)
+                .getSelection()
+                .getDirectReference()
+                .getStructField()
+                .getField()
         );
     }
 

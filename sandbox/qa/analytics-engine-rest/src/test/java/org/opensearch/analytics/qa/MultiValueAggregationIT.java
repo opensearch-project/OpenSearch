@@ -133,7 +133,6 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
 
     // ---- known gaps: multi-shard GROUP BY on a LIST key --------------------------------------
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testCountByListFieldTwoShards() throws Exception {
         Map<String, Number> groups = groups(
             executePpl("source = " + TWO_SHARD_INDEX + " | stats count() as cnt by tags"),
@@ -143,7 +142,6 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
         assertEquals(EXPECTED_TAG_COUNTS, nonNullCounts(groups));
     }
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testSqlGroupByListAndScalarTwoShards() throws Exception {
         Map<String, Number> groups = groups(
             executeSql("SELECT tags, region, SUM(latency) AS total FROM " + TWO_SHARD_INDEX + " GROUP BY tags, region"),
@@ -157,7 +155,6 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testOneShardAndTwoShardAggregatesAgree() throws Exception {
         List<String> queries = List.of(
             " | stats count() as v by tags",
