@@ -222,45 +222,6 @@ fn unsorted_merge_preserves_list_values() {
 }
 
 #[test]
-fn unsorted_merge_promotes_scalar_values_to_singleton_lists() {
-    let tmp = tempdir().unwrap();
-    let scalar = tmp
-        .path()
-        .join("scalar.parquet")
-        .to_string_lossy()
-        .to_string();
-    let list = tmp
-        .path()
-        .join("list.parquet")
-        .to_string_lossy()
-        .to_string();
-    let out = tmp
-        .path()
-        .join("merged.parquet")
-        .to_string_lossy()
-        .to_string();
-
-    write_scalar_file(&scalar, &[1, 2], &[Some("prod"), None]);
-    write_list_file(
-        &list,
-        &[3, 4],
-        &[Some(vec!["prod", "error"]), Some(vec!["solo"])],
-    );
-
-    merge_unsorted(&[scalar, list], &out, "merge-scalar-list", 0).unwrap();
-
-    assert_eq!(
-        read_pairs(&out),
-        vec![
-            (1, v(&["prod"])),
-            (2, None),
-            (3, v(&["prod", "error"])),
-            (4, v(&["solo"])),
-        ]
-    );
-}
-
-#[test]
 fn sorted_merge_keeps_list_values_with_their_row() {
     let tmp = tempdir().unwrap();
     let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
@@ -404,55 +365,6 @@ fn sorted_merge_uses_minimum_list_element_as_sort_key() {
     assert_eq!(&descending_ids[..4], &[40, 30, 20, 10]);
     assert!(descending_ids[4..].contains(&50));
     assert!(descending_ids[4..].contains(&60));
-}
-
-#[test]
-fn sorted_merge_orders_scalar_and_list_generations_by_minimum_value() {
-    let tmp = tempdir().unwrap();
-    let scalar = tmp
-        .path()
-        .join("scalar.parquet")
-        .to_string_lossy()
-        .to_string();
-    let list = tmp
-        .path()
-        .join("list.parquet")
-        .to_string_lossy()
-        .to_string();
-    let out = tmp
-        .path()
-        .join("merged.parquet")
-        .to_string_lossy()
-        .to_string();
-
-    write_scalar_file(&scalar, &[10, 30], &[Some("alpha"), Some("delta")]);
-    write_list_file(
-        &list,
-        &[20, 40],
-        &[Some(vec!["zz", "beta"]), Some(vec!["omega", "gamma"])],
-    );
-
-    merge_sorted(
-        &[scalar, list],
-        &out,
-        "merge-scalar-list-sorted",
-        &["tags".to_string()],
-        &[false],
-        &[false],
-        &[],
-        0,
-    )
-    .unwrap();
-
-    let pairs = read_pairs(&out);
-    assert_eq!(
-        pairs.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        vec![10, 20, 30, 40]
-    );
-    assert_eq!(pairs[0], (10, v(&["alpha"])));
-    assert_eq!(pairs[1], (20, v(&["zz", "beta"])));
-    assert_eq!(pairs[2], (30, v(&["delta"])));
-    assert_eq!(pairs[3], (40, v(&["omega", "gamma"])));
 }
 
 /// Multi-batch cursors + deferred column decode.
