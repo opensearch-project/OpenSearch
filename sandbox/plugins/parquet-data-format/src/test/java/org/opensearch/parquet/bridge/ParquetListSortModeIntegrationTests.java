@@ -39,6 +39,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +118,54 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
         assertEquals(Set.of(2L, 3L, 4L), new HashSet<>(ids.subList(2, 5)));
     }
 
+    /**
+     * Every merged row must keep its own LIST values in source order after the k-way merge
+     * crosses file boundaries. Distinct minimum elements give a deterministic row order, so a
+     * value that detached from its row (a row-vs-value confusion in the merge) would surface as
+     * tags attached to the wrong id. This is the Java/CI-visible counterpart of the Rust
+     * merge_list_column_tests; the Rust unit tests do not run in the sandbox check.
+     */
+    public void testSortedMergePreservesListValuesPerRow() throws Exception {
+        List<List<String>> rows = List.of(
+            List.of("one"),            // id 1, min "one"
+            List.of("two", "ii", "2"), // id 2, min "2"
+            List.of("three", "iii"),   // id 3, min "iii"
+            List.of("four"),           // id 4, min "four"
+            List.of("five")            // id 5, min "five"
+        );
+        List<Map<String, Object>> merged = writeMergeAndReadRows(sortConfig("asc", "min", "_last"), rows);
+
+        assertEquals(List.of(2L, 5L, 4L, 3L, 1L), idsOf(merged));
+        assertEquals(List.of("two", "ii", "2"), tagsOf(merged.get(0)));
+        assertEquals(List.of("five"), tagsOf(merged.get(1)));
+        assertEquals(List.of("four"), tagsOf(merged.get(2)));
+        assertEquals(List.of("three", "iii"), tagsOf(merged.get(3)));
+        assertEquals(List.of("one"), tagsOf(merged.get(4)));
+    }
+
+    /**
+     * The merge must preserve the null-vs-empty-vs-null-child distinctions exactly: a null list
+     * stays null, an empty list stays empty (not null), and a list of null children keeps its
+     * nulls. The null-like rows share a null sort key so their relative order is unspecified;
+     * assertions are keyed by id rather than position.
+     */
+    public void testMergePreservesNullEmptyAndNullChildrenExactly() throws Exception {
+        // Row order by id: id1 ["b","d"], id2 null, id3 [], id4 [null,null], id5 ["a","z"].
+        List<Map<String, Object>> merged = writeMergeAndReadRows(sortConfig("asc", "min", "_last"), nullLikeRows());
+
+        Map<Long, List<String>> byId = new HashMap<>();
+        for (Map<String, Object> row : merged) {
+            byId.put(((Number) row.get("id")).longValue(), tagsOf(row));
+        }
+
+        assertEquals(5, byId.size());
+        assertEquals(List.of("b", "d"), byId.get(1L));
+        assertNull("null list must stay null", byId.get(2L));
+        assertEquals("empty list must stay empty and distinct from null", List.of(), byId.get(3L));
+        assertEquals("null children must be preserved", java.util.Arrays.asList(null, null), byId.get(4L));
+        assertEquals(List.of("a", "z"), byId.get(5L));
+    }
+
     private List<List<String>> nullLikeRows() {
         return java.util.Arrays.asList(List.of("b", "d"), null, List.of(), java.util.Arrays.asList(null, null), List.of("a", "z"));
     }
@@ -136,7 +185,7 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
         return new ParquetSortConfig(indexSettings);
     }
 
-    private List<Long> writeMergeAndReadIds(ParquetSortConfig sortConfig, List<List<String>> rows) throws Exception {
+    private List<Map<String, Object>> writeMergeAndReadRows(ParquetSortConfig sortConfig, List<List<String>> rows) throws Exception {
         RustBridge.onSettingsUpdate(NativeSettings.builder().indexName(INDEX_NAME).build());
         try {
             List<Long> firstIds = new ArrayList<>();
@@ -160,10 +209,23 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
             String merged = dir.resolve("merged.parquet").toString();
             RustBridge.mergeParquetFilesInRust(List.of(Path.of(first), Path.of(second)), merged, INDEX_NAME, 1L);
             assertEquals(rows.size(), RustBridge.getFileMetadata(merged).numRows());
-            return readIds(merged);
+            return readRows(merged);
         } finally {
             RustBridge.removeSettings(INDEX_NAME);
         }
+    }
+
+    private List<Long> writeMergeAndReadIds(ParquetSortConfig sortConfig, List<List<String>> rows) throws Exception {
+        return idsOf(writeMergeAndReadRows(sortConfig, rows));
+    }
+
+    private List<Long> idsOf(List<Map<String, Object>> rows) {
+        return rows.stream().map(row -> ((Number) row.get("id")).longValue()).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> tagsOf(Map<String, Object> row) {
+        return (List<String>) row.get("tags");
     }
 
     private long[] toLongArray(List<Long> values) {
@@ -226,7 +288,7 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
     }
 
     @SuppressForbidden(reason = "JSON parsing for persisted physical row order verification")
-    private List<Long> readIds(String parquetFile) throws Exception {
+    private List<Map<String, Object>> readRows(String parquetFile) throws Exception {
         String json = RustBridge.readAsJson(parquetFile);
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -238,7 +300,7 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
             return parser.list().stream().map(row -> {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> values = (Map<String, Object>) row;
-                return ((Number) values.get("id")).longValue();
+                return values;
             }).toList();
         }
     }

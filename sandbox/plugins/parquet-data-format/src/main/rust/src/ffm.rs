@@ -818,6 +818,70 @@ pub unsafe extern "C" fn parquet_free_merge_result(
 // Parquet reader (for test verification)
 // ---------------------------------------------------------------------------
 
+/// Serializes a single Arrow array cell to JSON, recursing into LIST children.
+///
+/// This lets list-typed columns round-trip through `parquet_read_as_json` so tests
+/// can assert LIST values survive the write/merge path: a null list row stays JSON
+/// `null`, an empty list stays `[]`, and a null child element stays JSON `null`,
+/// preserving the null-vs-empty-vs-null-child distinctions the merge must not lose.
+fn array_value_to_json(col: &dyn arrow::array::Array, row_idx: usize) -> serde_json::Value {
+    use arrow::array::Array;
+
+    if col.is_null(row_idx) {
+        return serde_json::Value::Null;
+    }
+    match col.data_type() {
+        arrow::datatypes::DataType::Int32 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Int32Array>()
+                .unwrap();
+            serde_json::Value::Number(arr.value(row_idx).into())
+        }
+        arrow::datatypes::DataType::Int64 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Int64Array>()
+                .unwrap();
+            serde_json::Value::Number(arr.value(row_idx).into())
+        }
+        arrow::datatypes::DataType::Utf8 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::StringArray>()
+                .unwrap();
+            serde_json::Value::String(arr.value(row_idx).to_string())
+        }
+        arrow::datatypes::DataType::Boolean => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::BooleanArray>()
+                .unwrap();
+            serde_json::Value::Bool(arr.value(row_idx))
+        }
+        arrow::datatypes::DataType::Float64 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .unwrap();
+            serde_json::json!(arr.value(row_idx))
+        }
+        arrow::datatypes::DataType::List(_) => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::ListArray>()
+                .unwrap();
+            let elements = arr.value(row_idx);
+            let mut items = Vec::with_capacity(elements.len());
+            for i in 0..elements.len() {
+                items.push(array_value_to_json(elements.as_ref(), i));
+            }
+            serde_json::Value::Array(items)
+        }
+        _ => serde_json::Value::String(format!("<unsupported:{}>", col.data_type())),
+    }
+}
+
 /// Reads a parquet file and returns its contents as a JSON string.
 /// Each row is a JSON object. The result is a JSON array of objects.
 /// The JSON bytes are written into `out_buf`, actual length into `out_len`.
@@ -831,8 +895,6 @@ pub unsafe extern "C" fn parquet_read_as_json(
     buf_capacity: i64,
     out_len: *mut i64,
 ) -> i64 {
-    use arrow::array::Array;
-
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_read_as_json: {}", e))?
         .to_string();
@@ -854,51 +916,10 @@ pub unsafe extern "C" fn parquet_read_as_json(
             let mut obj = serde_json::Map::new();
             for (col_idx, field) in schema.fields().iter().enumerate() {
                 let col = batch.column(col_idx);
-                let val = if col.is_null(row_idx) {
-                    serde_json::Value::Null
-                } else {
-                    match col.data_type() {
-                        arrow::datatypes::DataType::Int32 => {
-                            let arr = col
-                                .as_any()
-                                .downcast_ref::<arrow::array::Int32Array>()
-                                .unwrap();
-                            serde_json::Value::Number(arr.value(row_idx).into())
-                        }
-                        arrow::datatypes::DataType::Int64 => {
-                            let arr = col
-                                .as_any()
-                                .downcast_ref::<arrow::array::Int64Array>()
-                                .unwrap();
-                            serde_json::Value::Number(arr.value(row_idx).into())
-                        }
-                        arrow::datatypes::DataType::Utf8 => {
-                            let arr = col
-                                .as_any()
-                                .downcast_ref::<arrow::array::StringArray>()
-                                .unwrap();
-                            serde_json::Value::String(arr.value(row_idx).to_string())
-                        }
-                        arrow::datatypes::DataType::Boolean => {
-                            let arr = col
-                                .as_any()
-                                .downcast_ref::<arrow::array::BooleanArray>()
-                                .unwrap();
-                            serde_json::Value::Bool(arr.value(row_idx))
-                        }
-                        arrow::datatypes::DataType::Float64 => {
-                            let arr = col
-                                .as_any()
-                                .downcast_ref::<arrow::array::Float64Array>()
-                                .unwrap();
-                            serde_json::json!(arr.value(row_idx))
-                        }
-                        _ => {
-                            serde_json::Value::String(format!("<unsupported:{}>", col.data_type()))
-                        }
-                    }
-                };
-                obj.insert(field.name().clone(), val);
+                obj.insert(
+                    field.name().clone(),
+                    array_value_to_json(col.as_ref(), row_idx),
+                );
             }
             rows.push(serde_json::Value::Object(obj));
         }
