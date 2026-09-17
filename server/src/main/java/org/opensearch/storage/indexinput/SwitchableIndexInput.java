@@ -20,13 +20,16 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.remote.file.AbstractBlockIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,6 +49,15 @@ import java.util.function.Supplier;
  * If Switchable Index Input hasn't switched we add one more entry _0.cfs pointing to the full file
  * If Switchable Index Input has switched we add block entries such as _0.cfs_block_0 pointing to the block files
  * Note that the Directory is only concerned about the switchable entry in FileCache while the SwitchableIndexInput handles the full file and block file entries
+ *
+ * Switch directions. Each instance allows exactly one transition, chosen at construction by {@code canSwitchToLocal}:
+ * <ul>
+ * <li>{@code false} (warm residency): local full file -> remote blocks via {@link #switchToRemote()}; remote is terminal.</li>
+ * <li>{@code true} (hot tiered recovery): remote blocks -> local full file via {@link #switchToLocal()}; local is terminal.
+ * The root opens the promoted local file once and every live clone/slice re-slices that input at its own offset, so
+ * readers keep their file pointers; the block entries of the file are then removed from the FileCache.</li>
+ * </ul>
+ * Once an instance reaches its terminal state it is {@code stable} and reads bypass the per-instance lock.
  */
 public class SwitchableIndexInput extends IndexInput implements Runnable, RandomAccessInput {
     private static final Logger logger = LogManager.getLogger(SwitchableIndexInput.class);
@@ -65,6 +77,9 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
     private volatile boolean isClosed;
     private volatile boolean hasSwitchedToRemote;
     private volatile boolean cachedFromRemote;
+    private final boolean canSwitchToLocal;
+    // true once no further switch can happen for this instance; reads then skip objectLock (see withOptionalLock)
+    private volatile boolean stable;
     private final ConcurrentMap<SwitchableIndexInput, Boolean> clones;
     private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
     private final ThreadPool threadPool;
@@ -115,9 +130,41 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
             localDirectory,
             remoteDirectory,
             transferManager,
+            cacheFromRemote,
+            false,
+            threadPool,
+            tieredStoragePrefetchSettingsSupplier
+        );
+    }
+
+    // constructor for original index input, choosing the allowed switch direction
+    public SwitchableIndexInput(
+        String resourceDescription,
+        String fileName,
+        Path fullFilePath,
+        Path switchableFilePath,
+        FileCache fileCache,
+        FSDirectory localDirectory,
+        RemoteSegmentStoreDirectory remoteDirectory,
+        TransferManager transferManager,
+        boolean cacheFromRemote,
+        boolean canSwitchToLocal,
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
+    ) throws IOException {
+        this(
+            resourceDescription,
+            fileName,
+            fullFilePath,
+            switchableFilePath,
+            fileCache,
+            localDirectory,
+            remoteDirectory,
+            transferManager,
             0,
             cacheFromRemote ? remoteDirectory.fileLength(fileName) : localDirectory.fileLength(fileName),
             cacheFromRemote,
+            canSwitchToLocal,
             false,
             null,
             null,
@@ -141,6 +188,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         long offset,
         long fileLength,
         boolean cacheFromRemote,
+        boolean canSwitchToLocal,
         boolean isClone,
         IndexInput clonedLocalIndexInput,
         IndexInput clonedRemoteIndexInput,
@@ -162,6 +210,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         this.isClone = isClone;
         this.cachedFromRemote = cacheFromRemote;
         this.hasSwitchedToRemote = cacheFromRemote;
+        this.canSwitchToLocal = canSwitchToLocal;
+        this.stable = isTerminal(cacheFromRemote, canSwitchToLocal);
         this.isClosed = false;
         this.threadPool = threadPool;
         this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
@@ -194,6 +244,9 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
     }
 
     public void switchToRemote() throws IOException, IllegalStateException {
+        if (canSwitchToLocal) {
+            throw new IllegalStateException("Cannot switch " + fileName + " to remote: local is the terminal state for this index input");
+        }
         sharedLock.writeLock().lock();
         try {
             objectLock.lock();
@@ -215,12 +268,85 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
                 }
                 localIndexInput.close();
                 hasSwitchedToRemote = true;
+                stable = isTerminal(true, canSwitchToLocal);
                 if (!isClone) fileCache.remove(fullFilePath);
             } finally {
                 objectLock.unlock();
             }
         } finally {
             sharedLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Root-only mirror of {@link #switchToRemote()}: remote blocks -> hydrated local file for this input and all live
+     * clones/slices (file pointers kept), then the block entries are removed from the FileCache. Requires
+     * {@code canSwitchToLocal}; checks local presence + length only (checksum is the caller's job); no-op if local/closed.
+     */
+    public void switchToLocal() throws IOException, IllegalStateException {
+        if (canSwitchToLocal == false) {
+            throw new IllegalStateException("Cannot switch " + fileName + " to local: remote is the terminal state for this index input");
+        }
+        if (isClone) {
+            throw new IllegalStateException("switchToLocal must be invoked on the root index input of " + fileName + ", not a clone/slice");
+        }
+        sharedLock.writeLock().lock();
+        try {
+            objectLock.lock();
+            try {
+                if (isClosed || hasSwitchedToRemote == false) return;
+                validateFilePresentLocally();
+                IndexInput newLocalIndexInput = localDirectory.openInput(fileName, IOContext.DEFAULT);
+                IndexInput oldRemoteIndexInput = underlyingIndexInput.get();
+                newLocalIndexInput.seek(oldRemoteIndexInput.getFilePointer());
+                localIndexInput.set(newLocalIndexInput);
+                underlyingIndexInput.set(newLocalIndexInput);
+                remoteIndexInput.set(null);
+                boolean allClonesSwitched = true;
+                for (SwitchableIndexInput clone : clones.keySet()) {
+                    try {
+                        clone.switchToLocal(newLocalIndexInput);
+                    } catch (IOException e) {
+                        allClonesSwitched = false;
+                        logger.error("Failed to switch IndexInput to local - " + clone, e);
+                    }
+                }
+                oldRemoteIndexInput.close();
+                hasSwitchedToRemote = false;
+                stable = isTerminal(false, canSwitchToLocal);
+                if (allClonesSwitched) {
+                    removeBlockEntries();
+                } else {
+                    // a clone still reads blocks; leave its block entries to LRU eviction rather than removing them under it
+                    logger.warn("Not removing block entries of {} as at least one clone is still reading from remote", fileName);
+                }
+            } finally {
+                objectLock.unlock();
+            }
+        } finally {
+            sharedLock.writeLock().unlock();
+        }
+    }
+
+    // Clone/slice side of the cascade. Re-slices the root's freshly opened local input at this instance's absolute
+    // offset/length (the same way the clone was derived from the root's local input originally) and carries the
+    // file pointer over. Invoked by the root while it holds the shared write lock.
+    private void switchToLocal(IndexInput rootLocalIndexInput) throws IOException {
+        assert isClone;
+        objectLock.lock();
+        try {
+            if (isClosed || hasSwitchedToRemote == false) return;
+            IndexInput newLocalIndexInput = rootLocalIndexInput.slice(toString(), offset, fileLength);
+            IndexInput oldRemoteIndexInput = underlyingIndexInput.get();
+            newLocalIndexInput.seek(oldRemoteIndexInput.getFilePointer());
+            localIndexInput.set(newLocalIndexInput);
+            underlyingIndexInput.set(newLocalIndexInput);
+            remoteIndexInput.set(null);
+            oldRemoteIndexInput.close();
+            hasSwitchedToRemote = false;
+            stable = isTerminal(false, canSwitchToLocal);
+        } finally {
+            objectLock.unlock();
         }
     }
 
@@ -300,6 +426,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
                         this.offset,
                         this.fileLength,
                         hasSwitchedToRemote,
+                        canSwitchToLocal,
                         true,
                         (!hasSwitchedToRemote && localIndexInput.get() != null) ? localIndexInput.get().clone() : null,
                         (hasSwitchedToRemote && remoteIndexInput.get() != null) ? remoteIndexInput.get().clone() : null,
@@ -339,6 +466,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
                         this.offset + offset,
                         length,
                         hasSwitchedToRemote,
+                        canSwitchToLocal,
                         true,
                         (!hasSwitchedToRemote && localIndexInput.get() != null)
                             ? localIndexInput.get().slice(sliceDescription, offset, length)
@@ -408,12 +536,57 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         return cachedFromRemote;
     }
 
+    // Visible for testing
+    public boolean canSwitchToLocal() {
+        return canSwitchToLocal;
+    }
+
+    // Visible for testing: true once this instance is in its terminal state and reads bypass the per-instance lock
+    public boolean isStable() {
+        return stable;
+    }
+
     private void validateFilePresentInRemote() {
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteDirectory.getSegmentsUploadedToRemoteStore()
             .get(fileName);
         if (uploadedSegmentMetadata == null) {
             throw new IllegalStateException("Cannot switch to remote as file " + fileName + " not present in remote");
         }
+    }
+
+    private void validateFilePresentLocally() {
+        final long localLength;
+        try {
+            localLength = localDirectory.fileLength(fileName);
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            throw new IllegalStateException("Cannot switch to local as file " + fileName + " not present locally", e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot switch to local as length of file " + fileName + " could not be read", e);
+        }
+        if (localLength != fileLength) {
+            throw new IllegalStateException(
+                "Cannot switch to local as file " + fileName + " has local length " + localLength + " but expected " + fileLength
+            );
+        }
+    }
+
+    // Removes every <file>_block_N FileCache entry; the eviction listener deletes the block files. Only the root calls
+    // this, after all remote inputs of the file are closed, so no block is still held by a reader.
+    private void removeBlockEntries() {
+        for (int blockId = 0; blockId < blockCount(fileLength); blockId++) {
+            fileCache.remove(fullFilePath.resolveSibling(AbstractBlockIndexInput.getBlockFileName(fileName, blockId)));
+        }
+    }
+
+    // Visible for testing
+    public static int blockCount(long fileLength) {
+        if (fileLength <= 0) return 0;
+        return (int) ((fileLength - 1) >>> AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE_SHIFT) + 1;
+    }
+
+    // Terminal (no further switch possible): remote for warm-style inputs, local for hot tiered-recovery inputs.
+    private static boolean isTerminal(boolean switchedToRemote, boolean canSwitchToLocal) {
+        return switchedToRemote != canSwitchToLocal;
     }
 
     protected IndexInput getLocalIndexInput() throws IOException {
@@ -468,7 +641,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
     }
 
     private void withOptionalLock(IORunnable operation) throws IOException {
-        if (hasSwitchedToRemote) {
+        if (stable) {
             operation.run();
             return;
         }
@@ -481,7 +654,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
     }
 
     private <T, E extends Exception> T withOptionalLock(ThrowingSupplier<T, E> operation) throws E {
-        if (hasSwitchedToRemote) {
+        if (stable) {
             return operation.get();
         }
         objectLock.lock();
