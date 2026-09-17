@@ -2202,6 +2202,10 @@ public class Node implements Closeable {
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
+            pluginLifecycleComponents.stream()
+                .filter(AuxTransport.class::isInstance)
+                .map(AuxTransport.class::cast)
+                .forEach(aux -> writePortsFile(aux.settingKey(), aux.getBoundAddress()));
         }
 
         logger.info("started");

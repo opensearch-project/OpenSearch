@@ -513,6 +513,13 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     @Internal
+    public String getAuxTransportPortURI(String auxTransportType) {
+        waitForAllConditions();
+        return getFirstNode().getAuxTransportPortURI(auxTransportType);
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
