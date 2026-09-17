@@ -66,7 +66,9 @@ pub async fn execute_query(
 
     // Build a fresh session context per query (default optimizer rules on the
     // vanilla path). TODO : Tune this during planning per query.
-    let ctx = build_query_session_context(
+    // This path builds no SessionContextHandle, so nothing here consumes the registry;
+    // the UDFs are still registered on the context so a fragment carrying them resolves.
+    let (ctx, _runtime_filters) = build_query_session_context(
         query_config,
         runtime_env,
         query_config.target_partitions,
