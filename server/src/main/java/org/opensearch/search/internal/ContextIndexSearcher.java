@@ -352,7 +352,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         try {
             cancellable.checkCancelled();
             if (weight instanceof ProfileWeight profileWeight) {
-                profileWeight.associateCollectorToLeaves(ctx, collector);
+                // For a whole-segment partition Lucene passes maxDocId == NO_MORE_DOCS (Integer.MAX_VALUE);
+                // resolve it to the segment's actual maxDoc so the profiled doc_range reflects the real
+                // segment size rather than the sentinel.
+                int resolvedMaxDocId = (maxDocId == DocIdSetIterator.NO_MORE_DOCS) ? ctx.reader().maxDoc() : maxDocId;
+                profileWeight.associateCollectorToLeaves(ctx, collector, minDocId, resolvedMaxDocId);
             }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
