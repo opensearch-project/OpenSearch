@@ -498,6 +498,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
                 listener = searchRequest.transformResponseListener(updatedListener);
             } catch (Exception e) {
+                searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(null, searchRequestContext);
                 updatedListener.onFailure(e);
                 return;
             }
@@ -521,7 +522,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewriteListener
                     );
                 }
-            }, listener::onFailure);
+            }, e -> { searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(null, searchRequestContext); listener.onFailure(e); });
             searchRequest.transformRequest(requestTransformListener);
         }
     }
@@ -641,11 +642,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 searchAsyncActionProvider,
                                 searchRequestContext
                             );
-                        }, listener::onFailure)
+                        }, e -> { searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(null, searchRequestContext); listener.onFailure(e); })
                     );
                 }
             }
-        }, listener::onFailure);
+        }, e -> { searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(null, searchRequestContext); listener.onFailure(e); });
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
