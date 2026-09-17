@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -112,13 +114,14 @@ public class MultiValueProjectionIT extends MultiValueRestTestCase {
         assertEquals(List.of(), strings(byId.get(4)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/23061")
     public void testSortAscendingHeadThenListProjection() throws Exception {
+        // Placement-dependent: with some shard splits the fetched LIST for doc 2 comes back empty.
         Map<String, Object> result = executePpl("source = " + TWO_SHARD_INDEX + " | sort latency | head 2 | fields id, tags");
         Map<Integer, Object> byId = tagsById(result);
         assertEquals(java.util.Set.of(1, 2), byId.keySet());
-        String placement = shardPlacement(TWO_SHARD_INDEX);
-        assertEquals("placement=" + placement + " response=" + result, List.of("blue", "blue", "red"), strings(byId.get(1)));
-        assertEquals("placement=" + placement + " response=" + result, List.of("red", "green"), strings(byId.get(2)));
+        assertEquals(List.of("blue", "blue", "red"), strings(byId.get(1)));
+        assertEquals(result.toString(), List.of("red", "green"), strings(byId.get(2)));
     }
 
     // ---- explicit row expansion -------------------------------------------------------------

@@ -228,26 +228,6 @@ public abstract class MultiValueRestTestCase extends AnalyticsRestTestCase {
         return out;
     }
 
-    /** {@code id -> shard} placement for the fixture documents, for diagnostics on placement-dependent failures. */
-    protected String shardPlacement(String index) throws IOException {
-        Map<Integer, String> placement = new TreeMap<>();
-        for (int shard = 0; shard < 2; shard++) {
-            Request search = new Request("GET", "/" + index + "/_search");
-            search.addParameter("size", "10");
-            search.addParameter("preference", "_shards:" + shard);
-            search.setJsonEntity("{\"query\":{\"match_all\":{}},\"_source\":[\"id\"]}");
-            Map<String, Object> response = assertOkAndParse(client().performRequest(search), "_search " + index);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) ((Map<String, Object>) response.get("hits")).get("hits");
-            for (Map<String, Object> hit : hits) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> source = (Map<String, Object>) hit.get("_source");
-                placement.put(((Number) source.get("id")).intValue(), "shard" + shard);
-            }
-        }
-        return placement.toString();
-    }
-
     /** Sorted multiset view of a LIST cell, for assertions that do not depend on element order. */
     protected static List<String> sorted(List<String> values) {
         List<String> copy = new ArrayList<>(values);
