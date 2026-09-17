@@ -237,6 +237,65 @@ public class MergeIndexWriterTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Concurrent delete during a merge, driven through the public two-phase prepare/execute contract.
+     * A doc alive when the snapshot is frozen but deleted <em>after</em> prepare and <em>before</em>
+     * execute must be:
+     * <ul>
+     *   <li>PHYSICALLY PRESENT in the merged segment — {@code maxDoc} counts it (it was alive at freeze,
+     *       so {@code mergeMiddle} copied its row), keeping the merged segment row-aligned with the
+     *       primary format which also copied it;</li>
+     *   <li>DEAD via liveDocs — {@code carryOverHardDeletes} marks it deleted on the merged segment, so
+     *       {@code numDocs} excludes it and it is invisible to search;</li>
+     *   <li>persisted — {@code flushLiveDocsForMergedSegment} writes the {@code .liv} so the merged
+     *       file set records the deletion.</li>
+     * </ul>
+     * A doc deleted <em>before</em> the freeze is instead physically dropped ({@code maxDoc} excludes
+     * it). This guards the invariant that a mid-merge delete is carried over, not lost and not
+     * physically dropped early (which would misalign parquet and lucene row ids).
+     */
+    public void testConcurrentDeleteDuringMergeIsCarriedOverNotPhysicallyDropped() throws IOException {
+        addSegment("a", 4); // a_0..a_3
+        addSegment("b", 3); // b_0..b_2
+        // Delete a_0 BEFORE the freeze — it must be physically dropped by mergeMiddle.
+        writer.deleteDocuments(new Term("id", "a_0"));
+        writer.commit();
+
+        long gen = 71L;
+        PreparableOneMerge oneMerge = new PreparableOneMerge(liveSegments());
+        writer.prepareMerge(oneMerge, gen); // FREEZE: a_0 dead, a_1..a_3 + b_0..b_2 alive (6 rows)
+
+        // CONCURRENT DELETE after freeze: a_2 is alive in the frozen snapshot.
+        writer.deleteDocuments(new Term("id", "a_2"));
+        DirectoryReader.open(writer).close(); // force-apply the buffered delete
+
+        // Execute against the frozen snapshot: mergeMiddle drops only a_0 (frozen-dead); a_2's delete
+        // is carried over onto the merged segment as a liveDocs deletion, not a physical drop.
+        PreparableOneMerge taken = writer.takePreparedMerge(gen);
+        assertSame(oneMerge, taken);
+        writer.executeMerge(taken, gen);
+        writer.commit();
+
+        assertEquals("segments merged into one", 1, liveSegments().size());
+        SegmentCommitInfo merged = liveSegments().get(0);
+
+        try (DirectoryReader reader = DirectoryReader.open(writer)) {
+            // 7 indexed − 1 pre-freeze delete (a_0) = 6 physical rows; the concurrent delete (a_2)
+            // is physically PRESENT (it was alive at freeze) → maxDoc == 6.
+            assertEquals("concurrently-deleted doc must remain physically present in the merged segment", 6, reader.maxDoc());
+            // a_2 is hidden via the carried-over liveDocs delete → one fewer live doc.
+            assertEquals("carried-over concurrent delete must hide exactly one more doc", 5, reader.numDocs());
+        }
+        assertTrue("merged segment must record the carried-over deletion", merged.hasDeletions());
+
+        // The carried-over delete must be persisted to a .liv so the recorded file set matches readers.
+        writer.flushLiveDocsForMergedSegment(merged);
+        assertTrue(
+            "flushLiveDocsForMergedSegment must persist the carried-over delete as a .liv file",
+            merged.files().stream().anyMatch(f -> f.endsWith(".liv"))
+        );
+    }
+
     // ========== flushLiveDocsForMergedSegment ==========
 
     /** No pooled reader state for the segment means no-op. */
