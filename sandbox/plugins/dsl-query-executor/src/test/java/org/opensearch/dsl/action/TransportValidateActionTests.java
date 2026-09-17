@@ -18,6 +18,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.cluster.ClusterName;
@@ -104,15 +105,35 @@ public class TransportValidateActionTests extends OpenSearchTestCase {
         assertTrue(listener.response.get().isValid());
     }
 
-    public void testMultipleConcreteIndicesFails() {
+    public void testMultipleConcreteIndicesValidateAgainstUnion() {
+        // Multi-index requests are no longer rejected at resolution; they validate against the
+        // schema's cross-index union table. With agreeing (here, mapping-agnostic) fields the
+        // schema-equivalence gate passes and the query validates.
         TransportValidateAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
 
+        ValidateQueryRequest request = new ValidateQueryRequest("multi-alias");
+        request.query(new TermQueryBuilder("name", "laptop"));
         TestListener listener = new TestListener();
-        action.doExecute(mock(Task.class), new ValidateQueryRequest("multi-alias"), listener);
+        action.doExecute(mock(Task.class), request, listener);
 
-        assertNull(listener.response.get());
-        assertTrue(listener.failure.get() instanceof IllegalArgumentException);
-        assertTrue(listener.failure.get().getMessage().contains("exactly one concrete index"));
+        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
+        assertTrue(listener.response.get().isValid());
+    }
+
+    public void testEmptyResolutionValidatesAsTriviallyValid() {
+        // allow_no_indices=true + a wildcard matching nothing resolves to zero indices; validation
+        // must report trivially valid (nothing to convert), mirroring the execution path's
+        // 200-empty short-circuit, rather than failing while building a mapper for an empty set.
+        TransportValidateAction action = createAction(); // resolver returns no indices
+
+        ValidateQueryRequest request = new ValidateQueryRequest("mi_nomatch_*");
+        request.query(new TermQueryBuilder("name", "laptop"));
+        TestListener listener = new TestListener();
+        action.doExecute(mock(Task.class), request, listener);
+
+        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
+        assertNotNull(listener.response.get());
+        assertTrue(listener.response.get().isValid());
     }
 
     public void testIndexNotInSchemaFails() {
@@ -185,6 +206,11 @@ public class TransportValidateActionTests extends OpenSearchTestCase {
             }
 
             @Override
+            public QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions) {
+                return ctx;
+            }
+
+            @Override
             public QueryRequestContext getContext() {
                 return ctx;
             }
@@ -193,12 +219,16 @@ public class TransportValidateActionTests extends OpenSearchTestCase {
 
     private SchemaPlus buildSchema() {
         SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
-        schema.add("test-index", new AbstractTable() {
+        AbstractTable table = new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
                 return tf.builder().add("name", SqlTypeName.VARCHAR).add("price", SqlTypeName.INTEGER).build();
             }
-        });
+        };
+        schema.add("test-index", table);
+        // The cross-index union table for the multi-index resolution test, named by the
+        // comma-joined concrete indices as the transport resolves it.
+        schema.add("index-a,index-b", table);
         return schema;
     }
 
