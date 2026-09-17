@@ -10,4 +10,17 @@ grant {
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "connect";
   permission java.net.SocketPermission "*", "resolve";
+
+  // The AWS SDK v2, and the Netty HTTP/2 async client used for enhanced fan-out, perform reflection
+  // and class-loader access while building clients and executing requests.
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // The AWS SDK v2 resolves a credentials/config profile at client creation. KinesisShardConsumer
+  // redirects the profile paths to the config directory (instead of the restricted ~/.aws home path);
+  // these permissions allow that redirect and the resulting read of the config directory.
+  permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
+  permission java.util.PropertyPermission "aws.configFile", "read,write";
+  permission java.io.FilePermission "config", "read";
 };
