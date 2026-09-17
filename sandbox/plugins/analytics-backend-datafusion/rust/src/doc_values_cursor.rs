@@ -74,6 +74,8 @@ static CURSORS: Lazy<DashMap<i64, Arc<Mutex<DocValuesCursor>>>> = Lazy::new(Dash
 /// uses. Required rather than defaulted: a cache or pool created here would sit outside the node's
 /// configured budget.
 fn runtime_env() -> Result<Arc<RuntimeEnv>, DataFusionError> {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the global DataFusion RuntimeEnv registration");
     crate::cache::global_runtime_env().ok_or_else(|| {
         DataFusionError::Configuration(
             "no global DataFusion runtime environment; the analytics-backend-datafusion global \
@@ -87,6 +89,8 @@ fn runtime_env() -> Result<Arc<RuntimeEnv>, DataFusionError> {
 /// on the calling thread. Required rather than defaulted: `RuntimeManager` sizes this pool from the
 /// core count and monitors it, and a pool created here would be neither sized nor monitored.
 fn io_runtime() -> Result<Arc<Runtime>, DataFusionError> {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the process-global runtime manager");
     if let Some(manager) = crate::ffm::try_get_rt_manager() {
         return Ok(Arc::clone(&manager.io_runtime));
     }
@@ -637,6 +641,11 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     Ok(RC_OK)
 }
 
+/// Opening a cursor reads two process globals — the runtime manager and the global `RuntimeEnv`
+/// registration — and inserts into the process-global scoped page-index caches, so every test here
+/// holds `crate::test_process_globals::lock` for its whole body. Uniformly, including the few tests
+/// that only exercise pure decode logic: "every test in this module holds it" is a rule that
+/// survives the next test being added, and the affected tests run in 0.03s serially.
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Write};
@@ -686,10 +695,10 @@ mod tests {
 
     /// Stands in for the runtime manager production registers from `DataFusionService`. Tests reach
     /// the entry points without that startup path, so any read that needs the IO runtime must
-    /// register a manager explicitly first. `df_init_runtime_manager` replaces the global manager
-    /// unconditionally; current-thread-sized pools keep it minimal for tests.
+    /// register a manager explicitly first. Installed once for the whole test process, never
+    /// replaced — see `crate::test_process_globals::install_runtime_manager`.
     pub(super) fn register_test_runtime_manager() {
-        crate::ffm::df_init_runtime_manager(2, 1.5, 1.5);
+        crate::test_process_globals::install_runtime_manager();
     }
 
     pub(super) fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
@@ -863,6 +872,7 @@ mod tests {
 
     #[test]
     fn an_ambiguous_column_name_is_rejected_rather_than_guessed() {
+        let _globals = crate::test_process_globals::lock();
         let bytes = parquet_fixture_with_two_leaves_under_one_group();
 
         // "group" is the root of two leaves. Binding it to whichever came first would silently
@@ -952,6 +962,7 @@ mod tests {
 
     #[test]
     fn a_batch_over_the_memory_budget_fails_instead_of_being_decoded() {
+        let _globals = crate::test_process_globals::lock();
         // Replaces the cursor's own reservation rather than the process-wide registration, so this
         // test cannot shrink the budget for tests running alongside it.
         let (mut cursor, _runtime) = open_fixture(1, 8);
@@ -975,6 +986,7 @@ mod tests {
 
     #[test]
     fn a_batch_within_the_memory_budget_is_accounted_and_released() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(1, 8);
 
         cursor.next_batch(0).expect("the batch must fit the budget");
@@ -996,6 +1008,7 @@ mod tests {
 
     #[test]
     fn forward_jump_uses_arrow_skip_without_fetching_intermediate_pages() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(1, 8);
         let stats = Arc::clone(&cursor.stats);
 
@@ -1059,6 +1072,7 @@ mod tests {
 
     #[test]
     fn dictionary_encoded_pages_decode_across_all_skip_shapes_with_writer_v1() {
+        let _globals = crate::test_process_globals::lock();
         assert_skip_shapes_decode(parquet_fixture_encoded(
             true,
             WriterVersion::PARQUET_1_0,
@@ -1068,6 +1082,7 @@ mod tests {
 
     #[test]
     fn dictionary_encoded_pages_decode_across_all_skip_shapes_with_writer_v2() {
+        let _globals = crate::test_process_globals::lock();
         assert_skip_shapes_decode(parquet_fixture_encoded(
             true,
             WriterVersion::PARQUET_2_0,
@@ -1079,6 +1094,7 @@ mod tests {
     /// cell of the matrix, the v2 data-page format without a dictionary.
     #[test]
     fn plain_encoded_pages_decode_across_all_skip_shapes_with_writer_v2() {
+        let _globals = crate::test_process_globals::lock();
         assert_skip_shapes_decode(parquet_fixture_encoded(
             false,
             WriterVersion::PARQUET_2_0,
@@ -1125,6 +1141,7 @@ mod tests {
 
     #[test]
     fn dictionary_encoded_int32_decodes_after_cross_page_jump() {
+        let _globals = crate::test_process_globals::lock();
         assert_dictionary_jump_decodes::<arrow::datatypes::Int32Type>(DataType::Int32, |row| {
             (row % 7) as i32 * 3
         });
@@ -1132,6 +1149,7 @@ mod tests {
 
     #[test]
     fn dictionary_encoded_float32_decodes_after_cross_page_jump() {
+        let _globals = crate::test_process_globals::lock();
         assert_dictionary_jump_decodes::<arrow::datatypes::Float32Type>(DataType::Float32, |row| {
             (row % 7) as f32 * 0.5
         });
@@ -1139,6 +1157,7 @@ mod tests {
 
     #[test]
     fn dictionary_encoded_float64_decodes_after_cross_page_jump() {
+        let _globals = crate::test_process_globals::lock();
         assert_dictionary_jump_decodes::<arrow::datatypes::Float64Type>(DataType::Float64, |row| {
             (row % 7) as f64 * 0.5
         });
@@ -1146,6 +1165,7 @@ mod tests {
 
     #[test]
     fn all_null_page_is_skipped_without_fetch_or_decode() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) =
             open_parquet_fixture(parquet_fixture_with_all_null_page(ROWS_PER_PAGE), 8);
 
@@ -1179,6 +1199,7 @@ mod tests {
 
     #[test]
     fn local_file_cursor_reuses_retained_descriptor_for_page_reads() {
+        let _globals = crate::test_process_globals::lock();
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(&parquet_fixture_with_page_rows(1, ROWS_PER_PAGE))
@@ -1216,6 +1237,7 @@ mod tests {
 
     #[test]
     fn retained_arrow_reader_crosses_row_groups_and_rejects_backward_seeks() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(2, 8);
         let second_rg = (ROWS_PER_PAGE * 8) as i64;
 
@@ -1230,6 +1252,7 @@ mod tests {
 
     #[test]
     fn adaptive_batches_grow_and_stop_at_page_boundaries() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(1, 8);
 
         assert_eq!(cursor.next_batch(0).unwrap().num_rows(), 8);
@@ -1244,6 +1267,7 @@ mod tests {
 
     #[test]
     fn dense_access_retains_the_grown_window_across_pages() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(1, 8);
 
         assert_eq!(cursor.next_batch(0).unwrap().num_rows(), 8);
@@ -1259,6 +1283,7 @@ mod tests {
 
     #[test]
     fn small_forward_skip_keeps_growing_the_window() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(1, 8);
 
         assert_eq!(cursor.next_batch(0).unwrap().num_rows(), 8);
@@ -1270,6 +1295,7 @@ mod tests {
 
     #[test]
     fn large_jump_halves_the_window_instead_of_resetting() {
+        let _globals = crate::test_process_globals::lock();
         let (mut cursor, _runtime) = open_fixture(2, 8);
 
         assert_eq!(cursor.next_batch(0).unwrap().num_rows(), 8);
@@ -1289,6 +1315,7 @@ mod tests {
 
     #[test]
     fn adaptive_window_is_capped_at_max_batch_size() {
+        let _globals = crate::test_process_globals::lock();
         let rows_per_page = BATCH_SIZE_HARD_LIMIT * 2;
         let (mut cursor, _runtime) =
             open_fixture_with_page_rows(1, rows_per_page, BATCH_SIZE_HARD_LIMIT / 2);
@@ -1323,6 +1350,7 @@ mod tests {
     /// at the configured value rather than the compile-time limit.
     #[test]
     fn a_lowered_maximum_caps_growth_below_the_hard_limit() {
+        let _globals = crate::test_process_globals::lock();
         let configured_max = 64;
         let (mut cursor, _runtime) = open_parquet_fixture_with_max(
             parquet_fixture_with_page_rows(1, 1024),
@@ -1347,6 +1375,7 @@ mod tests {
     /// growth cap however the two settings are combined.
     #[test]
     fn a_starting_window_above_the_maximum_is_lowered_to_it() {
+        let _globals = crate::test_process_globals::lock();
         let configured_max = 32;
         let (cursor, _runtime) = open_parquet_fixture_with_max(
             parquet_fixture_with_page_rows(1, 1024),
@@ -1365,6 +1394,7 @@ mod tests {
     /// `ParquetColumnReader.widthForKind`.
     #[test]
     fn each_borrowable_arrow_type_maps_to_the_kind_java_expects() {
+        let _globals = crate::test_process_globals::lock();
         use arrow::array::{
             Float32Array, Float64Array, Int16Array, Int32Array, Int8Array, UInt16Array,
             UInt32Array, UInt64Array, UInt8Array,
@@ -1412,6 +1442,7 @@ mod tests {
     /// a byte pointer, which is why the bit offset is a separate out-parameter.
     #[test]
     fn a_borrowed_window_exports_row_zero_and_its_first_validity_bit() {
+        let _globals = crate::test_process_globals::lock();
         use arrow::array::{make_array, ArrayData};
         use arrow::buffer::Buffer;
 
@@ -1463,6 +1494,7 @@ mod tests {
     /// Rejected rather than exported as raw bytes Java would silently misread.
     #[test]
     fn a_type_with_no_borrow_kind_is_not_borrowable() {
+        let _globals = crate::test_process_globals::lock();
         let decimal = arrow::array::Decimal128Array::from(vec![1_i128, 2])
             .with_precision_and_scale(18, 2)
             .unwrap();
@@ -1481,6 +1513,8 @@ mod tests {
 
 /// Tests driving the `extern "C"` entry points: handle registry, status codes, and `borrowed_batch`,
 /// none of which the inherent-method tests above touch.
+///
+/// Each holds `crate::test_process_globals::lock` for the same reason as the module above.
 #[cfg(test)]
 mod ffm_tests {
     use std::ffi::{c_char, CString};
@@ -1611,6 +1645,7 @@ mod ffm_tests {
 
     #[test]
     fn a_served_batch_is_retained_so_javas_pointers_stay_valid() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1635,6 +1670,7 @@ mod ffm_tests {
     /// just as well and still serves wrong doc values.
     #[test]
     fn exported_addresses_read_back_as_the_rows_the_batch_reports() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1669,6 +1705,7 @@ mod ffm_tests {
 
     #[test]
     fn only_one_batch_is_retained_across_a_long_scan() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1686,6 +1723,7 @@ mod ffm_tests {
 
     #[test]
     fn reaching_end_of_column_releases_the_borrow() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1704,6 +1742,7 @@ mod ffm_tests {
 
     #[test]
     fn a_failed_read_releases_the_borrow() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1732,6 +1771,7 @@ mod ffm_tests {
     /// is refused before a cursor exists rather than on the first read.
     #[test]
     fn a_column_that_cannot_be_borrowed_is_rejected_at_open() {
+        let _globals = crate::test_process_globals::lock();
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(&super::tests::parquet_fixture_with_decimal_column(
             ROWS_PER_PAGE,
@@ -1748,6 +1788,7 @@ mod ffm_tests {
 
     #[test]
     fn resetting_releases_the_borrow_and_allows_rereading_row_zero() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1773,6 +1814,7 @@ mod ffm_tests {
 
     #[test]
     fn closing_while_holding_a_borrow_drops_the_cursor() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
 
@@ -1793,6 +1835,7 @@ mod ffm_tests {
 
     #[test]
     fn every_entry_point_rejects_an_unknown_handle() {
+        let _globals = crate::test_process_globals::lock();
         let unknown = i64::MAX;
         for message in [
             error_message(next_batch(unknown, 0).rc),
@@ -1804,6 +1847,7 @@ mod ffm_tests {
 
     #[test]
     fn a_closed_handle_is_no_longer_usable() {
+        let _globals = crate::test_process_globals::lock();
         let file = fixture_file();
         let handle = open_fixture(&file);
         assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
@@ -1814,6 +1858,7 @@ mod ffm_tests {
 
     #[test]
     fn an_out_of_range_initial_window_is_rejected() {
+        let _globals = crate::test_process_globals::lock();
         for initial in [0, -1, BATCH_SIZE_HARD_LIMIT as i64 + 1] {
             // Rejected before the file is touched, so the path is irrelevant.
             let message = error_message(open_iter("/nonexistent/never-opened.parquet", initial));
@@ -1849,6 +1894,7 @@ mod ffm_tests {
     /// instead of quietly reading the wrong bytes.
     #[test]
     fn a_supplied_store_is_read_through_for_a_file_that_is_on_no_local_disk() {
+        let _globals = crate::test_process_globals::lock();
         register_test_metadata_cache();
         register_test_runtime_manager();
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
@@ -1923,6 +1969,7 @@ mod ffm_tests {
 
     #[test]
     fn a_missing_column_is_reported_without_leaving_a_handle_behind() {
+        let _globals = crate::test_process_globals::lock();
         register_test_metadata_cache();
         register_test_runtime_manager();
         let file = fixture_file();
