@@ -32,6 +32,7 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -120,6 +121,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.NativeStoreHandle;
@@ -791,6 +793,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (this.indexSettings.isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
                 checksumStrategies = dataFormatRegistry.createChecksumStrategies(this.indexSettings);
             }
+            validateTieredRecoverySettings(this.indexSettings, shardId, logger);
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING)
                 && this.indexSettings.isWarmIndex()
                 && this.indexSettings.isPluggableDataFormatEnabled()
@@ -826,7 +829,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     throw e;
                 }
             } else if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
-            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+            // ADR (tiered remote-store recovery): the composite/tiered directory is selected for warm indices only.
+            // Hot remote-store shards take the plain FSDirectory branch below and therefore block in
+            // IndexShard#syncSegmentsFromRemoteSegmentStore -> copySegmentFiles until every segment file has been
+            // downloaded. Tiered remote-store recovery removes that wait for hot shards that opt in via
+            // index.remote_store.tiered_recovery.enabled: the TieredDirectory is created with a HOT_LOCAL residency
+            // policy (files stay local once written or hydrated; fsync on commit is preserved; reads of files that are
+            // not yet hydrated go through SwitchableIndexInput block fetches), the engine opens over the commit
+            // metadata alone, and a per-shard hydrator downloads the full files in the background, switching live
+            // readers to the local copy and deleting the cached blocks file by file. The feature reuses
+            // WRITABLE_WARM_INDEX_SETTING as its feature flag because every building block it depends on already
+            // sits behind that flag; a second experimental flag would only multiply the test matrix. Delivery is
+            // Lucene-first: this predicate becomes (isWarmIndex() || isTieredRecoveryEnabled()) when the HOT_LOCAL
+            // policy lands, and pluggable-dataformat indices keep the full-download path until the parquet track
+            // follows. Preconditions are enforced in validateTieredRecoverySettings so an opted-in index never
+            // silently falls back to a full download.
                 this.indexSettings.isWarmIndex()) {
                     directory = compositeDirectoryFactory.newDirectory(
                         this.indexSettings,
@@ -1392,6 +1409,52 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         });
         rescheduleRefreshTasks();
+    }
+
+    /**
+     * Fails fast when an index opts into tiered remote-store recovery but a precondition is not met, so the shard
+     * never silently falls back to the blocking full-download path. Rejects: feature flag off, a non-remote-store
+     * index, a warm index (warm already reads through blocks and keeps its own residency semantics), and a node whose
+     * {@code node.remote_store.hydration_cache.size} is {@code 0}. Pluggable-dataformat indices are not rejected:
+     * until the parquet track lands they keep the full-download path, logged once per shard.
+     */
+    // package-private for testing
+    static void validateTieredRecoverySettings(IndexSettings indexSettings, ShardId shardId, Logger logger) {
+        if (indexSettings.isTieredRecoveryEnabled() == false) {
+            return;
+        }
+        final String key = IndexModule.INDEX_REMOTE_STORE_TIERED_RECOVERY_ENABLED_SETTING.getKey();
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) == false) {
+            throw new IllegalArgumentException(
+                "[" + key + "] requires the [" + FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG + "] feature flag to be enabled"
+            );
+        }
+        if (indexSettings.isRemoteStoreEnabled() == false) {
+            throw new IllegalArgumentException("[" + key + "] can only be set on a remote store enabled index");
+        }
+        if (indexSettings.isWarmIndex()) {
+            throw new IllegalArgumentException(
+                "[" + key + "] cannot be combined with [" + IndexModule.IS_WARM_INDEX_SETTING.getKey() + "=true]"
+            );
+        }
+        if (Node.isRemoteStoreHydrationCacheEnabled(indexSettings.getNodeSettings()) == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + key
+                    + "] is set but this node has no hydration cache; set ["
+                    + Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey()
+                    + "] to a non-zero size on every data node that may host shard "
+                    + shardId
+            );
+        }
+        if (indexSettings.isPluggableDataFormatEnabled()) {
+            logger.info(
+                "[{}] is set on pluggable-dataformat shard {}; tiered recovery is not yet supported for "
+                    + "data-format-aware indices, falling back to full download",
+                key,
+                shardId
+            );
+        }
     }
 
     /**

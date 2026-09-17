@@ -52,6 +52,30 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
+    public void testHydrationMaxConcurrentFiles() {
+        assertEquals(2, recoverySettings.getHydrationMaxConcurrentFiles());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING.getKey(), 5).build()
+        );
+        assertEquals(5, recoverySettings.getHydrationMaxConcurrentFiles());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RecoverySettings.INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING.getKey(), 0).build()
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("indices.remote_store.hydration.max_concurrent_files"));
+        assertEquals(5, recoverySettings.getHydrationMaxConcurrentFiles());
+    }
+
+    public void testHydrationMergeInputPriority() {
+        assertTrue(recoverySettings.isHydrationMergeInputPriority());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_REMOTE_STORE_HYDRATION_MERGE_INPUT_PRIORITY_SETTING.getKey(), false).build()
+        );
+        assertFalse(recoverySettings.isHydrationMergeInputPriority());
+    }
+
     public void testZeroBytesPerSecondIsNoRateLimit() {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()

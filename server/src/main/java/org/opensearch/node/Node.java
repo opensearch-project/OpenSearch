@@ -457,9 +457,38 @@ public class Node implements Closeable {
     public static final Setting<String> NODE_SEARCH_CACHE_SIZE_SETTING = new Setting<>(
         "node.search.cache.size",
         s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
-        Node::validateFileCacheSize,
+        raw -> validateFileCacheSize(raw, "node.search.cache.size"),
         Property.NodeScope
     );
+
+    /**
+     * Size of the file cache a hot node dedicates to transient block files fetched during tiered remote-store
+     * recovery (see {@link org.opensearch.index.IndexModule#INDEX_REMOTE_STORE_TIERED_RECOVERY_ENABLED_SETTING}).
+     * Accepts an absolute size or a percentage of the data path, like {@link #NODE_SEARCH_CACHE_SIZE_SETTING}.
+     * Unlike the warm cache this is a budget for blocks that are deleted as soon as the owning file is fully
+     * hydrated, so it is never a fraction of the data set. Defaults to {@code 0}, which disables tiered
+     * recovery on the node: shard creation for an index that opts in fails fast rather than silently falling
+     * back to a full download.
+     */
+    public static final Setting<String> NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING = new Setting<>(
+        "node.remote_store.hydration_cache.size",
+        ZERO,
+        raw -> validateFileCacheSize(raw, "node.remote_store.hydration_cache.size"),
+        Property.NodeScope
+    );
+
+    /**
+     * Returns true if {@link #NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING} is configured to a non-zero size.
+     * A percentage is treated as enabled when it is strictly positive; an absolute size when it is at least one byte.
+     */
+    public static boolean isRemoteStoreHydrationCacheEnabled(Settings settings) {
+        final String raw = NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.get(settings);
+        try {
+            return RatioValue.parseRatioValue(raw).getAsRatio() > 0d;
+        } catch (OpenSearchParseException e) {
+            return ByteSizeValue.parseBytesSizeValue(raw, NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey()).getBytes() > 0L;
+        }
+    }
 
     private static final String CLIENT_TYPE = "node";
 
@@ -2641,13 +2670,13 @@ public class Node implements Closeable {
         }
     }
 
-    private static long calculateFileCacheSize(String capacityRaw, long totalSpace) {
+    private static long calculateFileCacheSize(String capacityRaw, long totalSpace, String settingKey) {
         try {
             RatioValue ratioValue = RatioValue.parseRatioValue(capacityRaw);
             return Math.round(totalSpace * ratioValue.getAsRatio());
         } catch (OpenSearchParseException e) {
             try {
-                return ByteSizeValue.parseBytesSizeValue(capacityRaw, NODE_SEARCH_CACHE_SIZE_SETTING.getKey()).getBytes();
+                return ByteSizeValue.parseBytesSizeValue(capacityRaw, settingKey).getBytes();
             } catch (OpenSearchParseException ex) {
                 ex.addSuppressed(e);
                 throw ex;
@@ -2655,8 +2684,8 @@ public class Node implements Closeable {
         }
     }
 
-    private static String validateFileCacheSize(String capacityRaw) {
-        calculateFileCacheSize(capacityRaw, 0L);
+    private static String validateFileCacheSize(String capacityRaw, String settingKey) {
+        calculateFileCacheSize(capacityRaw, 0L, settingKey);
         return capacityRaw;
     }
 
