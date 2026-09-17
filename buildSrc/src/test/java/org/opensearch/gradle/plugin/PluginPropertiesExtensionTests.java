@@ -37,6 +37,10 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
 public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
 
     public void testCreatingPluginPropertiesExtensionWithNameAndVersion() {
@@ -58,6 +62,38 @@ public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
 
         assertEquals(projectName, pluginPropertiesExtension.getName());
         assertEquals("unspecified", pluginPropertiesExtension.getVersion());
+    }
+
+    public void testOpenSearchCompatibilityUsesExactVersionByDefault() {
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject("Test", "1.0"));
+
+        assertEquals("opensearch.version=3.7.0", pluginPropertiesExtension.getOpenSearchCompatibility("3.7.0"));
+    }
+
+    public void testOpenSearchCompatibilityUsesDependenciesWhenVersionRangeIsSet() {
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject("Test", "1.0"));
+        pluginPropertiesExtension.setOpensearchVersionRange("  ^3.7.0  ");
+
+        assertEquals("  ^3.7.0  ", pluginPropertiesExtension.getOpensearchVersionRange());
+        assertEquals("dependencies={ opensearch: \"^3.7.0\" }", pluginPropertiesExtension.getOpenSearchCompatibility("3.7.0"));
+    }
+
+    public void testOpenSearchCompatibilityIgnoresBlankVersionRange() {
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject("Test", "1.0"));
+        pluginPropertiesExtension.setOpensearchVersionRange("  ");
+
+        assertEquals("opensearch.version=3.7.0", pluginPropertiesExtension.getOpenSearchCompatibility("3.7.0"));
+    }
+
+    public void testDescriptorTemplateEmitsOnlySelectedCompatibilityProperty() throws IOException {
+        try (InputStream stream = PluginBuildPlugin.class.getResourceAsStream("/plugin-descriptor.properties")) {
+            assertNotNull(stream);
+            String template = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+
+            assertTrue(template.contains("${opensearchCompatibility}"));
+            assertFalse(template.contains("opensearch.version=${opensearchVersion}"));
+            assertFalse(template.contains("dependencies=${dependencies}"));
+        }
     }
 
     private Project createProject(String projectName, String version) {
