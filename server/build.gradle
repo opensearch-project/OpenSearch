@@ -102,7 +102,7 @@ dependencies {
   api libs.log4jjul
   api libs.log4jcore, optional
 
-  compileOnlyApi "org.jspecify:jspecify:1.0.0"
+  compileOnlyApi "org.jspecify:jspecify:1.0.1"
   compileOnlyApi "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
 
   annotationProcessor libs.log4jcore

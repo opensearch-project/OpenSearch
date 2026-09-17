@@ -275,12 +275,12 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Regression: when a child stage transitions to FAILED, the cascade must call
-     * {@code closeChildInput(childId)} BEFORE propagating the failure. Without this,
-     * the reduce drain hangs forever waiting for input from the dead child's partition
-     * stream (the sender never gets closed, so the native receiver never sees EOF).
+     * Regression: when a child stage transitions to FAILED, the cascade must claim
+     * the parent's FAILED state before publishing child EOF. The terminal transition
+     * cancels/closes the reduce sink to unblock its drain; the explicit per-child close
+     * still releases sinks that own independent inputs.
      */
-    public void testChildFailureClosesChildInputBeforeFailingParent() {
+    public void testChildFailureFailsParentAndClosesChildInput() {
         StreamingFakeSink backend = new StreamingFakeSink();
         ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
 
@@ -294,7 +294,7 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         // Wire the cascade: parent observes child state transitions.
         exec.attachChildren(List.of(child), r -> {});
 
-        // Fail the child — the cascade should call closeChildInput(5) then failWithCause.
+        // Fail the child — the cascade must fail the parent and still close input 5.
         child.failWith(new RuntimeException("shard exploded"));
 
         assertTrue("closeChildInput must be called for the failed child", backend.closedChildIds.contains(childStageId));

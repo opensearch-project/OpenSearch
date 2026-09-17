@@ -398,13 +398,9 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
-     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
-     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     * Returns the registered delete engine, or a no-op engine when none is provided.
      *
-     * @param committer the committer for durable delete tracking
-     * @return the delete execution engine
-     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     * @throws IllegalStateException if multiple plugins provide a delete engine
      */
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
         List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
@@ -420,7 +416,7 @@ public class DataFormatRegistry {
             );
         }
         if (engines.isEmpty()) {
-            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+            return NoOpDeleteExecutionEngine.INSTANCE;
         }
         return engines.getFirst();
     }
