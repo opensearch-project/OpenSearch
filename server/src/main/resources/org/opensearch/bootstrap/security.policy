@@ -271,6 +271,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/system.slice/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/init.scope/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/kubepods.slice/-", "read";
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";

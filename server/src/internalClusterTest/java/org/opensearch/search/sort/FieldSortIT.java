@@ -203,15 +203,12 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        boolean strictTimeBasedIndices = randomBoolean();
-        // consider only 15 days of the month to avoid hitting open file limit
-        final int numIndices = randomIntBetween(2, 15);
+        final int numIndices = 15;
+        final Settings.Builder singleShardSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         int docs = 0;
         for (int i = 0; i < numIndices; i++) {
-            final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
-            if (strictTimeBasedIndices || i == 0) {
-                createIndex(indexId);
-            }
+            final String indexId = "idx_" + i;
+            assertAcked(prepareCreate(indexId, singleShardSettings));
             final int numDocs = randomIntBetween(1, 23);  // hour of the day
             for (int j = 0; j < numDocs; j++) {
                 builders.add(

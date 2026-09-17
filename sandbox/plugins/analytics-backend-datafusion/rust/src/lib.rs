@@ -27,8 +27,10 @@ pub mod can_match;
 pub mod cancellation;
 pub mod cross_rt_stream;
 pub mod datafusion_query_config;
+pub mod doc_values_cursor;
 pub mod executor;
 pub mod ffm;
+pub mod forward_reader;
 pub mod helper;
 pub mod indexed_executor;
 pub mod indexed_table;
@@ -49,6 +51,7 @@ pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
 pub mod shard_table_provider;
+pub mod substrait_consumer;
 
 pub mod native_node_stats;
 pub mod scoped_index_optimizer;
