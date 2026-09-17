@@ -297,6 +297,12 @@ public final class UnifiedDispatch {
                         synchronized (capturedByBuildId) {
                             capturedByBuildId.put(buildId, ipc);
                         }
+                        LOGGER.debug(
+                            "[UnifiedDispatch] captured broadcast build wave={} build={} ipcBytes={}",
+                            waveIndex,
+                            buildId,
+                            ipc == null ? -1 : ipc.length
+                        );
                         if (remaining.decrementAndGet() == 0) {
                             if (ctx.parentTask() != null && ctx.parentTask().isCancelled()) {
                                 String reason = ctx.parentTask().getReasonCancelled() != null
@@ -367,7 +373,21 @@ public final class UnifiedDispatch {
         }
         AnalyticsQueryTask parentTask = ctx.parentTask();
         if (parentTask != null && parentTask.isCancelled()) {
-            LOGGER.debug("[UnifiedDispatch] task already cancelled before capture start; not scheduling builds");
+            LOGGER.debug("[UnifiedDispatch] task cancelled before wave {} was scheduled; cancelling its roots", waveIndex);
+            // Cancel THIS wave's roots explicitly rather than just returning. The cancellation may have landed
+            // in the window between the previous wave succeeding and this wave publishing its roots, in which
+            // case the one-shot cancel callback fired against the PREVIOUS wave's roots — all terminal by then,
+            // and cancel() no-ops on a terminal state, so no listener ran. Returning here without cancelling
+            // would leave nothing to complete the terminal and the query would hang. Driving our own roots to
+            // CANCELLED routes through the same CANCELLED listener every other cancel path uses, and `terminal`
+            // is once-only, so the query is failed exactly once.
+            for (StageExecution buildExec : buildRoots) {
+                try {
+                    buildExec.cancel("task cancelled before wave " + waveIndex + " was scheduled");
+                } catch (Exception e) {
+                    LOGGER.debug(new ParameterizedMessage("[UnifiedDispatch] cancel failed for build {}", buildExec.getStageId()), e);
+                }
+            }
             return;
         }
 
@@ -377,11 +397,12 @@ public final class UnifiedDispatch {
     }
 
     /**
-     * Installs the capture-phase cancel callback ONCE, before any wave runs. It bypasses the normal
-     * {@code QueryScheduler.execute} cancel path (the capture schedules build leaves directly), and reads
-     * {@code activeRoots} rather than closing over one wave's list so a cancel arriving during a later wave
-     * still cancels live executions. Phase-2's {@code execute} replaces this callback with its own
-     * walker-level cancel.
+     * Installs the capture-phase cancel callback ONCE, from the FIRST wave and only after that wave has
+     * published its roots to {@code activeRoots} (see the caller — the replay ordering is load-bearing). It
+     * bypasses the normal {@code QueryScheduler.execute} cancel path (the capture schedules build leaves
+     * directly), and reads {@code activeRoots} rather than closing over one wave's list so a cancel arriving
+     * during a later wave still cancels live executions. Phase-2's {@code execute} replaces this callback with
+     * its own walker-level cancel.
      */
     private static void installCaptureCancelCallback(QueryContext ctx, AtomicReference<List<StageExecution>> activeRoots) {
         AnalyticsQueryTask parentTask = ctx.parentTask();

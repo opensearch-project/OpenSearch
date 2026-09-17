@@ -1311,25 +1311,12 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * shard scan, and {@code ShardScanInstructionHandler} fails casting the {@code ExchangeSinkContext} it is
      * handed to a {@code ShardScanExecutionContext}.
      *
-     * <p>The nested shape is constructed directly rather than planned: this planner's CBO does not choose
-     * nested broadcast (it emits at most one broadcast per plan), so the shape is grafted by broadcasting a
-     * broadcast-probe join as the build of an outer join. The bug is in the DAG cutter, not the planner, so
-     * cutting a hand-built plan exercises it exactly.
-     */
-    /**
-     * NESTED BROADCAST: a broadcast build that is itself a broadcast probe must still cut as a
-     * {@code SHARD_FRAGMENT}, because its fragment scans a shard table.
-     *
-     * <p>Guards {@code DAGBuilder.cutBroadcast}, which used to decide the build's locality by
-     * {@code grandchildren.isEmpty()} rather than by whether the fragment scans — the rule its sibling
-     * cutters use. A nested build has a grandchild, so it came back {@code COORDINATOR_REDUCE} with a null
-     * resolver while its instruction list still carried a shard scan; {@code ReduceStageExecutionFactory}
-     * then handed that instruction an {@code ExchangeSinkContext} and the shard-scan handler failed casting.
-     *
-     * <p>The shape is GRAFTED rather than planned: it takes a real CBO broadcast plan and broadcasts THAT
-     * join, via {@code buildBroadcastExchange} directly, so the test keeps guarding the DAG cut regardless of
-     * what the cost model chooses. Nested broadcast is not exotic — Spark's committed TPC-DS plan goldens
-     * contain it in 85 queries (max depth 5) and Trino's in 27.
+     * <p>The nested shape is GRAFTED rather than planned — it takes a real CBO broadcast plan and broadcasts
+     * THAT join as the build of an outer join — so the test keeps guarding the DAG cut whatever the cost model
+     * happens to choose. Grafted for stability, NOT because the shape is unreachable: this branch's CBO does
+     * form multi-level broadcast cascades, and nested broadcast is common elsewhere (Spark's committed TPC-DS
+     * plan goldens contain it in 85 queries, max depth 5; Trino's in 27). The bug under test is in the DAG
+     * cutter rather than the planner, so cutting a hand-built plan exercises it exactly.
      */
     public void testDagCut_nestedBroadcastBuildIsShardFragment() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);

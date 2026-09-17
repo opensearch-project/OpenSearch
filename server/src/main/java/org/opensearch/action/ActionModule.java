@@ -590,6 +590,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
+    private final SystemIndices systemIndices;
     private final ResponseLimitSettings responseLimitSettings;
 
     public ActionModule(
@@ -615,6 +616,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         this.extensionsManager = extensionsManager;
+        this.systemIndices = systemIndices;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
@@ -1072,7 +1074,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(responseLimitSettings));
+        registerHandler.accept(new RestIndicesAction(responseLimitSettings, systemIndices));
         registerHandler.accept(new RestSegmentsAction(responseLimitSettings));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.opensearch.rest.action.cat.RestCountAction());
@@ -1090,7 +1092,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestTemplatesAction());
 
         // LIST API
-        registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
+        registerHandler.accept(new RestIndicesListAction(responseLimitSettings, systemIndices));
         registerHandler.accept(new RestShardsListAction());
 
         // Point in time API

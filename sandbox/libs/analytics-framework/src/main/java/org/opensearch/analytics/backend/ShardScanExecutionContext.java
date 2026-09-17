@@ -198,4 +198,20 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     public void setHasPartialAggregate(boolean hasPartialAggregate) {
         this.hasPartialAggregate = hasPartialAggregate;
     }
+
+    /**
+     * Whether the shard has segments with deleted documents that need filtering at query time.
+     * Sourced from the accepting backend's {@code hasDeletedDocs} probe at data-node search start;
+     * read by instruction handlers to route deletion-bearing shards through the indexed
+     * deleted-doc filtering path.
+     */
+    private boolean hasDeletedDocs;
+
+    public boolean hasDeletedDocs() {
+        return hasDeletedDocs;
+    }
+
+    public void setHasDeletedDocs(boolean hasDeletedDocs) {
+        this.hasDeletedDocs = hasDeletedDocs;
+    }
 }

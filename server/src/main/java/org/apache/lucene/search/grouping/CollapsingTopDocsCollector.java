@@ -47,6 +47,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
 
 import static org.apache.lucene.search.SortField.Type.SCORE;
 
@@ -86,10 +87,12 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
 
         if (after != null) {
             // we should have only one sort field which is the collapse field
-            if (sort.getSort().length != 1 || !sort.getSort()[0].getField().equals(collapseField)) {
+            SortField[] sortFields = sort.getSort();
+            // SCORE/DOC sorts have a null field name; compare null-safely so this is a validation error, not an NPE
+            if (sortFields.length != 1 || Objects.equals(sortFields[0].getField(), collapseField) == false) {
                 throw new IllegalArgumentException("The after parameter can only be used when the sort is based on the collapse field");
             }
-            SortField field = sort.getSort()[0];
+            SortField field = sortFields[0];
             afterComparator = field.getComparator(1, Pruning.NONE);
 
             @SuppressWarnings("unchecked")
