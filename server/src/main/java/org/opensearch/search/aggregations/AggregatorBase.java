@@ -203,7 +203,11 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        if (tryPrecomputeAggregationForLeaf(ctx)) {
+        // Segment precompute is only valid for sequential, whole-segment collection. Under concurrent search or
+        // intra-segment partitioning each slice owns a portion of work and must collect via doc-id ranges instead.
+        if (context.shouldUseConcurrentSearch() == false
+            && context.shouldUseIntraSegmentSearch() == false
+            && tryPrecomputeAggregationForLeaf(ctx)) {
             throw new CollectionTerminatedException();
         }
         preGetSubLeafCollectors(ctx);
