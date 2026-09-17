@@ -326,7 +326,7 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
-        return stateWithAssignedPrimariesAndReplicas(indices, numberOfShards, numberOfReplicas, 0);
+        return stateWithAssignedPrimariesAndReplicas(indices, numberOfShards, numberOfReplicas, 0, Settings.EMPTY);
     }
 
     /**
@@ -336,7 +336,8 @@ public class ClusterStateCreationUtils {
         String[] indices,
         int numberOfShards,
         int numberOfReplicas,
-        int numberOfSearchReplicas
+        int numberOfSearchReplicas,
+        Settings indexSettings
     ) {
         int numberOfDataNodes = numberOfReplicas + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -361,6 +362,7 @@ public class ClusterStateCreationUtils {
                         .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
                         .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, numberOfSearchReplicas)
                         .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                        .put(indexSettings)
                 )
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
