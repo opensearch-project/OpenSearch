@@ -104,6 +104,33 @@ impl BoolNode {
         }
     }
 
+    /// Whether every row this tree can emit is guaranteed to pass through a
+    /// correctness `Collector`, so deleted docs are already excluded and no
+    /// synthetic live-docs Collector needs to be injected (see
+    /// `inject_live_docs_collector`). Coverage is decided over this executor's
+    /// bitmap-composition model, where the per-RG candidate universe still
+    /// contains deleted docs:
+    /// - `Collector` leaf: covered — its bitmap is live-docs-filtered on the
+    ///   Java side (`collectDocs` applies the segment's liveDocs).
+    /// - `DelegationPossible` / `Predicate` leaf: not covered — evaluated by the
+    ///   driving backend over a universe that still includes deleted docs.
+    /// - `And`: covered if ANY child is covered (intersection with a live-only
+    ///   set removes deleted docs regardless of the other operands).
+    /// - `Or`: covered only if ALL children are covered (the union re-admits
+    ///   deleted docs through any uncovered branch).
+    /// - `Not`: never covered — a `NOT` inverts against the RG universe, so a
+    ///   `NOT(Collector)` re-admits the deleted docs the collector had excluded.
+    ///   Coverage is only recovered by a covered sibling under an enclosing AND.
+    pub fn is_covered_by_live_docs(&self) -> bool {
+        match self {
+            BoolNode::Collector { .. } => true,
+            BoolNode::DelegationPossible { .. } | BoolNode::Predicate(_) => false,
+            BoolNode::And(children) => children.iter().any(|c| c.is_covered_by_live_docs()),
+            BoolNode::Or(children) => children.iter().all(|c| c.is_covered_by_live_docs()),
+            BoolNode::Not(_) => false,
+        }
+    }
+
     /// Count `DelegationPossible` (performance-delegated) leaves in the tree (DFS).
     /// Used by `classify_filter` to disqualify trees where a Performance leaf
     /// sits under OR/NOT — those need Tree-path support which isn't implemented
