@@ -11,7 +11,6 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use arrow::datatypes::Schema as ArrowSchema;
-use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
 
@@ -32,6 +31,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    max_sort_modes: &[bool],
     output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
     let mut reservation =
@@ -43,6 +43,7 @@ pub fn merge_sorted(
         sort_columns,
         reverse_sorts,
         nulls_first,
+        max_sort_modes,
         output_writer_generation,
         &mut reservation,
     )
@@ -56,6 +57,7 @@ pub fn merge_sorted_with_pool(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    max_sort_modes: &[bool],
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
 ) -> super::MergeResult<super::MergeOutput> {
@@ -104,24 +106,23 @@ pub fn merge_sorted_with_pool(
     // ── Phase 1: Initialize cursors and collect schemas ─────────────────
     let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
-    let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
     let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
     let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
-        let (cursor, projected_schema, parquet_descr, generation, row_count) = FileCursor::new(
+        let (cursor, projected_schema, generation, row_count) = FileCursor::new(
             path,
             file_id,
             sort_columns,
             nulls_first,
+            max_sort_modes,
             batch_size,
             deferred_threshold,
             reservation,
         )?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
-        parquet_descriptors.push(parquet_descr);
         file_generations.push(generation);
         file_row_counts.push(row_count);
     }
@@ -132,7 +133,6 @@ pub fn merge_sorted_with_pool(
     let ctx_reservation = reservation.child("merge:flush");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
-        &parquet_descriptors,
         output_path,
         index_name,
         output_flush_rows,
@@ -271,6 +271,7 @@ pub fn merge_sorted_with_pool(
                     &cursor.sort_col_indices,
                     &cursor.sort_col_types,
                     &cursor.nulls_first,
+                    &cursor.max_sort_modes,
                 )?;
 
                 if cmp_sort_values(&mid_val, heap_top, reverse_sorts) != Ordering::Greater {
