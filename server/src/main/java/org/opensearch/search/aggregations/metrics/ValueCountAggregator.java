@@ -122,6 +122,30 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
+
+                @Override
+                public void collect(int[] docs, int count, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    long docCount = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (values.advanceExact(docs[i])) {
+                            docCount += values.docValueCount();
+                        }
+                    }
+                    counts.increment(bucket, docCount);
+                }
+
+                @Override
+                public void collectRange(int min, int max, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    long count = 0;
+                    for (int doc = min; doc < max; doc++) {
+                        if (values.advanceExact(doc)) {
+                            count += values.docValueCount();
+                        }
+                    }
+                    counts.increment(bucket, count);
+                }
             };
         }
         if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {

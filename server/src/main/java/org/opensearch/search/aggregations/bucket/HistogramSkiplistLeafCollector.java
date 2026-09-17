@@ -182,7 +182,6 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     @Override
     public void collect(DocIdStream stream) throws IOException {
-        // This will only be called if its the top agg
         collect(stream, 0);
     }
 
@@ -196,7 +195,8 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
             if (upToSameBucket) {
                 if (isSubNoOp) {
-                    // stream.count maybe faster when we don't need to handle sub-aggs
+                    // stream.count is significantly faster than materializing doc IDs —
+                    // it can use optimized bit counting on FixedBitSet or range arithmetic
                     long count = stream.count(upToExclusive);
                     aggregator.incrementBucketDocCount(upToBucketIndex, count);
                 } else {
@@ -216,6 +216,78 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             } else {
                 break;
             }
+        }
+    }
+
+    @Override
+    public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+        int i = 0;
+        while (i < count) {
+            if (docs[i] > upToInclusive) {
+                advanceSkipper(docs[i], owningBucketOrd);
+            }
+
+            if (upToSameBucket) {
+                // Find how many consecutive docs in this batch fall within the same skiplist interval
+                int j = i;
+                while (j < count && docs[j] <= upToInclusive) {
+                    j++;
+                }
+                int batchCount = j - i;
+                if (isSubNoOp) {
+                    aggregator.incrementBucketDocCount(upToBucketIndex, batchCount);
+                } else {
+                    // Pass the sub-array slice to sub-aggregator's collect(int[], int, long)
+                    // We need to copy since the sub-agg expects docs starting at index 0
+                    if (i == 0 && batchCount == count) {
+                        sub.collect(docs, batchCount, upToBucketIndex);
+                    } else {
+                        int[] subDocs = new int[batchCount];
+                        System.arraycopy(docs, i, subDocs, 0, batchCount);
+                        sub.collect(subDocs, batchCount, upToBucketIndex);
+                    }
+                    aggregator.incrementBucketDocCount(upToBucketIndex, batchCount);
+                }
+                i = j;
+            } else {
+                // Per-doc fallback for docs that don't all map to the same bucket
+                collect(docs[i], owningBucketOrd);
+                i++;
+            }
+        }
+    }
+
+    @Override
+    public void collectRange(int min, int max, long owningBucketOrd) throws IOException {
+        while (min < max) {
+            if (min > upToInclusive) {
+                advanceSkipper(min, owningBucketOrd);
+            }
+
+            int upToExclusive = upToInclusive + 1;
+            if (upToExclusive < 0) { // overflow
+                upToExclusive = Integer.MAX_VALUE;
+            }
+            // Clamp to the range we're collecting
+            int end = Math.min(upToExclusive, max);
+
+            if (upToSameBucket) {
+                if (isSubNoOp) {
+                    // All docs in [min, end) map to the same bucket — just count them
+                    aggregator.incrementBucketDocCount(upToBucketIndex, end - min);
+                } else {
+                    // Delegate to sub-aggregator's collectRange with the resolved bucket
+                    sub.collectRange(min, end, upToBucketIndex);
+                    aggregator.incrementBucketDocCount(upToBucketIndex, end - min);
+                }
+            } else {
+                // Fall back to per-doc collection for docs that don't all map to the same bucket
+                for (int doc = min; doc < end; doc++) {
+                    collect(doc, owningBucketOrd);
+                }
+            }
+
+            min = end;
         }
     }
 
