@@ -471,12 +471,18 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
             RelNode result = runPlanner(makeAggregate(acc, sumCall(acc)), context);
             boolean broadcast = containsNodeOfType(result, OpenSearchBroadcastExchange.class);
             boolean shuffle = containsNodeOfType(result, OpenSearchShuffleExchange.class);
-            observed.append(String.format("  %d-way: broadcast=%b shuffle=%b%n", dims + 1, broadcast, shuffle));
+            observed.append("  ")
+                .append(dims + 1)
+                .append("-way: broadcast=")
+                .append(broadcast)
+                .append(" shuffle=")
+                .append(shuffle)
+                .append('\n');
             if (broadcast == false) {
                 lostAt.add(dims + 1);
             }
         }
-        assertTrue("broadcast alternative lost at join widths " + lostAt + ", observed:%n" + observed, lostAt.isEmpty());
+        assertTrue("broadcast alternative lost at join widths " + lostAt + ", observed:\n" + observed, lostAt.isEmpty());
     }
 
     public void testAggregateOverThreeWayJoin_strategy() {
