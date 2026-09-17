@@ -49,6 +49,7 @@ import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.secure_sm.policy.Policy;
 import org.junit.Assert;
 
 import java.io.InputStream;
@@ -60,7 +61,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
