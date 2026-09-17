@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
 /**
@@ -31,4 +32,14 @@ public interface QueryTranslator {
      * @throws ConversionException if conversion fails
      */
     RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException;
+
+    /** Rejects boost and _name: this path is non-scoring and never assembles matched_queries, so neither can be honoured. */
+    default void rejectScoringParams(QueryBuilder query, String queryNoun) throws ConversionException {
+        if (query.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            throw new ConversionException(queryNoun + " query parameter 'boost' is not supported");
+        }
+        if (query.queryName() != null) {
+            throw new ConversionException(queryNoun + " query parameter '_name' is not supported");
+        }
+    }
 }

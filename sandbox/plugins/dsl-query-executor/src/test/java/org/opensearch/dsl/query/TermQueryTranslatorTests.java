@@ -63,6 +63,22 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(TermQueryBuilder.class, translator.getQueryType());
     }
 
+    public void testThrowsForBoost() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("name", "laptop").boost(2.0f), ctx)
+        );
+        assertEquals("Term query parameter 'boost' is not supported", ex.getMessage());
+    }
+
+    public void testThrowsForName() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("name", "laptop").queryName("my_term"), ctx)
+        );
+        assertEquals("Term query parameter '_name' is not supported", ex.getMessage());
+    }
+
     public void testScaledFloatTermQuery() throws ConversionException {
         // term scaled_price = 10.5 with factor 10 -> Math.round(10.5 * 10) = 105
         RexNode result = translator.convert(QueryBuilders.termQuery("scaled_price", 10.5), ctx);
