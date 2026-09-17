@@ -142,7 +142,7 @@ pub(crate) fn widen_schema_from_plan(
         .parquet
         .schema_force_view_types;
     let expected = if force_view {
-        datafusion::datasource::file_format::parquet::transform_schema_to_view(&expected)
+        crate::schema_coerce::transform_schema_to_view_recursive(&expected)
     } else {
         expected
     };
@@ -350,9 +350,10 @@ pub async unsafe fn create_session_context(
                 error!("create_session_context: failed to infer schema: {}", e);
                 e
             })?;
-        // Substrait's type system is narrower than Arrow's; normalize the inferred
-        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-        crate::schema_coerce::coerce_inferred_schema(inferred)
+        // DataFusion rewrites top-level strings to view types but not LIST children. Apply the
+        // recursive form so predefined ARRAY<VARCHAR> fields bind as List<Utf8View>.
+        let inferred = crate::schema_coerce::transform_schema_to_view_recursive(inferred.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(inferred))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -578,7 +579,6 @@ pub async fn prepare_partial_plan(
     handle: &mut SessionContextHandle,
     substrait_bytes: &[u8],
 ) -> Result<(), datafusion::common::DataFusionError> {
-    use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
     use prost::Message;
     use substrait::proto::Plan;
 
@@ -590,7 +590,8 @@ pub async fn prepare_partial_plan(
             e
         ))
     })?;
-    let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
 
