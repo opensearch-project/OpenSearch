@@ -43,6 +43,8 @@ public final class FrequencySketch<T> {
     private static final int[] SEED = { 0x7f4a7c15, 0x9e3779b1, 0x85ebca77, 0xc2b2ae3d };
 
     /**
+     * Creates a sketch sized for the expected number of entries.
+     *
      * @param expectedInsertions the number of entries the sketch should be sized for (typically the cache capacity in
      *                            entries). The table is rounded up to a power of two, and a small floor is applied so
      *                            tiny caches still get a usable sketch.
@@ -56,7 +58,12 @@ public final class FrequencySketch<T> {
         this.sampleSize = (sample > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) sample;
     }
 
-    /** Returns the estimated access frequency of {@code e} (0..15). */
+    /**
+     * Returns the estimated access frequency of {@code e} (0..15).
+     *
+     * @param e the element to look up
+     * @return the estimated frequency, between 0 and 15
+     */
     public int frequency(T e) {
         int hash = spread(e.hashCode());
         int frequency = Integer.MAX_VALUE;
@@ -68,7 +75,11 @@ public final class FrequencySketch<T> {
         return frequency;
     }
 
-    /** Records one access of {@code e}. */
+    /**
+     * Records one access of {@code e}.
+     *
+     * @param e the element that was accessed
+     */
     public void increment(T e) {
         int hash = spread(e.hashCode());
         boolean incremented = false;
