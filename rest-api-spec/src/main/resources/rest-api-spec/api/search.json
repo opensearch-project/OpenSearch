@@ -11,14 +11,16 @@
           "path":"/_search",
           "methods":[
             "GET",
-            "POST"
+            "POST",
+            "QUERY"
           ]
         },
         {
           "path":"/{index}/_search",
           "methods":[
             "GET",
-            "POST"
+            "POST",
+            "QUERY"
           ],
           "parts":{
             "index":{

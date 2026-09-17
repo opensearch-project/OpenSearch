@@ -804,6 +804,8 @@ public class RestClient implements Closeable {
                 return addRequestBody(new HttpPut(uri), entity);
             case HttpTrace.METHOD_NAME:
                 return addRequestBody(new HttpTrace(uri), entity);
+            case "QUERY":
+                return addRequestBody(new HttpUriRequestBase("QUERY", uri), entity);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
