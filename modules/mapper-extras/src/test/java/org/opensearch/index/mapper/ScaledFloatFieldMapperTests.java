@@ -528,6 +528,45 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testScaledFloatSupportsParquetMultiValue() throws Exception {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("multi_value", true);
+        }));
+        MappedFieldType fieldType = mapperService.fieldType(FIELD_NAME);
+        assertTrue(fieldType.isMultiValued());
+        assertTrue(fieldType.isMultiValueSupported());
+
+        CapturingDocumentInput input = new CapturingDocumentInput();
+        ParsedDocument parsed = mapperService.documentMapper()
+            .parse(source(b -> b.startArray(FIELD_NAME).value(1.25).value(2.5).endArray()), input);
+        assertNull(parsed.dynamicMappingsUpdate());
+        assertEquals(2L, input.getFieldCount(FIELD_NAME));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testScaledFloatSecondValuePublishesListMappingUpdate() throws Exception {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        CapturingDocumentInput input = new CapturingDocumentInput();
+
+        ParsedDocument parsed = mapperService.documentMapper()
+            .parse(source(b -> b.startArray(FIELD_NAME).value(1.25).value(2.5).endArray()), input);
+
+        assertEquals(2L, input.getFieldCount(FIELD_NAME));
+        assertNotNull(parsed.dynamicMappingsUpdate());
+        FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper(FIELD_NAME);
+        assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+    }
+
+    public void testScaledFloatRejectsMultiValueOutsidePluggableFormat() {
+        MapperParsingException error = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("multi_value", true);
+        })));
+        assertThat(error.getMessage(), containsString("unknown parameter [multi_value]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testPluggableDataFormatScaledFloatValue() throws Exception {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(
