@@ -48,6 +48,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
@@ -122,6 +123,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
     private final SearchRequestContext searchRequestContext;
     private final Tracer tracer;
+    final int forceExecutionQueueThreshold;
 
     private SearchPhase currentPhase;
     private boolean currentPhaseHasLifecycle;
@@ -147,7 +149,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -185,6 +188,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
         this.searchRequestContext = searchRequestContext;
         this.tracer = tracer;
+        this.forceExecutionQueueThreshold = forceExecutionQueueThreshold;
     }
 
     @Override
@@ -408,7 +412,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
             @Override
             public boolean isForceExecution() {
-                // we can not allow a stuffed queue to reject execution here
+                // threshold < 0: always force-execute (backward-compatible default)
+                if (forceExecutionQueueThreshold < 0) return true;
+
+                // Queue-size based threshold only applies to OpenSearchThreadPoolExecutor.
+                // For any other Executor type the threshold has no effect and force-execution
+                // is always granted, preserving the pre-existing behavior.
+                if (executor instanceof OpenSearchThreadPoolExecutor) {
+                    int currentSize = ((OpenSearchThreadPoolExecutor) executor).getQueue().size();
+                    return currentSize < forceExecutionQueueThreshold;
+                }
                 return true;
             }
         });
