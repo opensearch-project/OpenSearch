@@ -1033,7 +1033,10 @@ mod tests {
         let (id, rows_in, rows_kept) = stats[0];
         assert_eq!(id, 1);
         assert_eq!(rows_in, 5, "every row examined is counted");
-        assert_eq!(rows_kept, 2, "only the two present keys survive at this size");
+        assert_eq!(
+            rows_kept, 2,
+            "only the two present keys survive at this size"
+        );
     }
 
     /// A filter far too small for its build side keeps almost everything — and the counters say so.
@@ -1049,7 +1052,9 @@ mod tests {
         let udf = RuntimeFilterUdf::new(Arc::clone(&registry));
 
         // Probe keys that are all ABSENT, so a filter doing its job would keep none of them.
-        let absent: ArrayRef = Arc::new(I64Arr::from((1_000_000i64..1_010_000).collect::<Vec<i64>>()));
+        let absent: ArrayRef = Arc::new(I64Arr::from(
+            (1_000_000i64..1_010_000).collect::<Vec<i64>>(),
+        ));
         udf.invoke_with_args(ScalarFunctionArgs {
             args: vec![
                 ColumnarValue::Scalar(ScalarValue::Int32(Some(7))),
