@@ -40,9 +40,12 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
 
@@ -108,6 +111,25 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testFilterAsMapReturnsNullWhenNoFilter() {
+        AliasMetadata alias = AliasMetadata.builder("no-filter").build();
+        assertNull(alias.filterAsMap());
+    }
+
+    public void testFilterAsMapParsesFilter() {
+        AliasMetadata alias = AliasMetadata.builder("test").filter("{\"term\":{\"year\":2016}}").build();
+        Map<String, Object> map = alias.filterAsMap();
+        assertThat(map, notNullValue());
+        assertTrue(map.containsKey("term"));
+    }
+
+    public void testFilterAsMapReturnsCachedInstance() {
+        AliasMetadata alias = AliasMetadata.builder("test").filter("{\"term\":{\"year\":2016}}").build();
+        Map<String, Object> first = alias.filterAsMap();
+        Map<String, Object> second = alias.filterAsMap();
+        assertThat(second, sameInstance(first));
     }
 
     private static AliasMetadata createTestItem() {
