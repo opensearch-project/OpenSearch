@@ -603,7 +603,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
-        preprocessed = MultiValueSortRewriter.rewrite(preprocessed);
         return preprocessed;
     }
 
@@ -872,6 +871,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 }
                 return super.visitOther(other);
             }
+
+            @Override
+            public Rel visit(org.apache.calcite.rel.core.Sort sort) {
+                return reduceListSortKeys(sort, super.visit(sort), this::toExpression);
+            }
         };
     }
 
@@ -925,6 +929,81 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             payload.putInt(spec.distinct() ? 1 : 0);
             return Any.newBuilder().setTypeUrl(TYPE_URL).setValue(ByteString.copyFrom(payload.array())).build();
         }
+    }
+
+    /**
+     * Rewrites every LIST-typed sort key in the Substrait {@code Sort} emitted for {@code calcite}
+     * to a scalar {@code array_min(list)} (ascending) / {@code array_max(list)} (descending) key,
+     * mirroring Lucene's {@code SortedSetSelector} MIN/MAX convention and the native writer's
+     * default {@code ParquetSortConfig.deriveMaxSortModes} branch. DataFusion can only sort a
+     * LIST lexicographically, and the scan advertises its file ordering as
+     * {@code array_min}/{@code array_max}, so the query-side key must match for sort
+     * elimination / TopK to kick in.
+     *
+     * <p>Done on the Substrait side rather than as a Calcite rewrite: a Calcite {@code Sort}
+     * collation can only name field ordinals, which forces a hidden-key {@code Project} sandwich
+     * around the Sort. That sandwich does not survive {@link #replaceInput} when the Sort is
+     * attached on top of a reduce stage (the outer stripping Project is spliced, dropping Fetch,
+     * Sort and the hidden key). A Substrait {@code SortField.expr} is an arbitrary expression, so
+     * the Sort stays a single rel — {@code Fetch(Sort(input))} at most — and the reduce-stage
+     * stitch already handles that shape.
+     */
+    private static Rel reduceListSortKeys(org.apache.calcite.rel.core.Sort calcite, Rel rel, Function<RexNode, Expression> toExpression) {
+        List<org.apache.calcite.rel.RelFieldCollation> collations = calcite.getCollation().getFieldCollations();
+        if (collations.isEmpty()) {
+            return rel;
+        }
+        RelNode input = calcite.getInput();
+        boolean anyList = false;
+        for (org.apache.calcite.rel.RelFieldCollation collation : collations) {
+            if (input.getRowType().getFieldList().get(collation.getFieldIndex()).getType().getComponentType() != null) {
+                anyList = true;
+                break;
+            }
+        }
+        if (!anyList) {
+            return rel;
+        }
+        // isthmus emits Sort(input) or Fetch(Sort(input)) for a single Calcite Sort node.
+        if (rel instanceof Fetch fetch && fetch.getInput() instanceof Sort sort) {
+            return Fetch.builder().from(fetch).input(reduceListSortKeys(calcite, sort, input, toExpression)).build();
+        }
+        if (rel instanceof Sort sort) {
+            return reduceListSortKeys(calcite, sort, input, toExpression);
+        }
+        return rel;
+    }
+
+    private static Sort reduceListSortKeys(
+        org.apache.calcite.rel.core.Sort calcite,
+        Sort sort,
+        RelNode input,
+        Function<RexNode, Expression> toExpression
+    ) {
+        List<org.apache.calcite.rel.RelFieldCollation> collations = calcite.getCollation().getFieldCollations();
+        List<Expression.SortField> fields = sort.getSortFields();
+        if (fields.size() != collations.size()) {
+            return sort; // shape we don't recognise — leave untouched
+        }
+        RexBuilder rexBuilder = calcite.getCluster().getRexBuilder();
+        List<Expression.SortField> rewritten = null;
+        for (int i = 0; i < collations.size(); i++) {
+            org.apache.calcite.rel.RelFieldCollation collation = collations.get(i);
+            int index = collation.getFieldIndex();
+            if (input.getRowType().getFieldList().get(index).getType().getComponentType() == null) {
+                continue;
+            }
+            SqlOperator reduction = collation.getDirection() == org.apache.calcite.rel.RelFieldCollation.Direction.DESCENDING
+                || collation.getDirection() == org.apache.calcite.rel.RelFieldCollation.Direction.STRICTLY_DESCENDING
+                    ? SqlLibraryOperators.ARRAY_MAX
+                    : SqlLibraryOperators.ARRAY_MIN;
+            Expression key = toExpression.apply(rexBuilder.makeCall(reduction, rexBuilder.makeInputRef(input, index)));
+            if (rewritten == null) {
+                rewritten = new ArrayList<>(fields);
+            }
+            rewritten.set(i, Expression.SortField.builder().from(fields.get(i)).expr(key).build());
+        }
+        return rewritten == null ? sort : Sort.builder().from(sort).sortFields(rewritten).build();
     }
 
     /**

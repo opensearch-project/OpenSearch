@@ -60,6 +60,7 @@ import io.substrait.proto.PlanRel;
 import io.substrait.proto.ReadRel;
 import io.substrait.proto.Rel;
 import io.substrait.proto.SimpleExtensionDeclaration;
+import io.substrait.proto.SortField;
 import io.substrait.proto.SortRel;
 
 /**
@@ -348,62 +349,149 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
-     * DESC sort on a LIST column must reduce through the hidden key using DataFusion's built-in
-     * {@code array_max} (Calcite {@code SqlLibraryOperators.ARRAY_MAX}). Mirrors the writer-side
-     * default: {@code ParquetSortConfig.deriveMaxSortModes} defaults to MAX for a descending field
-     * when no explicit {@code index.sort.mode} override applies — there is no separate query-level
-     * mode setting, so collation direction is the only signal.
+     * DESC sort on a LIST column must sort by DataFusion's built-in {@code array_max} (Calcite
+     * {@code SqlLibraryOperators.ARRAY_MAX}), emitted directly as the Substrait {@code SortField}
+     * expression. Mirrors the writer-side default: {@code ParquetSortConfig.deriveMaxSortModes}
+     * defaults to MAX for a descending field when no explicit {@code index.sort.mode} override
+     * applies — there is no separate query-level mode setting, so collation direction is the
+     * only signal.
      */
-    public void testListSortDescUsesHiddenArrayMaxKey() throws Exception {
-        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.DESCENDING, "array_max");
+    public void testListSortDescSortsByArrayMax() throws Exception {
+        assertListSortReducesKey(RelFieldCollation.Direction.DESCENDING, "array_max");
     }
 
     /**
-     * ASC sort on a LIST column must reduce through the hidden key using DataFusion's built-in
-     * {@code array_min} (Calcite {@code SqlLibraryOperators.ARRAY_MIN}), mirroring the writer-side
-     * default (MIN for an ascending field).
+     * ASC sort on a LIST column must sort by DataFusion's built-in {@code array_min} (Calcite
+     * {@code SqlLibraryOperators.ARRAY_MIN}), mirroring the writer-side default (MIN for an
+     * ascending field).
      */
-    public void testListSortAscUsesHiddenArrayMinKey() throws Exception {
-        assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction.ASCENDING, "array_min");
+    public void testListSortAscSortsByArrayMin() throws Exception {
+        assertListSortReducesKey(RelFieldCollation.Direction.ASCENDING, "array_min");
     }
 
-    private void assertListSortUsesHiddenReductionKey(RelFieldCollation.Direction direction, String expectedReductionFn) throws Exception {
-        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
-        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
-        RelDataType rowType = typeFactory.builder().add("tags", list).build();
+    private void assertListSortReducesKey(RelFieldCollation.Direction direction, String expectedReductionFn) throws Exception {
+        RelDataType rowType = typeFactory.builder().add("tags", listOfVarchar()).build();
         RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
         RelFieldCollation collation = new RelFieldCollation(0, direction, RelFieldCollation.NullDirection.LAST);
         RelNode sort = LogicalSort.create(scan, RelCollations.of(collation), null, null);
 
         Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
         Rel root = rootRel(plan);
-        assertTrue("outer Project must hide the temporary sort key", root.hasProject());
-        Rel sorted = root.getProject().getInput();
-        assertTrue(sorted.hasSort());
-        assertEquals(1, sorted.getSort().getSortsCount());
-        Expression sortKey = sorted.getSort().getSorts(0).getExpr();
-        assertTrue(sortKey.hasSelection());
-        assertEquals(1, sortKey.getSelection().getDirectReference().getStructField().getField());
-        Rel hiddenProject = sorted.getSort().getInput();
-        assertTrue(hiddenProject.hasProject());
-        assertTrue(
-            "hidden LIST sort key must be computed by a scalar function",
-            hiddenProject.getProject().getExpressionsList().stream().anyMatch(Expression::hasScalarFunction)
+        // No hidden-key Project sandwich: the reduction rides the SortField expression itself.
+        assertTrue("root must be the SortRel", root.hasSort());
+        assertTrue("Sort input must be the ReadRel", root.getSort().getInput().hasRead());
+        assertEquals(1, root.getSort().getSortsCount());
+        SortField sortField = root.getSort().getSorts(0);
+        assertEquals(expectedReductionFn, scalarFunctionName(plan, sortField.getExpr()));
+        assertEquals(
+            "reduction must be applied to the LIST column",
+            0,
+            sortField.getExpr()
+                .getScalarFunction()
+                .getArguments(0)
+                .getValue()
+                .getSelection()
+                .getDirectReference()
+                .getStructField()
+                .getField()
         );
         assertTrue(
             direction == RelFieldCollation.Direction.DESCENDING
-                ? sorted.getSort().getSorts(0).getDirection().name().contains("DESC")
-                : sorted.getSort().getSorts(0).getDirection().name().contains("ASC")
+                ? sortField.getDirection().name().contains("DESC")
+                : sortField.getDirection().name().contains("ASC")
         );
-        assertTrue(
-            "Substrait extensions must declare " + expectedReductionFn,
-            plan.getExtensionsList()
-                .stream()
-                .filter(SimpleExtensionDeclaration::hasExtensionFunction)
-                .map(declaration -> declaration.getExtensionFunction().getName())
-                .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
-                .anyMatch(expectedReductionFn::equals)
+    }
+
+    /** Scalar sort keys must be left alone: a plain field reference, no reduction. */
+    public void testScalarSortKeyIsNotReduced() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        RelNode sort = LogicalSort.create(scan, RelCollations.of(0), null, null);
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(sort)));
+        assertTrue(root.hasSort());
+        assertTrue("scalar key must stay a field reference", root.getSort().getSorts(0).getExpr().hasSelection());
+    }
+
+    /**
+     * Regression for the multi-shard {@code sort <list_field> | head N} shape (QTF places the
+     * anchor Sort above a coordinator Project, so {@code FragmentConversionDriver} attaches it
+     * on top of the reduce stage rather than converting it inside a fragment).
+     *
+     * <p>The former Calcite-level rewrite expanded the lone Sort into
+     * {@code Project(strip) -> Sort -> Project(hidden array_min key) -> placeholder}; the
+     * reduce-stage stitch then spliced only the outer Project onto the inner plan and silently
+     * dropped Fetch, Sort and the hidden key — every gathered row came back unsorted and
+     * unlimited. With the reduction on the {@code SortField} expression, the wrapper stays
+     * {@code Fetch(Sort(placeholder))} and must rewire to {@code Fetch(Sort(array_min(tags)) (inner))}.
+     */
+    public void testAttachFragmentOnTop_ListSortWithFetch_PreservesFetchSortAndReduction() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: reduce-stage Project(tags, id) over stage-input, the QTF anchor's boundary node.
+        RelDataType stageRowType = typeFactory.builder()
+            .add("tags", listOfVarchar())
+            .add("id", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true))
+            .build();
+        int childStageId = 0;
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
         );
+        RelNode innerProject = LogicalProject.create(
+            stageInput,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(stageInput, 0), rexBuilder.makeInputRef(stageInput, 1)),
+            List.of("tags", "id")
+        );
+        byte[] innerBytes = convertor.convertFragment(innerProject);
+
+        // Wrapper: ONE LogicalSort with a LIST collation key AND a fetch (sort tags | head 10).
+        RelNode placeholderInput = new DataFusionFragmentConvertor.StageInputTableScan(
+            cluster,
+            cluster.traitSet(),
+            "__placeholder__",
+            stageRowType
+        );
+        RexNode fetchN = rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelFieldCollation collation = new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST);
+        LogicalSort sortLimit = LogicalSort.create(placeholderInput, RelCollations.of(collation), null, fetchN);
+
+        Plan plan = decodeSubstrait(convertor.attachFragmentOnTop(sortLimit, innerBytes));
+        Rel root = rootRel(plan);
+        assertTrue("root must be the FetchRel (the limit)", root.hasFetch());
+        assertEquals(10, root.getFetch().getCount());
+        Rel underFetch = root.getFetch().getInput();
+        assertTrue("Sort must be preserved under the Fetch", underFetch.hasSort());
+        assertEquals(1, underFetch.getSort().getSortsCount());
+        assertEquals("array_min", scalarFunctionName(plan, underFetch.getSort().getSorts(0).getExpr()));
+        Rel underSort = underFetch.getSort().getInput();
+        assertTrue("Sort input must be the rewired inner ProjectRel", underSort.hasProject());
+        Rel projectInput = underSort.getProject().getInput();
+        assertTrue("Project input must be the inner ReadRel", projectInput.hasRead());
+        assertEquals(List.of("input-" + childStageId), projectInput.getRead().getNamedTable().getNamesList());
+    }
+
+    private RelDataType listOfVarchar() {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        return typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+    }
+
+    /** Resolves a scalar-function expression's name (sans signature) through the plan's extension declarations. */
+    private static String scalarFunctionName(Plan plan, Expression expr) {
+        assertTrue("expected a scalar function expression", expr.hasScalarFunction());
+        int anchor = expr.getScalarFunction().getFunctionReference();
+        return plan.getExtensionsList()
+            .stream()
+            .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+            .map(SimpleExtensionDeclaration::getExtensionFunction)
+            .filter(fn -> fn.getFunctionAnchor() == anchor)
+            .map(fn -> fn.getName().contains(":") ? fn.getName().substring(0, fn.getName().indexOf(':')) : fn.getName())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no extension declaration for anchor " + anchor));
     }
 
     /**
