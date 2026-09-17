@@ -72,7 +72,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             task,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            false
         );
     }
 

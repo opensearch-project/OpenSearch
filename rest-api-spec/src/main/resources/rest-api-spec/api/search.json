@@ -191,6 +191,10 @@
         "default":true,
         "description":"Indicate if an error should be returned if there is a partial search failure or timeout"
       },
+      "node_level_query_fanout":{
+        "type":"boolean",
+        "description":"Whether to use node-level query fanout for this search request, overriding the cluster-level setting when provided"
+      },
       "typed_keys":{
         "type":"boolean",
         "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
