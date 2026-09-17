@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
@@ -137,10 +138,14 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         long maxBytes = AnalyticsSettings.BROADCAST_MAX_BYTES.get(context.getSettings()).getBytes();
         RelMetadataQuery mq = call.getMetadataQuery();
 
-        if (leftAsBuildEligible && buildSideFitsBroadcast(join.getLeft(), mq, maxBytes)) {
+        if (leftAsBuildEligible
+            && buildSideIsBarred(join.getLeft(), context) == false
+            && buildSideFitsBroadcast(join.getLeft(), mq, maxBytes)) {
             emitBroadcastAlternative(call, join, /* buildSide = */ true, probeNodes);
         }
-        if (rightAsBuildEligible && buildSideFitsBroadcast(join.getRight(), mq, maxBytes)) {
+        if (rightAsBuildEligible
+            && buildSideIsBarred(join.getRight(), context) == false
+            && buildSideFitsBroadcast(join.getRight(), mq, maxBytes)) {
             emitBroadcastAlternative(call, join, /* buildSide = */ false, probeNodes);
         }
     }
@@ -177,6 +182,53 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * {@code analytics.mpp.broadcast.max_bytes} would suppress only the rule's alternative and the trait
      * hook would keep forming a broadcast the runtime capture sink then rejects.
      */
+    /**
+     * True when {@code buildSide} scans a table barred from being a broadcast build in this planning attempt —
+     * i.e. a build that already overflowed the runtime cap once, on the previous attempt at this same query.
+     *
+     * <p>This is what makes the broadcast→shuffle retry surgical. The cap is checked pre-flight against an
+     * estimate, so an under-estimated selectivity can only be discovered by materializing the build; the retry
+     * exists to recover from that. Barring just the build that overflowed leaves the rest of a cascade intact,
+     * which matters most for the bottom level, whose whole purpose is to keep a large fact scan in place.
+     */
+    public static boolean buildSideIsBarred(RelNode buildSide, PlannerContext context) {
+        java.util.Set<String> barred = context.getBroadcastDisabledBuildTables();
+        if (barred.isEmpty()) {
+            return false;
+        }
+        for (org.apache.calcite.rel.core.TableScan scan : collectScans(buildSide)) {
+            if (scan.getTable() != null
+                && scan.getTable().getQualifiedName().isEmpty() == false
+                && barred.contains(scan.getTable().getQualifiedName().getLast())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Scans beneath {@code root}, stepping THROUGH RelSubset (its getInputs() is empty during CBO). */
+    private static java.util.List<org.apache.calcite.rel.core.TableScan> collectScans(RelNode root) {
+        java.util.List<org.apache.calcite.rel.core.TableScan> scans = new java.util.ArrayList<>();
+        java.util.ArrayDeque<RelNode> queue = new java.util.ArrayDeque<>();
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        queue.add(root);
+        while (queue.isEmpty() == false) {
+            RelNode current = RelNodeUtils.unwrapHep(queue.poll());
+            if (current == null || seen.add(current.getId()) == false) {
+                continue;
+            }
+            if (current instanceof org.apache.calcite.plan.volcano.RelSubset subset) {
+                queue.add(subset.getOriginal());
+                continue;
+            }
+            if (current instanceof org.apache.calcite.rel.core.TableScan scan) {
+                scans.add(scan);
+            }
+            queue.addAll(current.getInputs());
+        }
+        return scans;
+    }
+
     public static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
         if (maxBytes <= 0) {
             return true;

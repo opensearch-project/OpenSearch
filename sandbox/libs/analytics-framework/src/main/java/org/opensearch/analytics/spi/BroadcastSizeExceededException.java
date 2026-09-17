@@ -33,18 +33,40 @@ public final class BroadcastSizeExceededException extends RuntimeException {
     private final long observedBytes;
     private final long limitBytes;
 
+    /**
+     * Tables scanned by the build side that overflowed, or empty when the thrower does not know them.
+     *
+     * <p>Carried so the broadcast→shuffle re-plan can suppress only the join whose build actually overflowed.
+     * Without it the retry has to make broadcast ineligible for the WHOLE query, which also removes the
+     * broadcasts that were fine — including, in a cascade, the bottom-level one that keeps a large fact scan in
+     * place. Losing that one turns a modest overflow into a full shuffle of the largest table in the query.
+     */
+    private final java.util.Set<String> buildTables;
+
     public BroadcastSizeExceededException(long observed, long limit) {
+        this(observed, limit, java.util.Set.of());
+    }
+
+    public BroadcastSizeExceededException(long observed, long limit, java.util.Set<String> buildTables) {
         super(
             "Broadcast build-side payload exceeded the configured limit "
                 + "(observed="
                 + observed
                 + " bytes, limit="
                 + limit
-                + " bytes). "
+                + " bytes"
+                + (buildTables.isEmpty() ? "" : ", build tables=" + buildTables)
+                + "). "
                 + "Raise analytics.mpp.broadcast.max_bytes, narrow the query, or set analytics.mpp.enabled=false."
         );
         this.observedBytes = observed;
         this.limitBytes = limit;
+        this.buildTables = java.util.Set.copyOf(buildTables);
+    }
+
+    /** See {@link #buildTables}. Empty means "unknown", which callers must treat as "disable broadcast wholly". */
+    public java.util.Set<String> buildTables() {
+        return buildTables;
     }
 
     /** Bytes the build side actually accumulated before the cap tripped. */

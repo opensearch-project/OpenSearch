@@ -304,7 +304,106 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         );
     }
 
+    // ── Targeted broadcast suppression on the overflow re-plan ────────────
+
+    /**
+     * Barring one build table must not disable broadcast for the others.
+     *
+     * <p>This is the whole point of naming the overflowing build. The runtime cap is checked pre-flight against
+     * an estimate, so an under-estimated selectivity is only discovered once the build materializes, and the
+     * re-plan is how we recover. Suppressing broadcast globally on that re-plan also removes the broadcasts that
+     * were never in trouble — and the one that matters most is the BOTTOM level's, because that is what keeps
+     * the largest scan in place. Lose it and the retry ships the biggest table in the query.
+     *
+     * <p>The barred build is therefore the UPPER level's, mirroring what happens in practice: a cascade
+     * overflows at a level whose build sits above the fact join, while the bottom-level build is small and fine.
+     * Barring the bottom one instead cannot be recovered from and is not the interesting case — an upper level
+     * can only derive a broadcast over a probe-shaped child, so once the bottom level shuffles, the levels above
+     * it have no broadcast form left regardless of this suppression.
+     */
+    public void testBarringOneBuildTableLeavesOtherBroadcastsIntact() {
+        PlannerContext context = buildMppContext(
+            Map.of("fact_large", 3, "dim_a", 3, "dim_b", 3),
+            Map.of("fact_large", LARGE, "dim_a", SMALL, "dim_b", SMALL),
+            /* mppEnabled */ true
+        );
+        context.setBroadcastDisabledBuildTables(Set.of("dim_b"));
+
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelNode fact = stubScan(mockTable("fact_large", "status", "size"));
+        RelNode dimA = stubScan(mockTable("dim_a", "status", "size"));
+        RelNode dimB = stubScan(mockTable("dim_b", "status", "size"));
+        RexNode cond1 = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, fact.getRowType().getFieldCount())
+        );
+        RelNode j1 = LogicalJoin.create(fact, dimA, List.of(), cond1, Set.of(), JoinRelType.INNER);
+        RexNode cond2 = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, j1.getRowType().getFieldCount())
+        );
+        RelNode j2 = LogicalJoin.create(j1, dimB, List.of(), cond2, Set.of(), JoinRelType.INNER);
+        RelNode result = runPlanner(j2, context);
+
+        String plan = org.apache.calcite.plan.RelOptUtil.toString(result);
+        assertFalse("a barred build table must not be broadcast:\n" + plan, broadcastsTable(result, "dim_b"));
+        assertTrue("barring the upper build must leave the bottom-level broadcast intact:\n" + plan, broadcastsTable(result, "dim_a"));
+    }
+
+    /** Barring every build table falls back to the same outcome the old blanket disable produced. */
+    public void testBarringTheOnlyBuildTableSuppressesBroadcast() {
+        PlannerContext context = buildMppContext(
+            Map.of("fact_large", 3, "dim_small", 3),
+            Map.of("fact_large", LARGE, "dim_small", SMALL),
+            /* mppEnabled */ true
+        );
+        context.setBroadcastDisabledBuildTables(Set.of("dim_small", "fact_large"));
+        RelNode result = runPlanner(makeJoin(context, "fact_large", "dim_small", JoinRelType.INNER, /* equi */ true), context);
+        assertDoesNotContainBroadcastExchange("every build barred leaves no broadcast alternative", result);
+    }
+
+    /** True when some {@link OpenSearchBroadcastExchange} in {@code tree} replicates a scan of {@code table}. */
+    private static boolean broadcastsTable(RelNode tree, String table) {
+        for (OpenSearchBroadcastExchange exchange : RelNodeUtils.findNodes(tree, OpenSearchBroadcastExchange.class)) {
+            for (org.apache.calcite.rel.core.TableScan scan : RelNodeUtils.findNodes(
+                exchange,
+                org.apache.calcite.rel.core.TableScan.class
+            )) {
+                if (scan.getTable() != null && scan.getTable().getQualifiedName().contains(table)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ── Aggregate ABOVE a join ────────────────────────────────────────────
+
+    /**
+     * An aggregate above a HEAVILY asymmetric join must still broadcast the small side, not shuffle the
+     * large one. {@link #testAggregateOverLargeSmallJoin_strategy} covers the same shape but asserts only
+     * {@code broadcast || shuffle}, which both strategies satisfy — so it cannot see the case where the
+     * planner picks the shuffle and moves the whole fact table across the network. That is a multiple-fold
+     * regression at scale while the weaker assertion stays green, which is exactly how it reached a cluster.
+     *
+     * <p>At {@code LARGE / SMALL} = 10000x there is no cost model worth having under which shuffling both
+     * sides beats replicating the small one: broadcast moves {@code SMALL x nodes} rows and leaves the fact
+     * scan in place, the shuffle moves {@code LARGE + SMALL}.
+     */
+    public void testAggregateOverHeavilyAsymmetricJoin_mustBroadcastNotShuffleTheFact() {
+        PlannerContext context = buildMppContext(
+            Map.of("fact_large", 3, "dim_small", 3),
+            Map.of("fact_large", LARGE, "dim_small", SMALL),
+            /* mppEnabled */ true
+        );
+        RelNode join = makeJoin(context, "fact_large", "dim_small", JoinRelType.INNER, /* equi */ true);
+        RelNode result = runPlanner(makeAggregate(join, sumCall(join)), context);
+
+        assertContainsBroadcastExchange("agg over a 10000x asymmetric join must broadcast the small side", result);
+        assertDoesNotContainShuffleExchange("agg over a 10000x asymmetric join must not shuffle the fact", result);
+    }
 
     /**
      * DIAGNOSTIC (#32): a large-fact × small-dim INNER equi-join FEEDING an aggregate
@@ -338,6 +437,48 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
      * structure (partsupp ⋈ supplier ⋈ nation | stats sum by key). Checks whether the multi-way shape
      * (vs the 2-way above) is what stops the bottom join distributing on the cluster.
      */
+    /**
+     * Walks a left-deep chain of one large fact joined against N-1 small dimensions, aggregate on top, and
+     * records at each depth whether the planner still broadcasts a dimension. The two-way case is known good,
+     * so a depth at which the broadcast disappears localises a depth-dependent loss of that alternative —
+     * which is what a wide star-schema query hits on a cluster while every two-table test stays green.
+     */
+    public void testBroadcastSurvivesJoinDepth() {
+        StringBuilder observed = new StringBuilder();
+        List<Integer> lostAt = new java.util.ArrayList<>();
+        for (int dims = 1; dims <= 6; dims++) {
+            Map<String, Integer> shards = new java.util.HashMap<>();
+            Map<String, Long> rows = new java.util.HashMap<>();
+            shards.put("fact_large", 3);
+            rows.put("fact_large", LARGE);
+            for (int d = 0; d < dims; d++) {
+                shards.put("dim_" + d, 3);
+                rows.put("dim_" + d, SMALL);
+            }
+            PlannerContext context = buildMppContext(shards, rows, /* mppEnabled */ true);
+            RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+            RelNode acc = stubScan(mockTable("fact_large", "status", "size"));
+            for (int d = 0; d < dims; d++) {
+                RelNode dim = stubScan(mockTable("dim_" + d, "status", "size"));
+                int accCols = acc.getRowType().getFieldCount();
+                RexNode cond = rexBuilder.makeCall(
+                    SqlStdOperatorTable.EQUALS,
+                    rexBuilder.makeInputRef(intType, 0),
+                    rexBuilder.makeInputRef(intType, accCols)
+                );
+                acc = LogicalJoin.create(acc, dim, List.of(), cond, Set.of(), JoinRelType.INNER);
+            }
+            RelNode result = runPlanner(makeAggregate(acc, sumCall(acc)), context);
+            boolean broadcast = containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+            boolean shuffle = containsNodeOfType(result, OpenSearchShuffleExchange.class);
+            observed.append(String.format("  %d-way: broadcast=%b shuffle=%b%n", dims + 1, broadcast, shuffle));
+            if (broadcast == false) {
+                lostAt.add(dims + 1);
+            }
+        }
+        assertTrue("broadcast alternative lost at join widths " + lostAt + ", observed:%n" + observed, lostAt.isEmpty());
+    }
+
     public void testAggregateOverThreeWayJoin_strategy() {
         PlannerContext context = buildMppContext(
             Map.of("fact_large", 3, "dim_a", 3, "dim_b", 3),

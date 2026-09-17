@@ -394,6 +394,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             // reject it), so the alternative must not be formed here either — otherwise lowering the cap
             // would stop suppressing broadcast, which is exactly how operators (and
             // testEnforcementPass_filteredScanJoinInputStaysShardProducer) force the shuffle path.
+            // Same per-build bar the split rule applies: on the retry after a runtime overflow, only the build
+            // that overflowed is barred, so the other levels of a cascade must still be derivable here.
+            if (OpenSearchBroadcastJoinSplitRule.buildSideIsBarred(getInput(buildId), traitDef.getPlannerContext())) {
+                return null;
+            }
             long maxBytes = AnalyticsSettings.BROADCAST_MAX_BYTES.get(traitDef.getPlannerContext().getSettings()).getBytes();
             if (!OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(getInput(buildId), getCluster().getMetadataQuery(), maxBytes)) {
                 return null;

@@ -269,7 +269,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         boolean profile,
         ActionListener<ProfiledResult> listener
     ) {
-        executeInternal(queryTask, logicalFragment, queryCtx, profile, listener, /* broadcastDisabled */ false);
+        executeInternal(queryTask, logicalFragment, queryCtx, profile, listener, /* broadcastDisabled */ false, java.util.Set.of());
     }
 
     /**
@@ -288,7 +288,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryRequestContext queryCtx,
         boolean profile,
         ActionListener<ProfiledResult> outerListener,
-        boolean broadcastDisabled
+        boolean broadcastDisabled,
+        java.util.Set<String> failingBuildTables
     ) {
         // Broadcast→shuffle retry (mirrors Presto-on-Spark's DISABLE_BROADCAST_JOIN): a
         // BroadcastSizeExceededException in the first attempt's cause chain means the build overflowed the
@@ -404,7 +405,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         plannerContext.setPlannerSettings(plannerSettings);
         // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
         // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
-        plannerContext.setBroadcastEligible(!broadcastDisabled);
+        // Targeted retry when the overflowing build could be named: keep broadcast available and bar only that
+        // build side. A blanket disable also removes the broadcasts that fit, and under a cascade the one that
+        // fits is usually the bottom level holding the largest scan in place — so the retry would shuffle the
+        // biggest table in the query to avoid replicating a far smaller one. Falls back to the blanket disable
+        // when the thrower could not identify the build, which keeps the original safety net.
+        if (broadcastDisabled && failingBuildTables.isEmpty() == false) {
+            plannerContext.setBroadcastDisabledBuildTables(failingBuildTables);
+        } else {
+            plannerContext.setBroadcastEligible(!broadcastDisabled);
+        }
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         // General post-CBO distribution-enforcement pass (Option B — the only MPP scheduler). Volcano CBO
         // gathers every join to COORDINATOR+SINGLETON (its cost gate knows only 3 fixed localities), so its
@@ -599,9 +609,18 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                     overflow.observedBytes(),
                     overflow.limitBytes()
                 );
+                java.util.Set<String> overflowTables = overflow.buildTables();
                 ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
                     try {
-                        executeInternal(queryTask, logicalFragment, queryCtx, profile, outerListener, /* broadcastDisabled */ true);
+                        executeInternal(
+                            queryTask,
+                            logicalFragment,
+                            queryCtx,
+                            profile,
+                            outerListener,
+                            /* broadcastDisabled */ true,
+                            overflowTables
+                        );
                     } catch (Exception e) {
                         outerListener.onFailure(e);
                     } catch (Throwable t) {

@@ -29,6 +29,7 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
+import org.opensearch.analytics.spi.BroadcastSizeExceededException;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -271,7 +272,13 @@ public final class UnifiedDispatch {
                                 t
                             );
                             cancelOtherBuilds(buildRoots, buildExec, "sibling broadcast build capture failed");
-                            terminal.onFailure(new RuntimeException("UnifiedDispatch: broadcast build capture failed", t));
+                            // Name the tables this build scanned when the cause is a size overflow. The
+                            // broadcast->shuffle re-plan uses them to suppress only THIS join's broadcast; with
+                            // no names it must disable broadcast for the whole query, which in a cascade also
+                            // drops the bottom-level broadcast that was keeping a large fact scan in place.
+                            terminal.onFailure(
+                                new RuntimeException("UnifiedDispatch: broadcast build capture failed", attachBuildTables(t, buildStage))
+                            );
                             return;
                         }
                         // FAIL rather than proceed on a null payload. extractIpcBytes returns
@@ -576,6 +583,37 @@ public final class UnifiedDispatch {
                 }
             }
         };
+    }
+
+    /**
+     * Re-wraps a size-overflow cause with the tables the overflowing build scanned; returns {@code t} unchanged
+     * for any other failure. The capture sink counts bytes and knows nothing about the plan, so the stage is
+     * the first place where both facts are available.
+     */
+    private static Throwable attachBuildTables(Throwable t, Stage buildStage) {
+        BroadcastSizeExceededException overflow = null;
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof BroadcastSizeExceededException e) {
+                overflow = e;
+                break;
+            }
+        }
+        if (overflow == null || overflow.buildTables().isEmpty() == false) {
+            return t;
+        }
+        java.util.Set<String> tables = new java.util.LinkedHashSet<>();
+        for (org.apache.calcite.rel.core.TableScan scan : RelNodeUtils.findNodes(
+            buildStage.getFragment(),
+            org.apache.calcite.rel.core.TableScan.class
+        )) {
+            if (scan.getTable() != null && scan.getTable().getQualifiedName().isEmpty() == false) {
+                tables.add(scan.getTable().getQualifiedName().getLast());
+            }
+        }
+        if (tables.isEmpty()) {
+            return t;
+        }
+        return new BroadcastSizeExceededException(overflow.observedBytes(), overflow.limitBytes(), tables);
     }
 
     private static void cancelOtherBuilds(List<StageExecution> buildRoots, StageExecution self, String reason) {
