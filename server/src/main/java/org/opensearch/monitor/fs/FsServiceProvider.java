@@ -20,9 +20,9 @@ import org.opensearch.indices.IndicesService;
 /**
  * Factory for creating appropriate FsService implementations based on node type.
  *
- * <p>On warm nodes, creates a {@link WarmFsService} that correctly reports virtual
+ * <p>On dedicated warm nodes, creates a {@link WarmFsService} that correctly reports virtual
  * disk capacity and cache reservation across all caches (FileCache + block cache).
- * On non-warm nodes, creates a standard {@link FsService}.
+ * On all other nodes (including mixed data+warm nodes), creates a standard {@link FsService}.
  *
  * @opensearch.internal
  */
@@ -55,7 +55,7 @@ public class FsServiceProvider {
      * @return FsService instance
      */
     public FsService createFsService() {
-        if (DiscoveryNode.isWarmNode(settings)) {
+        if (DiscoveryNode.isDedicatedWarmNode(settings)) {
             return new WarmFsService(settings, nodeEnvironment, fileCacheSettings, indicesService, nodeCacheService);
         }
         return new FsService(settings, nodeEnvironment, nodeCacheService != null ? nodeCacheService.fileCache() : null);
