@@ -39,6 +39,7 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -71,6 +72,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -188,7 +190,7 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NAME,
             request,
             task,
-            TransportRequestOptions.EMPTY,
+            getTransportRequestOptions(task),
             new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new)
         );
     }
@@ -228,6 +230,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task),
             new ConnectionCountingHandler<>(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -249,6 +252,7 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task),
             new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
         );
     }
@@ -264,6 +268,7 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task),
             new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -323,11 +328,15 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<FetchSearchResult> listener
     ) {
+        // Fetch cost is relatively low and was not originally intended to be governed by
+        // coordinator_timeout. A forced coordinator_timeout is added as a safeguard against
+        // unexpected host hangs.
         transportService.sendChildRequest(
             connection,
             action,
             request,
             task,
+            getTransportRequestOptions(task),
             new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -337,13 +346,24 @@ public class SearchTransportService {
      */
     void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task, final ActionListener<MultiSearchResponse> listener) {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
+        // Expand and field-collapsing sub queries run as inline supplementary queries after the main top-N results are retrieved.
+        // Similar to the fetch phase, added as a safeguard against unexpected host hangs.
         transportService.sendChildRequest(
             connection,
             MultiSearchAction.NAME,
             request,
             task,
+            getTransportRequestOptions(task),
             new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId())
         );
+    }
+
+    static TransportRequestOptions getTransportRequestOptions(SearchTask task) {
+        if (task.coordinatorTimeoutEnabled()) {
+            return TransportRequestOptions.builder().withTimeout(task.timeout()).build();
+        } else {
+            return TransportRequestOptions.EMPTY;
+        }
     }
 
     public RemoteClusterService getRemoteClusterService() {
@@ -773,6 +793,50 @@ public class SearchTransportService {
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;
+        }
+    }
+
+    /**
+     * Coordinator timeout strategy when search coordinator timeout is enabled.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.8.0")
+    public enum CoordinatorTimeoutStrategy {
+        /** Fail the request if the coordinator times out. */
+        FAIL("fail");
+        // TODO retry strategy
+        // RETRY("retry");
+
+        private final String type;
+
+        public String getType() {
+            return type;
+        }
+
+        CoordinatorTimeoutStrategy(String type) {
+            this.type = type;
+        }
+
+        private static final Map<String, CoordinatorTimeoutStrategy> TYPE_MAP;
+
+        static {
+            Map<String, CoordinatorTimeoutStrategy> typeMap = new HashMap<>();
+            for (CoordinatorTimeoutStrategy threadPoolType : CoordinatorTimeoutStrategy.values()) {
+                typeMap.put(threadPoolType.getType(), threadPoolType);
+            }
+            TYPE_MAP = Collections.unmodifiableMap(typeMap);
+        }
+
+        public static CoordinatorTimeoutStrategy fromType(String typeString) {
+            if (typeString == null) {
+                return null;
+            }
+            CoordinatorTimeoutStrategy type = TYPE_MAP.get(typeString);
+            if (type == null) {
+                throw new IllegalArgumentException("no CoordinatorTimeoutStrategy for " + typeString);
+            }
+            return type;
         }
     }
 }
