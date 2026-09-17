@@ -26,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 use crate::key_index_store;
 use crate::range_cache::{key_byte_size, CacheKey, SEPARATOR};
 use crate::stats::FoyerStatsCounter;
-use crate::traits::BlockCache;
+use crate::traits::{BlockCache, PutOutcome};
 
 // ── I/O engine selection ──────────────────────────────────────────────────────
 
@@ -204,6 +204,14 @@ pub struct FoyerCache {
     /// captures it by value) and in test builds via `should_skip_sweep()`.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) disk_bytes: usize,
+    /// Configured Foyer disk block size in bytes.
+    ///
+    /// Retained because it bounds the largest entry this cache can physically store:
+    /// Foyer refuses — and *silently discards* — any entry whose serialized form does
+    /// not fit in `block_size` minus per-block index overhead. `TieredBlockCache` reads
+    /// this to derive its own visible entry-size limit. See
+    /// `TieredBlockCache::foyer_entry_ceiling`.
+    pub(crate) block_size: usize,
     /// Minimum `used_bytes / disk_bytes` ratio required to run the key_index sweep.
     ///
     /// On each interval tick, the sweep loop checks whether the current usage ratio is
@@ -339,10 +347,18 @@ impl FoyerCache {
             HybridCacheBuilder::<String, Vec<u8>>::new()
                 .with_name("block-cache")
                 .memory(1)
-                // Disable the in-memory tier — this cache is disk-only.
-                // Foyer is a hybrid (DRAM + disk) cache; setting the memory capacity
-                // to 1 byte opts out of DRAM caching. All entries go directly to the
-                // disk tier (FsDevice) below.
+                // Shrink the in-memory tier to the minimum — this cache is effectively
+                // disk-backed. Foyer is a hybrid (DRAM + disk) cache and the capacity here
+                // is NOT bytes: the default weighter is `|_, _| 1`, so it counts *entries*.
+                //
+                // It also does not reach zero residency. The in-memory cache is sharded 8
+                // ways by key hash, so a capacity of 1 leaves up to a handful of entries
+                // resident across shards, and the disk write happens when an entry is
+                // *released* by DRAM eviction rather than at insert time. A `get()` shortly
+                // after a `put()` can therefore be answered from DRAM without touching the
+                // disk at all — worth knowing when reasoning about durability, and why
+                // tests that assert on disk contents must drain the DRAM tier first
+                // (see `drain_dram_tier` in tests.rs).
                 .storage()
                 // RecoverMode::Quiet recovers existing disk entries into Foyer's in-RAM
                 // index without raising an error on corrupted pages. Together with
@@ -395,6 +411,7 @@ impl FoyerCache {
             shutdown,
             sweep_cursor,
             disk_bytes,
+            block_size: block_size_bytes,
             sweep_threshold_ratio: sweep_threshold_atomic,
             sweep_interval_secs: sweep_interval_atomic,
             persist_interval_secs: persist_interval_atomic,
@@ -806,7 +823,12 @@ impl BlockCache for FoyerCache {
         })
     }
 
-    fn put(&self, key: &CacheKey, data: Bytes) {
+    /// Always [`PutOutcome::Accepted`] — a single-tier `FoyerCache` applies no entry-size
+    /// bound of its own. The bound that matters in production lives in
+    /// [`crate::tiered_block_cache::TieredBlockCache`], which clamps it below the size
+    /// Foyer can actually store so oversized entries are refused visibly instead of being
+    /// discarded inside Foyer's flusher.
+    fn put(&self, key: &CacheKey, data: Bytes) -> PutOutcome {
         let size = data.len() as i64;
         let raw = key.as_str();
         let k = raw.to_string();
@@ -820,6 +842,7 @@ impl BlockCache for FoyerCache {
         if is_new {
             self.stats.used_bytes.fetch_add(size, Ordering::Relaxed);
         }
+        PutOutcome::Accepted
     }
 
     /// Intended for use during index or shard deletion, after new reads for the prefix have
