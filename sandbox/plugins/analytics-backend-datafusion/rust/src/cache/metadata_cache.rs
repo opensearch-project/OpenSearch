@@ -243,6 +243,8 @@ static GLOBAL_RUNTIME_ENV: RwLock<Option<Weak<RuntimeEnv>>> = RwLock::new(None);
 
 /// Called once per `create_global_runtime`; a later runtime replaces the registration.
 pub fn register_global_runtime_env(runtime_env: &Arc<RuntimeEnv>) {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the global DataFusion RuntimeEnv registration");
     *GLOBAL_RUNTIME_ENV.write() = Some(Arc::downgrade(runtime_env));
 }
 
@@ -257,9 +259,6 @@ mod global_cache_registry_tests {
     use super::*;
     use once_cell::sync::Lazy;
 
-    /// The registry is process-wide, so these tests serialize against each other.
-    static REGISTRY_GUARD: Mutex<()> = Mutex::new(());
-
     /// Held in statics: the registry keeps only a `Weak`, so an environment dropped at test end
     /// would leave a dead registration for the next test in this binary.
     static FIRST: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| Arc::new(RuntimeEnv::default()));
@@ -267,7 +266,7 @@ mod global_cache_registry_tests {
 
     #[test]
     fn a_registered_runtime_env_reads_back_as_the_same_object() {
-        let _guard = REGISTRY_GUARD.lock().unwrap();
+        let _globals = crate::test_process_globals::lock();
         register_global_runtime_env(&FIRST);
 
         let read_back = global_runtime_env().expect("a registered environment must be readable");
@@ -280,7 +279,7 @@ mod global_cache_registry_tests {
 
     #[test]
     fn a_later_registration_replaces_the_earlier_one() {
-        let _guard = REGISTRY_GUARD.lock().unwrap();
+        let _globals = crate::test_process_globals::lock();
         register_global_runtime_env(&FIRST);
         register_global_runtime_env(&SECOND);
 
