@@ -100,4 +100,80 @@ public class QueryStringWithAnalyzersIT extends ParameterizedStaticSettingsOpenS
             .get();
         assertHitCount(response, 1L);
     }
+
+    private static final String DIGITS_INDEX = "digits_analyzer_idx";
+
+    private void createDigitsOnlyAnalyzerIndex() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(DIGITS_INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("analysis.char_filter.strip_nondigits.type", "pattern_replace")
+                        .put("analysis.char_filter.strip_nondigits.pattern", "\\D")
+                        .put("analysis.char_filter.strip_nondigits.replacement", "")
+                        .put("analysis.filter.remove_empty_tokens.type", "length")
+                        .put("analysis.filter.remove_empty_tokens.min", 1)
+                        .put("analysis.filter.replace_empty_with_null.type", "pattern_replace")
+                        .put("analysis.filter.replace_empty_with_null.pattern", "^$")
+                        .put("analysis.filter.replace_empty_with_null.replacement", "<NULL>")
+                        .put("analysis.analyzer.digits_only.type", "custom")
+                        .put("analysis.analyzer.digits_only.char_filter", "strip_nondigits")
+                        .put("analysis.analyzer.digits_only.tokenizer", "keyword")
+                        .put("analysis.analyzer.digits_only.filter", "remove_empty_tokens")
+                        .put("analysis.analyzer.digits_only_search.type", "custom")
+                        .put("analysis.analyzer.digits_only_search.char_filter", "strip_nondigits")
+                        .put("analysis.analyzer.digits_only_search.tokenizer", "keyword")
+                        .put("analysis.analyzer.digits_only_search.filter", "replace_empty_with_null")
+                )
+                .setMapping("number_field", "type=text,analyzer=digits_only,search_analyzer=digits_only_search")
+        );
+
+        client().prepareIndex(DIGITS_INDEX).setId("1").setSource("number_field", "1234").get();
+        refresh();
+    }
+
+    /**
+     * Issue #21280: when the analyzer strips every literal character of a wildcard term, the
+     * empty token would otherwise be compiled into a match-all automaton and silently widen
+     * the search to an exists query. Covers both the explicit analyzer override and the
+     * field-configured search_analyzer paths reported in the issue.
+     */
+    public void testWildcardWithStrippedLiteralsReturnsNoHits() {
+        createDigitsOnlyAnalyzerIndex();
+
+        assertHitCount(
+            client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("*asdf*").field("number_field").analyzer("digits_only")).get(),
+            0L
+        );
+        assertHitCount(
+            client().prepareSearch(DIGITS_INDEX)
+                .setQuery(queryStringQuery("*asdf*").field("number_field").analyzer("digits_only_search"))
+                .get(),
+            0L
+        );
+        assertHitCount(client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("*asdf*").field("number_field")).get(), 0L);
+        assertHitCount(
+            client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("*asdf*").field("number_field").analyzeWildcard(true)).get(),
+            0L
+        );
+    }
+
+    public void testWildcardPreservesUserTypedMatchAll() {
+        createDigitsOnlyAnalyzerIndex();
+
+        assertHitCount(client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("**").field("number_field")).get(), 1L);
+        assertHitCount(client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("***").field("number_field")).get(), 1L);
+    }
+
+    public void testWildcardWithSurvivingLiteralsStillMatches() {
+        createDigitsOnlyAnalyzerIndex();
+
+        assertHitCount(
+            client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("*123*").field("number_field").analyzer("digits_only")).get(),
+            1L
+        );
+        assertHitCount(client().prepareSearch(DIGITS_INDEX).setQuery(queryStringQuery("123*").field("number_field")).get(), 1L);
+    }
 }
