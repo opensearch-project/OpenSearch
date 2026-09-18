@@ -86,7 +86,10 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         dispatchRequest(request);
     }
 
-    public void testUpgradeWithOnlyExpungeDeletesRejected() {
+    public void testUpgradeWithOnlyExpungeDeletesNotRejectedAtRestLayer() {
+        // The upgrade + only_expunge_deletes conflict is now validated in ForceMergeRequest#validate()
+        // (covered by ForceMergeRequestTests), not in the REST handler, so that transport/plugin callers
+        // are also subject to it. The REST layer must therefore build the request without throwing.
         final Map<String, String> params = new HashMap<>();
         params.put("upgrade", Boolean.TRUE.toString());
         params.put("only_expunge_deletes", Boolean.TRUE.toString());
@@ -98,9 +101,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
 
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
-        RestForceMergeAction action = new RestForceMergeAction();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertEquals("cannot set upgrade and only_expunge_deletes at the same time", e.getMessage());
+        dispatchRequest(request);
     }
 
     public void testUpgradeAloneIsAccepted() {
@@ -117,7 +118,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         dispatchRequest(request);
     }
 
-    public void testUpgradeWithMaxNumSegmentsAndOnlyExpungeDeletesRejected() {
+    public void testDeprecationWithOnlyExpungeDeletesAndMaxNumSegmentsWhenUpgradeSet() {
         final Map<String, String> params = new HashMap<>();
         params.put("upgrade", Boolean.TRUE.toString());
         params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
@@ -130,11 +131,9 @@ public class RestForceMergeActionTests extends RestActionTestCase {
 
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
-        RestForceMergeAction action = new RestForceMergeAction();
-        // upgrade + max_num_segments is allowed now; the remaining conflict is upgrade + only_expunge_deletes.
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertEquals("cannot set upgrade and only_expunge_deletes at the same time", e.getMessage());
-        // The deprecation warning for only_expunge_deletes + max_num_segments fires before the upgrade check.
+        // The REST layer no longer rejects upgrade + only_expunge_deletes (moved to ForceMergeRequest#validate());
+        // it still emits the only_expunge_deletes + max_num_segments deprecation warning.
+        dispatchRequest(request);
         assertWarnings(
             "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
         );
