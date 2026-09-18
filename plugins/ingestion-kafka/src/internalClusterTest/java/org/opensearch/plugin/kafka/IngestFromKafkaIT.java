@@ -683,7 +683,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         ensureGreen(indexName);
         // no messages published, expect 0 lag
-        assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
 
         // pause ingestion
         pauseIngestionAndWait(indexName, 2);
