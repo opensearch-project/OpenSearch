@@ -21,34 +21,28 @@ import org.opensearch.test.OpenSearchTestCase;
  */
 public class FieldTypeMappingTests extends OpenSearchTestCase {
 
-    public void testSupportedNumericTypesResolveToNumericDocValues() {
+    public void testSupportedNumericTypesResolveToSortedNumericDocValues() {
         for (String type : new String[] { "byte", "short", "integer", "long", "float", "double", "date", "date_nanos" }) {
             assertTrue(type + " must be supported", FieldTypeMapping.isSupported(type));
-            FieldTypeMapping.Mapping mapping = FieldTypeMapping.forType(type);
-            assertEquals(type + " single-valued", DocValuesType.NUMERIC, mapping.singleValued());
-            assertEquals(type + " multi-valued", DocValuesType.SORTED_NUMERIC, mapping.multiValued());
+            assertEquals(type, DocValuesType.SORTED_NUMERIC, FieldTypeMapping.forType(type));
         }
     }
 
     /** Boolean is read through the bit-packed borrow path and stored as 0/1, like the numerics. */
-    public void testBooleanIsSupportedAsNumericDocValues() {
+    public void testBooleanIsSupportedAsSortedNumericDocValues() {
         assertTrue("boolean must be supported", FieldTypeMapping.isSupported("boolean"));
-        FieldTypeMapping.Mapping mapping = FieldTypeMapping.forType("boolean");
-        assertEquals(DocValuesType.NUMERIC, mapping.singleValued());
-        assertEquals(DocValuesType.SORTED_NUMERIC, mapping.multiValued());
+        assertEquals(DocValuesType.SORTED_NUMERIC, FieldTypeMapping.forType("boolean"));
     }
 
     /**
-     * These three all resolve to plain numeric doc values, each for a different reason: unsigned_long
+     * These three all resolve to sorted-numeric doc values, each for a different reason: unsigned_long
      * passes its raw 64-bit pattern through, scaled_float passes the already-scaled long that
      * ScaledFloatLeafFieldData later divides, and half_float is re-encoded to Lucene's sortable short.
      */
     public void testUnsignedLongScaledFloatAndHalfFloatAreSupported() {
         for (String type : new String[] { "unsigned_long", "scaled_float", "half_float" }) {
             assertTrue(type + " must be supported", FieldTypeMapping.isSupported(type));
-            FieldTypeMapping.Mapping mapping = FieldTypeMapping.forType(type);
-            assertEquals(type + " single-valued", DocValuesType.NUMERIC, mapping.singleValued());
-            assertEquals(type + " multi-valued", DocValuesType.SORTED_NUMERIC, mapping.multiValued());
+            assertEquals(type, DocValuesType.SORTED_NUMERIC, FieldTypeMapping.forType(type));
         }
     }
 
@@ -80,14 +74,12 @@ public class FieldTypeMappingTests extends OpenSearchTestCase {
     }
 
     /**
-     * {@code validate} is the gate {@code ParquetDocValuesProducer.getNumeric}/{@code getSortedNumeric}
-     * actually call, once the field's {@code MappedFieldType} is known, so it is what keeps an
+     * {@code validate} is the gate {@code ParquetDocValuesProducer.getSortedNumeric}
+     * actually calls, once the field's {@code MappedFieldType} is known, so it is what keeps an
      * unsupported type from ever reaching the native cursor.
      */
-    public void testValidateAcceptsASupportedTypeForEitherDocValuesType() {
-        FieldTypeMapping.validate("flag", "boolean", DocValuesType.NUMERIC);
+    public void testValidateAcceptsSortedNumericForASupportedType() {
         FieldTypeMapping.validate("flag", "boolean", DocValuesType.SORTED_NUMERIC);
-        FieldTypeMapping.validate("count", "long", DocValuesType.NUMERIC);
         FieldTypeMapping.validate("count", "long", DocValuesType.SORTED_NUMERIC);
     }
 
@@ -103,5 +95,7 @@ public class FieldTypeMappingTests extends OpenSearchTestCase {
     public void testValidateRejectsAMismatchedDocValuesType() {
         expectThrows(IllegalArgumentException.class, () -> FieldTypeMapping.validate("count", "long", DocValuesType.SORTED_SET));
         expectThrows(IllegalArgumentException.class, () -> FieldTypeMapping.validate("flag", "boolean", DocValuesType.BINARY));
+        // The single-valued form is served as a SORTED_NUMERIC singleton, never as bare NUMERIC.
+        expectThrows(IllegalArgumentException.class, () -> FieldTypeMapping.validate("count", "long", DocValuesType.NUMERIC));
     }
 }

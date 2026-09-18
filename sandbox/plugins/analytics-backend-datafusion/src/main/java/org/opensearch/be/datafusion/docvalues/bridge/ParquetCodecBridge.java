@@ -101,9 +101,8 @@ public final class ParquetCodecBridge {
      * A Parquet file's row count and stamped OpenSearch format version.
      *
      * @param numRows                 rows in the file, which must equal the Lucene segment's {@code maxDoc}
-     * @param opensearchFormatVersion the {@code opensearch.format_version} footer stamp, long-encoded as
-     *                                {@code major*1_000_000 + minor*1_000 + patch}, or
-     *                                {@link #FORMAT_VERSION_UNKNOWN}
+     * @param opensearchFormatVersion the {@code opensearch.format_version} footer stamp parsed as a
+     *                                plain positive integer, or {@link #FORMAT_VERSION_UNKNOWN}
      *                                if the file carries no parseable stamp
      */
     public record FileMetadata(long numRows, long opensearchFormatVersion) {

@@ -20,8 +20,44 @@ import java.lang.foreign.ValueLayout;
  * offsets Arrow produces when it slices a bit-packed array mid-byte; an off-by-one in the byte or
  * bit index would pass them. These pin offsets inside a byte, at the last bit of a byte, and past
  * the first byte boundary.
+ *
+ * <p>Also pins {@link DecodedBatch#nextPresentRow} over hand-built presence bitmaps, where every
+ * combination of start mask, all-null byte skip, and batch-tail guard can be driven directly.
  */
 public class DecodedBatchTests extends OpenSearchTestCase {
+
+    public void testNextPresentRowOnDenseBatchIsIdentity() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment values = arena.allocate(16 * Long.BYTES);
+            // No presence bitmap: every row is present, so the answer is always the query row.
+            DecodedBatch batch = new DecodedBatch(100, 115, values, DecodedBatch.KIND_LONG, 0, null, 0);
+            assertEquals(100, batch.nextPresentRow(100));
+            assertEquals(107, batch.nextPresentRow(107));
+            assertEquals(115, batch.nextPresentRow(115));
+        }
+    }
+
+    public void testNextPresentRowScansSparseBitmapWithBitOffset() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment values = arena.allocate(32 * Long.BYTES);
+            // Rows 0..26 map to bits 1..27 (presenceBitOffset 1). Set bits: 1 (row 0), 3 (row 2),
+            // 20 (row 19), and 28 -- which is past the batch's last bit and must never be reported.
+            MemorySegment presence = arena.allocate(4);
+            presence.set(ValueLayout.JAVA_BYTE, 0, (byte) 0x0A);
+            presence.set(ValueLayout.JAVA_BYTE, 2, (byte) 0x10);
+            presence.set(ValueLayout.JAVA_BYTE, 3, (byte) 0x10);
+            DecodedBatch batch = new DecodedBatch(0, 26, values, DecodedBatch.KIND_LONG, 0, presence, 1);
+
+            assertEquals("first set bit in the start byte", 0, batch.nextPresentRow(0));
+            assertEquals("start mask must hide the lower set bit", 2, batch.nextPresentRow(1));
+            assertEquals("skips the all-null byte between bits 3 and 20", 19, batch.nextPresentRow(3));
+            assertEquals("set bit past the batch tail is not reported", -1, batch.nextPresentRow(20));
+            assertEquals("query on the last row of an all-null tail", -1, batch.nextPresentRow(26));
+
+            IndexOutOfBoundsException e = expectThrows(IndexOutOfBoundsException.class, () -> batch.nextPresentRow(27));
+            assertTrue(e.getMessage().contains("outside batch"));
+        }
+    }
 
     public void testBooleanReadsHonourNonZeroBitOffsets() {
         try (Arena arena = Arena.ofConfined()) {

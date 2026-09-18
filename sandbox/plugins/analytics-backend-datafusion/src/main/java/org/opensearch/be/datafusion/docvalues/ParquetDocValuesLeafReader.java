@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -43,24 +44,23 @@ import java.util.Map;
  * {@code PerFieldDocValuesFormat} cannot route to it. This reader closes that gap by synthesizing a
  * {@code FieldInfo} (with the DV type from {@link FieldTypeMapping}) for every mapped, codec-supported
  * field that is absent from the delegate, and overriding the numeric DV accessors to serve those fields
- * from a per-segment producer. All other fields pass through unchanged.
+ * from a per-segment-core producer. All other fields pass through unchanged.
  *
  * <p>It extends {@link SequentialStoredFieldsLeafReader} (not plain {@code FilterLeafReader}) so the
  * fetch phase can still retrieve stored fields: the derived-source layer above unwraps to this reader,
  * which passes the underlying segment's stored-fields reader straight through.
  *
- * <p>One producer is built lazily per segment and closed when this reader closes; it is not shared
- * across segments or across requests.
+ * <p>The producer is shared across requests over the same segment core (via
+ * {@link ParquetDocValuesProducerRegistry}) and closed by the core's closed-listener. This wrapper is
+ * request-scoped: it records the cursors it hands out in a {@link CursorRegistry} and closes only
+ * those when the request ends.
  */
 public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeafReader {
 
-    private final MapperService mapperService;
-    private final SegmentReadState segmentReadState;
     private final Map<String, FieldInfo> parquetFields;
     private final FieldInfos combinedFieldInfos;
-
-    private ParquetDocValuesProducer producer;
-    private boolean producerInitialized;
+    private final ParquetDocValuesProducer producer;
+    private final CursorRegistry cursors = new CursorRegistry();
 
     /** Memoized result of the assertions-only row-id identity check; see {@link #assertRowIdsAreIdentity}. */
     private boolean rowIdsChecked;
@@ -68,16 +68,14 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
 
     private ParquetDocValuesLeafReader(
         LeafReader in,
-        MapperService mapperService,
-        SegmentReadState segmentReadState,
         Map<String, FieldInfo> parquetFields,
-        FieldInfos combinedFieldInfos
+        FieldInfos combinedFieldInfos,
+        ParquetDocValuesProducer producer
     ) {
         super(in);
-        this.mapperService = mapperService;
-        this.segmentReadState = segmentReadState;
         this.parquetFields = parquetFields;
         this.combinedFieldInfos = combinedFieldInfos;
+        this.producer = producer;
     }
 
     /**
@@ -134,7 +132,7 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
             if (existing.fieldInfo(name) != null) {
                 continue;
             }
-            DocValuesType dvType = FieldTypeMapping.forType(mft.typeName()).singleValued();
+            DocValuesType dvType = FieldTypeMapping.forType(mft.typeName());
             FieldInfo synthetic = newDocValuesFieldInfo(name, ++maxNumber, dvType);
             parquetFields.put(name, synthetic);
             combined.add(synthetic);
@@ -144,8 +142,19 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
             return in;
         }
 
+        // Eager, per segment core: the core cache key is the producer's lifecycle anchor, so a leaf
+        // with no core cache helper has no safe scope to attach to and must fail rather than leak.
+        IndexReader.CacheHelper coreHelper = in.getCoreCacheHelper();
+        if (coreHelper == null) {
+            throw new IOException("segment leaf exposes no core cache helper; cannot scope Parquet doc-values producer");
+        }
+        ParquetDocValuesProducer producer = ParquetDocValuesProducerRegistry.getOrCreate(
+            coreHelper,
+            () -> new ParquetDocValuesProducer(state, mapperService)
+        );
+
         FieldInfos combinedFieldInfos = new FieldInfos(combined.toArray(new FieldInfo[0]));
-        return new ParquetDocValuesLeafReader(in, mapperService, state, parquetFields, combinedFieldInfos);
+        return new ParquetDocValuesLeafReader(in, parquetFields, combinedFieldInfos, producer);
     }
 
     /** Builds a synthetic doc-values {@link FieldInfo}. Skip index is NONE: the codec serves no skipper. */
@@ -170,14 +179,6 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
             false,                       // softDeletes
             false                        // isParentField
         );
-    }
-
-    private synchronized ParquetDocValuesProducer producer() throws IOException {
-        if (producerInitialized == false) {
-            producer = new ParquetDocValuesProducer(segmentReadState, mapperService);
-            producerInitialized = true;
-        }
-        return producer;
     }
 
     private FieldInfo parquetFieldInfo(String field) {
@@ -220,11 +221,10 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
 
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
-        FieldInfo fi = parquetFieldInfo(field);
-        if (fi != null) {
-            // Every synthesized Parquet field is single-valued NUMERIC (FieldTypeMapping.singleValued()).
-            assert assertRowIdsAreIdentity() : "non-identity __row_id__ segment reached the Parquet doc-values read path";
-            return producer().getNumeric(fi);
+        if (parquetFieldInfo(field) != null) {
+            // Synthesized Parquet fields are SORTED_NUMERIC; like CodecReader, an accessor whose DV
+            // type does not match the FieldInfo returns null rather than serving the field.
+            return null;
         }
         return in.getNumericDocValues(field);
     }
@@ -235,9 +235,10 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
         if (fi != null) {
             // OpenSearch numeric value sources request SORTED_NUMERIC even for single-valued fields,
             // then call DocValues.unwrapSingleton(...). The producer serves this as a singleton over
-            // the single-valued numeric iterator (docId == Parquet row, asserted above).
+            // the single-valued numeric iterator (docId == Parquet row, asserted above). The cursor is
+            // recorded on this request's registry and closed when the request ends.
             assert assertRowIdsAreIdentity() : "non-identity __row_id__ segment reached the Parquet doc-values read path";
-            return producer().getSortedNumeric(fi);
+            return producer.getSortedNumeric(fi, cursors);
         }
         return in.getSortedNumericDocValues(field);
     }
@@ -249,13 +250,12 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
     }
 
     /**
-     * Releases the producer owned by this wrapper without closing the underlying Lucene leaf. The
-     * request-scoped directory reader calls this explicitly before closing its non-closing delegate.
+     * Closes the cursors this request opened, without touching the shared producer or the underlying
+     * Lucene leaf. The request-scoped directory reader calls this explicitly before closing its
+     * non-closing delegate. The producer outlives the request and is closed by the segment core.
      */
-    synchronized void closeParquetResources() throws IOException {
-        if (producer != null) {
-            producer.close();
-        }
+    void closeParquetResources() throws IOException {
+        cursors.close();
     }
 
     @Override

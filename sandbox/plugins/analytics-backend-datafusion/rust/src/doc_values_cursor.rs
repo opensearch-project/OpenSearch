@@ -37,7 +37,7 @@ use datafusion::execution::memory_pool::{MemoryConsumer, MemoryReservation};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion_datasource::PartitionedFile;
 use native_bridge_common::ffm_safe;
-use native_bridge_common::format_version::{encode_format_version, FORMAT_VERSION_KEY};
+use native_bridge_common::format_version::{parse_format_version, FORMAT_VERSION_KEY};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
@@ -463,25 +463,31 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
 
 /// Resolves the store a cursor reads through from a Java-supplied pointer.
 ///
-/// `0` means the shard's Parquet files are on local disk, which is every hot shard: the cursor
-/// builds its own `LocalFileSystem` and reads through a synchronous `ChunkReader`. A non-zero
-/// pointer is a warm shard's `TieredObjectStore`, whose files live in the remote object store; the
-/// `Arc` is cloned out of the box so the cursor keeps the store alive for its own lifetime rather
-/// than depending on the shard's box outliving it.
+/// `LOCAL_STORE` (0) means the shard's Parquet files are on local disk, which is every hot shard:
+/// the caller builds its own `LocalFileSystem` and reads through a synchronous `ChunkReader`. A
+/// positive pointer is a warm shard's `TieredObjectStore`, whose files live in the remote object
+/// store; the `Arc` is cloned out of the box so the cursor keeps the store alive for its own
+/// lifetime rather than depending on the shard's box outliving it. A negative value is a corrupt
+/// stamp and is rejected rather than silently read as local.
 ///
 /// # Safety
 ///
 /// `store_ptr` must be `0` or a pointer obtained from `ts_get_object_store_box_ptr` that has not yet
 /// been destroyed, which is what `ParquetDataFormatStoreHandler` hands out for the shard's lifetime.
-unsafe fn store_from_ptr(store_ptr: i64) -> Option<Arc<dyn ObjectStore>> {
-    if store_ptr <= LOCAL_STORE {
-        return None;
+unsafe fn store_from_ptr(store_ptr: i64) -> Result<Option<Arc<dyn ObjectStore>>, DataFusionError> {
+    if store_ptr == LOCAL_STORE {
+        return Ok(None);
+    }
+    if store_ptr < LOCAL_STORE {
+        return Err(DataFusionError::Execution(format!(
+            "invalid store pointer {store_ptr}: must be {LOCAL_STORE} (local) or a live object-store box pointer"
+        )));
     }
     // Same pointer type and upcast dance as `api::create_reader`: bind the concrete trait object
     // first, because `Arc::clone` alone cannot infer the supertrait.
     let boxed = &*(store_ptr as *const Arc<dyn MetadataCachingStore>);
     let caching: Arc<dyn MetadataCachingStore> = Arc::clone(boxed);
-    Some(caching)
+    Ok(Some(caching))
 }
 
 /// Opens a cursor and registers it, returning the handle Java holds.
@@ -501,7 +507,7 @@ unsafe fn open_and_register(
     // the same absolute path this cursor is opened with (`StoreStrategyRegistry` seeds it from
     // `shardPath.getDataPath().resolve(file)`), and both `ObjectPath` and the registry normalise the
     // leading slash away, so no separate location override is needed.
-    let store = store_from_ptr(store_ptr);
+    let store = store_from_ptr(store_ptr)?;
     let cursor = runtime.block_on(DocValuesCursor::open(
         filename,
         column,
@@ -596,7 +602,11 @@ pub unsafe extern "C" fn parquet_df_file_metadata(
     let runtime = io_runtime().map_err(|e| format!("{FN}: {e}"))?;
     let location = ObjectPath::from(filename);
     let store: Arc<dyn ObjectStore> =
-        store_from_ptr(store_ptr).unwrap_or_else(|| Arc::new(LocalFileSystem::new()));
+        match store_from_ptr(store_ptr).map_err(|e| format!("{FN}: {e}"))? {
+            Some(store) => store,
+            // LOCAL_STORE by contract: a hot shard's files are on local disk.
+            None => Arc::new(LocalFileSystem::new()),
+        };
     let cache = runtime_env()
         .map_err(|e| format!("{FN}: {e}"))?
         .cache_manager
@@ -614,7 +624,7 @@ pub unsafe extern "C" fn parquet_df_file_metadata(
     let file_metadata = footer.file_metadata();
     // Key and encoding come from native-bridge-common, shared with the writer crate that stamped
     // the file, so the two cannot drift.
-    let format_version = encode_format_version(
+    let format_version = parse_format_version(
         file_metadata
             .key_value_metadata()
             .and_then(|kvs| {
