@@ -776,13 +776,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return null;
         }
         final PostingsEnum postings = termsEnum.postings(null, PostingsEnum.FREQS);
+        // Leapfrog the term's postings against the visible bitset instead of scanning the postings linearly and
+        // testing each hit: the conjunction advances whichever side is behind, so skip lists do the work and the
+        // cost is O(min(visible, docFreq)) rather than O(docFreq). The more selective the view, the cheaper it gets.
+        final DocIdSetIterator visibleAndTerm = ConjunctionUtils.intersectIterators(
+            Arrays.asList(new BitSetIterator(visible, visible.approximateCardinality()), postings)
+        );
         long docFreq = 0;
         long totalTermFreq = 0;
-        for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
-            if (visible.get(doc)) {
-                docFreq++;
-                totalTermFreq += postings.freq();
-            }
+        for (int doc = visibleAndTerm.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleAndTerm.nextDoc()) {
+            docFreq++;
+            totalTermFreq += postings.freq();
         }
         return docFreq == 0 ? null : new long[] { docFreq, totalTermFreq };
     }
