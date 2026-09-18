@@ -37,6 +37,7 @@ versions << [
 ]
 
 dependencies {
+  api platform("io.netty:netty-bom:${versions.netty}")
   api("org.apache.hadoop:hadoop-minicluster:3.5.0") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
