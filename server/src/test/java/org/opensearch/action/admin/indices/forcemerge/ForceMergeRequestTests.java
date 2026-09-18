@@ -32,6 +32,7 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -117,6 +118,35 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
         request.maxNumSegments(3);
         assertTrue(request.upgrade());
         assertEquals(3, request.maxNumSegments());
+    }
+
+    public void testValidate() {
+        // A default request is valid.
+        assertNull(new ForceMergeRequest().validate());
+
+        // upgrade alone is valid.
+        ForceMergeRequest request = new ForceMergeRequest();
+        request.upgrade(true);
+        assertNull(request.validate());
+
+        // upgrade composes with max_num_segments and is valid.
+        request = new ForceMergeRequest();
+        request.upgrade(true);
+        request.maxNumSegments(1);
+        assertNull(request.validate());
+
+        // only_expunge_deletes alone is valid.
+        request = new ForceMergeRequest();
+        request.onlyExpungeDeletes(true);
+        assertNull(request.validate());
+
+        // upgrade + only_expunge_deletes is rejected, regardless of REST entry point.
+        request = new ForceMergeRequest();
+        request.upgrade(true);
+        request.onlyExpungeDeletes(true);
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertTrue(e.getMessage().contains("cannot set upgrade and only_expunge_deletes at the same time"));
     }
 
     public void testSerialization() throws Exception {
