@@ -9,10 +9,12 @@
 package org.opensearch.composite;
 
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -248,5 +250,91 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
             b.endObject();
             b.endObject();
         }));
+    }
+
+    // ---- mapping updates (PUT _mapping) -----------------------------------------------------------
+    // The same validator runs on mapping updates, so a shape rejected at creation cannot be
+    // introduced afterwards by PUT _mapping on an existing index.
+
+    /** Creates a valid composite index with no nested field, for the update tests to target. */
+    private String createValidIndex() {
+        String indexName = nextIndexName();
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(pluggableSettings())
+            .setMapping("{\"properties\":{\"title\":{\"type\":\"keyword\"}}}")
+            .get();
+        assertTrue(response.isAcknowledged());
+        ensureGreen(indexName);
+        return indexName;
+    }
+
+    private void assertMappingUpdateRejected(String indexName, String mapping, String... expectedMessageFragments) {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().preparePutMapping(indexName).setSource(mapping, XContentType.JSON).get()
+        );
+        for (String fragment : expectedMessageFragments) {
+            assertTrue(
+                "expected message to contain [" + fragment + "] but was [" + e.getMessage() + "]",
+                e.getMessage().contains(fragment)
+            );
+        }
+    }
+
+    /** PUT _mapping adding a nested field without dynamic:false|strict must be rejected like creation is. */
+    public void testPutMappingNestedWithoutDynamicFalseRejected() throws IOException {
+        startCluster();
+        String indexName = createValidIndex();
+        assertMappingUpdateRejected(
+            indexName,
+            nestedMapping(b -> b.startObject("a").field("type", "keyword").endObject()),
+            "Nested field [n]",
+            "dynamic: false"
+        );
+    }
+
+    /** PUT _mapping adding a nested field with dynamic:true must be rejected like creation is. */
+    public void testPutMappingNestedDynamicTrueRejected() throws IOException {
+        startCluster();
+        String indexName = createValidIndex();
+        assertMappingUpdateRejected(
+            indexName,
+            nestedMapping("true", b -> b.startObject("a").field("type", "keyword").endObject()),
+            "Nested field [n]"
+        );
+    }
+
+    /** PUT _mapping adding a nested field with a plain object child must be rejected like creation is. */
+    public void testPutMappingObjectInsideNestedRejected() throws IOException {
+        startCluster();
+        String indexName = createValidIndex();
+        assertMappingUpdateRejected(
+            indexName,
+            nestedMapping("false", b -> {
+                b.startObject("meta");
+                b.startObject("properties");
+                b.startObject("name").field("type", "keyword").endObject();
+                b.endObject();
+                b.endObject();
+            }),
+            "Object field [meta] inside nested field [n]"
+        );
+    }
+
+    /** A VALID nested field added via PUT _mapping must still be accepted — the guard must not over-reject. */
+    public void testPutMappingValidNestedAccepted() throws IOException {
+        startCluster();
+        String indexName = createValidIndex();
+        AcknowledgedResponse response = client().admin()
+            .indices()
+            .preparePutMapping(indexName)
+            .setSource(
+                nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()),
+                XContentType.JSON
+            )
+            .get();
+        assertTrue(response.isAcknowledged());
     }
 }

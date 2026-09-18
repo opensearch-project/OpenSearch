@@ -20,7 +20,8 @@ import org.opensearch.index.mapper.ObjectMapper;
  * data format) index, where fields declared directly inside a {@code nested} object are persisted as a
  * coarse, doc-values-only projection in the secondary format(s) and materialized as flat leaves /
  * {@code flat_object} MAPs in the primary (Parquet) format. Two shapes are rejected at index-creation
- * time instead of being silently mis-indexed:
+ * time — and again on every mapping update, which runs the same validator — instead of being
+ * silently mis-indexed:
  * <ol>
  *   <li>a {@code nested} object must set {@code dynamic: false} or {@code dynamic: strict} — an
  *       undeclared leaf can silently vanish from the primary format while still reaching a secondary's
