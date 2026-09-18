@@ -186,10 +186,7 @@ public class DataFormatAwareDocsStatsIT extends AbstractCompositeEngineIT {
         refreshIndex(INDEX);
         // Every copy of k1 is hidden now; only the anchor stays reachable.
         assertLiveCountAndAccountedRows("after deleting the updated doc", 1L);
-        assertTrue(
-            "the deleted doc's rows must be reported as deleted, not as live",
-            docsStats().getDeleted() >= 1L
-        );
+        assertTrue("the deleted doc's rows must be reported as deleted, not as live", docsStats().getDeleted() >= 1L);
         assertFalse("k1 must no longer resolve", client().prepareGet(INDEX, "k1").setRealtime(false).get().isExists());
         assertSegmentCountsAgreeWithDocsStats("after deleting the updated doc");
     }
@@ -213,10 +210,7 @@ public class DataFormatAwareDocsStatsIT extends AbstractCompositeEngineIT {
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
         DocsStats afterMerge = docsStats();
         assertEquals("force merge must not change the reachable count", 7L, afterMerge.getCount());
-        assertTrue(
-            "force merge must not invent deleted docs, but reported " + afterMerge.getDeleted(),
-            afterMerge.getDeleted() <= 2L
-        );
+        assertTrue("force merge must not invent deleted docs, but reported " + afterMerge.getDeleted(), afterMerge.getDeleted() <= 2L);
         assertSegmentCountsAgreeWithDocsStats("after force merge");
     }
 }
