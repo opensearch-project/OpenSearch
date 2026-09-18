@@ -145,6 +145,9 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
 
   constraints {
+    api('commons-beanutils:commons-beanutils:1.11.0') {
+      because 'fixes CVE-2025-48734'
+    }
     api('org.codehaus.plexus:plexus-utils:4.0.3') {
       because 'fixes CVE-2025-67030'
     }
