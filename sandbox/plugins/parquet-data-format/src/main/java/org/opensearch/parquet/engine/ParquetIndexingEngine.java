@@ -154,6 +154,39 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         FormatChecksumStrategy checksumStrategy,
         ArrowNativeAllocator nativeAllocator
     ) {
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            lowCardinalityFieldsSupplier,
+            indexSettings,
+            threadPool,
+            checksumStrategy,
+            nativeAllocator,
+            () -> null
+        );
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with a shard-scoped native store handle supplier
+     * (writable warm: merge inputs are opened through the tiered object store). Suppliers
+     * returning {@code null} (hot shards) keep local-only merge input semantics.
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        Supplier<Set<String>> lowCardinalityFieldsSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator,
+        Supplier<org.opensearch.plugins.NativeStoreHandle> storeHandleSupplier
+    ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
@@ -177,7 +210,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
                 indexSettings.getIndex().getName(),
                 shardPath,
                 checksumStrategy::registerChecksum,
-                statsTracker
+                statsTracker,
+                storeHandleSupplier
             )
         );
         boolean registered = false;

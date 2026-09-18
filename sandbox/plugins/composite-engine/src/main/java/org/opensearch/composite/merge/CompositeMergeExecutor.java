@@ -47,17 +47,9 @@ public class CompositeMergeExecutor {
      * @return the combined merge result across all formats
      */
     public MergeResult execute(MergePlan plan) {
-        return execute(plan, java.util.Map.of());
-    }
-
-    /**
-     * Executes the plan with per-format native store handles (warm shards: merge
-     * inputs are read through the tiered object store).
-     */
-    public MergeResult execute(MergePlan plan, java.util.Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles) {
         List<FormatMergeResult> completed = new ArrayList<>();
         try {
-            FormatMergeResult primaryResult = mergeFormat(plan, plan.primaryFormat(), null, storeHandles);
+            FormatMergeResult primaryResult = mergeFormat(plan, plan.primaryFormat(), null);
             completed.add(primaryResult);
 
             RowIdMapping mapping = plan.hasSecondaries()
@@ -66,7 +58,7 @@ public class CompositeMergeExecutor {
                 : null;
 
             for (DataFormat secondary : plan.secondaryFormats()) {
-                FormatMergeResult secondaryResult = mergeFormat(plan, secondary, mapping, storeHandles);
+                FormatMergeResult secondaryResult = mergeFormat(plan, secondary, mapping);
                 // Verify secondary produced output when primary did
                 if (primaryResult.mergedFiles() != null && secondaryResult.mergedFiles() == null) {
                     throw new IllegalStateException(
@@ -106,19 +98,14 @@ public class CompositeMergeExecutor {
         }
     }
 
-    private FormatMergeResult mergeFormat(
-        MergePlan plan,
-        DataFormat format,
-        RowIdMapping mapping,
-        java.util.Map<DataFormat, org.opensearch.plugins.NativeStoreHandle> storeHandles
-    ) throws IOException {
+    private FormatMergeResult mergeFormat(MergePlan plan, DataFormat format, RowIdMapping mapping) throws IOException {
         Merger merger = mergers.get(format);
         List<WriterFileSet> files = plan.filesFor(format);
         List<Segment> segments = new ArrayList<>();
         for (WriterFileSet wfs : files) {
             segments.add(Segment.builder(wfs.writerGeneration()).addSearchableFiles(format, wfs).build());
         }
-        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration(), storeHandles));
+        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration()));
         return new FormatMergeResult(format, result.getMergedWriterFileSetForDataformat(format), result.rowIdMapping().orElse(null));
     }
 

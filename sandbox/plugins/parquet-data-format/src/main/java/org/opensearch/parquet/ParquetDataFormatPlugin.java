@@ -260,7 +260,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
-            nativeAllocator
+            nativeAllocator,
+            // Shard-scoped tiered-store handle (null on hot shards): lets warm merges open
+            // REMOTE inputs through the tiered object store. Resolved lazily - the handles
+            // map is populated on the Store before the engine is built on warm shards.
+            () -> engineConfig.store().getDataformatAwareStoreHandles().get(PARQUET_DATA_FORMAT)
         );
     }
 

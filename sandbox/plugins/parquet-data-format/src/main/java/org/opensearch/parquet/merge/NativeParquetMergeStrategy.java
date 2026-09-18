@@ -47,6 +47,13 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
     private final ParquetShardStatsTracker stats;
 
+    /**
+     * Supplies the shard's native tiered-store handle, or {@code null} on hot shards.
+     * Owned by the engine (shard-scoped), resolved lazily at merge time: on warm shards
+     * merge inputs are opened through the tiered object store so REMOTE files are readable.
+     */
+    private final java.util.function.Supplier<org.opensearch.plugins.NativeStoreHandle> storeHandleSupplier;
+
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
         String indexName,
@@ -54,11 +61,23 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         TriConsumer<FileMetadata, Long, Long> checksumUpdater,
         ParquetShardStatsTracker stats
     ) {
+        this(dataFormat, indexName, shardPath, checksumUpdater, stats, () -> null);
+    }
+
+    public NativeParquetMergeStrategy(
+        DataFormat dataFormat,
+        String indexName,
+        ShardPath shardPath,
+        TriConsumer<FileMetadata, Long, Long> checksumUpdater,
+        ParquetShardStatsTracker stats,
+        java.util.function.Supplier<org.opensearch.plugins.NativeStoreHandle> storeHandleSupplier
+    ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
         this.shardPath = shardPath;
         this.checksumUpdater = checksumUpdater;
         this.stats = stats;
+        this.storeHandleSupplier = storeHandleSupplier == null ? () -> null : storeHandleSupplier;
     }
 
     @Override
@@ -78,8 +97,9 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
         // Warm shards: merge inputs are read through the shard's tiered object store
         // (LOCAL files from disk, REMOTE files from the remote store). Hot shards have
-        // no store handle and inputs must all exist on local disk.
-        org.opensearch.plugins.NativeStoreHandle storeHandle = mergeInput.storeHandles().get(dataFormat);
+        // no store handle and inputs must all exist on local disk. The handle is
+        // engine-owned (shard-scoped) and resolved lazily here at merge time.
+        org.opensearch.plugins.NativeStoreHandle storeHandle = storeHandleSupplier.get();
         long storePtr = (storeHandle != null && storeHandle.isLive()) ? storeHandle.getPointer() : 0L;
         assert storePtr != 0L || filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p))
             : "all input files must exist on disk before a local merge: "

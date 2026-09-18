@@ -57,7 +57,7 @@ public class CompositeMerger implements Merger {
         return StatsRecorder.recordOutcome(() -> {
             Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
             MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
-            return executor.execute(plan, mergeInput.storeHandles());
+            return executor.execute(plan);
         }, statsTracker::addMergeTimeMillis, statsTracker::incMergeTotal, statsTracker::incMergeFailures);
     }
 
