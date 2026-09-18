@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
+import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -114,6 +116,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
+    private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -122,6 +125,21 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             this::setForcedAwarenessAttributes
+        );
+        // Track the cluster-level allocation exclude filters so awareness can drop fully-excluded attribute
+        // values from its balance. Maintained on settings changes (like FilterAllocationDecider) instead of
+        // being rebuilt on every allocation decision.
+        setExcludeFilters(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
+        clusterSettings.addAffixMapUpdateConsumer(
+            FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
+            this::setExcludeFilters,
+            (a, b) -> {}
+        );
+    }
+
+    private void setExcludeFilters(Map<String, String> filters) {
+        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(
+            DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterExcludeFilters, OR, filters)
         );
     }
 
@@ -194,6 +212,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 numberOfAttributes = attributesSet.size();
             }
 
+            if (numberOfAttributes == 0) {
+                continue;
+            }
+
             // TODO should we remove ones that are not part of full list?
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
@@ -216,8 +238,12 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
+        // The distinct attribute values are stable for the whole allocation round, so RoutingNodes memoizes them
+        // (keyed by attribute name, partitioned by node type). Nodes matched by the cluster-level allocation exclude
+        // filters are dropped: a value leaves the awareness balance only when every node carrying it is excluded,
+        // letting a fully-drained value (e.g. a zone being replaced) release its shards onto the remaining values.
         return allocation.routingNodes()
-            .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
+            .getAwarenessAttributeValues(awarenessAttribute, shardRouting.isSearchOnly(), clusterExcludeFilters);
     }
 
     private int getCurrentNodeCountForAttribute(
