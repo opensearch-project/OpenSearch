@@ -42,16 +42,17 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.tasks.Task;
+import tools.jackson.core.io.JsonStringEncoder;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import tools.jackson.core.io.JsonStringEncoder;
 
 /**
  * The request-level search slow log implementation
@@ -169,7 +170,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     static final class SearchRequestSlowLogMessage extends OpenSearchLogMessage {
 
         SearchRequestSlowLogMessage(SearchPhaseContext context, long tookInNanos, SearchRequestContext searchRequestContext) {
-            super(prepareMap(context, tookInNanos, searchRequestContext), message(context, tookInNanos, searchRequestContext));
+            super(prepareMap(context, tookInNanos, searchRequestContext), message(context, tookInNanos, searchRequestContext), messageArgs(context, searchRequestContext));
         }
 
         private static Map<String, Object> prepareMap(
@@ -207,7 +208,11 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             final StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("phase_took_millis[").append(searchRequestContext.phaseTookMap().toString()).append("], ");
+            if (searchRequestContext.phaseTookMap().isEmpty() == false) {
+                sb.append("phase_took_millis[").append("{}").append("], ");
+            } else {
+                sb.append("phase_took_millis[], ");
+            }
             if (searchRequestContext.totalHits() != null) {
                 sb.append("total_hits[").append(searchRequestContext.totalHits()).append("], ");
             } else {
@@ -217,10 +222,11 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             sb.append("shards[").append(searchRequestContext.formattedShardStats()).append("], ");
             sb.append("indices").append(Arrays.toString(context.getRequest().indices())).append(", ");
             if (context.getRequest().source() != null) {
-                sb.append("source[").append(context.getRequest().source().toString(FORMAT_PARAMS)).append("], ");
+                sb.append("source[").append("{}").append("], ");
             } else {
                 sb.append("source[], ");
             }
+
             if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("]");
             } else {
@@ -232,6 +238,17 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
                 sb.append("request_id[]");
             }
             return sb.toString();
+        }
+
+        private static Object[] messageArgs(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            List<Object> args = new ArrayList<>();
+            if (searchRequestContext.phaseTookMap().isEmpty() == false) {
+                args.add(searchRequestContext.phaseTookMap().toString());
+            }
+            if (context.getRequest().source() != null) {
+                args.add(context.getRequest().source().toString(FORMAT_PARAMS));
+            }
+            return args.toArray(new Object[0]);
         }
 
         private static String escapeJson(String text) {
