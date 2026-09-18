@@ -300,6 +300,63 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         verify(spyState, never()).getResourceState();
     }
 
+    public void testRejectIfNeeded_whenWorkloadGroupIsNotInActiveWorkloadGroups() {
+        mockWorkloadGroupStateMap = new HashMap<>();
+        WorkloadGroupState spyState = spy(new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", spyState);
+
+        mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
+
+        workloadGroupService = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            new HashSet<>(),
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+
+        // workload group state exists but the group is not active: nothing to evaluate, no rejection
+        workloadGroupService.rejectIfNeeded("workloadGroupId1");
+
+        verify(spyState, never()).getResourceState();
+    }
+
+    public void testRejectIfNeeded_whenWorkloadGroupIsSoftMode_andNodeNotInDuress() {
+        Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
+            "testWorkloadGroup",
+            WORKLOAD_GROUP_ID,
+            MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+            Map.of(ResourceType.CPU, 0.10)
+        );
+        mockWorkloadGroupStateMap = new HashMap<>();
+        WorkloadGroupState spyState = spy(new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", spyState);
+
+        mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
+
+        workloadGroupService = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            activeWorkloadGroups,
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(false);
+
+        // soft mode without node duress is observe-only: no rejection
+        workloadGroupService.rejectIfNeeded("workloadGroupId1");
+
+        verify(spyState, never()).getResourceState();
+    }
+
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andNotBreaching() {
         WorkloadGroup testWorkloadGroup = getWorkloadGroup(
             "testWorkloadGroup",
