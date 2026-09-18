@@ -203,6 +203,10 @@
         "type":"boolean",
         "description":"Specify whether to return sequence number and primary term of the last modification of each hit"
       },
+      "shard_info":{
+        "type":"boolean",
+        "description":"Indicates whether to return routing information for the shards the search executed on, in the initial search response only and not in scroll continuation pages (default: false)"
+      },
       "request_cache":{
         "type":"boolean",
         "description":"Specify if request cache should be used for this request or not, defaults to index level setting"

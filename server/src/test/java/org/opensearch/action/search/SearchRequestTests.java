@@ -406,6 +406,30 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
     }
 
+    public void testParseSearchRequestShardInfoParam() throws IOException {
+        IntConsumer setSize = mock(IntConsumer.class);
+
+        // shard_info=true → flag set
+        SearchRequest enabled = new SearchRequest();
+        RestRequest enabledRequest = new FakeRestRequest();
+        enabledRequest.params().put("shard_info", "true");
+        RestSearchAction.parseSearchRequest(enabled, enabledRequest, null, namedWriteableRegistry, setSize);
+        assertEquals(Boolean.TRUE, enabled.shardInfo());
+
+        // shard_info=false → flag explicitly off
+        SearchRequest disabled = new SearchRequest();
+        RestRequest disabledRequest = new FakeRestRequest();
+        disabledRequest.params().put("shard_info", "false");
+        RestSearchAction.parseSearchRequest(disabled, disabledRequest, null, namedWriteableRegistry, setSize);
+        assertEquals(Boolean.FALSE, disabled.shardInfo());
+
+        // unset → null (tri-state preserved)
+        SearchRequest unset = new SearchRequest();
+        RestRequest unsetRequest = new FakeRestRequest();
+        RestSearchAction.parseSearchRequest(unset, unsetRequest, null, namedWriteableRegistry, setSize);
+        assertNull(unset.shardInfo());
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }
@@ -440,6 +464,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(
             () -> mutation.setPhaseTook(searchRequest.isPhaseTook() == null ? randomBoolean() : searchRequest.isPhaseTook() == false)
         );
+        mutators.add(() -> mutation.shardInfo(searchRequest.shardInfo() == null ? randomBoolean() : searchRequest.shardInfo() == false));
         mutators.add(
             () -> mutation.setCancelAfterTimeInterval(
                 searchRequest.getCancelAfterTimeInterval() != null
@@ -449,6 +474,39 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         randomFrom(mutators).run();
         return mutation;
+    }
+
+    public void testShardInfoSerialization() throws Exception {
+        SearchRequest original = new SearchRequest("idx").shardInfo(true);
+        SearchRequest deserialized = copyWriteable(original, namedWriteableRegistry, SearchRequest::new);
+        assertEquals(Boolean.TRUE, deserialized.shardInfo());
+        assertEquals(original, deserialized);
+
+        SearchRequest defaulted = new SearchRequest("idx");
+        assertNull(defaulted.shardInfo());
+        SearchRequest deserializedDefault = copyWriteable(defaulted, namedWriteableRegistry, SearchRequest::new);
+        assertNull(deserializedDefault.shardInfo());
+        assertEquals(defaulted, deserializedDefault);
+    }
+
+    public void testShardInfoBwcDoesNotSerializeOnOlderVersions() throws Exception {
+        SearchRequest original = new SearchRequest("idx").shardInfo(true);
+        // Serialize over a transport stream targeting a version older than V_3_8_0; the receiver
+        // should silently observe a null shardInfo without errors.
+        SearchRequest deserialized = copyWriteable(original, namedWriteableRegistry, SearchRequest::new, Version.V_3_7_0);
+        assertNull(deserialized.shardInfo());
+    }
+
+    public void testShardInfoCopiedThroughCopyConstructor() {
+        SearchRequest original = new SearchRequest("idx").shardInfo(true);
+        SearchRequest copy = new SearchRequest(original);
+        assertEquals(Boolean.TRUE, copy.shardInfo());
+    }
+
+    public void testShardInfoCopiedThroughSubSearchRequest() {
+        SearchRequest original = new SearchRequest("idx").shardInfo(true);
+        SearchRequest sub = SearchRequest.subSearchRequest(original, original.indices(), "remote", 0L, true);
+        assertEquals(Boolean.TRUE, sub.shardInfo());
     }
 
     public void testDescriptionForDefault() {
