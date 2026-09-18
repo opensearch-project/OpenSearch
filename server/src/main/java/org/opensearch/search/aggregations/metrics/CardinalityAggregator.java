@@ -249,7 +249,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
-        return parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null;
+        return parent == null
+            && subAggregators.length == 0
+            && valuesSourceConfig.missing() == null
+            && valuesSourceConfig.script() == null
+            && valuesSourceConfig.fieldContext().fieldType().indexedTermsMatchDocValues();
     }
 
     private boolean exceedMaxThreshold(Terms terms) throws IOException {
