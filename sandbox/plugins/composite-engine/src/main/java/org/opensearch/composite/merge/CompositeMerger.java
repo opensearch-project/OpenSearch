@@ -45,8 +45,8 @@ public class CompositeMerger implements Merger {
     private final List<DataFormat> secondaryFormats;
     private final CompositeMergeExecutor executor;
     private final CompositeShardStatsTracker statsTracker;
-    /** The one secondary whose {@link Merger#providesMergeLiveDocs()} is true, or {@code null}. */
-    private final DataFormat liveDocsProducer;
+    /** The {@link Merger} of the one secondary whose {@link Merger#providesMergeLiveDocs()} is true, or {@code null}. */
+    private final Merger liveDocsProducer;
 
     public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat) {
         this.primaryFormat = compositeDataFormat.getPrimaryDataFormat();
@@ -127,7 +127,7 @@ public class CompositeMerger implements Merger {
         if (liveDocsProducer == null) {
             return MergePreparation.EMPTY;
         }
-        MergePreparation preparation = executor.getMerger(liveDocsProducer).prepareMerge(mergeInput);
+        MergePreparation preparation = liveDocsProducer.prepareMerge(mergeInput);
         return preparation == null ? MergePreparation.EMPTY : preparation;
     }
 
@@ -136,7 +136,7 @@ public class CompositeMerger implements Merger {
      * delete-execution-engine rule: opt-in via {@link Merger#providesMergeLiveDocs()}, at most one,
      * and a second producer is a configuration error rather than something to silently drop.
      */
-    private static DataFormat resolveLiveDocsProducer(List<DataFormat> secondaries, CompositeMergeExecutor executor) {
+    private static Merger resolveLiveDocsProducer(List<DataFormat> secondaries, CompositeMergeExecutor executor) {
         List<DataFormat> producers = new ArrayList<>();
         for (DataFormat secondary : secondaries) {
             Merger merger = executor.getMerger(secondary);
@@ -150,7 +150,7 @@ public class CompositeMerger implements Merger {
                     + producers.stream().map(DataFormat::name).toList()
             );
         }
-        return producers.isEmpty() ? null : producers.get(0);
+        return producers.isEmpty() ? null : executor.getMerger(producers.get(0));
     }
 
     private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {
