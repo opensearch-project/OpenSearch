@@ -67,7 +67,12 @@ public final class InnerHitsPhase implements FetchSubPhase {
         if (searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
             return null;
         }
-        Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
+        // Each fetch (and therefore each concurrent segment search slice thread) gets its
+        // own copy of the inner-hits contexts. The request-level InnerHitsContext and its
+        // InnerHitSubContext hold mutable per-hit state (docIdsToLoad, root id, root
+        // SourceLookup) that is re-aimed for every hit; sharing it across slice threads
+        // corrupts _source reads and can kill the node (see GH-22868 for root cause).
+        Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().copy().getInnerHits();
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -117,3 +122,4 @@ public final class InnerHitsPhase implements FetchSubPhase {
         }
     }
 }
+
