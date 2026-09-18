@@ -268,6 +268,38 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         verify(spyState, never()).getResourceState();
     }
 
+    public void testRejectIfNeeded_whenWorkloadGroupIsMonitorMode_andBreaching() {
+        Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
+            "testWorkloadGroup",
+            WORKLOAD_GROUP_ID,
+            MutableWorkloadGroupFragment.ResiliencyMode.MONITOR,
+            Map.of(ResourceType.CPU, 0.10)
+        );
+        mockWorkloadGroupStateMap = new HashMap<>();
+        WorkloadGroupState spyState = spy(new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", spyState);
+
+        mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
+
+        workloadGroupService = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            activeWorkloadGroups,
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(true);
+
+        // monitor mode is observe-only: no rejections even when limits are breached and node is in duress
+        workloadGroupService.rejectIfNeeded("workloadGroupId1");
+
+        verify(spyState, never()).getResourceState();
+    }
+
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andNotBreaching() {
         WorkloadGroup testWorkloadGroup = getWorkloadGroup(
             "testWorkloadGroup",
