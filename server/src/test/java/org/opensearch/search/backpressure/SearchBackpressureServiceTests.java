@@ -23,6 +23,7 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
+import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
@@ -708,13 +709,13 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * CPU and native trackers are mutually exclusive at install time:
-     * {@code isNativeTrackingSupported()} → install native, otherwise install CPU.
-     * Exactly one of the two is in {@code TaskResourceUsageTrackers}, never both, never neither.
-     * This invariant holds across Linux/non-Linux: on macOS test hosts the predicate is false
-     * (Linux-only signal) so CPU is always installed regardless of supplier installation.
+     * The CPU tracker is always installed; the native-memory tracker is installed iff
+     * {@code isNativeTrackingSupported()}. The two coexist rather than being mutually exclusive,
+     * so a node running a native engine still gets CPU-based cancellation for searches executed
+     * by OpenSearch itself (the fallback path). This holds across Linux/non-Linux: on hosts where
+     * the native predicate is false (Linux-only signal) only the CPU tracker of the pair is installed.
      */
-    public void testGetTrackersInstallsExactlyOneOfCpuOrNative() {
+    public void testGetTrackersAlwaysInstallsCpuAndNativeWhenSupported() {
         try {
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -730,15 +731,14 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 clusterSettings,
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             );
-            assertCpuXorNative(withoutBackend);
-            // Without the backend's snapshot supplier installed, native cannot be supported on
-            // any platform (the Linux + provider + physMem gate fails on the provider check).
-            // CPU must be the one that's installed.
             assertTrue(
-                "CPU tracker must be installed when no analytics backend is present",
+                "CPU tracker must always be installed",
                 withoutBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
             );
+            // Without the backend's snapshot supplier installed, native cannot be supported on
+            // any platform (the Linux + provider + physMem gate fails on the provider check).
             assertFalse(withoutBackend.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).isPresent());
+            assertTrue(withoutBackend.getTracker(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER).isPresent());
 
             // Install a snapshot supplier — same proxy a real backend would set.
             org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().setSnapshotSupplier(Collections::emptyMap);
@@ -752,18 +752,20 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 clusterSettings,
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             );
-            // Mutual exclusion still holds; which one wins depends on the platform.
-            assertCpuXorNative(withBackend);
+            // CPU stays installed regardless of the backend; native follows the platform predicate.
+            assertTrue(
+                "CPU tracker must remain installed when an analytics backend is present",
+                withBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
+            );
+            assertEquals(
+                "native-memory tracker must be installed iff native tracking is supported",
+                NativeMemoryUsageTracker.isNativeTrackingSupported(),
+                withBackend.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).isPresent()
+            );
             assertTrue(withBackend.getTracker(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER).isPresent());
         } finally {
             org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
         }
-    }
-
-    private static void assertCpuXorNative(TaskResourceUsageTrackers trackers) {
-        boolean cpu = trackers.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent();
-        boolean native_ = trackers.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).isPresent();
-        assertTrue("exactly one of CPU/native trackers must be installed (cpu=" + cpu + ", native=" + native_ + ")", cpu ^ native_);
     }
 
     private TaskResourceUsageTracker getMockedTaskResourceUsageTracker(

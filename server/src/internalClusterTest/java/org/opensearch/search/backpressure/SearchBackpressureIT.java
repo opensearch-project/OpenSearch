@@ -57,11 +57,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
-import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker.isNativeTrackingSupported;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assume.assumeFalse;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
 public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -170,12 +168,6 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
     }
 
     public void testSearchTaskCancellationWithHighCpu() throws InterruptedException {
-        // CPU and native-memory trackers are mutually exclusive at install time (SearchBackpressureService#getTrackers):
-        // when native tracking is supported (a backend such as DataFusion has installed the native-memory snapshot
-        // provider) the node registers the native-memory tracker INSTEAD of the CPU tracker, so CPU-based cancellation
-        // is inactive and this test cannot apply. Mirrors the native-tracking gating in NativeMemorySearchBackpressureIT
-        // (that test's assumeTrue gates on Constants.LINUX, so this is the conceptual inverse, not the same predicate).
-        assumeFalse("CPU-usage cancellation is inactive when native-memory tracking is supported", isNativeTrackingSupported());
         Settings request = Settings.builder()
             .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
             .put(SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 1000)
@@ -207,9 +199,6 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
     }
 
     public void testSearchShardTaskCancellationWithHighCpu() throws InterruptedException {
-        // See testSearchTaskCancellationWithHighCpu: the CPU tracker is not installed when native-memory tracking is
-        // supported (the two are mutually exclusive), so CPU-based cancellation cannot fire on such nodes.
-        assumeFalse("CPU-usage cancellation is inactive when native-memory tracking is supported", isNativeTrackingSupported());
         Settings request = Settings.builder()
             .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
             .put(SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 1000)
