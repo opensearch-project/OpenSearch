@@ -91,11 +91,12 @@ import java.util.function.Supplier;
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, ActionPlugin {
 
     /**
-     * Current parquet writer format version, long-encoded (plugin-defined namespace; the
-     * encoding happens to reuse {@code major * 1_000_000 + minor * 1_000 + patch} but is
-     * NOT a Lucene version — do not compare to Lucene-encoded versions).
+     * Current parquet writer format version: a plain monotonic integer starting at 1
+     * (plugin-defined namespace; NOT a Lucene or release version — do not compare to either).
+     * Must stay in sync with {@code FORMAT_VERSION} in native-bridge-common, the string the
+     * writer stamps into the footer.
      */
-    public static final long PARQUET_FORMAT_VERSION = 1_000_000L; // 1.0.0
+    public static final long PARQUET_FORMAT_VERSION = 1L;
 
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";

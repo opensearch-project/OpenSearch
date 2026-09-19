@@ -66,7 +66,7 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
     public static final long LOCAL_STORE = 0L;
 
     /** Number of scalar out-parameters {@code nextBatch} writes back. */
-    private static final int OUT_PARAM_COUNT = 6;
+    private static final int OUT_PARAM_COUNT = 7;
 
     private final Path file;
     private final String column;
@@ -176,6 +176,7 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
         long validityAddr;
         int kind;
         int bitOffset;
+        int valueBitOffset;
 
         // Drop the resident batch before crossing over. A successful native call frees the buffers
         // the old batch borrowed, so any exit between here and the assignment below - a bad status
@@ -183,7 +184,7 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
         // memory.
         decodedBatch = null;
 
-        // The six scalar out-parameters are tiny and read out immediately, so a per-call arena is
+        // The seven scalar out-parameters are tiny and read out immediately, so a per-call arena is
         // enough; the borrowed value/validity buffers live in native (Rust-owned) memory and are
         // reinterpreted separately below, outside this arena.
         try (Arena arena = Arena.ofConfined()) {
@@ -194,6 +195,7 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
             MemorySegment validityAddrOut = out.asSlice(3L * Long.BYTES, Long.BYTES);
             MemorySegment validityBitOffsetOut = out.asSlice(4L * Long.BYTES, Long.BYTES);
             MemorySegment valueKindOut = out.asSlice(5L * Long.BYTES, Long.BYTES);
+            MemorySegment valueBitOffsetOut = out.asSlice(6L * Long.BYTES, Long.BYTES);
 
             long rc = ParquetCodecBridge.nextBatch(
                 ptr,
@@ -203,7 +205,8 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
                 valuesAddrOut,
                 validityAddrOut,
                 validityBitOffsetOut,
-                valueKindOut
+                valueKindOut,
+                valueBitOffsetOut
             );
             checkStatus(rc, row);
 
@@ -213,6 +216,7 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
             validityAddr = validityAddrOut.get(ValueLayout.JAVA_LONG, 0);
             bitOffset = (int) validityBitOffsetOut.get(ValueLayout.JAVA_LONG, 0);
             kind = (int) valueKindOut.get(ValueLayout.JAVA_LONG, 0);
+            valueBitOffset = (int) valueBitOffsetOut.get(ValueLayout.JAVA_LONG, 0);
         }
 
         // Validate the native cursor's framing before pointing memory views at the borrowed
@@ -220,7 +224,6 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
         // checks fail fast on a malformed contract instead of reading out of bounds. They do not,
         // and cannot, make a correct-looking but wrong address safe - that is inherent to a
         // zero-copy FFM borrow.
-        int width = widthForKind(kind, row);
         if (firstRow < 0 || lastRow < firstRow || row < firstRow || row > lastRow) {
             throw contractViolation(row, "row range [" + firstRow + ", " + lastRow + "]");
         }
@@ -228,14 +231,17 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
         if (batchRowsLong > maxBatchSize) {
             throw contractViolation(row, batchRowsLong + " rows exceeds cap " + maxBatchSize);
         }
-        if (valuesAddr == 0 || bitOffset < 0) {
-            throw contractViolation(row, "values address " + valuesAddr + ", bit offset " + bitOffset);
+        if (valuesAddr == 0 || bitOffset < 0 || valueBitOffset < 0) {
+            throw contractViolation(
+                row,
+                "values address " + valuesAddr + ", bit offset " + bitOffset + ", value bit offset " + valueBitOffset
+            );
         }
         int batchRows = (int) batchRowsLong;
 
         // Borrowed Arrow buffers, read in place: O(rows accessed), no copy. Valid until the next
         // batch call on this cursor, which clears the resident batch before borrowing again.
-        MemorySegment values = MemorySegment.ofAddress(valuesAddr).reinterpret((long) batchRows * width);
+        MemorySegment values = MemorySegment.ofAddress(valuesAddr).reinterpret(valuesByteLength(kind, batchRows, valueBitOffset, row));
         MemorySegment presenceBits;
         int presenceBitOffset;
         if (validityAddr == 0) {
@@ -248,16 +254,22 @@ public final class ParquetColumnReader extends NativeHandle implements NumericVa
             presenceBits = MemorySegment.ofAddress(validityAddr).reinterpret(presenceBytes);
             presenceBitOffset = bitOffset;
         }
-        decodedBatch = new DecodedBatch(firstRow, lastRow, values, kind, presenceBits, presenceBitOffset);
+        decodedBatch = new DecodedBatch(firstRow, lastRow, values, kind, valueBitOffset, presenceBits, presenceBitOffset);
     }
 
-    /** Byte width of a value KIND, rejecting any kind this reader does not understand. */
-    private int widthForKind(int kind, long row) throws IOException {
+    /**
+     * Byte length of the borrowed values buffer for a batch, rejecting any kind this reader does not
+     * understand. Called before {@code reinterpret} so an unknown kind never sizes a memory view.
+     */
+    private long valuesByteLength(int kind, int batchRows, int valueBitOffset, long row) throws IOException {
         return switch (kind) {
-            case DecodedBatch.KIND_LONG, DecodedBatch.KIND_DOUBLE -> Long.BYTES;
-            case DecodedBatch.KIND_INT, DecodedBatch.KIND_UINT_BITS, DecodedBatch.KIND_FLOAT -> Integer.BYTES;
-            case DecodedBatch.KIND_SHORT, DecodedBatch.KIND_USHORT -> Short.BYTES;
-            case DecodedBatch.KIND_BYTE, DecodedBatch.KIND_UBYTE -> Byte.BYTES;
+            case DecodedBatch.KIND_LONG, DecodedBatch.KIND_DOUBLE -> (long) batchRows * Long.BYTES;
+            case DecodedBatch.KIND_INT, DecodedBatch.KIND_UINT_BITS, DecodedBatch.KIND_FLOAT -> (long) batchRows * Integer.BYTES;
+            case DecodedBatch.KIND_SHORT, DecodedBatch.KIND_USHORT, DecodedBatch.KIND_HALF_FLOAT -> (long) batchRows * Short.BYTES;
+            case DecodedBatch.KIND_BYTE, DecodedBatch.KIND_UBYTE -> (long) batchRows * Byte.BYTES;
+            // One bit per row, so size to the significant bytes exactly as the presence bitmap is
+            // sized. The offset is a bit index and can exceed a byte, so it is included in the span.
+            case DecodedBatch.KIND_BOOL -> ((long) valueBitOffset + batchRows + 7) >>> 3;
             default -> throw contractViolation(row, "unknown value kind " + kind);
         };
     }

@@ -70,6 +70,11 @@ public abstract class NativeHandle implements AutoCloseable {
         }
     }
 
+    /** Whether {@link #close()} (or the cleaner) has released this handle. */
+    public boolean isClosed() {
+        return closed.get();
+    }
+
     /**
      * Gets the native pointer value.
      * @return the native pointer
