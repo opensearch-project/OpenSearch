@@ -108,7 +108,8 @@ public interface DataFormatPlugin {
      */
     default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
-        if (requested.isEmpty()) {
+        Set<FieldTypeCapabilities.Capability> optional = fieldType.optionalCapabilities();
+        if (requested.isEmpty() && optional.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
@@ -122,6 +123,13 @@ public interface DataFormatPlugin {
         if (claimed.isEmpty() == false) {
             assigned.put(format, Set.copyOf(claimed));
             remaining.removeAll(claimed);
+        }
+        final Set<FieldTypeCapabilities.Capability> optionalClaimed = claimCapabilities(format, typeName, optional);
+        if (optionalClaimed.isEmpty() == false) {
+            Set<FieldTypeCapabilities.Capability> combined = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+            combined.addAll(assigned.getOrDefault(format, Set.of()));
+            combined.addAll(optionalClaimed);
+            assigned.put(format, Set.copyOf(combined));
         }
 
         if (remaining.isEmpty() == false) {

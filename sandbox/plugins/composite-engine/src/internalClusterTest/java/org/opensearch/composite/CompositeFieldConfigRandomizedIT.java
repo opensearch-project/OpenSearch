@@ -74,15 +74,15 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
      * Tests randomized field configurations where keyword and numeric fields randomly
      * have index=true or index=false. Verifies that:
      * - All fields appear in parquet regardless of index setting
-     * - Only indexed fields appear in lucene FieldInfos
+     * - Keyword fields appear in lucene regardless of index (optional term postings); numerics only when indexed
      * - __row_id__ is always present in lucene
      */
     public void testRandomizedFieldConfigIndexingAndVerification() throws Exception {
         startCluster();
         String indexName = "test-randomized-field-config";
 
-        // Randomly decide index=true/false for keyword fields — keyword keeps FULL_TEXT_SEARCH,
-        // so it can be indexed on a pluggable data format index.
+        // Randomly decide index=true/false for keyword fields — either way keyword terms reach
+        // the lucene secondary (required FULL_TEXT_SEARCH when indexed, optional when not).
         boolean kw1Indexed = randomBoolean();
         boolean kw2Indexed = randomBoolean();
         boolean kw3Indexed = randomBoolean();
@@ -193,10 +193,11 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
         assertTrue("f_text_2 should be in lucene", luceneFields.contains("f_text_2"));
         assertTrue("f_match_only_text should be in lucene", luceneFields.contains("f_match_only_text"));
 
-        // Keyword fields: present in lucene only if indexed
-        assertFieldInLucene(luceneFields, "f_keyword_1", kw1Indexed);
-        assertFieldInLucene(luceneFields, "f_keyword_2", kw2Indexed);
-        assertFieldInLucene(luceneFields, "f_keyword_3", kw3Indexed);
+        // Keyword fields: always in lucene — index=false keywords still get terms-only postings
+        // through the optional FULL_TEXT_SEARCH capability (the uninverted-ordinals source).
+        assertTrue("f_keyword_1 should be in lucene regardless of index", luceneFields.contains("f_keyword_1"));
+        assertTrue("f_keyword_2 should be in lucene regardless of index", luceneFields.contains("f_keyword_2"));
+        assertTrue("f_keyword_3 should be in lucene regardless of index", luceneFields.contains("f_keyword_3"));
 
         // Numeric fields are index=false, so they must NOT appear in lucene FieldInfos
         assertFalse("f_long with index=false should NOT be in lucene", luceneFields.contains("f_long"));
@@ -260,11 +261,12 @@ public class CompositeFieldConfigRandomizedIT extends AbstractCompositeEngineIT 
             );
         }
 
-        // Verify lucene does NOT have these fields (no FULL_TEXT_SEARCH requested)
+        // Keyword gets terms via the optional FULL_TEXT_SEARCH capability even with index=false;
+        // numerics declare no optional capability and stay out of lucene.
         Path luceneDir = shard.shardPath().resolveIndex();
         Set<String> luceneFields = getLuceneFields(luceneDir);
 
-        assertFalse("col_keyword should NOT be in lucene (index=false)", luceneFields.contains("col_keyword"));
+        assertTrue("col_keyword should be in lucene (optional term postings)", luceneFields.contains("col_keyword"));
         assertFalse("col_long should NOT be in lucene (index=false)", luceneFields.contains("col_long"));
         assertFalse("col_double should NOT be in lucene (index=false)", luceneFields.contains("col_double"));
 
