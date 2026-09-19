@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +45,7 @@ public class SearchRequestContext {
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
     private boolean streamingRequest;
+    private final AtomicBoolean requestCompleted = new AtomicBoolean(false);
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
@@ -61,6 +63,16 @@ public class SearchRequestContext {
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
         return searchRequestOperationsListener;
+    }
+
+    /**
+     * Claims the single terminal notification for this request, so that the {@code onRequestStart}
+     * emitted when the request arrived is paired exactly once. Returns {@code true} only for the
+     * first caller, whether that is a phase completing, a phase failing, or the request failing
+     * before any phase started.
+     */
+    boolean markRequestCompleted() {
+        return requestCompleted.compareAndSet(false, true);
     }
 
     void updatePhaseTookMap(String phaseName, Long tookTime) {
