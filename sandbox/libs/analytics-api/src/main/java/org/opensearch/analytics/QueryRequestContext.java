@@ -28,13 +28,18 @@ import org.opensearch.tasks.Task;
  *
  * @opensearch.internal
  */
-public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask) {
+public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask,
+    Integer targetPartitions) {
+
+    public QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask) {
+        this(clusterState, schema, querySource, parentTask, null);
+    }
 
     public QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource) {
-        this(clusterState, schema, querySource, null);
+        this(clusterState, schema, querySource, null, null);
     }
 
     public QueryRequestContext(ClusterState clusterState, SchemaPlus schema) {
-        this(clusterState, schema, null, null);
+        this(clusterState, schema, null, null, null);
     }
 }

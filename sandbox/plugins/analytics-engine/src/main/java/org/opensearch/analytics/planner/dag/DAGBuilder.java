@@ -61,6 +61,16 @@ public class DAGBuilder {
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
+        return build(cboOutput, registry, clusterService, indexNameExpressionResolver, null);
+    }
+
+    public static QueryDAG build(
+        RelNode cboOutput,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Integer targetPartitions
+    ) {
         int[] counter = { 0 };
         List<Stage> childStages = new ArrayList<>();
 
@@ -76,7 +86,7 @@ public class DAGBuilder {
             // wrap a bare StageInputScan placeholder.
             cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver);
             assert childStages.size() == 1 : "cutAtLateMaterialization must add exactly one child (the LM stage)";
-            return new QueryDAG(newQueryId(), childStages.getFirst());
+            return new QueryDAG(newQueryId(), childStages.getFirst(), targetPartitions);
         } else {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService, indexNameExpressionResolver);
         }
@@ -105,7 +115,7 @@ public class DAGBuilder {
             : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
-        return new QueryDAG(newQueryId(), rootStage);
+        return new QueryDAG(newQueryId(), rootStage, targetPartitions);
     }
 
     /**

@@ -12,12 +12,16 @@ import org.apache.calcite.plan.RelOptUtil;
 
 /**
  * Root of the query execution DAG. Recursive tree of {@link Stage}s.
- *
- * @param queryId   unique identifier for this query
- * @param rootStage the coordinator root stage
+ * @param queryId          unique identifier for this query
+ * @param rootStage        the coordinator root stage
+ * @param targetPartitions optional per-query target partitions override
  * @opensearch.internal
  */
-public record QueryDAG(String queryId, Stage rootStage) {
+public record QueryDAG(String queryId, Stage rootStage, Integer targetPartitions) {
+
+    public QueryDAG(String queryId, Stage rootStage) {
+        this(queryId, rootStage, null);
+    }
 
     @Override
     public String toString() {
