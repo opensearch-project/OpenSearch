@@ -71,6 +71,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
@@ -123,6 +124,7 @@ public class RestShardsAction extends AbstractListAction {
         shardsRequest.setIndices(indices);
         shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
         shardsRequest.setPageParams(pageParams);
+        shardsRequest.setIndicesStatsRequired(requestNeedsIndicesStats(request));
         parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
@@ -139,6 +141,117 @@ public class RestShardsAction extends AbstractListAction {
                 );
             }
         });
+    }
+
+    /**
+     * Canonical names and aliases for shard columns that are derivable purely from cluster state
+     * (ShardRouting + DiscoveryNodes + UnassignedInfo). These do NOT require a per-shard
+     * IndicesStats broadcast.
+     */
+    private static final Set<String> ROUTING_ONLY_COLUMNS = Set.of(
+        // index
+        "index",
+        "i",
+        "idx",
+        // shard
+        "shard",
+        "s",
+        "sh",
+        // prirep
+        "prirep",
+        "p",
+        "pr",
+        "primaryOrReplica",
+        // state
+        "state",
+        "st",
+        // node identity
+        "ip",
+        "id",
+        "node",
+        "n",
+        // unassigned info
+        "unassigned.reason",
+        "ur",
+        "unassigned.at",
+        "ua",
+        "unassigned.for",
+        "uf",
+        "unassigned.details",
+        "ud",
+        // recovery source type (derived from ShardRouting.recoverySource)
+        "recoverysource.type",
+        "rs"
+    );
+
+    /**
+     * Returns true if the IndicesStats broadcast is required to build the response. The fast path
+     * (false) applies only when:
+     * <ul>
+     *   <li>h= is explicitly set (the default header set includes 'docs' and 'store' which need stats)</li>
+     *   <li>every token in h= matches a routing-only column (no wildcards, no stats columns)</li>
+     *   <li>s= (if set) only references routing-only columns</li>
+     * </ul>
+     * In all other cases we err on the side of correctness and fetch stats as today.
+     *
+     * Package-private for testing.
+     */
+    static boolean requestNeedsIndicesStats(RestRequest request) {
+        // Non-consuming read: this runs pre-dispatch, and h is consumed later during response
+        // rendering (buildDisplayHeaders). Matches the non-consuming access in RestTable.buildResponse.
+        String hParam = request.params().get("h");
+        if (hParam == null || hParam.isEmpty()) {
+            return true; // default headers include stats columns
+        }
+        for (String token : Strings.splitStringByCommaToArray(hParam)) {
+            if (isRoutingOnlyToken(token) == false) {
+                return true;
+            }
+        }
+        String sParam = request.param("s");
+        if (sParam != null && sParam.isEmpty() == false) {
+            for (String token : Strings.splitStringByCommaToArray(sParam)) {
+                // strip :asc / :desc direction suffix before checking (case-insensitive, whitespace-tolerant)
+                if (isRoutingOnlyToken(stripSortDirection(token)) == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRoutingOnlyToken(String token) {
+        if (token == null) return false;
+        String trimmed = token.trim();
+        if (trimmed.isEmpty()) return false;
+        // Wildcards conservatively force the slow path — we don't expand them here.
+        if (trimmed.indexOf('*') >= 0 || trimmed.indexOf('?') >= 0) return false;
+        return ROUTING_ONLY_COLUMNS.contains(trimmed);
+    }
+
+    /**
+     * Strip a trailing sort-direction suffix ({@code :asc} / {@code :desc}, case-insensitive and
+     * whitespace-tolerant) from a {@code s=} token, returning the bare column name. The cut point is
+     * derived from the token itself (the last {@code :}), so it never relies on the lower-cased copy
+     * having the same length as the original; {@code _cat} column names never contain {@code :}.
+     * Returns the trimmed token unchanged when no direction suffix is present, and an empty string
+     * for a null or direction-only token (which then conservatively forces the stats fetch).
+     *
+     * Package-private for testing.
+     */
+    static String stripSortDirection(String token) {
+        if (token == null) {
+            return "";
+        }
+        String trimmed = token.trim();
+        int colon = trimmed.lastIndexOf(':');
+        if (colon >= 0) {
+            String direction = trimmed.substring(colon + 1).trim().toLowerCase(Locale.ROOT);
+            if (direction.equals("asc") || direction.equals("desc")) {
+                return trimmed.substring(0, colon).trim();
+            }
+        }
+        return trimmed;
     }
 
     @Override
