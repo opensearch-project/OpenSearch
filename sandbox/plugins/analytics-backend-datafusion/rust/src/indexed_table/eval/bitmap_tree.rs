@@ -720,6 +720,9 @@ fn on_batch_node(
                 // Short-circuit: if every row is definitively false
                 // (no nulls, zero trues), any further `FALSE AND x` is
                 // still FALSE in SQL 3VL. Safe to stop.
+                // TODO [df55-perf]: arrow-59 BooleanBuffer::has_true (arrow-rs#9987) short-circuits vs true_count()'s full
+                // popcount here (M-2 in ../../../implementation/df55-new-api-adoption-tasklist.md) — clean but
+                // marginal (popcount ~free at batch size); measure before adopting.
                 if let Some(ref result_bitmap) = optional_result_bitmap {
                     if result_bitmap.null_count() == 0 && result_bitmap.true_count() == 0 {
                         return Ok(result_bitmap.clone());
