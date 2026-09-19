@@ -778,6 +778,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         objects.put("{'obj':50.63}", DistanceUnit.METERS.fromMeters(50.63));
         objects.put("{'obj':'MINUTES'}", TimeUnit.MINUTES);
         objects.put("{'obj':'class org.opensearch.common.xcontent.BaseXContentTestCase'}", BaseXContentTestCase.class);
+        objects.put("{'obj':'a'}", Character.valueOf('a'));
 
         for (Map.Entry<String, ?> o : objects.entrySet()) {
             final String expected = o.getKey();
