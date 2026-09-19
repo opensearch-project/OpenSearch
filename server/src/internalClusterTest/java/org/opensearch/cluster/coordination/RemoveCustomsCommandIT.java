@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
@@ -39,6 +38,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import picocli.CommandLine;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -101,28 +102,28 @@ public class RemoveCustomsCommandIT extends OpenSearchIntegTestCase {
             UserException.class,
             () -> removeCustoms(environment, false, new String[] { "index-greveyard-with-typos" })
         );
-        assertThat(
-            ex.getMessage(),
-            containsString("No custom metadata matching [index-greveyard-with-typos] were " + "found on this node")
-        );
+        assertThat(ex.getMessage(), containsString("No custom metadata matching [index-greveyard-with-typos] were found on this node"));
     }
 
     private MockTerminal executeCommand(OpenSearchNodeCommand command, Environment environment, boolean abort, String... args)
         throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        final OptionSet options = command.getParser().parse(args);
-        final String input;
 
+        // Parse args into the command using picocli
+        new CommandLine(command).parseArgs(args);
+
+        // Prepare simulated user input for the confirmation prompt
+        final String input;
         if (abort) {
             input = randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1));
         } else {
             input = randomBoolean() ? "y" : "Y";
         }
-
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            // Execute with injected Environment (no OptionSet in picocli version)
+            command.execute(terminal, environment);
         } finally {
             assertThat(terminal.getOutput(), containsString(OpenSearchNodeCommand.STOP_WARNING_MSG));
         }
