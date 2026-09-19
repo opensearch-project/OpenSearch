@@ -125,6 +125,12 @@ public class BoolQueryTranslator implements QueryTranslator {
         int requiredMatches = MinimumShouldMatchParser.calculateRequiredMatches(minimumShouldMatch, totalShould, hasRequired);
 
         if (requiredMatches == 0) {
+            // These clauses cannot affect which rows are returned, so they are not converted. The
+            // options they carry must still be rejected — otherwise the same clause is accepted
+            // here and rejected in any other position (#23011).
+            for (QueryBuilder shouldClause : shouldClauses) {
+                validateSkippedClause(shouldClause);
+            }
             return null;
         }
 
@@ -165,5 +171,43 @@ public class BoolQueryTranslator implements QueryTranslator {
                 + shouldConditions.size()
                 + ")"
         );
+    }
+
+    /**
+     * Rejects non-default {@code boost} and non-null {@code _name} on a clause that is skipped
+     * rather than converted, recursing into a nested bool's {@code must}, {@code filter},
+     * {@code should} and {@code must_not}.
+     *
+     * <p>Only types with a registered translator are checked, matching
+     * {@link QueryRegistry#convert}, which leaves an unregistered type to the analytics engine
+     * instead of rejecting it. Other clause-wrapping query types are not traversed — only bool.
+     *
+     * @param clause the clause that was skipped
+     * @throws ConversionException if the clause carries an option this path cannot honour
+     */
+    private void validateSkippedClause(QueryBuilder clause) throws ConversionException {
+        if (queryRegistry.hasTranslator(clause)) {
+            if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                throw new ConversionException("'" + clause.getName() + "' query parameter 'boost' is not supported");
+            }
+            if (clause.queryName() != null) {
+                throw new ConversionException("'" + clause.getName() + "' query parameter '_name' is not supported");
+            }
+        }
+
+        if (clause instanceof BoolQueryBuilder nested) {
+            for (QueryBuilder child : nested.must()) {
+                validateSkippedClause(child);
+            }
+            for (QueryBuilder child : nested.filter()) {
+                validateSkippedClause(child);
+            }
+            for (QueryBuilder child : nested.should()) {
+                validateSkippedClause(child);
+            }
+            for (QueryBuilder child : nested.mustNot()) {
+                validateSkippedClause(child);
+            }
+        }
     }
 }
