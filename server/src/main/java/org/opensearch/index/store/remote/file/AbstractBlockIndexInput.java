@@ -317,6 +317,85 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         }
     }
 
+    /**
+     * Bulk reads. Elements that fit in the current block are copied with one bulk read on the block; an
+     * element split by a block boundary is assembled byte by byte through {@link #readInt()} /
+     * {@link #readLong()} (whose {@link #readByte()} path moves to the next block); a read positioned exactly
+     * at a block boundary moves to the next block and continues in bulk. This mirrors
+     * {@code BufferedIndexInput#readFloats} and friends. Without these overrides the
+     * {@link org.apache.lucene.store.DataInput} defaults read one element at a time, so a single
+     * {@code readFloats} of a 1024-dimension vector turned into 1024 bounds-checked reads on the underlying
+     * block instead of one bulk copy.
+     */
+    @Override
+    public void readFloats(float[] floats, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Float.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readFloats(floats, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                floats[offset++] = Float.intBitsToFloat(super.readInt());
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
+        }
+    }
+
+    @Override
+    public void readInts(int[] dst, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Integer.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readInts(dst, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                dst[offset++] = super.readInt();
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
+        }
+    }
+
+    @Override
+    public void readLongs(long[] dst, int offset, int len) throws IOException {
+        ensureNotUnpinned();
+        if (blockHolder.block == null) {
+            seek(0);
+        }
+        while (len > 0) {
+            final int available = blockSize - currentBlockPosition();
+            final int fit = Math.min(len, available / Long.BYTES);
+            if (fit > 0) {
+                blockHolder.block.readLongs(dst, offset, fit);
+                offset += fit;
+                len -= fit;
+            } else if (available > 0) {
+                // element split by the block boundary
+                dst[offset++] = super.readLong();
+                len--;
+            } else {
+                demandBlock(currentBlockId + 1);
+            }
+        }
+    }
+
     @Override
     public final void readBytes(byte[] b, int offset, int len) throws IOException {
         ensureNotUnpinned();
