@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet.fields;
 
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -44,30 +42,8 @@ public abstract class ParquetField {
     protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
-     * Writes a single parsed value at an explicit index in the given vector.
-     * <p>
-     * Scalar columns write at the row index, so {@link #addToGroup} can derive the position from
-     * the VSR's row count. List columns write several values per row at positions in the child
-     * vector that have nothing to do with the row number, so multi-value writes need this
-     * index-explicit form instead.
-     * <p>
-     * Subclasses must override this to support being declared multi-valued; the default throws.
-     * When overridden, {@link #addToGroup} should delegate to it so the scalar and list paths
-     * share one value-coercion implementation.
-     *
-     * @param vector the target vector (the child data vector when writing into a list)
-     * @param index the position to write at
-     * @param parseValue the parsed value to write
-     */
-    protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
-        );
-    }
-
-    /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
+     * Returns whether this field can be stored as a Parquet LIST column. Supporting types handle
+     * their LIST representation inside {@link #addToGroup}.
      *
      * @return true if multi-valued storage is supported
      */
@@ -113,39 +89,7 @@ public abstract class ParquetField {
     public final void createField(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
         assert fieldType != null : "MappedFieldType cannot be null";
         assert managedVSR != null : "ManagedVSR cannot be null";
-        FieldVector vector = managedVSR.getVector(fieldType.name());
-        if (vector instanceof ListVector listVector) {
-            writeList(fieldType, managedVSR, listVector, parseValue);
-            return;
-        }
         addToGroup(fieldType, managedVSR, parseValue);
-    }
-
-    /**
-     * Writes all values collected for one document into a list column at the current row.
-     * <p>
-     * A null {@code parseValue} is written as a null list, which is how an absent field is
-     * represented. An empty list is written as a zero-length, non-null list, preserving the
-     * distinction between {@code "tags": []} and no {@code tags} at all.
-     */
-    private void writeList(MappedFieldType fieldType, ManagedVSR managedVSR, ListVector listVector, Object parseValue) {
-        int row = managedVSR.getRowCount();
-        if (parseValue == null) {
-            listVector.setNull(row);
-            return;
-        }
-        List<?> values = parseValue instanceof List<?> list ? list : List.of(parseValue);
-        int start = listVector.startNewValue(row);
-        FieldVector dataVector = listVector.getDataVector();
-        for (int i = 0; i < values.size(); i++) {
-            Object value = values.get(i);
-            if (value == null) {
-                dataVector.setNull(start + i);
-            } else {
-                addToVector(dataVector, start + i, value);
-            }
-        }
-        listVector.endValue(row, values.size());
     }
 
     /**
@@ -163,4 +107,17 @@ public abstract class ParquetField {
 
     /** Returns the Arrow field type with nullability metadata. */
     public abstract FieldType getFieldType();
+
+    /**
+     * Builds the Arrow {@link Field} named {@code name} for this type. Default is a leaf with no
+     * children, using {@link #getFieldType()} — correct for every scalar type. Overridden by types
+     * whose Arrow representation has children (e.g. {@code flat_object}'s {@code MAP<Utf8,Utf8>}),
+     * so schema-building code can call this uniformly instead of special-casing by type name.
+     *
+     * @param name the field's name — a full dotted path at the document root, or a leaf name
+     *             relative to its parent struct when nested inside a {@code LIST<STRUCT>}
+     */
+    public Field buildField(String name) {
+        return new Field(name, getFieldType(), null);
+    }
 }

@@ -96,12 +96,11 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     }
 
     /**
-     * Adds a field to the underlying Lucene document by looking up the appropriate
-     * {@link LuceneFieldFactory} from the registry based on the field's type name.
-     * <p>
-     * The field is accepted when Lucene owns at least one requested capability. Metadata fields in
-     * {@link #METADATA_DOC_VALUE_TYPES} are also mirrored when enabled, even if their capability map is
-     * empty. Other unsupported fields are skipped.
+     * Adds a field via the registered {@link LuceneFieldFactory} for its type. The field is accepted
+     * when Lucene owns at least one requested capability — otherwise silently skipped, mirroring
+     * {@code ParquetDocumentInput}'s self-filtering. Metadata fields in
+     * {@link #METADATA_DOC_VALUE_TYPES} are also mirrored when enabled, even if their capability map
+     * is empty.
      *
      * @param fieldType the OpenSearch mapped field type
      * @param value     the field value

@@ -8,16 +8,23 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.List;
+import java.util.Map;
 
 public class ParquetDocumentInputTests extends ParquetBaseTests {
 
@@ -85,6 +92,68 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
 
         input.addField(valField, 10);
         expectThrows(MapperParsingException.class, () -> input.addField(valField, 20));
+    }
+
+    /** Two values for the same leaf within ONE nested element must be rejected, like the top-level dedup. */
+    public void testRejectsDuplicateLeafWithinSameNestedElement() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        KeywordFieldMapper.KeywordFieldType tag = new KeywordFieldMapper.KeywordFieldType("comments.tags");
+        assignTestCapabilities(tag, PARQUET_FORMAT);
+
+        input.addField(nestedPathMarker(), "comments");
+        input.addField(tag, "a");
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> input.addField(tag, "b"));
+        assertTrue(e.getMessage().contains("comments.tags"));
+    }
+
+    /** The SAME leaf name repeating across DIFFERENT elements is fine — each element gets its own value. */
+    public void testSameLeafNameAcrossDifferentNestedElementsIsFine() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        KeywordFieldMapper.KeywordFieldType author = new KeywordFieldMapper.KeywordFieldType("comments.author");
+        assignTestCapabilities(author, PARQUET_FORMAT);
+
+        input.addField(nestedPathMarker(), "comments");
+        input.addField(author, "alice");
+        input.addField(nestedPathMarker(), "comments");
+        input.addField(author, "bob");
+        // Nothing moves the last-open element into getNestedChildren() without a later signal or an
+        // explicit flush; getFinalInput() would also flush but its id/seqno/rowId assertions don't apply
+        // here, so flush directly instead.
+        flushOpenElements(input);
+
+        assertEquals(2, input.getNestedChildren().size());
+        assertEquals("alice", input.getNestedChildren().get(0).fields.get(0).value);
+        assertEquals("bob", input.getNestedChildren().get(1).fields.get(0).value);
+    }
+
+    private void flushOpenElements(ParquetDocumentInput input) {
+        MappedFieldType sentinel = new KeywordFieldMapper.KeywordFieldType("test_flush");
+        assignTestCapabilities(sentinel, PARQUET_FORMAT);
+        input.addField(sentinel, "flush");
+    }
+
+    /**
+     * A field type reporting {@code typeName() == NestedPathFieldMapper.NAME} — what
+     * {@code ParquetDocumentInput} keys the nested-element marker recognition on (the real
+     * {@code NestedPathFieldMapper.NestedPathFieldType} has no public constructor).
+     */
+    private static MappedFieldType nestedPathMarker() {
+        return new MappedFieldType(NestedPathFieldMapper.NAME, true, false, false, TextSearchInfo.NONE, Map.of()) {
+            @Override
+            public String typeName() {
+                return NestedPathFieldMapper.NAME;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
+            }
+        };
     }
 
     public void testDeclaredMultiValueFieldAccumulatesValuesInOrder() {
