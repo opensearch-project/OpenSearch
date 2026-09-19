@@ -256,6 +256,24 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
+    public void testUniverseDomainOverride() throws Exception {
+        final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final String universeDomain = "s3nsapis.fr";
+        final Settings settings = newSettingsBuilder(new MockSecureSettings(), clientName).put(
+            GoogleCloudStorageClientSettings.UNIVERSE_DOMAIN_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            universeDomain
+        ).build();
+
+        GoogleCredentials mockGoogleCredentials = Mockito.mock(GoogleCredentials.class);
+        GoogleApplicationDefaultCredentials mockDefaultCredentials = Mockito.mock(GoogleApplicationDefaultCredentials.class);
+        Mockito.when(mockDefaultCredentials.get()).thenReturn(mockGoogleCredentials);
+
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(mockDefaultCredentials);
+        service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
+        final Storage storage = service.client(clientName, "repo", new GoogleCloudStorageOperationsStats("bucket"));
+        MatcherAssert.assertThat(storage.getOptions().getUniverseDomain(), Matchers.is(universeDomain));
+    }
+
     public void testCustomTruststoreConfiguration() throws Exception {
         final var truststorePath = getDataPath("/google.p12");
         final var clientName = "gcs1";
@@ -308,6 +326,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             null,
             endpoint,
             projectIdName,
+            null,
             connectTimeValue,
             readTimeValue,
             applicationName,
