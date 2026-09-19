@@ -856,6 +856,31 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertTrue(settings.isRemoteStoreEnabled());
     }
 
+    public void testTieredRecoveryDefaultSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isTieredRecoveryEnabled());
+    }
+
+    public void testTieredRecoveryExplicitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexModule.INDEX_REMOTE_STORE_TIERED_RECOVERY_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isTieredRecoveryEnabled());
+        // raw opt-in only: cross-setting preconditions are enforced at shard creation, not here
+        assertFalse(settings.isWarmIndex());
+    }
+
     public void testRemoteTranslogStoreDefaultSetting() {
         IndexMetadata metadata = newIndexMeta(
             "index",

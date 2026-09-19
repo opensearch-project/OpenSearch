@@ -196,6 +196,21 @@ public final class IndexModule {
 
     public static final Setting<Boolean> IS_WARM_INDEX_SETTING = Setting.boolSetting("index.warm", false, Property.IndexScope);
 
+    /**
+     * Opts a hot remote-store index into tiered remote-store recovery: the engine is opened as soon as the
+     * commit metadata is known and reads are served through block-level fetches from the remote store while
+     * the full segment files are hydrated to local disk in the background. Static; experimental; requires
+     * {@code index.remote_store.enabled=true}, {@code index.warm=false}, and a node with
+     * {@code node.remote_store.hydration_cache.size > 0}. Gated by
+     * {@link org.opensearch.common.util.FeatureFlags#WRITABLE_WARM_INDEX_SETTING}, which already guards the
+     * TieredDirectory / SwitchableIndexInput building blocks this feature reuses.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_TIERED_RECOVERY_ENABLED_SETTING = Setting.boolSetting(
+        "index.remote_store.tiered_recovery.enabled",
+        false,
+        Property.IndexScope
+    );
+
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
         "",
