@@ -159,25 +159,21 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return withMultiValueParameter(Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta));
         }
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
-            return new IpFieldMapper(
-                name,
-                new IpFieldType(
-                    buildFullName(context),
-                    indexed.getValue(),
-                    stored.getValue(),
-                    hasDocValues.getValue(),
-                    parseNullValue(),
-                    meta.getValue()
-                ),
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                this
+            IpFieldType fieldType = new IpFieldType(
+                buildFullName(context),
+                indexed.getValue(),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                parseNullValue(),
+                meta.getValue()
             );
+            applyMultiValueParameter(fieldType);
+            return new IpFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         @Override
@@ -671,7 +667,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         if (address == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), address);
+        addFieldForPluggableFormat(context, address);
     }
 
     @Override

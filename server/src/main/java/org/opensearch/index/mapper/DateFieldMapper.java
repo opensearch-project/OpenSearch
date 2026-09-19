@@ -360,7 +360,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return withMultiValueParameter(
+                Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta)
+            );
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -395,6 +397,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 meta.getValue()
             );
             ft.setBoost(boost.getValue());
+            applyMultiValueParameter(ft);
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
@@ -875,7 +878,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (timestamp == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), timestamp);
+        addFieldForPluggableFormat(context, timestamp);
     }
 
     private Long parseTimestamp(ParseContext context) throws IOException {

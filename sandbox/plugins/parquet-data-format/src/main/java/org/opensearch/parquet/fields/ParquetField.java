@@ -8,15 +8,32 @@
 
 package org.opensearch.parquet.fields;
 
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float2Vector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.UInt8Vector;
+import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -60,19 +77,55 @@ public abstract class ParquetField {
      * @param parseValue the parsed value to write
      */
     protected void addToVector(FieldVector vector, int index, Object parseValue) {
-        throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
-        );
+        if (vector instanceof VarCharVector typed) {
+            typed.setSafe(index, parseValue.toString().getBytes(StandardCharsets.UTF_8));
+        } else if (vector instanceof VarBinaryVector typed) {
+            if (parseValue instanceof InetAddress address) {
+                BytesRef encoded = new BytesRef(InetAddressPoint.encode(address));
+                typed.setSafe(index, encoded.bytes, encoded.offset, encoded.length);
+            } else if (parseValue instanceof BytesRef bytes) {
+                typed.setSafe(index, bytes.bytes, bytes.offset, bytes.length);
+            } else {
+                typed.setSafe(index, (byte[]) parseValue);
+            }
+        } else if (vector instanceof TinyIntVector typed) {
+            typed.setSafe(index, ((Number) parseValue).byteValue());
+        } else if (vector instanceof SmallIntVector typed) {
+            typed.setSafe(index, ((Number) parseValue).shortValue());
+        } else if (vector instanceof IntVector typed) {
+            typed.setSafe(index, ((Number) parseValue).intValue());
+        } else if (vector instanceof BigIntVector typed) {
+            typed.setSafe(index, ((Number) parseValue).longValue());
+        } else if (vector instanceof UInt8Vector typed) {
+            typed.setSafe(index, ((Number) parseValue).longValue());
+        } else if (vector instanceof Float2Vector typed) {
+            typed.setSafeWithPossibleTruncate(index, ((Number) parseValue).floatValue());
+        } else if (vector instanceof Float4Vector typed) {
+            typed.setSafe(index, ((Number) parseValue).floatValue());
+        } else if (vector instanceof Float8Vector typed) {
+            typed.setSafe(index, ((Number) parseValue).doubleValue());
+        } else if (vector instanceof BitVector typed) {
+            typed.setSafe(index, (Boolean) parseValue ? 1 : 0);
+        } else if (vector instanceof TimeStampMilliVector typed) {
+            typed.setSafe(index, ((Number) parseValue).longValue());
+        } else if (vector instanceof TimeStampNanoVector typed) {
+            typed.setSafe(index, ((Number) parseValue).longValue());
+        } else {
+            throw new UnsupportedOperationException(
+                "Arrow vector [" + vector.getClass().getSimpleName() + "] does not support scalar LIST elements"
+            );
+        }
     }
 
-    /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
-     *
-     * @return true if multi-valued storage is supported
-     */
+    /** Returns whether this scalar Arrow type can be represented as a LIST element. */
     public boolean supportsMultiValue() {
-        return false;
+        ArrowType type = getArrowType();
+        return type instanceof ArrowType.Utf8
+            || type instanceof ArrowType.Binary
+            || type instanceof ArrowType.Int
+            || type instanceof ArrowType.FloatingPoint
+            || type instanceof ArrowType.Bool
+            || type instanceof ArrowType.Timestamp;
     }
 
     /**
