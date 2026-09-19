@@ -19,7 +19,9 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -45,12 +47,15 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -465,6 +470,75 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             }, handlerException));
 
             assertBusy(() -> assertNotNull("handler must be notified of the failure", handlerException.get()));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A handler's named executor can stop accepting work while a stream is still in flight, and the
+     * scaling pools do it silently: {@code OpenSearchExecutors.ForceQueuePolicy} answers a rejection
+     * by putting the task on the work queue, so once the pool is shut down the task is enqueued
+     * where no worker will ever take it. The task holds the request's only terminal callback, so
+     * losing it means the caller gets no response and no failure — it hangs — and the stream is
+     * never closed, which later costs the channel its whole close timeout and reports the stream's
+     * Arrow buffers as leaked. The callback must run on this thread instead.
+     */
+    public void testStreamFailureIsNotifiedInlineWhenExecutorIsShutDown() throws Exception {
+        ExecutorService shutDownPool = Executors.newFixedThreadPool(1);
+        shutDownPool.shutdown();
+        assertHandlerNotifiedInline(
+            pool -> when(pool.executor(anyString())).thenReturn(shutDownPool),
+            Level.WARN,
+            "*is shut down; running stream callback inline*"
+        );
+    }
+
+    /**
+     * The other silent loss: anything thrown while dispatching runs inside a {@code CompletableFuture}
+     * completion callback whose result nobody observes, so a rejection propagating from the lookup
+     * would vanish and strand the request exactly as above.
+     */
+    public void testStreamFailureIsNotifiedInlineWhenExecutorLookupThrows() throws Exception {
+        assertHandlerNotifiedInline(
+            pool -> when(pool.executor(anyString())).thenThrow(new RejectedExecutionException("pool gone")),
+            Level.ERROR,
+            "*Failed to dispatch stream callback to executor*"
+        );
+    }
+
+    /**
+     * Drives a stream open failure through a channel whose executor lookup is broken by
+     * {@code breakExecutor}, and asserts the handler was still notified. The expected log line
+     * distinguishes which fallback ran: without it, a rejection from {@code execute} on a shut-down
+     * pool would satisfy the test through the other branch.
+     */
+    private void assertHandlerNotifiedInline(Consumer<ThreadPool> breakExecutor, Level level, String expectedMessage) throws Exception {
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenThrow(
+            CallStatus.UNAVAILABLE.withDescription("connection reset").toRuntimeException()
+        );
+
+        ThreadPool brokenThreadPool = mock(ThreadPool.class);
+        when(brokenThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        breakExecutor.accept(brokenThreadPool);
+        channel = createChannel(mockFlightClient, brokenThreadPool);
+
+        AtomicReference<TransportException> handlerException = new AtomicReference<>();
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(FlightClientChannel.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "the inline fallback is reported, not hidden",
+                    FlightClientChannel.class.getCanonicalName(),
+                    level,
+                    expectedMessage
+                )
+            );
+
+            // GENERIC rather than SAME: SAME never leaves this thread, so it cannot reach the fallback.
+            sendStreamRequest(streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> {
+                throw new AssertionError("consumer must not be invoked after an open failure");
+            }, handlerException));
+
+            assertBusy(() -> assertNotNull("the terminal callback must survive a dead executor", handlerException.get()));
             appender.assertAllExpectationsMatched();
         }
     }
