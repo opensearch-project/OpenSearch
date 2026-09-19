@@ -1201,6 +1201,8 @@ async unsafe fn execute_indexed_with_context_inner(
     // interpretable by `api::fetch_by_row_ids` (which builds its own segments from
     // `ShardView.object_metas` in catalog order).
     let mut segments = segments;
+    // LIST leads have no trustworthy per-segment sort bounds yet (see
+    // `compute_segment_sort_bounds` and issue #23095), so reversal is disabled for them.
     let lead_sort_is_list = sort_fields
         .first()
         .and_then(|field| schema.field_with_name(field).ok())
