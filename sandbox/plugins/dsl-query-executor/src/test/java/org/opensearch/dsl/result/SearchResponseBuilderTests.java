@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
+import org.opensearch.dsl.aggregation.FieldTypeLookup;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.QueryPlans;
@@ -27,7 +28,6 @@ import org.opensearch.dsl.golden.CalciteTestInfra;
 import org.opensearch.dsl.golden.GoldenFileLoader;
 import org.opensearch.dsl.golden.GoldenTestCase;
 import org.opensearch.dsl.golden.TestMapperServices;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -45,7 +45,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class SearchResponseBuilderTests extends OpenSearchTestCase {
@@ -225,7 +224,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         mapping.put("category", "VARCHAR");
         mapping.put("price", "INTEGER");
         CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
-        Supplier<MapperService> mappers = TestMapperServices.fromSqlMapping(mapping);
+        FieldTypeLookup mappers = TestMapperServices.fromSqlMapping(mapping);
 
         SearchSourceBuilder source = new SearchSourceBuilder().size(0)
             .aggregation(
