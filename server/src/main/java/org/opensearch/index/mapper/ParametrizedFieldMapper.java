@@ -40,6 +40,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -133,19 +134,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         return new Parameter<>(
             "multi_value",
             true,
-            () -> MappedFieldType.MultiValueState.AUTO,
+            () -> MappedFieldType.MultiValueState.SCALAR,
             (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
                 ? MappedFieldType.MultiValueState.LIST
                 : MappedFieldType.MultiValueState.SCALAR,
-            mapper -> mapper.fieldType().multiValueState()
-        ).setSerializer((builder, name, mode) -> builder.field(name, mode == MappedFieldType.MultiValueState.LIST), mode -> switch (mode) {
-            case AUTO -> "auto";
-            case SCALAR -> "false";
-            case LIST -> "true";
-        })
-            .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
-            .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
-            .setMergeValidator((previous, next) -> previous == MappedFieldType.MultiValueState.AUTO || previous == next);
+            mapper -> mapper.fieldType().multiValueState())
+        .setSerializer(
+            (builder, name, mode) ->
+                builder.field(name, mode == MappedFieldType.MultiValueState.LIST),
+            mode -> switch (mode) {
+                case AUTO -> "auto";
+                case SCALAR -> "false";
+                case LIST -> "true";
+            })
+        .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+        .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+        .setMergeValidator((previous, next) -> previous == next 
+                    || (FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG) 
+                        && previous == MappedFieldType.MultiValueState.AUTO);
     }
 
     /**
@@ -159,7 +165,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             && context.documentInput().getFieldCount(fieldType.name()) > 0) {
             if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
                 throw new MapperParsingException(
-                    "Field [" + fieldType.name() + "] is locked scalar by [multi_value: false] and cannot accept multiple values"
+                    "Field [" + fieldType.name() + "] cannot accept multiple values: " + multiValueRejectionReason(fieldType)
                 );
             }
             addMultiValueMappingUpdate(context);
@@ -179,7 +185,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
         if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
             throw new MapperParsingException(
-                "Field [" + fieldType().name() + "] is locked scalar by [multi_value: false] and cannot promote"
+                "Field [" + fieldType().name() + "] cannot promote to multi-valued: " + multiValueRejectionReason(fieldType())
             );
         }
         Builder updateBuilder = getMergeBuilder();
@@ -191,6 +197,15 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             );
         }
         context.addDynamicMapper(update);
+    }
+
+    private static String multiValueRejectionReason(MappedFieldType fieldType) {
+        if (fieldType.multiValueState() == MappedFieldType.MultiValueState.AUTO) {
+            return "automatic promotion is disabled; declare [multi_value: true] when creating the field mapping or enable ["
+                + FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG
+                + "]";
+        }
+        return "the field is locked scalar by [multi_value: false]";
     }
 
     @Override
