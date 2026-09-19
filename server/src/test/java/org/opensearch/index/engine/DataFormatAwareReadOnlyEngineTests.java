@@ -68,8 +68,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -980,5 +982,38 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             Engine.Get get = realtimeGet("1").setIfSeqNo(5L).setIfPrimaryTerm(99L);
             expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
         }
+    }
+
+    /**
+     * {@link DataFormatAwareReadOnlyEngine#acquireSearcherSupplier} serves the warm shard's searcher the same
+     * way the writable engine does; the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
+     * default delegates to it.
+     */
+    public void testAcquireSearcherSupplierContract() throws IOException {
+        DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine();
+        try {
+            // At server scope no real Lucene data format is registered, so the pinned contract is the
+            // failure shape: a live engine surfaces the missing format as EngineException (never a raw
+            // NPE or a silent null). The happy warm path is covered by CompositeParquetWarmDocValuesIT.
+            EngineException e = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
+
+            // The Indexer default acquireSearcher delegates to the supplier, so it must surface the same failure.
+            EngineException viaDefault = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity())
+            );
+            assertThat(viaDefault.getMessage(), containsString("failed to build searcher supplier"));
+        } finally {
+            engine.close();
+        }
+        // A closed engine must refuse before touching the reader.
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+        );
     }
 }

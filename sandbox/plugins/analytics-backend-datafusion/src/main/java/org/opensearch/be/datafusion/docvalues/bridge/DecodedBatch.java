@@ -24,11 +24,13 @@ import java.lang.foreign.ValueLayout;
  * @param lastRow           inclusive global index of the last row in the batch
  * @param values            off-heap view of the decoded values, interpreted according to {@link #valueKind}
  * @param valueKind         element interpretation of {@code values}; one of the {@code KIND_*} constants
+ * @param valueBitOffset    first value bit of this batch within {@code values}, used only by the bit-packed
+ *                          {@link #KIND_BOOL}; zero for the byte-addressed kinds, which fold the offset into the address
  * @param presenceBits      off-heap view of the packed presence bitset (bit {@code presenceBitOffset + i}
  *                          is set when row {@code firstRow + i} is non-null); {@code null} means every row is present
  * @param presenceBitOffset first presence bit of this batch within {@code presenceBits} (borrowed bitmaps are bit-sliced)
  */
-public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, int valueKind, MemorySegment presenceBits,
+public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, int valueKind, int valueBitOffset, MemorySegment presenceBits,
     int presenceBitOffset) {
 
     /** {@link #values} holds one {@code long} of raw bits per row (i64/u64 bits). */
@@ -49,6 +51,18 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
     public static final int KIND_DOUBLE = 8;
     /** {@link #values} holds one {@code int} of raw f32 bits per row; re-encoded to a sign-extended sortable int. */
     public static final int KIND_FLOAT = 9;
+    /**
+     * {@link #values} holds one <em>bit</em> per row rather than a whole byte, addressed from
+     * {@link #valueBitOffset} exactly as the presence bitmap is addressed from {@code presenceBitOffset}.
+     * Yields 0 or 1, the form OpenSearch's boolean field stores in doc values.
+     */
+    public static final int KIND_BOOL = 10;
+    /**
+     * {@link #values} holds one {@code short} of raw IEEE-754 half-precision bits per row, re-encoded to
+     * the sortable short {@code HalfFloatPoint.halfFloatToSortableShort} produces - the exact form
+     * OpenSearch's half_float field stores in doc values.
+     */
+    public static final int KIND_HALF_FLOAT = 11;
 
     /**
      * Constant-time presence test for a global row, which must fall within
@@ -96,6 +110,20 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
             case KIND_FLOAT -> {
                 int bits = values.getAtIndex(ValueLayout.JAVA_INT, idx);
                 yield (long) (bits ^ ((bits >> 31) & 0x7fffffff));
+            }
+            case KIND_BOOL -> {
+                // Bit-packed, so read the containing byte and mask: the buffer is only guaranteed
+                // byte-addressable, and a wider read could reach past its last significant byte.
+                long bit = idx + valueBitOffset;
+                byte bits = values.get(ValueLayout.JAVA_BYTE, bit >>> 3);
+                yield (bits & (1 << (bit & 7))) != 0 ? 1L : 0L;
+            }
+            case KIND_HALF_FLOAT -> {
+                // Same sign-flip the float/double arms use, at fp16 width. Verified exhaustively to
+                // equal HalfFloatPoint.halfFloatToSortableShort over every canonical non-NaN fp16
+                // bit pattern, so this needs no lucene-sandbox dependency.
+                short bits = values.getAtIndex(ValueLayout.JAVA_SHORT, idx);
+                yield (short) (bits ^ ((bits >> 15) & 0x7fff));
             }
             default -> throw new IllegalStateException("unknown value kind " + valueKind);
         };
