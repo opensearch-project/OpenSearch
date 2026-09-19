@@ -52,6 +52,37 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertEquals(0, result.getRowType().getFieldCount());
     }
 
+    /** _id is metadata, not source: include-mode source filtering keeps it on the row. */
+    public void testIdSurvivesSourceIncludes() throws ConversionException {
+        LogicalTableScan scanWithId = TestUtils.createTestRelNodeWithId();
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(true, new String[] { "name" }, null));
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scanWithId, ctx);
+
+        assertTrue(result instanceof LogicalProject);
+        assertEquals(List.of("name", "_id"), result.getRowType().getFieldNames());
+    }
+
+    /** _source: false suppresses the source but not the ids: the projection keeps only _id. */
+    public void testFetchSourceFalseKeepsOnlyId() throws ConversionException {
+        LogicalTableScan scanWithId = TestUtils.createTestRelNodeWithId();
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(false, null, null));
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scanWithId, ctx);
+
+        assertTrue(result instanceof LogicalProject);
+        assertEquals(List.of("_id"), result.getRowType().getFieldNames());
+    }
+
+    /** Without the metadata column on the row, projections are unchanged (no phantom _id). */
+    public void testNoIdColumnMeansNoIdInProjection() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(true, new String[] { "name" }, null));
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertEquals(List.of("name"), result.getRowType().getFieldNames());
+    }
+
     public void testReturnsUnchangedWhenIncludesEmpty() throws ConversionException {
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(true, new String[] {}, null));
         ConversionContext ctx = TestUtils.createContext(source);

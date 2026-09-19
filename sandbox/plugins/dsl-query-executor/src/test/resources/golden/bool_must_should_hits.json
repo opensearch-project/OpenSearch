@@ -26,9 +26,9 @@
     "  LogicalFilter(condition=[=($0, CAST('laptop':VARCHAR):VARCHAR)])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultFieldNames": ["name", "price", "brand", "rating", "_id"],
   "mockResultRows": [
-    ["laptop", 999, "BrandA", 4.5]
+    ["laptop", 999, "BrandA", 4.5, "id-1"]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -46,7 +46,8 @@
             "price": 999,
             "brand": "BrandA",
             "rating": 4.5
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
