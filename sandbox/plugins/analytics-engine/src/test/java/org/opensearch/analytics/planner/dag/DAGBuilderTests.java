@@ -239,6 +239,57 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
     }
 
     /**
+     * Single-shard QTF: no ExchangeReducer, so the wrapper's input is itself the shard fragment.
+     * <pre>
+     *   Stage 0 SHARD_FRAGMENT       (Sort+Limit ← Filter ← narrowed Scan+___row_id)
+     *   Stage 1 LATE_MATERIALIZATION (wrapper over StageInputScan(0); its input sink stamps ___ugsi)
+     *   Stage 2 COORDINATOR_REDUCE   (post-LM Project) ← root
+     * </pre>
+     */
+    public void testQtfDag_singleShardThreeStages() {
+        QueryDAG dag = buildQtfDag("SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10", 1);
+        assertBottomUpIds(dag.rootStage());
+
+        Stage postLm = dag.rootStage();
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, postLm.getExecutionType());
+        assertNull("post-LM reduce carries no input decorator", postLm.getInputSinkDecorator());
+        assertEquals(1, postLm.getChildStages().size());
+
+        Stage lm = postLm.getChildStages().get(0);
+        assertEquals(StageExecutionType.LATE_MATERIALIZATION, lm.getExecutionType());
+        assertNotNull(
+            "LM fragment must contain OpenSearchLateMaterialization wrapper",
+            RelNodeUtils.findNode(lm.getFragment(), OpenSearchLateMaterialization.class)
+        );
+        assertNotNull("LM stage stamps ___ugsi when its child is the shard fragment", lm.getInputSinkDecorator());
+        assertEquals(1, lm.getChildStages().size());
+
+        // Declared only on an ExchangeReducer; here it exists only in the runtime batch schema.
+        OpenSearchStageInputScan lmInputScan = RelNodeUtils.findNode(lm.getFragment(), OpenSearchStageInputScan.class);
+        assertNotNull(lmInputScan);
+        assertFalse(
+            "single-shard StageInputScan rowType must NOT declare " + OpenSearchLateMaterialization.UGSI_FIELD,
+            lmInputScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.UGSI_FIELD)
+        );
+
+        Stage shard = lm.getChildStages().get(0);
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, shard.getExecutionType());
+        assertNull("shard fragment carries no input decorator", shard.getInputSinkDecorator());
+        assertNotNull("shard fragment must have a target resolver", shard.getTargetResolver());
+        assertEquals(0, shard.getChildStages().size());
+        assertNotNull(
+            "single-shard query phase must push the Sort into the shard fragment",
+            RelNodeUtils.findNode(shard.getFragment(), org.opensearch.analytics.planner.rel.OpenSearchSort.class)
+        );
+        OpenSearchTableScan shardScan = RelNodeUtils.findNode(shard.getFragment(), OpenSearchTableScan.class);
+        assertNotNull("shard fragment must contain an OpenSearchTableScan", shardScan);
+        assertTrue(
+            "shard-fragment Scan rowType must carry " + OpenSearchLateMaterialization.ROW_ID_FIELD,
+            shardScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD)
+        );
+    }
+
+    /**
      * Stage 0's shard fragment must propagate {@code __row_id__} on its Scan output. The
      * rewriter narrows the Scan to {@code [belowAnchorPhysicalFields..., __row_id__]} via an
      * override rowType; this asserts that override survives DAG cuts so the converted
