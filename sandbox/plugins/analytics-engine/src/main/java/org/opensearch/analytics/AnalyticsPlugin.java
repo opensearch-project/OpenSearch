@@ -30,6 +30,7 @@ import org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.action.TransportAnalyticsClearShuffleAction;
 import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
+import org.opensearch.analytics.exec.join.RuntimeFilterMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
@@ -148,6 +149,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private AnalyticsSearchService searchService;
     private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
+    private final RuntimeFilterMetrics runtimeFilterMetrics = new RuntimeFilterMetrics();
     private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
     // Resolved once at startup: <path.data>/shuffle_spill, used when the spill.directory setting is
     // left at its empty default. Null only when the node has no data path (never in practice).
@@ -243,6 +245,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             ctx,
             capabilityRegistry,
             mppStrategyMetrics,
+            runtimeFilterMetrics,
             shuffleBufferManager,
             coordinatorAllocatorHandle,
             analyticsSearchSlowLog,
@@ -304,7 +307,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics), new RestAnalyticsStatsAction());
+        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics, runtimeFilterMetrics), new RestAnalyticsStatsAction());
     }
 
     @Override

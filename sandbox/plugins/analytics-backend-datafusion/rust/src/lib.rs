@@ -47,6 +47,7 @@ pub mod query_budget;
 pub mod query_executor;
 pub mod query_tracker;
 pub mod relabel_exec;
+pub mod runtime_filter;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;

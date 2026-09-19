@@ -54,6 +54,7 @@ use crate::statistics_cache::CustomStatisticsCache;
 
 use crate::cache::page_index;
 use datafusion::execution::cache::DefaultFilesMetadataCache;
+use datafusion::parquet::file::metadata::ParquetMetaData;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
@@ -1844,6 +1845,47 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// The filter was decoded and installed; the fragment will apply it.
+pub const RUNTIME_FILTER_INSTALLED: i64 = 0;
+/// The filter was not installed — a null or malformed bitset, or a closed session.
+///
+/// Deliberately a status rather than an error: a runtime filter is an optimization, so
+/// failing to install one must cost the optimization and not the query. Returning
+/// `Err` here would surface as an exception on the Java side and fail the fragment.
+pub const RUNTIME_FILTER_SKIPPED: i64 = 1;
+
+/// Installs a join runtime filter's bitset on a session under `filter_id`.
+///
+/// The fragment's plan carries only the id; this call supplies the bytes, and it must
+/// happen before the fragment executes. The `os_runtime_filter` UDF registered on the
+/// same session reads the registry this writes; an id it never finds yields `true` for
+/// every row, so a skipped install degrades to no filtering.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_install_runtime_filter(
+    session_ctx_handle_ptr: i64,
+    filter_id: i32,
+    bitset_ptr: *const u8,
+    bitset_len: i64,
+) -> i64 {
+    if session_ctx_handle_ptr == 0 || bitset_ptr.is_null() || bitset_len <= 0 {
+        warn!(
+            "df_install_runtime_filter: filter {} not installed (null handle or empty bitset)",
+            filter_id
+        );
+        return Ok(RUNTIME_FILTER_SKIPPED);
+    }
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    let bitset = slice::from_raw_parts(bitset_ptr, bitset_len as usize);
+    match crate::runtime_filter::install_filter(&handle.runtime_filters, filter_id, bitset) {
+        Ok(()) => Ok(RUNTIME_FILTER_INSTALLED),
+        Err(e) => {
+            warn!("df_install_runtime_filter: filter {filter_id} not installed: {e}");
+            Ok(RUNTIME_FILTER_SKIPPED)
+        }
+    }
+}
+
 /// Shard provably holds no matching row — the only status that prunes.
 pub const CAN_MATCH_NO: i64 = 0;
 /// Shard may hold a matching row.
@@ -1875,42 +1917,92 @@ pub unsafe extern "C" fn df_can_match(
     filter_max: i64,
 ) -> i64 {
     let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+    Ok(can_match_over_shard_files(
+        runtime_ptr,
+        shard_view_ptr,
+        |metadata| {
+            crate::can_match::can_match_range_with_metadata(
+                metadata,
+                column_name,
+                filter_min,
+                filter_max,
+            )
+        },
+    ))
+}
 
-    if shard_view_ptr == 0 {
+/// Can-match evaluation against a **set** of candidate values — the runtime-filter
+/// counterpart of [`df_can_match`]. `values_ptr` points at `values_len` `i64`s in
+/// ascending order (`LongSet` sorts on construction).
+///
+/// Prunes strictly more than a range over the same candidates: a row group lying
+/// in a gap between candidates is excluded too, which is the common shape for a
+/// join-key set drawn from a filtered build side.
+///
+/// Returns one of the `CAN_MATCH_*` statuses.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match_set(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    values_ptr: *const i64,
+    values_len: i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+    if values_ptr.is_null() || values_len <= 0 {
         return Ok(CAN_MATCH_UNKNOWN);
+    }
+    let values = std::slice::from_raw_parts(values_ptr, values_len as usize);
+    Ok(can_match_over_shard_files(
+        runtime_ptr,
+        shard_view_ptr,
+        |metadata| crate::can_match::can_match_set_with_metadata(metadata, column_name, values),
+    ))
+}
+
+/// Iterates every parquet file in the shard view, evaluating `eval` against each
+/// file's metadata, and folds the per-file answers into a shard-level status.
+///
+/// Short-circuits on the first `Yes` (the shard is needed, no point looking
+/// further) and on the first `Unknown` (we cannot prove exclusion, so the shard
+/// must be kept — continuing could only produce a `No` we are not entitled to
+/// act on). Only when every file says `No` is the shard pruned.
+///
+/// Metadata comes from the cache when present and from a footer read otherwise;
+/// see [`shard_file_metadata`].
+unsafe fn can_match_over_shard_files(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    eval: impl Fn(&ParquetMetaData) -> crate::can_match::CanMatchResult,
+) -> i64 {
+    if shard_view_ptr == 0 {
+        return CAN_MATCH_UNKNOWN;
     }
     let shard_view = &*(shard_view_ptr as *const api::ShardView);
     let files = &shard_view.object_metas;
     if files.is_empty() {
-        return Ok(CAN_MATCH_UNKNOWN);
+        return CAN_MATCH_UNKNOWN;
     }
 
     for file_meta in files.iter() {
-        let file_path = file_meta.location.as_ref();
-        let file_size = file_meta.size as usize;
-
-        // Try cache first, then ObjectStore fallback
-        let result =
-            try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
-                .unwrap_or_else(|| {
-                    try_store_can_match(
-                        shard_view_ptr,
-                        file_path,
-                        column_name,
-                        filter_min,
-                        filter_max,
-                        file_size,
-                    )
-                    .unwrap_or(crate::can_match::CanMatchResult::Unknown)
-                });
-
+        let result = match shard_file_metadata(
+            runtime_ptr,
+            shard_view_ptr,
+            file_meta.location.as_ref(),
+            file_meta.size as usize,
+        ) {
+            Some(metadata) => eval(&metadata),
+            None => crate::can_match::CanMatchResult::Unknown,
+        };
         match result {
-            crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
-            crate::can_match::CanMatchResult::Unknown => return Ok(CAN_MATCH_UNKNOWN),
+            crate::can_match::CanMatchResult::Yes => return CAN_MATCH_YES,
+            crate::can_match::CanMatchResult::Unknown => return CAN_MATCH_UNKNOWN,
             crate::can_match::CanMatchResult::No => continue,
         }
     }
-    Ok(CAN_MATCH_NO)
+    CAN_MATCH_NO
 }
 
 /// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
@@ -2035,15 +2127,22 @@ unsafe fn try_cached_sort_bounds(
     crate::can_match::sort_bounds_with_metadata(&metadata, column_name)
 }
 
-/// Cache-miss fallback: read footer via the shard's ObjectStore.
-unsafe fn try_store_can_match(
+/// Parquet metadata for one shard file: the metadata cache when it has the footer
+/// (zero I/O, the hot path), a footer read via the shard's ObjectStore otherwise.
+/// Works uniformly on local disk and S3. `None` when neither can supply it, which
+/// every caller must read as "cannot tell".
+///
+/// Both can-match variants share this so the range and set paths cannot drift on
+/// where metadata comes from.
+unsafe fn shard_file_metadata(
+    runtime_ptr: i64,
     shard_view_ptr: i64,
     file_path: &str,
-    column_name: &str,
-    filter_min: i64,
-    filter_max: i64,
     file_size: usize,
-) -> Option<crate::can_match::CanMatchResult> {
+) -> Option<Arc<ParquetMetaData>> {
+    if let Some(cached) = cached_file_metadata(runtime_ptr, file_path) {
+        return Some(cached);
+    }
     if shard_view_ptr == 0 {
         return None;
     }
@@ -2051,27 +2150,15 @@ unsafe fn try_store_can_match(
     let shard_view = &*(shard_view_ptr as *const api::ShardView);
     let store = Arc::clone(&shard_view.store);
     let path = object_store::path::Path::from(file_path);
-    Some(rt_manager.io_runtime.block_on(async {
-        crate::can_match::can_match_range_via_store(
-            store,
-            &path,
-            file_size,
-            column_name,
-            filter_min,
-            filter_max,
-        )
-        .await
-    }))
+    rt_manager
+        .io_runtime
+        .block_on(async { crate::can_match::read_footer(store, &path, file_size).await })
+        .ok()
+        .map(Arc::new)
 }
 
-/// Probe the metadata cache for the file. If present, evaluate can-match in memory.
-unsafe fn try_cached_can_match(
-    runtime_ptr: i64,
-    file_path: &str,
-    column_name: &str,
-    filter_min: i64,
-    filter_max: i64,
-) -> Option<crate::can_match::CanMatchResult> {
+/// Probe the metadata cache for `file_path`'s footer.
+unsafe fn cached_file_metadata(runtime_ptr: i64, file_path: &str) -> Option<Arc<ParquetMetaData>> {
     use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
     use object_store::path::Path as ObjectPath;
 
@@ -2088,13 +2175,7 @@ unsafe fn try_cached_can_match(
         .file_metadata
         .as_any()
         .downcast_ref::<CachedParquetMetaData>()?;
-    let metadata = cached_parquet.parquet_metadata();
-    Some(crate::can_match::can_match_range_with_metadata(
-        &metadata,
-        column_name,
-        filter_min,
-        filter_max,
-    ))
+    Some(Arc::clone(cached_parquet.parquet_metadata()))
 }
 
 #[cfg(test)]
