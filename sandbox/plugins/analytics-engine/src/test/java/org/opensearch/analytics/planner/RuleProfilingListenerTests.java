@@ -36,6 +36,9 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final List<String> EXPECTED_PHASES = List.of(
         "subquery-remove",
         "literal-agg-extract",
+        // Factors a shared equi conjunct out of an OR'd join condition so analyzeCondition can see it
+        // (equi key hidden inside an OR) — must run before marking so every split rule sees it normalised.
+        "factor-join-conditions",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",
@@ -55,8 +58,12 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchTableScanRule",
                 1L,
+                // 0, not 1: the marking phase seeds the Project UNRESOLVED, so the root's SINGLETON demand
+                // reaches it through passThroughTraits and the gather is placed by Convention.enforce. There
+                // is no AbstractConverter left for this rule to expand — the same progression the aggregate
+                // and join cases already record.
                 "ExpandConversionRule",
-                1L
+                0L
             )
         );
     }
@@ -76,8 +83,11 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchTableScanRule",
                 1L,
+                // 0, not 1: same cause as testProfilePureScan — the UNRESOLVED Project seed routes the root's
+                // SINGLETON demand through passThroughTraits / Convention.enforce, leaving no abstract
+                // converter to expand.
                 "ExpandConversionRule",
-                1L,
+                0L,
                 // trim-first enables the pushdown cascade: Filter pushed past Project, then merged.
                 "FilterProjectTransposeRule",
                 1L,
@@ -99,10 +109,18 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                // 11, not 1: the marking phase seeds the aggregate UNRESOLVED, so this rule matches once per
+                // (aggregate, input-subset) pair the memo forms rather than once against a pre-stamped trait —
+                // and the Project below it is seeded UNRESOLVED too, so more distinct input subsets form.
+                // The extra firings are search space, not extra plan nodes — the chosen plan is unchanged.
+                Map.entry("OpenSearchAggregateSplitRule", 11L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
-                Map.entry("OpenSearchDistributionDeriveRule", 3L),
-                Map.entry("ExpandConversionRule", 5L),
+                // OpenSearchDistributionDeriveRule is GONE (deleted with the move to top-down traits —
+                // its job is now OpenSearch*.deriveTraits). It previously added SINGLETON spine variants,
+                // which is why ExpandConversionRule dropped 5 → 2, and now 2 → 0: with the aggregate's
+                // requirement DECLARED through passThroughTraits, the gather is placed by
+                // Convention.enforce, so there is no AbstractConverter left for this rule to expand.
+                Map.entry("ExpandConversionRule", 0L),
                 // trim-first pushdown cascade: Filter pushed past Project, then merged.
                 Map.entry("FilterProjectTransposeRule", 1L),
                 Map.entry("ProjectMergeRule", 1L),
@@ -119,7 +137,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
             // Trim-first narrows both join arms (and the top output) to [CounterID]: extra narrowing
-            // Projects → ProjectRule 1→2, ExpandConversionRule 2→3, and DistributionDerive now fires.
+            // Projects → ProjectRule 1→2.
             // Verified against the captured optimized plan (join key correctly reindexed =($0,$1)).
             Map.ofEntries(
                 Map.entry("ExtractLiteralAggRule", 0L),
@@ -130,13 +148,19 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 2L),
                 Map.entry("OpenSearchJoinRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                // 9, not 1: same cause as the sibling test — the UNRESOLVED aggregate seed makes this rule
+                // match once per (aggregate, input-subset) pair — but compounded here, because the join below
+                // it is ALSO seeded UNRESOLVED, so its own shapes come from the search instead of from a
+                // stamped trait and the aggregate sees more distinct input subsets. Search space, not plan
+                // nodes: the chosen plan is unchanged.
+                Map.entry("OpenSearchAggregateSplitRule", 9L),
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
-                Map.entry("OpenSearchDistributionDeriveRule", 1L),
-                // 3, not 2: OpenSearchDistributionDeriveRule adds a SINGLETON spine variant, so Volcano
-                // runs one more trait conversion.
-                Map.entry("ExpandConversionRule", 3L),
+                // OpenSearchDistributionDeriveRule is GONE (see the sibling test): with no SINGLETON spine
+                // variant to convert, ExpandConversionRule dropped 3 → 1, and now 1 → 0 because the
+                // aggregate's SINGLETON requirement is declared through passThroughTraits and enforced by
+                // Convention.enforce rather than by expanding an AbstractConverter.
+                Map.entry("ExpandConversionRule", 0L),
                 // Calcite built-in: attempted on the decomposed aggregate but produces nothing
                 // here (no constant group keys), so productions == 0.
                 Map.entry("AggregateProjectPullUpConstantsRule", 0L)

@@ -29,6 +29,7 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
+import org.opensearch.analytics.spi.BroadcastSizeExceededException;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -50,7 +51,7 @@ import java.util.function.Function;
 
 /**
  * Single dispatch entry point for the GENERAL post-CBO scheduler (Option B — see
- * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that {@link DistributionEnforcementPass}
+ * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that CBO's trait enforcement
  * produced, with ONE general principle that needs no per-query-shape recognition:
  *
  * <p><b>Broadcast is an INSTRUCTION, not a stage type.</b> A stage that consumes a broadcast carries a
@@ -74,7 +75,7 @@ import java.util.function.Function;
  *       consumes it.</li>
  * </ol>
  *
- * <p>This composes broadcast with shuffle at ANY nesting (a small build under a shuffle cascade — TPC-H
+ * <p>This composes broadcast with shuffle at ANY nesting (a small build under a shuffle cascade —
  * q3/q8/q9; a shuffle join above a broadcast — q17; a standalone broadcast — q12) because the broadcast
  * is resolved away into an instruction before the shuffle promotion ever runs.
  *
@@ -91,20 +92,20 @@ public final class UnifiedDispatch {
     private final ClusterService clusterService;
     private final CapabilityRegistry capabilityRegistry;
     private final boolean preferMetadataDriver;
-    private final long sortMergeJoinMinRows;
+    private final long sortMergeJoinMinBytes;
 
     public UnifiedDispatch(
         QueryScheduler scheduler,
         ClusterService clusterService,
         CapabilityRegistry capabilityRegistry,
         boolean preferMetadataDriver,
-        long sortMergeJoinMinRows
+        long sortMergeJoinMinBytes
     ) {
         this.scheduler = scheduler;
         this.clusterService = clusterService;
         this.capabilityRegistry = capabilityRegistry;
         this.preferMetadataDriver = preferMetadataDriver;
-        this.sortMergeJoinMinRows = sortMergeJoinMinRows;
+        this.sortMergeJoinMinBytes = sortMergeJoinMinBytes;
     }
 
     /**
@@ -160,7 +161,7 @@ public final class UnifiedDispatch {
                 (levelIndex, partitionCount) -> resolveTargetWorkerNodeIds(partitionCount)
             );
             QueryDAG finalDag = postRewrite.apply(rewritten.dag());
-            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinRows);
+            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinBytes);
             QueryExecution exec = scheduler.execute(ctx.withDag(finalDag), terminal);
             if (queryExecutionSink != null) {
                 queryExecutionSink.accept(exec);
@@ -271,7 +272,26 @@ public final class UnifiedDispatch {
                                 t
                             );
                             cancelOtherBuilds(buildRoots, buildExec, "sibling broadcast build capture failed");
-                            terminal.onFailure(new RuntimeException("UnifiedDispatch: broadcast build capture failed", t));
+                            // Name the tables this build scanned when the cause is a size overflow. The
+                            // broadcast->shuffle re-plan uses them to suppress only THIS join's broadcast; with
+                            // no names it must disable broadcast for the whole query, which in a cascade also
+                            // drops the bottom-level broadcast that was keeping a large fact scan in place.
+                            terminal.onFailure(
+                                new RuntimeException("UnifiedDispatch: broadcast build capture failed", attachBuildTables(t, buildStage))
+                            );
+                            return;
+                        }
+                        // FAIL rather than proceed on a null payload. extractIpcBytes returns
+                        // CompletableFuture#get, which can legitimately complete null, and
+                        // injectBroadcastsInPlace skips a null on its `ipc != null` check — so the broadcast
+                        // would be silently dropped and the join would return a WRONG ANSWER with no error at
+                        // all. There is no safe way to continue: the build's rows are part of the result.
+                        if (ipc == null) {
+                            LOGGER.warn("[UnifiedDispatch] broadcast build {} captured a null payload", buildId);
+                            cancelOtherBuilds(buildRoots, buildExec, "sibling broadcast build captured no payload");
+                            terminal.onFailure(
+                                new IllegalStateException("UnifiedDispatch: broadcast build " + buildId + " captured a null payload")
+                            );
                             return;
                         }
                         synchronized (capturedByBuildId) {
@@ -467,22 +487,29 @@ public final class UnifiedDispatch {
     private static void injectBroadcastsInPlace(Stage stage, Map<Integer, byte[]> capturedByBuildId) {
         if (stage.getFragment() != null) {
             List<OpenSearchBroadcastScan> scans = RelNodeUtils.findNodes(stage.getFragment(), OpenSearchBroadcastScan.class);
-            List<Map.Entry<Integer, byte[]>> toInject = new ArrayList<>();
+            // Keyed by build id, so SEVERAL scans on the SAME build inject once. That happens under CSE
+            // (SharedSubplanCse), where every consumer of a shared sub-plan points at one build id and must
+            // resolve the one registered table — duplicating the instruction would re-register the same
+            // namedInputId and ship the payload twice.
+            Map<Integer, byte[]> toInject = new LinkedHashMap<>();
             for (OpenSearchBroadcastScan scan : scans) {
                 byte[] ipc = capturedByBuildId.get(scan.getBuildStageId());
                 if (ipc != null) {
-                    toInject.add(Map.entry(scan.getBuildStageId(), ipc));
+                    toInject.putIfAbsent(scan.getBuildStageId(), ipc);
                 }
             }
             if (!toInject.isEmpty()) {
                 List<StagePlan> enriched = new ArrayList<>(stage.getPlanAlternatives().size());
                 for (StagePlan sp : stage.getPlanAlternatives()) {
                     List<InstructionNode> merged = new ArrayList<>(sp.instructions());
-                    for (Map.Entry<Integer, byte[]> e : toInject) {
+                    for (Map.Entry<Integer, byte[]> e : toInject.entrySet()) {
                         // buildSideIndex 0: informational only — the NamedScan resolves by name on the data node.
                         merged.add(new BroadcastInjectionInstructionNode("broadcast-" + e.getKey(), 0, e.getValue()));
                     }
-                    enriched.add(sp.withInstructions(merged));
+                    // The injection REGISTERS the build's payload as a table, so it must precede any
+                    // aggregate preparation already on the chain — that step plans the fragment and would
+                    // otherwise fail to resolve the broadcast table.
+                    enriched.add(sp.withInstructions(InstructionOrdering.aggregatePreparationLast(merged)));
                 }
                 stage.setPlanAlternatives(enriched);
             }
@@ -577,6 +604,37 @@ public final class UnifiedDispatch {
                 }
             }
         };
+    }
+
+    /**
+     * Re-wraps a size-overflow cause with the tables the overflowing build scanned; returns {@code t} unchanged
+     * for any other failure. The capture sink counts bytes and knows nothing about the plan, so the stage is
+     * the first place where both facts are available.
+     */
+    private static Throwable attachBuildTables(Throwable t, Stage buildStage) {
+        BroadcastSizeExceededException overflow = null;
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof BroadcastSizeExceededException e) {
+                overflow = e;
+                break;
+            }
+        }
+        if (overflow == null || overflow.buildTables().isEmpty() == false) {
+            return t;
+        }
+        java.util.Set<String> tables = new java.util.LinkedHashSet<>();
+        for (org.apache.calcite.rel.core.TableScan scan : RelNodeUtils.findNodes(
+            buildStage.getFragment(),
+            org.apache.calcite.rel.core.TableScan.class
+        )) {
+            if (scan.getTable() != null && scan.getTable().getQualifiedName().isEmpty() == false) {
+                tables.add(scan.getTable().getQualifiedName().getLast());
+            }
+        }
+        if (tables.isEmpty()) {
+            return t;
+        }
+        return new BroadcastSizeExceededException(overflow.observedBytes(), overflow.limitBytes(), tables);
     }
 
     private static void cancelOtherBuilds(List<StageExecution> buildRoots, StageExecution self, String reason) {

@@ -370,6 +370,11 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     // ---- Shared field helpers ----
 
+    /** Three int fields, for cases that need a projection to actually NARROW the row width. */
+    protected static Map<String, Map<String, Object>> threeIntFields() {
+        return Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer"), "extra", Map.of("type", "integer"));
+    }
+
     protected static Map<String, Map<String, Object>> intFields() {
         return Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer"));
     }
