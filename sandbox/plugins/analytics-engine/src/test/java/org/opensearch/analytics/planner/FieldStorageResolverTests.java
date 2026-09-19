@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
@@ -110,6 +111,34 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertEquals(2, infos.size());
         assertEquals("name", infos.get(0).getFieldName());
         assertEquals("age", infos.get(1).getFieldName());
+    }
+
+    // ---- normalized ----
+
+    public void testNormalized_keywordWithNormalizer_true() {
+        FieldStorageResolver resolver = newResolver(
+            "parquet",
+            Map.of("tag", Map.of("type", "keyword", "index", true, "normalizer", "lowercase"))
+        );
+        assertTrue(resolver.resolve(List.of("tag")).get(0).isNormalized());
+    }
+
+    public void testNormalized_keywordWithoutNormalizer_false() {
+        FieldStorageResolver resolver = newResolver("parquet", Map.of("tag", Map.of("type", "keyword", "index", true)));
+        assertFalse(resolver.resolve(List.of("tag")).get(0).isNormalized());
+    }
+
+    public void testNormalized_defaultingConstructor_false() {
+        FieldStorageInfo info = new FieldStorageInfo(
+            "k",
+            "keyword",
+            FieldType.KEYWORD,
+            List.of("parquet"),
+            List.of("lucene"),
+            List.of(),
+            false
+        );
+        assertFalse(info.isNormalized());
     }
 
     private static FieldStorageResolver newMappinglessResolver() {

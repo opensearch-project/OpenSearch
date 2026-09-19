@@ -186,6 +186,10 @@ pub struct PrefetchedRg {
     /// `RoaringBitmap`. Set by evaluators that already produced the
     /// packed bits internally (e.g. `SingleCollectorEvaluator`).
     pub mask_buffer: Option<Buffer>,
+    /// Full-schema column indices DataFusion must read for this row group:
+    /// the native residual's columns plus the performance leaves that chose
+    /// DataFusion here. `None` keeps the query-wide projection.
+    pub required_predicate_columns: Option<Vec<usize>>,
 }
 
 impl PrefetchedRg {
@@ -197,6 +201,7 @@ impl PrefetchedRg {
             eval_nanos,
             context: Box::new(()),
             mask_buffer: None,
+            required_predicate_columns: None,
         }
     }
 }
@@ -525,6 +530,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             eval_nanos: t.elapsed().as_nanos() as u64,
             context: Box::new(prefetch),
             mask_buffer: None,
+            required_predicate_columns: None,
         }))
     }
 

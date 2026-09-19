@@ -96,6 +96,59 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     }
 
     /**
+     * A normalized keyword's doc values hold a transformed value, so filtering stays with the
+     * index-backed backend even though the mock DataFusion backend advertises keyword EQUALS.
+     */
+    public void testKeywordWithNormalizerEqualsIsLuceneOnly() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("tag", Map.of("type", "keyword", "index", true, "normalizer", "lowercase")),
+            new String[] { "tag" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "us")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals(List.of(MockLuceneBackend.NAME), annotated.getViableBackends());
+
+        // Lucene-only means no performance-delegation peer once narrowed.
+        AnnotatedPredicate narrowed = (AnnotatedPredicate) annotated.narrowTo(MockLuceneBackend.NAME);
+        assertTrue(narrowed.getPerformanceDelegationBackends().isEmpty());
+    }
+
+    /** With no index-backed backend there is nothing to prefer; the doc-value backend is kept. */
+    public void testKeywordWithNormalizerNotIndexedFallsBackToDocValues() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("tag", Map.of("type", "keyword", "index", false, "normalizer", "lowercase")),
+            new String[] { "tag" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "us")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals(List.of(MockDataFusionBackend.NAME), annotated.getViableBackends());
+    }
+
+    /** A plain keyword stays dual-viable. */
+    public void testKeywordNoNormalizerEqualsStaysDualViable() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("tag", Map.of("type", "keyword", "index", true)),
+            new String[] { "tag" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertTrue(annotated.getViableBackends().contains(MockLuceneBackend.NAME));
+
+        AnnotatedPredicate narrowed = (AnnotatedPredicate) annotated.narrowTo(MockDataFusionBackend.NAME);
+        assertEquals(List.of(MockLuceneBackend.NAME), narrowed.getPerformanceDelegationBackends());
+    }
+
+    /**
      * Keyword equality is normally viable for both backends per-predicate (see
      * {@link #testKeywordEqualsAnnotatedWithBothBackends}). Blocking EQUALS for the Lucene backend
      * via the delegation block-list must drop Lucene from the predicate's viable set, leaving only

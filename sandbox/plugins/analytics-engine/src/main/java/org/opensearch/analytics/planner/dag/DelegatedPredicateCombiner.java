@@ -25,7 +25,9 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -99,18 +101,18 @@ final class DelegatedPredicateCombiner {
 
             // Monotonic: once under an OR/NOT, every descendant is too (any depth of nested AND).
             boolean childUnderOrNot = underOrNot || kind == SqlKind.OR || kind == SqlKind.NOT;
-            List<Classified> kids = new ArrayList<>(call.getOperands().size());
+            List<Classified> children = new ArrayList<>(call.getOperands().size());
             for (RexNode operand : call.getOperands()) {
-                kids.add(classify(operand, applyFn, childUnderOrNot));
+                children.add(classify(operand, applyFn, childUnderOrNot));
             }
-            return combine(call, kids, applyFn, underOrNot);
+            return combine(call, children, applyFn, underOrNot);
         }
 
         return new Resolved(node);
     }
 
     /** Combines classified children of an AND/OR/NOT call into a single Classified result. */
-    private Classified combine(RexCall call, List<Classified> kids, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
+    private Classified combine(RexCall call, List<Classified> children, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
         // True under any OR/NOT (including an AND nested beneath one): perf can't survive a
         // disjunction, so perf children here are carved to correctness.
         boolean isOrNot = underOrNot || call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
@@ -121,18 +123,28 @@ final class DelegatedPredicateCombiner {
         String commonBackend = null;
         boolean multiBackend = false;
 
-        for (Classified c : kids) {
+        // Under AND, backends that already receive a correctness child from this node.
+        Set<String> correctnessBackends = new HashSet<>();
+        if (isOrNot == false) {
+            for (Classified c : children) {
+                if (c instanceof Delegated d && d.performanceDelegation() == false) {
+                    correctnessBackends.add(d.backend());
+                }
+            }
+        }
+
+        for (Classified c : children) {
             if (c instanceof Delegated == false) {
                 ordered.add(((Resolved) c).node());
                 continue;
             }
             Delegated d = (Delegated) c;
 
-            // Under OR/NOT a perf child is reclassified to correctness (ships to the peer, fusing
-            // with same-backend correctness siblings); under AND it stays performance.
-            Delegated routed = (isOrNot && d.performanceDelegation())
-                ? new Delegated(d.backend(), d.subtree(), d.firstAnnotationId(), false)
-                : d;
+            // A perf child is demoted to correctness when it cannot stand alone: under OR/NOT (perf
+            // delegation is AND-only), or when an AND sibling already ships correctness to the same
+            // backend — one combined query beats a shipment plus a per-row-group election.
+            boolean demote = d.performanceDelegation() && (isOrNot || correctnessBackends.contains(d.backend()));
+            Delegated routed = demote ? new Delegated(d.backend(), d.subtree(), d.firstAnnotationId(), false) : d;
             if (routed.performanceDelegation()) {
                 performanceChildren.add(routed);
             } else {
@@ -203,9 +215,9 @@ final class DelegatedPredicateCombiner {
 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
-                "combine kind={} kids={} (correctness={}, perf={}, multiBackend={}) → {}{}",
+                "combine kind={} children={} (correctness={}, perf={}, multiBackend={}) → {}{}",
                 call.getKind(),
-                kids.size(),
+                children.size(),
                 correctnessChildren.size(),
                 performanceChildren.size(),
                 multiBackend,
