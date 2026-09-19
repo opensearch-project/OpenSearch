@@ -35,11 +35,14 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -72,6 +75,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.DerivedSourceDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -127,6 +131,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -143,6 +148,19 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public class InternalEngine extends Engine {
+
+    /**
+     * The inverse of the minimum matching-document density at which a sequential stored fields reader is used. A sequential reader
+     * eagerly decompresses whole stored-fields blocks, so sparse access can be slower even when doc IDs are visited in order. The
+     * measured break-even density is around 1/16 with best_speed and 1/128 with best_compression; 1/8 leaves margin for both codecs.
+     */
+    static final int SEQUENTIAL_STORED_FIELDS_MIN_DENSITY_INVERSE = 8;
+
+    /**
+     * Acquiring a merge instance and eagerly decompressing its first block has fixed overhead. This is the same conservative minimum
+     * batch size used by {@link LuceneChangesSnapshot} for sequential stored-fields reads.
+     */
+    static final int SEQUENTIAL_STORED_FIELDS_MIN_DOCS = 10;
 
     /**
      * UUID value that is updated every time the engine is force merged.
@@ -2714,6 +2732,10 @@ public class InternalEngine extends Engine {
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        final long startTimeNanos = System.nanoTime();
+        long totalDocs = 0;
+        int scannedLeaves = 0;
+        int sequentialLeaves = 0;
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
@@ -2722,9 +2744,20 @@ public class InternalEngine extends Engine {
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
             final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
             final DocIdSetIterator iterator = scorer.iterator();
-            final StoredFields storedFields = leaf.reader().storedFields();
+            scannedLeaves++;
+            StoredFields storedFields = null;
+            if (useSequentialStoredFields(iterator.cost(), leaf.reader().maxDoc())) {
+                // Lucene stored fields readers are not thread-safe; this instance remains confined to the restore loop.
+                storedFields = sequentialStoredFields(leaf.reader());
+            }
+            if (storedFields == null) {
+                storedFields = leaf.reader().storedFields();
+            } else {
+                sequentialLeaves++;
+            }
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                totalDocs++;
                 final long primaryTerm = dv.docPrimaryTerm(docId);
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
@@ -2752,8 +2785,47 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        logger.debug(
+            "restored version map and checkpoint tracker from [{}] docs in [{}] leaves ([{}] read with a sequential stored fields "
+                + "reader), took [{}ms]",
+            totalDocs,
+            scannedLeaves,
+            sequentialLeaves,
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos)
+        );
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
+    }
+
+    /**
+     * Returns whether the estimated matching-document density is high enough to use a sequential stored fields reader. This does not
+     * assume that an unsorted index has sequence-number order: replica operations may be applied out of order, and merges can interleave
+     * documents. Applying the same conservative threshold to every leaf avoids regressing sparse access in either sorted or unsorted
+     * indices.
+     */
+    static boolean useSequentialStoredFields(long cost, int maxDoc) {
+        final long minDocsForDensity = (maxDoc + SEQUENTIAL_STORED_FIELDS_MIN_DENSITY_INVERSE - 1L)
+            / SEQUENTIAL_STORED_FIELDS_MIN_DENSITY_INVERSE;
+        return cost >= Math.max(SEQUENTIAL_STORED_FIELDS_MIN_DOCS, minDocsForDensity);
+    }
+
+    /**
+     * Returns a {@link StoredFields} instance optimized for sequential access, or {@code null} when the reader chain does not expose one.
+     * Wrappers are unwrapped only until the first {@link SequentialStoredFieldsLeafReader}, preserving any stored-fields transformations.
+     * If {@link Lucene#wrapAllDocsLive} has exposed a bare codec reader for a leaf with hard deletes, use its merge instance directly.
+     */
+    static StoredFields sequentialStoredFields(LeafReader leafReader) throws IOException {
+        LeafReader reader = leafReader;
+        while (reader instanceof FilterLeafReader) {
+            if (reader instanceof SequentialStoredFieldsLeafReader) {
+                return ((SequentialStoredFieldsLeafReader) reader).getSequentialStoredFieldsReader();
+            }
+            reader = ((FilterLeafReader) reader).getDelegate();
+        }
+        if (reader instanceof CodecReader) {
+            return ((CodecReader) reader).getFieldsReader().getMergeInstance();
+        }
+        return null;
     }
 
 }

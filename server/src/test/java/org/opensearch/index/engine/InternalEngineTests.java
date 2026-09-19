@@ -45,7 +45,9 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -137,6 +139,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine.IndexResult;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -7591,6 +7594,58 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.getMaxSeqNoOfUpdatesOrDeletes(),
                     equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo()))
                 );
+            }
+        }
+    }
+
+    public void testSequentialStoredFieldsDensityCriterion() {
+        assertTrue(InternalEngine.useSequentialStoredFields(128, 1024));
+        assertFalse(InternalEngine.useSequentialStoredFields(127, 1024));
+        assertTrue(InternalEngine.useSequentialStoredFields(10, 80));
+        assertFalse("small batches do not amortize the merge-instance overhead", InternalEngine.useSequentialStoredFields(9, 9));
+        assertFalse(InternalEngine.useSequentialStoredFields(10, 81));
+        assertFalse(InternalEngine.useSequentialStoredFields(0, 1));
+    }
+
+    public void testSequentialStoredFieldsReader() throws Exception {
+        final int numDocs = 10;
+        for (boolean hardDeletes : new boolean[] { false, true }) {
+            try (Directory directory = newDirectory()) {
+                final IndexWriterConfig config = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE);
+                try (IndexWriter writer = new IndexWriter(directory, config)) {
+                    for (int i = 0; i < numDocs; i++) {
+                        final Document document = new Document();
+                        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.YES));
+                        writer.addDocument(document);
+                    }
+                    if (hardDeletes) {
+                        writer.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("0")));
+                    }
+                    writer.commit();
+                }
+                try (
+                    DirectoryReader reader = Lucene.wrapAllDocsLive(
+                        OpenSearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId)
+                    )
+                ) {
+                    assertThat(reader.leaves(), hasSize(1));
+                    final LeafReader leaf = reader.leaves().get(0).reader();
+                    final LeafReader delegate = ((FilterLeafReader) leaf).getDelegate();
+                    assertThat(delegate, hardDeletes ? instanceOf(CodecReader.class) : instanceOf(SequentialStoredFieldsLeafReader.class));
+
+                    final StoredFields sequential = InternalEngine.sequentialStoredFields(leaf);
+                    assertNotNull(sequential);
+                    final StoredFields randomAccess = leaf.storedFields();
+                    final IdOnlyFieldVisitor visitor = new IdOnlyFieldVisitor();
+                    for (int docId = 0; docId < leaf.maxDoc(); docId++) {
+                        sequential.document(docId, visitor);
+                        final String sequentialId = visitor.getId();
+                        visitor.reset();
+                        randomAccess.document(docId, visitor);
+                        assertEquals(sequentialId, visitor.getId());
+                        visitor.reset();
+                    }
+                }
             }
         }
     }
