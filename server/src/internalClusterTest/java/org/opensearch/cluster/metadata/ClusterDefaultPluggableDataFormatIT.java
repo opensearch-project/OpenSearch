@@ -34,6 +34,13 @@ public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase
         return List.of(MockCommitterEnginePlugin.class, MockParquetDataFormatPlugin.class);
     }
 
+    // Uses its own MockParquetDataFormatPlugin, which registers the "parquet" data format; the sandbox stack's
+    // real ParquetDataFormatPlugin registers the same name, so opt out of the stack to avoid a duplicate.
+    @Override
+    protected boolean installSandboxPlugins() {
+        return false;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
