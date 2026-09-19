@@ -102,6 +102,24 @@ public class NGramTokenizerFactoryTests extends OpenSearchTokenStreamTestCase {
         }
     }
 
+    /**
+     * Gram sizes are character counts and must be integers. A non-integer value such as "1.0"
+     * (commonly produced by client-side JSON serializers emitting floats) must surface as an
+     * IllegalArgumentException (HTTP 400) naming the setting and the offending value. The
+     * generic settings parsing (getAsInt / SettingsException) is not involved.
+     */
+    public void testNonIntegerGramSizeIsClientError() {
+        final Index index = new Index("test", "_na_");
+        final IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, newAnalysisSettingsBuilder().build());
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", "1.0").put("max_gram", 2).build();
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new NGramTokenizerFactory(indexProperties, null, "ngr", settings)
+        );
+        assertEquals("[min_gram] must be an integer, got [1.0]", ex.getMessage());
+        assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
+    }
+
     public void testNoTokenChars() throws IOException {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
