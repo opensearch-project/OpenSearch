@@ -100,4 +100,33 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
             Settings.builder().put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true).build()
         );
     }
+
+    public void testEnablingWithoutFeatureFlagRejectedAtValidation() {
+        // Feature flag intentionally NOT locked on: enabling the setting must be rejected during settings-update
+        // validation (before commit), not at apply time.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+        Settings enable = Settings.builder()
+            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> cs.validate(enable, true));
+        assertTrue(e.getMessage().contains("experimental feature"));
+    }
+
+    public void testValidatorDoesNotThrowOnDefaultOrDisableWhenFlagOff() {
+        // Regression guard for the DoS hazard: settings-update validation runs a setting's validator against its
+        // CURRENT/DEFAULT value on every _cluster/settings update. If this validator threw on false, every cluster
+        // settings update would be rejected whenever the (off-by-default) experimental flag is disabled. So with the
+        // flag off it must accept both the default and an explicit false. Asserting the validator directly, because
+        // ClusterSettings.validate only invokes a setting's validator when that setting's key is present in the update.
+        SystemTemplatesService.ApplicationTemplatesEnabledValidator validator =
+            new SystemTemplatesService.ApplicationTemplatesEnabledValidator();
+        validator.validate(false); // default / explicit disable — must not throw with the flag off
+
+        // And an explicit disable through the settings path is accepted too.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+        Settings disable = Settings.builder()
+            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)
+            .build();
+        cs.validate(disable, true);
+    }
 }
