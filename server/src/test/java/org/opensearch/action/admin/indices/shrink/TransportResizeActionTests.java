@@ -36,10 +36,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -52,7 +57,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -61,7 +68,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -71,17 +80,22 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,6 +139,65 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 .put(MIGRATION_DIRECTION_SETTING.getKey(), migrationDirection)).build()
         );
         return clusterSettings;
+    }
+
+    public void testSplitFailsWhenParentPrimaryNodeCannotAccommodateAdditionalBytes() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 15));
+        ClusterInfo clusterInfo = new ClusterInfo(usages, usages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+
+        TransportResizeAction action = newTransportResizeAction(diskSettings, clusterInfo);
+        ClusterState state = ClusterState.builder(
+            createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.validateSplitCanAccommodateAdditionalBytes(resizeRequest, state, "source", createIndexStats("source", 6, "node1"))
+        );
+        assertThat(exception.getMessage(), containsString("does not have enough free disk space"));
+        assertThat(exception.getMessage(), containsString("high watermark"));
+    }
+
+    public void testSplitAllowsSingleDataNodeByDefault() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 1));
+        ClusterInfo clusterInfo = new ClusterInfo(usages, usages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+
+        TransportResizeAction action = newTransportResizeAction(diskSettings, clusterInfo);
+        ClusterState state = ClusterState.builder(
+            createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
+
+        action.validateSplitCanAccommodateAdditionalBytes(resizeRequest, state, "source", createIndexStats("source", 6, "node1"));
+    }
+
+    public void testSplitAllowsUnknownDiskInfo() {
+        TransportResizeAction action = newTransportResizeAction(Settings.EMPTY, ClusterInfo.EMPTY);
+        ClusterState state = ClusterState.builder(
+            createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
+
+        action.validateSplitCanAccommodateAdditionalBytes(resizeRequest, state, "source", createIndexStats("source", 6, "node1"));
     }
 
     public void testErrorCondition() {
@@ -768,25 +841,50 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndices() {
+        TransportResizeAction action = newTransportResizeAction(Settings.EMPTY, ClusterInfo.EMPTY);
+
+        ResolvedIndices resolvedIndices = action.resolveIndices(new ResizeRequest("target-index", "source-index"));
+        assertEquals(
+            ResolvedIndices.of("source-index").withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("target-index")),
+            resolvedIndices
+        );
+    }
+
+    private TransportResizeAction newTransportResizeAction(Settings settings, ClusterInfo clusterInfo) {
         ClusterService clusterService = mock(ClusterService.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        TransportResizeAction action = new TransportResizeAction(
+        return new TransportResizeAction(
             mock(TransportService.class),
             clusterService,
             threadPool,
             mock(MetadataCreateIndexService.class),
             mock(ActionFilters.class),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            () -> clusterInfo,
             mock(Client.class)
         );
+    }
 
-        ResolvedIndices resolvedIndices = action.resolveIndices(new ResizeRequest("target-index", "source-index"));
-        assertEquals(
-            ResolvedIndices.of("source-index").withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("target-index")),
-            resolvedIndices
+    private IndexStats createIndexStats(String indexName, long primaryStoreSize, String nodeId) {
+        final String uuid = "uuid";
+        final ShardId shardId = new ShardId(indexName, uuid, 0);
+        final CommonStats commonStats = new CommonStats();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(primaryStoreSize).reservedSize(0).build();
+        final Path shardPath = createTempDir().resolve("indices").resolve(uuid).resolve("0");
+        return new IndexStats(
+            indexName,
+            uuid,
+            new ShardStats[] {
+                new ShardStats.Builder().shardRouting(TestShardRouting.newShardRouting(shardId, nodeId, true, STARTED))
+                    .shardPath(new ShardPath(false, shardPath, shardPath, shardId))
+                    .commonStats(commonStats)
+                    .build() }
         );
     }
 
