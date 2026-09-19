@@ -1860,6 +1860,33 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testForceMergeWithUpgradeComposesWithMaxNumSegments() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        // Create three separate segments by flushing after each document.
+        for (int i = 0; i < 3; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+            shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+        }
+        final long segmentsBeforeUpgrade = shard.segmentStats(false, false).getCount();
+        assertThat(segmentsBeforeUpgrade, greaterThanOrEqualTo(2L));
+
+        // upgrade=true with the default (-1) max_num_segments must NOT take the maybeMerge() path
+        // (IndexShard substitutes Integer.MAX_VALUE) and must NOT consolidate the topology.
+        final ForceMergeRequest upgradeOnly = new ForceMergeRequest();
+        upgradeOnly.upgrade(true);
+        shard.forceMerge(upgradeOnly);
+        assertThat(shard.segmentStats(false, false).getCount(), equalTo(segmentsBeforeUpgrade));
+
+        // upgrade=true composed with max_num_segments=1 must consolidate down to a single segment.
+        final ForceMergeRequest upgradeAndMerge = new ForceMergeRequest();
+        upgradeAndMerge.upgrade(true);
+        upgradeAndMerge.maxNumSegments(1);
+        shard.forceMerge(upgradeAndMerge);
+        assertThat(shard.segmentStats(false, false).getCount(), equalTo(1L));
+
+        closeShards(shard);
+    }
+
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         // refresh on: finalize and end of recovery

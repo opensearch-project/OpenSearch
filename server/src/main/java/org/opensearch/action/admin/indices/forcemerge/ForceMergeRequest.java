@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,6 +45,8 @@ import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to force merging the segments of one or more indices. In order to
@@ -72,12 +75,14 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean PRIMARY_ONLY = false;
+        public static final boolean UPGRADE = false;
     }
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean primaryOnly = Defaults.PRIMARY_ONLY;
+    private boolean upgrade = Defaults.UPGRADE;
 
     private static final Version FORCE_MERGE_UUID_VERSION = Version.V_3_0_0;
 
@@ -114,6 +119,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
                 "As of legacy version 7.7 [" + Engine.FORCE_MERGE_UUID_KEY + "] is no longer optional in force merge requests."
             );
         }
+        upgrade = in.getVersion().onOrAfter(Version.V_3_9_0) ? in.readBoolean() : Defaults.UPGRADE;
     }
 
     /**
@@ -189,6 +195,42 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
+     * Should the force merge upgrade Lucene segments written by an older Lucene version to the current
+     * Lucene version. This composes with {@link #maxNumSegments(int)}: when {@code max_num_segments} is
+     * not set, every old-version segment is rewritten one-for-one to the current version and the segment
+     * topology is otherwise preserved (no consolidation). When {@code max_num_segments} is set, segments
+     * are upgraded and then merged down to at most that many segments. Defaults to {@code false}.
+     */
+    public boolean upgrade() {
+        return upgrade;
+    }
+
+    /**
+     * See {@link #upgrade()}.
+     */
+    public ForceMergeRequest upgrade(boolean upgrade) {
+        this.upgrade = upgrade;
+        return this;
+    }
+
+    /**
+     * Validates cross-field constraints on the request. {@code upgrade} composes with
+     * {@code max_num_segments} but is incompatible with {@code only_expunge_deletes}: the engine only
+     * upgrades segments on the forceMerge path, whereas {@code only_expunge_deletes} takes the
+     * forceMergeDeletes path (which never upgrades). Validating here (rather than only in the REST
+     * layer) ensures every caller -- including transport clients and plugins that build the request
+     * directly -- is subject to the same check.
+     */
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (upgrade && onlyExpungeDeletes) {
+            validationException = addValidationError("cannot set upgrade and only_expunge_deletes at the same time", validationException);
+        }
+        return validationException;
+    }
+
+    /**
      * Should this task store its result after it has finished?
      */
     public void setShouldStoreResult(boolean shouldStoreResult) {
@@ -212,6 +254,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + flush
             + "], primaryOnly["
             + primaryOnly
+            + "], upgrade["
+            + upgrade
             + "]";
     }
 
@@ -229,6 +273,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         } else {
             out.writeOptionalString(forceMergeUUID);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+            out.writeBoolean(upgrade);
+        }
     }
 
     @Override
@@ -242,6 +289,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + flush
             + ", primaryOnly="
             + primaryOnly
+            + ", upgrade="
+            + upgrade
             + '}';
     }
 }
