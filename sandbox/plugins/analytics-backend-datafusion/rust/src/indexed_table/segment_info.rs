@@ -208,7 +208,10 @@ fn compute_segment_sort_bounds(
     file_schema: &arrow::datatypes::SchemaRef,
     pq_meta: &ParquetMetaData,
 ) -> (Option<ScalarValue>, Option<ScalarValue>) {
-    if file_schema.index_of(lead_field).is_err() {
+    let Ok(field) = file_schema.field_with_name(lead_field) else {
+        return (None, None);
+    };
+    if matches!(field.data_type(), arrow::datatypes::DataType::List(_)) {
         return (None, None);
     }
 
