@@ -9,6 +9,7 @@
 package org.opensearch.aliases;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
@@ -45,15 +46,27 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
     /** Build a corpus where RESTRICTED_TERM appears only in filtered-out docs, plus a single visible
      *  sample doc that contains both the restricted term and the absent term. */
     private void buildCorpus() throws Exception {
+        buildCorpus(200);
+    }
+
+    /**
+     * As {@link #buildCorpus()}, with the number of restricted documents under the caller's control. The visible
+     * subset stays at 21 documents, so {@code restrictedDocs} sets how selective the view is.
+     */
+    private void buildCorpus(int restrictedDocs) throws Exception {
         assertAcked(
             prepareCreate(INDEX).setMapping("dept", "type=keyword", "content", "type=text")
                 .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
         );
 
         // Many restricted docs carrying the restricted term -> raises its corpus-wide df.
-        for (int i = 0; i < 200; i++) {
-            client().prepareIndex(INDEX).setSource("dept", RESTRICTED_DEPT, "content", "filler " + RESTRICTED_TERM + " noise" + i).get();
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < restrictedDocs; i++) {
+            bulk.add(
+                client().prepareIndex(INDEX).setSource("dept", RESTRICTED_DEPT, "content", "filler " + RESTRICTED_TERM + " noise" + i)
+            );
         }
+        assertFalse(bulk.get().hasFailures());
         // A handful of visible docs (without the restricted term of their own).
         for (int i = 0; i < 20; i++) {
             client().prepareIndex(INDEX).setSource("dept", VISIBLE_DEPT, "content", "cardio note " + i).get();
@@ -184,7 +197,20 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      * duration of the assertions and clear it afterwards.
      */
     public void testFilteredStatisticsMatchPhysicallyFilteredIndex() throws Exception {
-        buildCorpus();
+        assertFilteredStatisticsMatchPhysicallyFilteredIndex(200);   // 21 visible of 221 documents
+    }
+
+    /**
+     * The same equivalence, on a highly selective view: 21 visible of 2,021 documents, about 1%. Cost scales with
+     * the size of the view rather than the size of the index, so a selective view exercises a very different ratio
+     * of visible to total documents, and the statistics must come out identical either way.
+     */
+    public void testFilteredStatisticsMatchPhysicallyFilteredIndexForSelectiveView() throws Exception {
+        assertFilteredStatisticsMatchPhysicallyFilteredIndex(2000);
+    }
+
+    private void assertFilteredStatisticsMatchPhysicallyFilteredIndex(int restrictedDocs) throws Exception {
+        buildCorpus(restrictedDocs);
         addAlias("fs_pre", "pre_filter");
 
         // Build a physical "visible-only" index: reindex just the cardiology docs. This is the
