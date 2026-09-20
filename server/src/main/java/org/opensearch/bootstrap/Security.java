@@ -142,7 +142,8 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
+    static AgentPolicy.EnforcementController configure(Environment environment, boolean filterBadDefaults) throws IOException,
+        NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
@@ -153,7 +154,7 @@ final class Security {
             OpenSearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
 
-        AgentPolicy.setPolicy(
+        final AgentPolicy.EnforcementController enforcementController = AgentPolicy.initializePolicy(
             new OpenSearchPolicy(
                 codebases,
                 createPermissions(environment),
@@ -168,6 +169,7 @@ final class Security {
 
         // do some basic tests
         selfTest();
+        return enforcementController;
     }
 
     /**

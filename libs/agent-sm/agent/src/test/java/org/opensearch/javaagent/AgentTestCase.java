@@ -15,10 +15,12 @@ import java.security.Policy;
 import java.util.Set;
 
 public abstract class AgentTestCase {
+    protected static AgentPolicy.EnforcementController enforcementController;
+
     @SuppressWarnings("removal")
     @BeforeClass
     public static void setUp() {
-        AgentPolicy.setPolicy(new Policy() {
+        enforcementController = AgentPolicy.initializePolicy(new Policy() {
         },
             Set.of(),
             Set.of(),
