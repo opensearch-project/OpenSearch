@@ -34,8 +34,10 @@ package org.opensearch.action.index;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -44,6 +46,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -51,6 +54,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -238,5 +242,22 @@ public class IndexRequestTests extends OpenSearchTestCase {
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(), containsString("pipeline cannot be an empty string"));
+    }
+
+    public void testRoutingMissingExceptionWithGeneratedId() {
+        // When routing is required and no explicit id is provided, process() must throw
+        // RoutingMissingException (HTTP 400) and not NullPointerException (HTTP 500).
+        // The id is generated before the routing check so the exception can include it.
+        MappingMetadata mappingMd = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("_routing", Map.of("required", true))
+        );
+        IndexRequest request = new IndexRequest("test-index");
+        // no id set, no routing set — simulates POST /<index>/_doc without ?routing=
+        RoutingMissingException ex = expectThrows(
+            RoutingMissingException.class,
+            () -> request.process(Version.CURRENT, mappingMd, "test-index")
+        );
+        assertNotNull("id must not be null in RoutingMissingException", ex.getId());
     }
 }
