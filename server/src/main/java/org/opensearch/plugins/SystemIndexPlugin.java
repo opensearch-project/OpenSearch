@@ -40,15 +40,15 @@ import java.util.Collections;
 
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
- * added by the plugin that owns the system index, rather than standard APIs.
+ * added by the plugin that owns the system index, rather than standard APIs. Descriptors can optionally supply versioned mappings for
+ * compatible, additive updates performed with {@link org.opensearch.indices.SystemIndexMappingUpdater}.
  *
  * @opensearch.api
  */
 public interface SystemIndexPlugin extends ActionPlugin {
 
     /**
-     * Returns a {@link Collection} of {@link SystemIndexDescriptor}s that describe this plugin's system indices, including
-     * name, mapping, and settings.
+     * Returns a {@link Collection} of {@link SystemIndexDescriptor}s that describe this plugin's system indices.
      * @param settings The node's settings
      * @return Descriptions of the system indices managed by this plugin.
      */

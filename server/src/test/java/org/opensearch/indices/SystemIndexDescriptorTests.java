@@ -35,6 +35,7 @@ package org.opensearch.indices;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SystemIndexDescriptorTests extends OpenSearchTestCase {
 
@@ -93,5 +94,81 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
         String str = descriptor.toString();
         assertThat(str, containsString(".test-index"));
         assertThat(str, containsString("test description"));
+    }
+
+    public void testConcreteIndexMappings() {
+        String mappings = "{\"_meta\":{\"schema_version\":3},\"properties\":{}}";
+        SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder(".test-*", "test description")
+            .setMappings(".test-index", mappings)
+            .build();
+
+        assertTrue(descriptor.hasMappings());
+        assertEquals(".test-index", descriptor.getPrimaryIndex());
+        assertThat(descriptor.getWriteAlias(), nullValue());
+        assertEquals(mappings, descriptor.getMappings());
+        assertEquals(3L, descriptor.getMappingVersion());
+    }
+
+    public void testWriteAliasMappings() {
+        String mappings = "{\"_meta\":{\"schema_version\":7},\"properties\":{}}";
+        SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder(".test-history-*", "test description")
+            .setMappingsForWriteAlias(".test-history-write", mappings)
+            .build();
+
+        assertTrue(descriptor.hasMappings());
+        assertThat(descriptor.getPrimaryIndex(), nullValue());
+        assertEquals(".test-history-write", descriptor.getWriteAlias());
+        assertEquals(7L, descriptor.getMappingVersion());
+    }
+
+    public void testDescriptorWithoutMappings() {
+        SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder(".test-index", "test description").build();
+
+        assertFalse(descriptor.hasMappings());
+        assertThat(descriptor.getPrimaryIndex(), nullValue());
+        assertThat(descriptor.getWriteAlias(), nullValue());
+        assertThat(descriptor.getMappings(), nullValue());
+        assertEquals(SystemIndexMappingUpdater.NO_SCHEMA_VERSION, descriptor.getMappingVersion());
+    }
+
+    public void testMappingValidation() {
+        Exception missingVersion = expectThrows(
+            IllegalArgumentException.class,
+            () -> SystemIndexDescriptor.builder(".test-index", "test").setMappings(".test-index", "{\"properties\":{}}").build()
+        );
+        assertThat(missingVersion.getMessage(), containsString("must contain [_meta.schema_version]"));
+
+        Exception invalidVersion = expectThrows(
+            IllegalArgumentException.class,
+            () -> SystemIndexDescriptor.builder(".test-index", "test")
+                .setMappings(".test-index", "{\"_meta\":{\"schema_version\":\"one\"}}")
+                .build()
+        );
+        assertThat(invalidVersion.getMessage(), containsString("must be a number"));
+
+        Exception negativeVersion = expectThrows(
+            IllegalArgumentException.class,
+            () -> SystemIndexDescriptor.builder(".test-index", "test")
+                .setMappings(".test-index", "{\"_meta\":{\"schema_version\":-1}}")
+                .build()
+        );
+        assertThat(negativeVersion.getMessage(), containsString("must be a non-negative integer"));
+
+        Exception mismatchedIndex = expectThrows(
+            IllegalArgumentException.class,
+            () -> SystemIndexDescriptor.builder(".test-*", "test").setMappings(".other-index", "{\"_meta\":{\"schema_version\":1}}").build()
+        );
+        assertThat(mismatchedIndex.getMessage(), containsString("must match system index pattern"));
+    }
+
+    public void testMappingTargetCanOnlyBeConfiguredOnce() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder(".test-*", "test")
+            .setMappings(".test-index", "{\"_meta\":{\"schema_version\":1}}");
+
+        Exception exception = expectThrows(
+            IllegalStateException.class,
+            () -> builder.setMappingsForWriteAlias(".test-write", "{\"_meta\":{\"schema_version\":1}}")
+        );
+        assertThat(exception.getMessage(), containsString("mapping target is already configured"));
     }
 }

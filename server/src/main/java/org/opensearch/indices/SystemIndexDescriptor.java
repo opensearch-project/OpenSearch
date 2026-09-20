@@ -35,6 +35,7 @@ package org.opensearch.indices;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 
@@ -50,6 +51,10 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
+    private final String primaryIndex;
+    private final String writeAlias;
+    private final String mappings;
+    private final long mappingVersion;
 
     /**
      *
@@ -57,6 +62,16 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
+        this(indexPattern, description, null, null, null);
+    }
+
+    private SystemIndexDescriptor(
+        String indexPattern,
+        String description,
+        @Nullable String primaryIndex,
+        @Nullable String writeAlias,
+        @Nullable String mappings
+    ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException(
@@ -79,6 +94,29 @@ public class SystemIndexDescriptor {
         Automaton a = Operations.determinize(Regex.simpleMatchToAutomaton(indexPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         this.indexPatternAutomaton = new CharacterRunAutomaton(a);
         this.description = description;
+        this.primaryIndex = primaryIndex;
+        this.writeAlias = writeAlias;
+        this.mappings = mappings;
+        this.mappingVersion = mappings == null
+            ? SystemIndexMappingUpdater.NO_SCHEMA_VERSION
+            : SystemIndexMappingUpdater.getMappingVersion(mappings);
+
+        if (primaryIndex != null && matchesIndexPattern(primaryIndex) == false) {
+            throw new IllegalArgumentException(
+                "primary index [" + primaryIndex + "] must match system index pattern [" + indexPattern + "]"
+            );
+        }
+    }
+
+    /**
+     * Creates a builder for a system index descriptor.
+     *
+     * @param indexPattern The pattern of index names that this descriptor will be used for.
+     * @param description A short description of the system index.
+     * @return A new descriptor builder.
+     */
+    public static Builder builder(String indexPattern, String description) {
+        return new Builder(indexPattern, description);
     }
 
     /**
@@ -104,6 +142,41 @@ public class SystemIndexDescriptor {
         return description;
     }
 
+    /**
+     * @return Whether this descriptor supplies mappings that can be maintained by {@link SystemIndexMappingUpdater}.
+     */
+    public boolean hasMappings() {
+        return mappings != null;
+    }
+
+    /**
+     * @return The concrete index to update, or {@code null} when the mapping target is a write alias or mappings are not supplied.
+     */
+    public @Nullable String getPrimaryIndex() {
+        return primaryIndex;
+    }
+
+    /**
+     * @return The alias whose write index should be updated, or {@code null} when the mapping target is a concrete index or mappings are not supplied.
+     */
+    public @Nullable String getWriteAlias() {
+        return writeAlias;
+    }
+
+    /**
+     * @return The desired mapping source, or {@code null} when mappings are not supplied.
+     */
+    public @Nullable String getMappings() {
+        return mappings;
+    }
+
+    /**
+     * @return The desired mapping schema version, or {@link SystemIndexMappingUpdater#NO_SCHEMA_VERSION} when mappings are not supplied.
+     */
+    public long getMappingVersion() {
+        return mappingVersion;
+    }
+
     @Override
     public String toString() {
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
@@ -126,7 +199,66 @@ public class SystemIndexDescriptor {
         return Objects.hash(indexPattern);
     }
 
-    // TODO: Index settings and mapping
+    /**
+     * Builder for {@link SystemIndexDescriptor}. Mapping maintenance is optional. A mapping target can be either a concrete primary index
+     * or an alias that resolves to a write index.
+     */
+    @PublicApi(since = "3.9.0")
+    public static class Builder {
+        private final String indexPattern;
+        private final String description;
+        private String primaryIndex;
+        private String writeAlias;
+        private String mappings;
+
+        private Builder(String indexPattern, String description) {
+            this.indexPattern = indexPattern;
+            this.description = description;
+        }
+
+        /**
+         * Supplies mappings for a concrete system index.
+         *
+         * @param primaryIndex The concrete system index to update.
+         * @param mappings The desired mappings. They must contain a non-negative {@code _meta.schema_version}.
+         * @return This builder.
+         */
+        public Builder setMappings(String primaryIndex, String mappings) {
+            ensureMappingTargetIsUnset();
+            this.primaryIndex = Objects.requireNonNull(primaryIndex, "primary index must not be null");
+            this.mappings = Objects.requireNonNull(mappings, "mappings must not be null");
+            return this;
+        }
+
+        /**
+         * Supplies mappings for the current write index behind an alias.
+         *
+         * @param writeAlias The alias whose write index should be updated.
+         * @param mappings The desired mappings. They must contain a non-negative {@code _meta.schema_version}.
+         * @return This builder.
+         */
+        public Builder setMappingsForWriteAlias(String writeAlias, String mappings) {
+            ensureMappingTargetIsUnset();
+            this.writeAlias = Objects.requireNonNull(writeAlias, "write alias must not be null");
+            this.mappings = Objects.requireNonNull(mappings, "mappings must not be null");
+            return this;
+        }
+
+        /**
+         * @return A validated system index descriptor.
+         */
+        public SystemIndexDescriptor build() {
+            return new SystemIndexDescriptor(indexPattern, description, primaryIndex, writeAlias, mappings);
+        }
+
+        private void ensureMappingTargetIsUnset() {
+            if (mappings != null) {
+                throw new IllegalStateException("system index mapping target is already configured");
+            }
+        }
+    }
+
+    // TODO: Index settings
     // TODO: getThreadpool()
-    // TODO: Upgrade handling (reindex script?)
+    // TODO: Upgrade handling for changes that require reindexing
 }
