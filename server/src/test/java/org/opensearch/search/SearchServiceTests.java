@@ -147,6 +147,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1358,6 +1359,43 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
         assertNotNull("Profile results should be set when profiler is enabled", fetchResult.getProfileResults());
         assertNotNull("Profile results should contain fetch phase data", fetchResult.getProfileResults().getFetchProfileResult());
+
+        service.freeReaderContext(queryResult.getContextId());
+    }
+
+    public void testQueueWaitIsRecordedAndSurfacedInProfile() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().profile(true));
+
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        assertEquals("queue wait is unknown before the task is dispatched", -1L, task.getQueueWaitNanos());
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        service.executeQueryPhase(shardSearchRequest, randomBoolean(), task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        assertThat(task.getQueueWaitNanos(), greaterThanOrEqualTo(0L));
+        assertEquals(task.getQueueWaitNanos(), queryResult.queryResult().consumeProfileResult().getQueueWaitNanos());
 
         service.freeReaderContext(queryResult.getContextId());
     }

@@ -763,7 +763,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             @Override
             public void onResponse(ShardSearchRequest rewritten) {
                 // fork the execution in the search thread pool
-                runAsync(getExecutor(executorName, shard), () -> executeDfsPhase(request, task, keepStatesInContext), listener);
+                runAsync(getExecutor(executorName, shard), task, () -> executeDfsPhase(request, task, keepStatesInContext), listener);
             }
 
             @Override
@@ -856,6 +856,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // fork the execution in the search thread pool
                 runAsync(
                     getExecutor(executorName, shard),
+                    task,
                     () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
                     listener
                 );
@@ -876,8 +877,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable::get));
+    /**
+     * Forks shard level execution onto the given search executor, recording how long the task sat in that
+     * executor's queue before a worker picked it up. The timestamp is taken on the dispatching thread and the
+     * delta is computed on the worker thread, so it covers exactly the enqueue-to-dequeue interval that shard
+     * level timers such as {@link SearchOperationListenerExecutor} start after and therefore never observe.
+     */
+    private <T> void runAsync(
+        Executor executor,
+        SearchShardTask task,
+        CheckedSupplier<T, Exception> executable,
+        ActionListener<T> listener
+    ) {
+        final long dispatchNanos = System.nanoTime();
+        executor.execute(ActionRunnable.supply(listener, () -> {
+            task.setQueueWaitNanos(Math.max(0, System.nanoTime() - dispatchNanos));
+            return executable.get();
+        }));
     }
 
     private SearchPhaseResult executeQueryPhase(
@@ -935,7 +951,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
             if (context.getProfilers() != null) {
-                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(context.getProfilers(), context.request());
+                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
+                    context.getProfilers(),
+                    context.request(),
+                    context.getTask().getQueueWaitNanos()
+                );
                 context.queryResult().profileResults(shardResults);
             }
             if (reader.singleSession()) {
@@ -960,7 +980,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-        runAsync(getExecutor(null, readerContext.indexShard()), () -> {
+        runAsync(getExecutor(null, readerContext.indexShard()), task, () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -986,7 +1006,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(null, readerContext.indexShard()), () -> {
+        runAsync(getExecutor(null, readerContext.indexShard()), task, () -> {
             readerContext.setAggregatedDfs(request.dfs());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
@@ -1041,7 +1061,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-        runAsync(getExecutor(null, readerContext.indexShard()), () -> {
+        runAsync(getExecutor(null, readerContext.indexShard()), task, () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -1078,7 +1098,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(executorName, readerContext.indexShard()), () -> {
+        runAsync(getExecutor(executorName, readerContext.indexShard()), task, () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
@@ -1093,7 +1113,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (searchContext.getProfilers() != null) {
                         ProfileShardResult shardResults = SearchProfileShardResults.buildFetchOnlyShardResults(
                             searchContext.getProfilers(),
-                            searchContext.request()
+                            searchContext.request(),
+                            searchContext.getTask().getQueueWaitNanos()
                         );
                         searchContext.fetchResult().profileResults(shardResults);
                     }

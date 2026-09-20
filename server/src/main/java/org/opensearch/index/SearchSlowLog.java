@@ -226,6 +226,9 @@ public final class SearchSlowLog implements SearchOperationListener {
             messageFields.put("message", context.indexShard().shardId());
             messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
             messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            final long queueWaitNanos = context.getTask().getQueueWaitNanos();
+            messageFields.put("queue_wait", queueWaitNanos < 0 ? "-1" : TimeValue.timeValueNanos(queueWaitNanos));
+            messageFields.put("queue_wait_millis", queueWaitNanos < 0 ? -1 : TimeUnit.NANOSECONDS.toMillis(queueWaitNanos));
             if (context.queryResult().getTotalHits() != null) {
                 messageFields.put("total_hits", context.queryResult().getTotalHits());
             } else {
@@ -261,6 +264,13 @@ public final class SearchSlowLog implements SearchOperationListener {
                 .append("], ")
                 .append("took_millis[")
                 .append(TimeUnit.NANOSECONDS.toMillis(tookInNanos))
+                .append("], ");
+            final long queueWaitNanos = context.getTask().getQueueWaitNanos();
+            sb.append("queue_wait[")
+                .append(queueWaitNanos < 0 ? "-1" : TimeValue.timeValueNanos(queueWaitNanos).toString())
+                .append("], ")
+                .append("queue_wait_millis[")
+                .append(queueWaitNanos < 0 ? -1 : TimeUnit.NANOSECONDS.toMillis(queueWaitNanos))
                 .append("], ")
                 .append("total_hits[");
             if (context.queryResult().getTotalHits() != null) {
