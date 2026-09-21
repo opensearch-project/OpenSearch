@@ -463,25 +463,30 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
 
 /// Resolves the store a cursor reads through from a Java-supplied pointer.
 ///
-/// `0` means the shard's Parquet files are on local disk, which is every hot shard: the cursor
-/// builds its own `LocalFileSystem` and reads through a synchronous `ChunkReader`. A non-zero
-/// pointer is a warm shard's `TieredObjectStore`, whose files live in the remote object store; the
-/// `Arc` is cloned out of the box so the cursor keeps the store alive for its own lifetime rather
-/// than depending on the shard's box outliving it.
+/// `LOCAL_STORE` (0) means the shard's Parquet files are on local disk, which is every hot shard:
+/// the caller builds its own `LocalFileSystem` and reads through a synchronous `ChunkReader`. A
+/// positive pointer is a warm shard's `TieredObjectStore`, whose files live in the remote object
+/// store; the `Arc` is cloned out of the box so the cursor keeps the store alive for its own
+/// lifetime. A negative value is a corrupt stamp and is rejected.
 ///
 /// # Safety
 ///
 /// `store_ptr` must be `0` or a pointer obtained from `ts_get_object_store_box_ptr` that has not yet
 /// been destroyed, which is what `ParquetDataFormatStoreHandler` hands out for the shard's lifetime.
-unsafe fn store_from_ptr(store_ptr: i64) -> Option<Arc<dyn ObjectStore>> {
-    if store_ptr <= LOCAL_STORE {
-        return None;
+unsafe fn store_from_ptr(store_ptr: i64) -> Result<Option<Arc<dyn ObjectStore>>, DataFusionError> {
+    if store_ptr == LOCAL_STORE {
+        return Ok(None);
+    }
+    if store_ptr < LOCAL_STORE {
+        return Err(DataFusionError::Execution(format!(
+            "invalid store pointer {store_ptr}: must be {LOCAL_STORE} (local) or a live object-store box pointer"
+        )));
     }
     // Same pointer type and upcast dance as `api::create_reader`: bind the concrete trait object
     // first, because `Arc::clone` alone cannot infer the supertrait.
     let boxed = &*(store_ptr as *const Arc<dyn MetadataCachingStore>);
     let caching: Arc<dyn MetadataCachingStore> = Arc::clone(boxed);
-    Some(caching)
+    Ok(Some(caching))
 }
 
 /// Opens a cursor and registers it, returning the handle Java holds.
@@ -501,7 +506,7 @@ unsafe fn open_and_register(
     // the same absolute path this cursor is opened with (`StoreStrategyRegistry` seeds it from
     // `shardPath.getDataPath().resolve(file)`), and both `ObjectPath` and the registry normalise the
     // leading slash away, so no separate location override is needed.
-    let store = store_from_ptr(store_ptr);
+    let store = store_from_ptr(store_ptr)?;
     let cursor = runtime.block_on(DocValuesCursor::open(
         filename,
         column,
@@ -571,10 +576,8 @@ pub unsafe extern "C" fn parquet_df_open_iter(
 /// Reads a Parquet file's row count and stamped OpenSearch format version through the same store and
 /// footer cache a cursor over that file would use.
 ///
-/// Exists alongside the writer crate's `parquet_get_file_metadata`, which opens the path as a local
-/// `File` and so cannot see a warm shard's Parquet files at all. This one reads through
-/// `store_ptr`, and on the local path still costs no extra IO once a cursor has been opened, because
-/// both share the global footer cache.
+/// Reads through `store_ptr`, and on the local path costs no extra IO once a cursor has been opened,
+/// because both share the global footer cache.
 ///
 /// Writes `out_num_rows` and `out_format_version` only on success; a caller that gets a negative
 /// return must not read them.
@@ -596,7 +599,11 @@ pub unsafe extern "C" fn parquet_df_file_metadata(
     let runtime = io_runtime().map_err(|e| format!("{FN}: {e}"))?;
     let location = ObjectPath::from(filename);
     let store: Arc<dyn ObjectStore> =
-        store_from_ptr(store_ptr).unwrap_or_else(|| Arc::new(LocalFileSystem::new()));
+        match store_from_ptr(store_ptr).map_err(|e| format!("{FN}: {e}"))? {
+            Some(store) => store,
+            // LOCAL_STORE by contract: a hot shard's files are on local disk.
+            None => Arc::new(LocalFileSystem::new()),
+        };
     let cache = runtime_env()
         .map_err(|e| format!("{FN}: {e}"))?
         .cache_manager
@@ -672,8 +679,7 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     out_validity_addr: *mut i64,
     out_validity_bit_offset: *mut i64,
     out_value_kind: *mut i64,
-    // Appended rather than grouped next to `out_values_addr` so the existing slot indices Java
-    // already reads stay put; a shifted slot would hand Java the wrong native address.
+    // Bit index of row 0 for the bit-packed boolean kind; zero for byte-addressed kinds.
     out_value_bit_offset: *mut i64,
 ) -> i64 {
     static FN: &str = "parquet_df_next_batch";
@@ -1568,9 +1574,7 @@ mod tests {
         );
     }
 
-    /// Half precision is byte-addressed like the other numerics - only Java's re-encode differs - so it
-    /// shares the two-byte buffer path already covered by the Int16/UInt16 cases. Asserted on the type
-    /// mapping rather than a built array, because `half::f16` is only a transitive dependency here.
+    /// half_float is byte-addressed (two bytes) and shares the Int16 buffer path.
     #[test]
     fn float16_maps_to_the_half_float_kind_at_two_bytes() {
         assert_eq!(

@@ -74,11 +74,21 @@ public final class ParquetNumericDocValues extends NumericDocValues {
 
     @Override
     public int advance(int target) throws IOException {
-        for (int d = target; d < maxDoc; d++) {
-            if (advanceExact(d)) {
-                doc = d;
-                return d;
+        int d = target;
+        while (d < maxDoc) {
+            DecodedBatch batch = reader.decodedBatch();
+            if (batch == null || batch.contains(d) == false) {
+                reader.loadBatchContaining(d);
+                batch = reader.decodedBatch();
             }
+            // Dense batches answer immediately; sparse batches skip whole all-null bitmap bytes.
+            long next = batch.nextPresentRow(d);
+            if (next >= 0) {
+                doc = (int) next;
+                currentValue = batch.valueAt(next);
+                return doc;
+            }
+            d = (int) batch.lastRow() + 1;
         }
         doc = NO_MORE_DOCS;
         return NO_MORE_DOCS;

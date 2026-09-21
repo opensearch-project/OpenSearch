@@ -75,6 +75,19 @@ public class ParquetNumericDocValuesTests extends DataFusionBackedTestCase {
         }
     }
 
+    public void testAdvanceOverAllNullColumnExhausts() throws Exception {
+        Path file = createTempDir().resolve("allnull.parquet");
+        // nullEvery == 1 leaves every row null, so advance must drain each batch's bitmap
+        // without finding a present row and land on NO_MORE_DOCS.
+        LongColumnFixture.write(file, allocator, COLUMN, ROWS, 1);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            ParquetNumericDocValues dv = new ParquetNumericDocValues(reader, ROWS);
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dv.advance(0));
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dv.docID());
+        }
+    }
+
     public void testBackwardAdvanceExactReopensCursor() throws Exception {
         Path file = createTempDir().resolve("backward.parquet");
         LongColumnFixture.write(file, allocator, COLUMN, ROWS, 0);

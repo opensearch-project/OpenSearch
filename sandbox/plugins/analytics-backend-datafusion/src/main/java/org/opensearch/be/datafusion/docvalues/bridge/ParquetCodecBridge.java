@@ -33,7 +33,6 @@ public final class ParquetCodecBridge {
     private static final MethodHandle NEXT_BATCH;
     private static final MethodHandle FILE_METADATA;
 
-    /** Status returned by {@link #nextBatch} when a batch was produced. */
     /**
      * Value of {@link FileMetadata#opensearchFormatVersion} when the footer carries no parseable
      * stamp. Mirrors {@code ParquetFileMetadata.FORMAT_VERSION_UNKNOWN} in the parquet-data-format
@@ -41,6 +40,7 @@ public final class ParquetCodecBridge {
      */
     public static final long FORMAT_VERSION_UNKNOWN = 0L;
 
+    /** Status returned by {@link #nextBatch} when a batch was produced. */
     public static final long RC_OK = 0L;
     /** Status returned by {@link #nextBatch} when the cursor is exhausted. A {@code < 0} return is an error pointer. */
     public static final long RC_EOF = 2L;

@@ -19,9 +19,8 @@ public class ParquetDocValuesProducerTests extends OpenSearchTestCase {
 
     /**
      * The producer gates once per file on the stamped format version, admitting the inclusive
-     * {@code [MIN, MAX]} window and rejecting everything outside it - too old, too new, and unstamped.
-     * Driven with synthetic version longs so each boundary
-     * is covered without writing a file per case.
+     * {@code [MIN, MAX]} window and rejecting everything outside it: too old, too new, and unstamped.
+     * Driven with synthetic version longs so each boundary is covered without writing a file per case.
      */
     public void testFormatVersionGateAcceptsRangeAndRejectsOutside() throws Exception {
         Path file = createTempDir().resolve("gate.parquet");

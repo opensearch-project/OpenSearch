@@ -9,6 +9,6 @@
 /**
  * Lucene DocValues iterators backed by a Parquet column. Each reads from the column reader's resident
  * decoded batch on the hot path and crosses the native boundary only when a requested document falls
- * outside that batch. Numeric only for now.
+ * outside that batch. Serves single-valued numeric fields.
  */
 package org.opensearch.be.datafusion.docvalues.iter;

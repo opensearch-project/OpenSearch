@@ -6,15 +6,14 @@
  * compatible open source license.
  */
 
-//! The opensearch Parquet format version: the footer key, the current version, and its long
-//! encoding. Lives here so the writer (`opensearch-parquet-format`) and readers (the doc-values
-//! cursor) share one definition and cannot drift. The footer key-value lookup itself stays with
-//! each caller; this module is deliberately free of parquet types.
+//! Shared definition of the opensearch Parquet format-version key, the current version, and its
+//! long encoding, used by both the writer (`opensearch-parquet-format`) and readers (the doc-values
+//! cursor). Free of parquet types; the footer lookup stays with each caller.
 
 /// Parquet file-level metadata key for the opensearch-defined parquet format version.
 pub const FORMAT_VERSION_KEY: &str = "opensearch.format_version";
 
-/// Current parquet format version stamped by the writer. Plugin-defined namespace — NOT
+/// Current parquet format version stamped by the writer. Plugin-defined namespace; not
 /// comparable to Lucene or other format versions. Increment when the writer output or the
 /// reader's expectations change. Must stay in sync with the Java constant
 /// `ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION`.
@@ -37,7 +36,7 @@ pub fn encode_format_version(raw: &str) -> i64 {
     let mut encoded = 0i64;
     for scale in [1_000_000i64, 1_000, 1] {
         // A missing minor/patch reads as 0 ("1" and "1.0.0" encode identically); a present but
-        // non-numeric or negative component makes the whole version unusable rather than partial.
+        // non-numeric or negative component makes the whole version unusable.
         let part = match parts.next() {
             None => break,
             Some(part) => part,
@@ -56,7 +55,7 @@ mod tests {
 
     #[test]
     fn encode_format_version_is_long_encoded_like_the_java_constant() {
-        // "1.0.0.0" is what the writer stamps today; the fourth component is ignored, so this
+        // "1.0.0.0" is what the writer stamps; the fourth component is ignored, so this
         // equals ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION.
         assert_eq!(encode_format_version(FORMAT_VERSION), 1_000_000);
         assert_eq!(encode_format_version("2.3.4"), 2_003_004);
