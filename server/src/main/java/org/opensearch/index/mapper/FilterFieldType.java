@@ -290,8 +290,8 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
-    public boolean isMultiValueAutoPromotionEnabled() {
-        return delegate.isMultiValueAutoPromotionEnabled();
+    public boolean canPromoteToMultiValue() {
+        return delegate.canPromoteToMultiValue();
     }
 
     @Override

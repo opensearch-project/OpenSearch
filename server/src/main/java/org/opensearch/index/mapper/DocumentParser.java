@@ -1558,7 +1558,10 @@ final class DocumentParser {
      * writer emit a zero-length, non-null list instead.
      *
      * <p>Strictly gated: no-op unless the pluggable data format is enabled and the resolved leaf is
-     * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected.
+     * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected. For a field that is
+     * not (yet) LIST, {@code []} promotes it when {@link MappedFieldType#canPromoteToMultiValue()}
+     * allows and is otherwise a silent no-op, exactly as on a Lucene index: an empty array carries no
+     * value, so neither an omitted nor an explicit {@code multi_value: false} rejects it.
      *
      * <p>Reached from every scalar-leaf array route — top-level, nested, and disable_objects arrays
      * all funnel through {@link #parseNonDynamicArray}. The only array route that bypasses it is a
@@ -1573,8 +1576,7 @@ final class DocumentParser {
         Mapper leaf = getMapper(context, mapper, lastFieldName, paths);
         if (leaf instanceof ParametrizedFieldMapper fieldMapper && fieldMapper.fieldType().isMultiValueSupported()) {
             if (fieldMapper.fieldType().isMultiValued() == false) {
-                if (fieldMapper.fieldType().multiValueState() == MappedFieldType.MultiValueState.AUTO
-                    && fieldMapper.fieldType().isMultiValueAutoPromotionEnabled() == false) {
+                if (fieldMapper.fieldType().canPromoteToMultiValue() == false) {
                     return;
                 }
                 fieldMapper.addMultiValueMappingUpdate(context);
@@ -1855,18 +1857,8 @@ final class DocumentParser {
         if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
             return;
         }
-        if (builder instanceof ParametrizedFieldMapper.Builder parametrizedBuilder) {
-            for (ParametrizedFieldMapper.Parameter<?> parameter : parametrizedBuilder.getParameters()) {
-                if (ParametrizedFieldMapper.MULTI_VALUE_PARAMETER.equals(parameter.name)) {
-                    if (parameter.isConfigured() == false) {
-                        parametrizedBuilder.setParameterValue(
-                            ParametrizedFieldMapper.MULTI_VALUE_PARAMETER,
-                            MappedFieldType.MultiValueState.LIST
-                        );
-                    }
-                    return;
-                }
-            }
+        if (builder instanceof ParametrizedFieldMapper.Builder parametrizedBuilder && parametrizedBuilder.multiValueConfigured() == false) {
+            parametrizedBuilder.setParameterValue(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER, MappedFieldType.MultiValueState.LIST);
         }
     }
 

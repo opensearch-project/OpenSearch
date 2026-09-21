@@ -173,7 +173,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         if (fieldType.isMultiValued() == false
             && fieldType.isMultiValueSupported()
             && context.documentInput().getFieldCount(fieldType.name()) > 0) {
-            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+            if (fieldType.canPromoteToMultiValue() == false) {
                 throw new MapperParsingException(
                     "Field [" + fieldType.name() + "] cannot accept multiple values: " + multiValueRejectionReason(fieldType)
                 );
@@ -193,7 +193,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
             );
         }
-        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+        if (fieldType().canPromoteToMultiValue() == false) {
             throw new MapperParsingException(
                 "Field [" + fieldType().name() + "] cannot promote to multi-valued: " + multiValueRejectionReason(fieldType())
             );
@@ -1074,6 +1074,20 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
             return DEPRECATED_PARAMS.contains(propName);
+        }
+
+        /**
+         * Whether {@code multi_value} was set explicitly on this builder, for example by a matching
+         * dynamic template. {@code false} when it was omitted or when the mapper does not expose the
+         * parameter at all, so callers can treat "absent" and "unpinned" alike.
+         */
+        public boolean multiValueConfigured() {
+            for (Parameter<?> parameter : getParameters()) {
+                if (MULTI_VALUE_PARAMETER.equals(parameter.name)) {
+                    return parameter.isConfigured();
+                }
+            }
+            return false;
         }
     }
 

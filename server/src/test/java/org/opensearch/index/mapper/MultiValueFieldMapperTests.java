@@ -151,13 +151,13 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testExplicitFalseRejectsEmptyArray() throws IOException {
+    public void testExplicitFalseAcceptsEmptyArrayAsNoValue() throws IOException {
         DocumentMapper mapper = keywordMapper(false);
-        MapperParsingException error = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.startArray("field").endArray()), new CapturingDocumentInput())
-        );
-        assertThat(error.getMessage(), containsString("locked scalar by [multi_value: false]"));
+        CapturingDocumentInput input = new CapturingDocumentInput();
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").endArray()), input);
+
+        assertEquals(0L, input.getFieldCount("field"));
+        assertNull(parsed.dynamicMappingsUpdate());
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)

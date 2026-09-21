@@ -79,7 +79,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             return;
         }
         if (existing.isMultiValued() == false) {
-            if (fieldType.isMultiValueSupported() && fieldType.isMultiValueAutoPromotionEnabled()) {
+            if (fieldType.isMultiValueSupported() && fieldType.canPromoteToMultiValue()) {
                 existing.promoteToMultiValued(value);
                 return;
             }
