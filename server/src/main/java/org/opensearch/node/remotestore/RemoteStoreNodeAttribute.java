@@ -401,6 +401,10 @@ public class RemoteStoreNodeAttribute {
         return containsKey(attributes, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
 
+    public static boolean isTranslogRepoConfigured(Map<String, String> attributes) {
+        return containsKey(attributes, REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS);
+    }
+
     private static boolean containsKey(Map<String, String> attributes, List<String> keys) {
         return keys.stream().filter(k -> attributes.containsKey(k)).findFirst().isPresent();
     }
