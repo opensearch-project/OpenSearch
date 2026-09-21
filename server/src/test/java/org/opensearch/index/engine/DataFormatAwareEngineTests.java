@@ -8,10 +8,12 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -20,6 +22,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -30,11 +33,13 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.NoOpDeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -48,7 +53,9 @@ import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockWriter;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.SearchableDirectoryReaderProvider;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -83,11 +90,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -95,6 +104,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
@@ -298,6 +308,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(externalListeners)
@@ -1435,6 +1447,240 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * With only the default mock format (named {@code composite}, exposing no Lucene
+     * DirectoryReader), {@code acquireSearcherSupplier} must fail loudly instead of returning an
+     * unsearchable supplier: the shared support cannot resolve the {@code lucene} data format and
+     * wraps the failure in an {@link EngineException}. The failure path must also release the
+     * acquired reader/snapshot reference — verified implicitly by the leak checks in tear-down.
+     */
+    public void testAcquireSearcherSupplierFailsWithoutSearchableLuceneReader() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            EngineException e = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
+        }
+    }
+
+    /**
+     * Wires a format reader implementing {@link SearchableDirectoryReaderProvider} and verifies
+     * the point-in-time supplier contract that scroll/PIT depend on: every searcher acquired
+     * from one supplier shares the same reader (even across a refresh), and acquisition after
+     * close is rejected.
+     */
+    public void testAcquireSearcherSupplierProvidesPointInTimeSearchers() throws Exception {
+        renameMockFormatToLucene();
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.SearcherSupplier supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            try {
+                try (Engine.Searcher first = supplier.acquireSearcher("test")) {
+                    assertThat(first.getIndexReader(), notNullValue());
+                    // a refresh between two acquisitions must not change the point-in-time view
+                    engine.index(indexOp(createParsedDocWithInput("2", null)));
+                    engine.refresh("test");
+                    try (Engine.Searcher second = supplier.acquireSearcher("test")) {
+                        assertSame(
+                            "all searchers from one supplier must share the point-in-time reader",
+                            first.getIndexReader(),
+                            second.getIndexReader()
+                        );
+                    }
+                }
+            } finally {
+                supplier.close();
+            }
+            expectThrows(AlreadyClosedException.class, () -> supplier.acquireSearcher("test"));
+        }
+    }
+
+    /**
+     * The one-shot {@code acquireSearcher} default ties the supplier's lifetime to the returned
+     * searcher: closing the searcher releases the supplier and the underlying reader/snapshot
+     * reference (leak-checked in tear-down).
+     */
+    public void testAcquireSearcherOneShotReleasesSupplierOnClose() throws Exception {
+        renameMockFormatToLucene();
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity());
+            assertThat(searcher.getIndexReader(), notNullValue());
+            searcher.close();
+        }
+    }
+
+    /**
+     * The PIT-critical guarantee: while a {@link Engine.SearcherSupplier} is open, the
+     * {@link CatalogSnapshot} it was acquired on must not be deleted, no matter how many
+     * refreshes supersede it. Closing the supplier releases the last reference and the
+     * snapshot becomes deletable.
+     */
+    public void testOpenSearcherSupplierPinsCatalogSnapshotAgainstDeletion() throws Exception {
+        renameMockFormatToLucene();
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            final long pinnedSnapshotId;
+            try (GatedCloseable<CatalogSnapshot> current = engine.acquireSnapshot()) {
+                pinnedSnapshotId = current.get().getId();
+            }
+
+            Engine.SearcherSupplier supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            try {
+                // supersede the pinned snapshot several times
+                for (int i = 2; i <= 4; i++) {
+                    engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                    engine.refresh("test");
+                }
+                assertFalse(
+                    "snapshot pinned by an open supplier must not be deleted (PIT correctness)",
+                    readerManager.deletedSnapshotIds.contains(pinnedSnapshotId)
+                );
+            } finally {
+                supplier.close();
+            }
+            assertBusy(
+                () -> assertTrue(
+                    "closing the supplier must release the snapshot so it becomes deletable",
+                    readerManager.deletedSnapshotIds.contains(pinnedSnapshotId)
+                )
+            );
+        }
+    }
+
+    /**
+     * Re-registers the mock format under the name {@code lucene}: the shared
+     * {@code DataFormatAwareSearcherSupport} resolves the searchable format by that literal name,
+     * so tests that wire a searchable stub reader must expose it through a format so named.
+     * Must run before {@code createDFAEngine}, which snapshots these fields into the registry.
+     */
+    private void renameMockFormatToLucene() {
+        mockDataFormat = new MockDataFormat("lucene", 100L, Set.of());
+        mockPlugin = MockDataFormatPlugin.of(mockDataFormat);
+    }
+
+    /**
+     * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
+     * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.Indexer}
+     * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
+     * default delegates to it.
+     */
+    public void testAcquireSearcherSupplierContract() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            int numDocs = randomIntBetween(1, 5);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+            engine.refresh("test");
+
+            // At server scope no real Lucene data format is registered, so the pinned contract is the
+            // failure shape: a live engine surfaces the missing format as EngineException (never a raw
+            // NPE or a silent null). The happy path is covered by the composite-engine cluster ITs.
+            EngineException e = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
+
+            // The Indexer default acquireSearcher delegates to the supplier, so it must surface the same failure.
+            EngineException viaDefault = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity())
+            );
+            assertThat(viaDefault.getMessage(), containsString("failed to build searcher supplier"));
+        } finally {
+            engine.close();
+        }
+        // A closed engine must refuse before touching the reader.
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+        );
+    }
+
+    /**
+     * Test-only reader manager whose format reader exposes a real Lucene
+     * {@link DirectoryReader} (over the store's bootstrap commit) via
+     * {@link SearchableDirectoryReaderProvider}, wrapped in {@link OpenSearchDirectoryReader}
+     * as the production contract requires.
+     */
+    private static final class SearchableStubReaderManager implements EngineReaderManager<SearchableDirectoryReaderProvider> {
+        private final Store store;
+        private final ShardId shardId;
+        private volatile DirectoryReader reader;
+        final Set<Long> deletedSnapshotIds = ConcurrentHashMap.newKeySet();
+
+        SearchableStubReaderManager(Store store, ShardId shardId) {
+            this.store = store;
+            this.shardId = shardId;
+        }
+
+        @Override
+        public synchronized SearchableDirectoryReaderProvider getReader(CatalogSnapshot catalogSnapshot) throws IOException {
+            if (reader == null) {
+                reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
+            }
+            return () -> reader;
+        }
+
+        @Override
+        public void beforeRefresh() {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) {}
+
+        @Override
+        public void onDeleted(CatalogSnapshot catalogSnapshot) {
+            deletedSnapshotIds.add(catalogSnapshot.getId());
+        }
+
+        @Override
+        public void onFilesDeleted(Collection<String> files) {}
+
+        @Override
+        public void onFilesAdded(Collection<String> files) {}
+
+        @Override
+        public synchronized void close() throws IOException {
+            if (reader != null) {
+                reader.close();
+                reader = null;
+            }
+        }
+    }
+
     public void testAcquireReaderBeforeRefreshReturnsEmptyReaders() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             // Acquire reader before any refresh — the initial catalog snapshot
@@ -2387,6 +2633,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
@@ -2449,6 +2697,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
