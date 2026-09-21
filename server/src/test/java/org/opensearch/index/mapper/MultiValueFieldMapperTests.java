@@ -10,6 +10,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 
@@ -38,15 +39,19 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testNonPluggableIndexRejectsMultiValueParameter() {
-        MapperParsingException error = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                getIndexSettings(),
-                mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", true).endObject())
-            )
+    public void testNonPluggableIndexAcceptsMultiValueParameter() throws IOException {
+        // The parameter is registered irrespective of storage format: Lucene is inherently
+        // multi-valued, so the declaration is inert there but must still parse and round-trip.
+        DocumentMapper mapper = createDocumentMapper(
+            getIndexSettings(),
+            mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", true).endObject())
         );
-        assertThat(error.getMessage(), containsString("unknown parameter [multi_value]"));
+        assertThat(mapper.mappingSource().string(), containsString("\"multi_value\":true"));
+        assertTrue(((FieldMapper) mapper.mappers().getMapper("field")).fieldType().isMultiValued());
+
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("field").value("prod").value("error").endArray()));
+        assertNull(parsed.dynamicMappingsUpdate());
+        assertArrayEquals(new String[] { "prod", "error" }, TermVectorsService.getValues(parsed.rootDoc().getFields("field")));
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)

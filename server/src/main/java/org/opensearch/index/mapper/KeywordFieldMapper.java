@@ -188,11 +188,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final IndexAnalyzers indexAnalyzers;
         private final boolean canConsumeRawValueForSource;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean pluggableDataFormatEnabled) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean canConsumeRawValueForSource) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
-            this.canConsumeRawValueForSource = pluggableDataFormatEnabled;
-            this.pluggableDataFormat = pluggableDataFormatEnabled;
+            this.canConsumeRawValueForSource = canConsumeRawValueForSource;
         }
 
         public Builder(
@@ -246,12 +245,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     normalizer,
                     splitQueriesOnWhitespace,
                     boost,
-                    meta
+                    meta,
+                    multiValue
                 )
             );
-            if (pluggableDataFormat) {
-                parameters.add(multiValue);
-            }
             parameters.addAll(pluginMappingParameters());
             return List.copyOf(parameters);
         }
@@ -877,7 +874,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.pluggableDataFormat);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
