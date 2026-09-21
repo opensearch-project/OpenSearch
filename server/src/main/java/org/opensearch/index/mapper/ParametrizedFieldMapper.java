@@ -129,29 +129,39 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
-    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    /** Name of the columnar multi-value mapping parameter shared by scalar leaf mappers. */
+    public static final String MULTI_VALUE_PARAMETER = "multi_value";
+
+    /**
+     * Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers.
+     *
+     * <p>An omitted parameter is {@link MappedFieldType.MultiValueState#AUTO}: it behaves as a scalar
+     * column (multiple values are rejected) unless
+     * {@link FeatureFlags#PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG} is enabled, and it is
+     * never serialized. Keeping it distinct from an explicit {@code false} lets dynamic mapping infer
+     * {@code true} for array values while still honouring a template that pinned the field scalar.
+     */
     protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
         return new Parameter<>(
-            "multi_value",
+            MULTI_VALUE_PARAMETER,
             true,
-            () -> MappedFieldType.MultiValueState.SCALAR,
+            () -> MappedFieldType.MultiValueState.AUTO,
             (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
                 ? MappedFieldType.MultiValueState.LIST
                 : MappedFieldType.MultiValueState.SCALAR,
-            mapper -> mapper.fieldType().multiValueState())
-        .setSerializer(
-            (builder, name, mode) ->
-                builder.field(name, mode == MappedFieldType.MultiValueState.LIST),
-            mode -> switch (mode) {
-                case AUTO -> "auto";
-                case SCALAR -> "false";
-                case LIST -> "true";
-            })
-        .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
-        .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
-        .setMergeValidator((previous, next) -> previous == next 
-                    || (FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG) 
-                        && previous == MappedFieldType.MultiValueState.AUTO);
+            mapper -> mapper.fieldType().multiValueState()
+        ).setSerializer((builder, name, mode) -> builder.field(name, mode == MappedFieldType.MultiValueState.LIST), mode -> switch (mode) {
+            case AUTO -> "auto";
+            case SCALAR -> "false";
+            case LIST -> "true";
+        })
+            .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+            .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+            .setMergeValidator(
+                (previous, next) -> previous == next
+                    || (FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG)
+                        && previous == MappedFieldType.MultiValueState.AUTO)
+            );
     }
 
     /**
@@ -189,7 +199,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             );
         }
         Builder updateBuilder = getMergeBuilder();
-        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        updateBuilder.setParameterValue(MULTI_VALUE_PARAMETER, MappedFieldType.MultiValueState.LIST);
         ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
         if (update.fieldType().isMultiValued() == false) {
             throw new IllegalStateException(

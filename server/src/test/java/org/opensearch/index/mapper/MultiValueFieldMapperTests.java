@@ -230,4 +230,138 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
             assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
         });
     }
+
+    // ---- dynamic mapping: array values infer multi_value: true on first sight ----
+
+    /**
+     * Dynamic strings on pluggable-format indices map to {@code text}, which does not expose
+     * {@code multi_value} yet, so these tests route strings to {@code keyword} through a dynamic
+     * template exactly as a log-style index template would.
+     */
+    private DocumentMapper dynamicKeywordMapper(Settings settings, Boolean templateMultiValue) throws IOException {
+        return createDocumentMapper(settings, topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("strings_as_keywords");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("type", "keyword");
+                        if (templateMultiValue != null) {
+                            b.field("multi_value", templateMultiValue);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    private static FieldMapper dynamicUpdateFor(ParsedDocument parsed, String field) {
+        assertNotNull("expected a dynamic mapping update", parsed.dynamicMappingsUpdate());
+        Mapper mapper = parsed.dynamicMappingsUpdate().root().getMapper(field);
+        assertThat(mapper, instanceOf(FieldMapper.class));
+        return (FieldMapper) mapper;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicArrayInfersMultiValueTrueOnFirstDocument() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), null);
+        CapturingDocumentInput input = new CapturingDocumentInput();
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("tags").value("prod").value("error").endArray()), input);
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals("keyword", update.typeName());
+        assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+        assertTrue(update.fieldType().isMultiValued());
+        assertThat(parsed.dynamicMappingsUpdate().toString(), containsString("\"multi_value\":true"));
+        // both elements were accepted into the document input under the LIST field type
+        assertEquals(2L, input.getFieldCount("tags"));
+        assertTrue(
+            input.getCapturedFields().stream().filter(e -> e.getKey().name().equals("tags")).allMatch(e -> e.getKey().isMultiValued())
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicSingletonArrayStillInfersMultiValueTrue() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), null);
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("tags").value("prod").endArray()), new CapturingDocumentInput());
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicScalarStaysAutoAndIsNotSerialized() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), null);
+        ParsedDocument parsed = mapper.parse(source(b -> b.field("tags", "prod")), new CapturingDocumentInput());
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals(MappedFieldType.MultiValueState.AUTO, update.fieldType().multiValueState());
+        assertThat(parsed.dynamicMappingsUpdate().toString(), not(containsString("multi_value")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTemplateExplicitScalarIsHonouredForArray() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), false);
+        MapperParsingException error = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("tags").value("prod").value("error").endArray()), new CapturingDocumentInput())
+        );
+        assertThat(org.opensearch.ExceptionsHelper.stackTrace(error), containsString("locked scalar by [multi_value: false]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTemplateExplicitListIsPreservedForScalar() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), true);
+        ParsedDocument parsed = mapper.parse(source(b -> b.field("tags", "prod")), new CapturingDocumentInput());
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicArrayInferenceIsScopedToTheArrayFieldItself() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(pluggableSettings(), null);
+        ParsedDocument parsed = mapper.parse(source(b -> {
+            b.startArray("items");
+            b.startObject().field("name", "a").endObject();
+            b.endArray();
+        }), new CapturingDocumentInput());
+
+        // `name` is a scalar inside an array of objects; only fields whose own value is an array infer LIST.
+        Mapper items = parsed.dynamicMappingsUpdate().root().getMapper("items");
+        assertThat(items, instanceOf(ObjectMapper.class));
+        FieldMapper name = (FieldMapper) ((ObjectMapper) items).getMapper("name");
+        assertEquals(MappedFieldType.MultiValueState.AUTO, name.fieldType().multiValueState());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicArrayLeavesBuildersWithoutMultiValueUntouched() throws IOException {
+        // No template: strings map to text, which does not register multi_value on this branch.
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {}));
+        ParsedDocument parsed = mapper.parse(
+            source(b -> b.startArray("tags").value("prod").value("error").endArray()),
+            new CapturingDocumentInput()
+        );
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals("text", update.typeName());
+        assertEquals(MappedFieldType.MultiValueState.AUTO, update.fieldType().multiValueState());
+        assertThat(parsed.dynamicMappingsUpdate().toString(), not(containsString("multi_value")));
+    }
+
+    public void testDynamicArrayInferenceIgnoredOnNonPluggableIndex() throws IOException {
+        DocumentMapper mapper = dynamicKeywordMapper(getIndexSettings(), null);
+        ParsedDocument parsed = mapper.parse(source(b -> b.startArray("tags").value("prod").value("error").endArray()));
+
+        FieldMapper update = dynamicUpdateFor(parsed, "tags");
+        assertEquals("keyword", update.typeName());
+        assertEquals(MappedFieldType.MultiValueState.AUTO, update.fieldType().multiValueState());
+        assertThat(parsed.dynamicMappingsUpdate().toString(), not(containsString("multi_value")));
+    }
 }
