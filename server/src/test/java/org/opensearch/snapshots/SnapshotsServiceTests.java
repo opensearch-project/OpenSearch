@@ -32,6 +32,7 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
@@ -55,6 +56,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
@@ -81,6 +83,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.snapshots.SnapshotsService.getRepoSnapshotUUIDTuple;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -835,6 +838,60 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
 
         String orphanEntity = "repoName__orphan";
         assertTrue(SnapshotsService.isOrphanPinnedEntity(repoName, snapshotUUIDs, orphanEntity));
+    }
+
+    private static ClusterState clusterStateWithIndex(String indexName, Settings.Builder indexSettings) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings.put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, false)).build();
+    }
+
+    /**
+     * An index whose segments are remote backed but whose translog is not cannot be restored from a pinned timestamp,
+     * so snapshot-v2 must be refused rather than succeeding and failing later at restore time.
+     */
+    public void testSnapshotV2RejectedForSegmentsOnlyIndex() {
+        ClusterState state = clusterStateWithIndex(
+            "segments-only-idx",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SnapshotsService.validateNoSegmentsOnlyIndices(state, "test-repo", "snap-1")
+        );
+        assertThat(e.getMessage(), containsString("snapshot-v2 is not supported"));
+        assertThat(e.getMessage(), containsString("segments-only-idx"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
+     * A full remote store index has a remote translog to replay from, so snapshot-v2 stays available for it.
+     */
+    public void testSnapshotV2AllowedForFullRemoteStoreIndex() {
+        ClusterState state = clusterStateWithIndex(
+            "full-remote-idx",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+        );
+
+        SnapshotsService.validateNoSegmentsOnlyIndices(state, "test-repo", "snap-1");
+    }
+
+    /**
+     * A document replication index is not remote backed at all, so the remote translog requirement does not apply.
+     */
+    public void testSnapshotV2AllowedForNonRemoteStoreIndex() {
+        ClusterState state = clusterStateWithIndex("docrep-idx", Settings.builder());
+
+        SnapshotsService.validateNoSegmentsOnlyIndices(state, "test-repo", "snap-1");
     }
 
     /**

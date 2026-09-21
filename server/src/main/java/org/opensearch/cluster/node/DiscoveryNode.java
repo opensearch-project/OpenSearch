@@ -560,6 +560,18 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     /**
+     * Returns whether the node stores translog in a remote store. Durability decisions (replication mode, global
+     * checkpoint computation, retention leases and peer recovery) must be based on this rather than on
+     * {@link #isRemoteStoreNode()}, since a node running in {@code segments_only} mode keeps its translog locally and
+     * therefore still relies on node-to-node replication.
+     *
+     * @return true if the node contains remote translog store node attributes, false otherwise
+     */
+    public boolean isRemoteTranslogStoreNode() {
+        return RemoteStoreNodeAttribute.isTranslogRepoConfigured(this.getAttributes());
+    }
+
+    /**
      * Returns whether settings required for remote cluster state publication is configured
      * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
      */

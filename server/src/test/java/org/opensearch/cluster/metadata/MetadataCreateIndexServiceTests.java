@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -3502,6 +3503,110 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Map<String, String> finalCustomData = imdBuilder.build().getCustomData().get(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assertNotNull(finalCustomData);
         assertEquals("false", finalCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY));
+    }
+
+    /**
+     * Node attributes for {@code node.attr.remote_store.mode: segments_only}: a segment repository and neither a
+     * translog nor a cluster state repository.
+     */
+    private static Map<String, String> getSegmentsOnlyNodeAttributes() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        return attributes;
+    }
+
+    private static ClusterState clusterStateWithSegmentsOnlyNode() {
+        DiscoveryNode segmentsOnlyNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getSegmentsOnlyNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(segmentsOnlyNode).build()).build();
+    }
+
+    /**
+     * An index created on segments-only nodes must be remote-backed for segments and must carry no translog
+     * repository. updateRemoteStoreSettings selects the node to copy repository names from with
+     * DiscoveryNode::isRemoteSegmentStoreNode, so a segments-only node qualifies as a donor even though it has no
+     * cluster state repository.
+     */
+    public void testUpdateRemoteStoreSettingsForSegmentsOnlyNode() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            clusterStateWithSegmentsOnlyNode(),
+            strictClusterSettings,
+            nodeSettings,
+            "test-index"
+        );
+
+        Settings indexSettings = settingsBuilder.build();
+        assertNull("no remote translog repository should be applied", indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals("my-segment-repo-1", indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertTrue("index should be remote-backed for segments", indexSettings.getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false));
+    }
+
+    /**
+     * A segments-only index should use the cluster's configured remote store path type rather than falling back to
+     * FIXED paths, even though there is no translog repository.
+     */
+    public void testRemoteStorePathTypeForSegmentsOnlyNode() {
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        BlobStore blobStoreMock = mock(BlobStore.class);
+        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
+        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(randomBoolean());
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        ClusterState clusterState = clusterStateWithSegmentsOnlyNode();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            null,
+            null,
+            null,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            false,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        IndexMetadata.Builder imdBuilder = IndexMetadata.builder("test").settings(indexSettings);
+        checkerService.addRemoteStoreCustomMetadata(imdBuilder, true, clusterState);
+
+        assertEquals(
+            "segments-only indices should use the cluster's configured path type",
+            PathType.HASHED_PREFIX,
+            RemoteStoreUtils.determineRemoteStorePathStrategy(imdBuilder.build()).getType()
+        );
     }
 
     private static Map<String, String> getNodeAttributes() {

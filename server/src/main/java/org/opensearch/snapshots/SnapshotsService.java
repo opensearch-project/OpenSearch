@@ -401,6 +401,53 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
+     * Rejects a snapshot-v2 covering an index whose segments are remote backed but whose translog is not, which is how
+     * an index created on {@code remote_store.mode: segments_only} nodes is configured.
+     * <p>
+     * Snapshot-v2 does not flush before pinning its timestamp, so a restore reconstructs the point in time from the
+     * last remote segment metadata at or before the timestamp and then replays the remote translog to close the gap.
+     * With a local translog there is nothing to replay from: the restore fails outright because it cannot resolve a
+     * translog repository, and operations acknowledged in that gap are unrecoverable. Creation itself would still
+     * report success, since it only pins a timestamp, so the problem would not surface until the snapshot is needed.
+     * Fail here instead. Full snapshots and shallow v1 remain available, both of which flush before capturing a
+     * commit and therefore need no translog to restore.
+     */
+    static void validateNoSegmentsOnlyIndices(ClusterState state, String repositoryName, String snapshotName) {
+        final List<String> segmentsOnlyIndices = state.metadata()
+            .indices()
+            .values()
+            .stream()
+            .filter(SnapshotsService::isSegmentsOnlyIndex)
+            .map(indexMetadata -> indexMetadata.getIndex().getName())
+            .sorted()
+            .collect(Collectors.toList());
+        if (segmentsOnlyIndices.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + repositoryName
+                    + ":"
+                    + snapshotName
+                    + "] snapshot-v2 is not supported for indices whose translog is not remote backed, since restoring a "
+                    + "pinned timestamp requires replaying the remote translog. Disable "
+                    + SHALLOW_SNAPSHOT_V2.getKey()
+                    + " on this repository to take a full or shallow v1 snapshot instead. Offending indices: "
+                    + segmentsOnlyIndices
+            );
+        }
+    }
+
+    private static boolean isSegmentsOnlyIndex(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        // Read the raw values: INDEX_REMOTE_STORE_ENABLED_SETTING carries a validator that cross-checks
+        // index.replication.type, and this runs over every index in the cluster rather than one being created.
+        if (settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false) {
+            return false;
+        }
+        final String translogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        return translogRepository == null || translogRepository.isEmpty();
+    }
+
+    /**
      * Initializes the snapshotting process.
      * <p>
      * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
@@ -557,6 +604,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
+        try {
+            validateNoSegmentsOnlyIndices(clusterService.state(), repositoryName, snapshotName);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
