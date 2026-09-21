@@ -14,14 +14,12 @@ use arrow::datatypes::Schema as ArrowSchema;
 
 use crate::native_settings::NativeSettings;
 
-/// Parquet file-level metadata key for the writer generation.
-pub const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
-
-// The format-version key, current version, sentinel, and long encoding live in
-// native-bridge-common so the reader side (doc-values cursor) shares them without depending on
-// this crate. Re-exported here so writer-side callers keep one import path.
+// The writer-generation key, the format-version key, current version, sentinel, and long encoding
+// live in native-bridge-common so the reader side (doc-values cursor) shares them without depending
+// on this crate. Re-exported here so writer-side callers keep one import path.
 pub use native_bridge_common::format_version::{
     encode_format_version, FORMAT_VERSION, FORMAT_VERSION_KEY, FORMAT_VERSION_UNKNOWN,
+    WRITER_GENERATION_KEY,
 };
 
 /// Reads the writer generation from a Parquet file's key-value metadata.

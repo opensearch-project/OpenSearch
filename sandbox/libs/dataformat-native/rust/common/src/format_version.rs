@@ -7,11 +7,18 @@
  */
 
 //! Shared definition of the opensearch Parquet format-version key, the current version, and its
-//! long encoding, used by both the writer (`opensearch-parquet-format`) and readers (the doc-values
-//! cursor). Free of parquet types; the footer lookup stays with each caller.
+//! long encoding, plus the writer-generation key, used by both the writer
+//! (`opensearch-parquet-format`) and readers (the doc-values cursor). Free of parquet types; the
+//! footer lookup stays with each caller.
 
 /// Parquet file-level metadata key for the opensearch-defined parquet format version.
 pub const FORMAT_VERSION_KEY: &str = "opensearch.format_version";
+
+/// Parquet file-level metadata key for the writer generation stamped into the footer. Shared by the
+/// writer (`opensearch-parquet-format`), which stamps it, and the doc-values reader, which reads it
+/// back to confirm a file was written alongside the Lucene segment that points at it, so the two
+/// sides cannot drift on the key spelling.
+pub const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 
 /// Current parquet format version stamped by the writer. Plugin-defined namespace; not
 /// comparable to Lucene or other format versions. Increment when the writer output or the
