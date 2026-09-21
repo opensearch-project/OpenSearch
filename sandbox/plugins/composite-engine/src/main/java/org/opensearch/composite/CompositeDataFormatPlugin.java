@@ -376,26 +376,53 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         return Map.copyOf(descriptors);
     }
 
-    private List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    /**
+     * The data formats configured for an index, with their composite roles kept explicit rather than
+     * encoded positionally. Consumers that treat the primary differently (e.g. nested-scope capability
+     * claiming) must use {@link #primary()} directly instead of assuming an ordering invariant.
+     *
+     * @param primary the resolved primary format, or {@code null} when {@code primary_data_format} is
+     *                unset or names a format that is not registered — consumers then see no primary at
+     *                all rather than a secondary silently taking its place
+     * @param secondaries the resolved secondary formats in priority order
+     */
+    private record ConfiguredFormats(DataFormat primary, List<DataFormat> secondaries) {
+        boolean isEmpty() {
+            return primary == null && secondaries.isEmpty();
+        }
+
+        /** All configured formats, primary first (when resolved), then secondaries in priority order. */
+        List<DataFormat> all() {
+            if (primary == null) {
+                return secondaries;
+            }
+            List<DataFormat> all = new ArrayList<>(secondaries.size() + 1);
+            all.add(primary);
+            all.addAll(secondaries);
+            return all;
+        }
+    }
+
+    private ConfiguredFormats getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        List<DataFormat> configured = new ArrayList<>();
+        DataFormat primary = null;
         if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
-            dataFormatRegistry.getRegisteredFormats()
+            primary = dataFormatRegistry.getRegisteredFormats()
                 .stream()
                 .filter(f -> f.name().equals(primaryFormatName))
                 .findFirst()
-                .ifPresent(configured::add);
+                .orElse(null);
         }
-        secondaryFormatNames.stream()
+        List<DataFormat> secondaries = secondaryFormatNames.stream()
             .filter(name -> name != null && name.isEmpty() == false)
             .map(name -> dataFormatRegistry.getRegisteredFormats().stream().filter(f -> f.name().equals(name)).findFirst().orElse(null))
             .filter(Objects::nonNull)
             .sorted(Comparator.comparingLong(DataFormat::priority))
-            .forEach(configured::add);
-        return List.copyOf(configured);
+            .collect(Collectors.toUnmodifiableList());
+        return new ConfiguredFormats(primary, secondaries);
     }
 
     /**
@@ -436,7 +463,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             return;
         }
 
-        List<DataFormat> formats = getConfiguredFormats(indexSettings, dataFormatRegistry);
+        ConfiguredFormats formats = getConfiguredFormats(indexSettings, dataFormatRegistry);
         if (formats.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
             return;
@@ -446,15 +473,17 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Set<FieldTypeCapabilities.Capability> remaining = new HashSet<>(requested);
         Map<DataFormat, Set<FieldTypeCapabilities.Capability>> assigned = new HashMap<>();
 
-        for (int i = 0; i < formats.size(); i++) {
+        // Inside a nested scope only the primary format is consulted; when the primary is
+        // unresolved this consults nothing, so the request fails closed below rather than a
+        // secondary being treated as the primary.
+        List<DataFormat> consulted = fieldScope == FieldScope.NESTED
+            ? (formats.primary() == null ? List.of() : List.of(formats.primary()))
+            : formats.all();
+
+        for (DataFormat format : consulted) {
             if (remaining.isEmpty()) {
                 break;
             }
-            boolean isPrimary = i == 0;
-            if (fieldScope == FieldScope.NESTED && isPrimary == false) {
-                continue;
-            }
-            DataFormat format = formats.get(i);
             Set<FieldTypeCapabilities.Capability> claimed = format.supportedFields()
                 .stream()
                 .filter(ftc -> ftc.fieldType().equals(typeName))
@@ -499,7 +528,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                     + " but configured data formats cannot collectively cover: "
                     + remaining
                     + ". Configured formats: "
-                    + formats.stream().map(DataFormat::name).collect(Collectors.toList())
+                    + formats.all().stream().map(DataFormat::name).collect(Collectors.toList())
             );
         }
         fieldType.setCapabilityMap(Map.copyOf(assigned));

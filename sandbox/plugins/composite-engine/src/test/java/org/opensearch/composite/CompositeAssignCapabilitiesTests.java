@@ -443,6 +443,67 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("COLUMNAR_STORAGE"));
     }
 
+    /**
+     * Inside a nested scope the primary is selected by role, not by list position: when the configured
+     * primary name does not resolve to a registered format, nothing is consulted and the request fails
+     * closed — the first secondary must never be treated as the primary just because it would sit at
+     * index 0 of the configured-formats list.
+     */
+    public void testInsideNestedScopeUnresolvedPrimaryFailsClosed() {
+        // Only the secondary resolves, and it could claim everything the field requests.
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.FULL_TEXT_SEARCH, Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(lucene));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "nonexistent")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        // [index: false] keyword: requests only COLUMNAR_STORAGE, which lucene could serve.
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author", false, true, Map.of());
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED)
+        );
+        assertTrue(ex.getMessage().contains("COLUMNAR_STORAGE"));
+        assertTrue(field.getCapabilityMap().isEmpty());
+    }
+
+    /** At root scope an unresolved primary leaves the secondaries claiming as before. */
+    public void testRootScopeUnresolvedPrimarySecondariesStillClaim() {
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.FULL_TEXT_SEARCH, Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(lucene));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "nonexistent")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("name");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        plugin.assignCapabilities(field, indexSettings, registry);
+
+        Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
+        assertEquals(1, map.size());
+        assertEquals(Set.of(Capability.FULL_TEXT_SEARCH, Capability.COLUMNAR_STORAGE), map.get(lucene));
+    }
+
     private static IndexSettings buildIndexSettings(Settings extra) {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
