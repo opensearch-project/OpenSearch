@@ -58,6 +58,29 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     private final long ramBytesUsed;
 
     public static BytesReference of(BytesReference... references) {
+        // Zero-length references are dropped up front: they contribute no bytes, but they would create
+        // duplicate entries in the offsets table, breaking the binary search in getOffsetIndex and,
+        // in turn, random access and slicing.
+        int nonEmptyCount = 0;
+        for (BytesReference reference : references) {
+            if (reference == null) {
+                throw new IllegalArgumentException("references must not be null");
+            }
+            if (reference.length() > 0) {
+                nonEmptyCount++;
+            }
+        }
+        if (nonEmptyCount < references.length) {
+            final BytesReference[] nonEmpty = new BytesReference[nonEmptyCount];
+            int i = 0;
+            for (BytesReference reference : references) {
+                if (reference.length() > 0) {
+                    nonEmpty[i++] = reference;
+                }
+            }
+            references = nonEmpty;
+        }
+
         switch (references.length) {
             case 0:
                 return BytesArray.EMPTY;
@@ -81,6 +104,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             if (reference == null) {
                 throw new IllegalArgumentException("references must not be null");
             }
+            assert reference.length() > 0 : "references must not be empty, they would break random access and slicing";
             offsets[i] = offset; // we use the offsets to seek into the right BytesReference for random access and slicing
             offset += reference.length();
             ramBytesUsed += reference.ramBytesUsed();
