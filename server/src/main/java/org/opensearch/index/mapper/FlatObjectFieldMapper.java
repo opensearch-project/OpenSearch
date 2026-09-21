@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -216,15 +217,21 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         /**
-         * flat_object leaves are keyword-like (term queries over the {@code _value} /
-         * {@code _valueAndPath} sub-fields), so it requests the same search capability keyword does.
-         * Without this override {@link MappedFieldType#requestedCapabilities()} throws for any
-         * flat_object field in a pluggable-data-format index, because the base implementation has no
-         * capability to report for a searchable field.
+         * Requests only storage-shaped capabilities from pluggable data formats: no configured
+         * format represents flat_object's inverted-index search, so requesting a search capability
+         * would fail the mapping. Only the pluggable path consults this method, so classic
+         * (non-composite) flat_object search is unaffected.
          */
         @Override
-        protected FieldTypeCapabilities.Capability searchCapability() {
-            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
+            if (hasDocValues()) {
+                caps.add(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+            }
+            if (isStored()) {
+                caps.add(FieldTypeCapabilities.Capability.STORED_FIELDS);
+            }
+            return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
         }
 
         NamedAnalyzer normalizer() {

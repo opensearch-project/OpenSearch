@@ -309,8 +309,8 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         assertTrue(field.getCapabilityMap().isEmpty());
     }
 
-    /** A remaining non-storage-shaped capability (e.g. FULL_TEXT_SEARCH) is dropped, not thrown. */
-    public void testUnclaimedNonStorageCapabilityIsDroppedNotThrown() {
+    /** At root scope any unclaimed capability fails the mapping, search-shaped included. */
+    public void testUnclaimedSearchCapabilityAtRootThrows() {
         DataFormat parquet = CompositeTestHelper.stubFormat(
             "parquet",
             1,
@@ -333,11 +333,12 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
 
         MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("name");
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
-        plugin.assignCapabilities(field, indexSettings, registry);
 
-        Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
-        assertEquals(1, map.size());
-        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), map.get(parquet));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> plugin.assignCapabilities(field, indexSettings, registry)
+        );
+        assertTrue(ex.getMessage().contains("FULL_TEXT_SEARCH"));
     }
 
     /** Inside a nested scope, a secondary's declared support for the type name is ignored entirely. */
