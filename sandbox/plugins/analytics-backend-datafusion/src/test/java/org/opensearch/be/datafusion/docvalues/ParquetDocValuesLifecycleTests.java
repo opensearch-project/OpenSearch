@@ -30,6 +30,7 @@ import org.opensearch.be.datafusion.docvalues.bridge.DataFusionBackedTestCase;
 import org.opensearch.be.datafusion.docvalues.bridge.ParquetColumnReader;
 import org.opensearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -110,6 +111,61 @@ public class ParquetDocValuesLifecycleTests extends DataFusionBackedTestCase {
 
         secondRequest.close();
         assertTrue(secondCursor.isClosed());
+    }
+
+    /**
+     * A cursor whose open fails leaves the registry holding exactly the cursors opened before it, and
+     * the request still closes those at its end.
+     */
+    public void testFailedCursorOpenLeavesEarlierCursorsRegisteredAndClosable() throws Exception {
+        int rows = 200;
+        Path file = createTempDir().resolve("openfail.parquet");
+        LongColumnFixture.write(file, allocator, COLUMN, rows, -1);
+
+        ParquetDocValuesProducer producer = new ParquetDocValuesProducer(file, ParquetColumnReader.LOCAL_STORE, Settings.EMPTY, rows, null);
+
+        CursorRegistry request = new CursorRegistry();
+        producer.getSortedNumeric(sortedNumericField(COLUMN), request);
+        List<ParquetColumnReader> afterGood = request.opened();
+        assertEquals("the good field opens one cursor", 1, afterGood.size());
+
+        // The column is absent from the file, so ParquetColumnReader.open throws before registering.
+        FieldInfo missing = sortedNumericField("no_such_column");
+        expectThrows(IOException.class, () -> producer.getSortedNumeric(missing, request));
+
+        List<ParquetColumnReader> afterFailure = request.opened();
+        assertEquals("a failed open registers no cursor", 1, afterFailure.size());
+        assertSame("the surviving cursor is the one opened before the failure", afterGood.get(0), afterFailure.get(0));
+
+        ParquetColumnReader survivor = afterFailure.get(0);
+        assertFalse("the survivor stays open until request end", survivor.isClosed());
+        request.close();
+        assertTrue("request close still closes the survivor", survivor.isClosed());
+    }
+
+    /**
+     * The producer's singleton view reports exactly one value per present doc, equal to the fixture's valueAt.
+     */
+    public void testSingletonViewReportsOneValueEqualToLongValue() throws Exception {
+        int rows = 200;
+        Path file = createTempDir().resolve("singleton.parquet");
+        LongColumnFixture.write(file, allocator, COLUMN, rows, -1); // dense column: every doc is present
+
+        ParquetDocValuesProducer producer = new ParquetDocValuesProducer(file, ParquetColumnReader.LOCAL_STORE, Settings.EMPTY, rows, null);
+
+        CursorRegistry request = new CursorRegistry();
+        SortedNumericDocValues singleton = producer.getSortedNumeric(sortedNumericField(COLUMN), request);
+        try {
+            int doc = randomIntBetween(0, 20);
+            while (doc < rows) {
+                assertTrue("doc " + doc + " is present on a dense column", singleton.advanceExact(doc));
+                assertEquals("a singleton has exactly one value per present doc", 1, singleton.docValueCount());
+                assertEquals("value at " + doc, LongColumnFixture.valueAt(doc), singleton.nextValue());
+                doc += randomIntBetween(1, 40);
+            }
+        } finally {
+            request.close();
+        }
     }
 
     /**
