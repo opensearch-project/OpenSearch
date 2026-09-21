@@ -159,8 +159,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
             .setMergeValidator(
                 (previous, next) -> previous == next
-                    || (FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG)
-                        && previous == MappedFieldType.MultiValueState.AUTO)
+                    || (previous == MappedFieldType.MultiValueState.AUTO
+                        && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING))
             );
     }
 

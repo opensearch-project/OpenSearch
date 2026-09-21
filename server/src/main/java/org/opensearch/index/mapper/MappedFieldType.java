@@ -527,11 +527,19 @@ public abstract class MappedFieldType {
         this.multiValueState = Objects.requireNonNull(multiValueState);
     }
 
-    /** Whether an additional value may trigger an automatic mapping promotion. */
+    /**
+     * Whether an additional value may trigger an automatic mapping promotion.
+     *
+     * <p>Only consulted off the common indexing path: when a second value arrives for a non-LIST
+     * field, on an empty array, or while validating a mapping merge. The flag lookup uses the
+     * {@link org.opensearch.common.settings.Setting} overload, which is a constant-time map read
+     * rather than a key scan, and is deliberately not cached on the field type so test-time flag
+     * toggling keeps working.
+     */
     @ExperimentalApi
     public boolean isMultiValueAutoPromotionEnabled() {
         return multiValueState == MultiValueState.AUTO
-            && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG);
+            && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING);
     }
 
     /**

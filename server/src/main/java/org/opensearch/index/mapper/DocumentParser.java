@@ -1836,7 +1836,12 @@ final class DocumentParser {
      * Marks a dynamically inferred leaf {@code multi_value: true} when its first value arrived inside
      * a JSON array on a pluggable-data-format index. Columnar formats fix the column shape per file,
      * so the shape has to be decided when the field is first mapped; Lucene indices are inherently
-     * multi-valued and are left untouched (they never register the parameter).
+     * multi-valued and are left untouched even though they accept the parameter.
+     *
+     * <p>Cold path: this is reached only from {@link #parseDynamicValue}, i.e. when
+     * {@link #getMapper} found no mapper for the field and a new one is being created. Fields that
+     * already exist in the mapping, multi-valued or not, take the {@code mapper != null} branch in
+     * {@link #parseValue} and never get here, so steady-state indexing pays nothing for it.
      *
      * <p>Only applies to builders that expose {@code multi_value} and have not had it pinned by a
      * matching dynamic template: an explicit {@code multi_value: false} in a template is honoured and
