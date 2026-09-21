@@ -28,7 +28,10 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.Query;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.mapper.BinaryFieldMapper;
+import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -166,79 +169,125 @@ public class NestedParquetFieldTests extends OpenSearchTestCase {
         }
     }
 
-    /** Vector dispatch covering every scalar type supported as a nested leaf. */
+    /**
+     * Registry dispatch covering every scalar type supported as a nested leaf: writeLeafValue
+     * routes each leaf through its type's own {@link ParquetField#addToVector} (keyed by
+     * {@code fieldType.typeName()}, not the vector class), so each write below must produce the
+     * exact bytes the type's canonical top-level conversion produces.
+     */
     public void testNestedLeafTypeDispatch() throws Exception {
         try (VarCharVector v = new VarCharVector("s", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, "hello");
+            writeLeaf(v, new KeywordFieldMapper.KeywordFieldType("n.f"), "hello");
             v.setValueCount(1);
             assertEquals("hello", v.getObject(0).toString());
         }
         try (IntVector v = new IntVector("i", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 42);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.INTEGER), 42);
             v.setValueCount(1);
             assertEquals(42, v.get(0));
         }
         try (BigIntVector v = new BigIntVector("l", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 42L);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.LONG), 42L);
             v.setValueCount(1);
             assertEquals(42L, v.get(0));
         }
         try (Float8Vector v = new Float8Vector("d", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 3.5d);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.DOUBLE), 3.5d);
             v.setValueCount(1);
             assertEquals(3.5d, v.get(0), 0.0);
         }
         try (Float4Vector v = new Float4Vector("f", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 2.5f);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.FLOAT), 2.5f);
             v.setValueCount(1);
             assertEquals(2.5f, v.get(0), 0.0f);
         }
         try (BitVector v = new BitVector("b", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, Boolean.TRUE);
+            writeLeaf(v, new BooleanFieldMapper.BooleanFieldType("n.f"), Boolean.TRUE);
             v.setValueCount(1);
             assertEquals(1, v.get(0));
         }
-        // half_float — matches HalfFloatParquetField's own top-level conversion (same instance, since
-        // there is only one implementation now, not a separate copy for nested).
+        // half_float — dispatches to HalfFloatParquetField's own conversion (same instance as the
+        // top-level path, since there is only one implementation now, not a separate copy for nested).
         try (Float2Vector v = new Float2Vector("hf", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 1.5f);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.HALF_FLOAT), 1.5f);
             v.setValueCount(1);
             assertEquals(1.5f, v.getValueAsFloat(0), 0.0f);
         }
         // unsigned_long
         try (UInt8Vector v = new UInt8Vector("ul", testAllocator)) {
             v.allocateNew();
-            writeLeafValue(v, 0, 9_000_000_000L);
+            writeLeaf(v, numberType(NumberFieldMapper.NumberType.UNSIGNED_LONG), 9_000_000_000L);
             v.setValueCount(1);
             assertEquals(9_000_000_000L, v.get(0));
         }
-        // binary — a raw byte[]
+        // binary — a raw byte[]; shares VarBinaryVector with ip but uses its own encoder
         try (VarBinaryVector v = new VarBinaryVector("bin", testAllocator)) {
             v.allocateNew();
             byte[] raw = { 1, 2, 3 };
-            writeLeafValue(v, 0, raw);
+            writeLeaf(v, new BinaryFieldMapper.BinaryFieldType("n.f"), raw);
             v.setValueCount(1);
             assertArrayEquals(raw, v.get(0));
         }
-        // ip — an InetAddress, point-encoded
+        // ip — an InetAddress, point-encoded by IpParquetField (type-keyed dispatch, no
+        // instanceof-on-value disambiguation against binary)
         try (VarBinaryVector v = new VarBinaryVector("ip", testAllocator)) {
             v.allocateNew();
             InetAddress address = InetAddress.getByName("192.168.1.1");
-            writeLeafValue(v, 0, address);
+            writeLeaf(v, new IpFieldMapper.IpFieldType("n.f"), address);
             v.setValueCount(1);
             assertArrayEquals(InetAddressPoint.encode(address), v.get(0));
         }
     }
 
-    private static void writeLeafValue(FieldVector vector, int index, Object value) {
-        NestedParquetField.writeLeafValue(vector, index, value);
+    /** An unregistered leaf type must fail with a diagnosable error naming the leaf and its type. */
+    public void testNestedLeafUnregisteredTypeThrows() throws Exception {
+        MappedFieldType unregistered = new MappedFieldType("n.f", false, false, true, TextSearchInfo.NONE, Map.of()) {
+            @Override
+            public String typeName() {
+                return "unregistered_test_type";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
+            }
+        };
+        try (VarCharVector v = new VarCharVector("s", testAllocator)) {
+            v.allocateNew();
+            Exception e = expectThrows(Exception.class, () -> writeLeaf(v, unregistered, "x"));
+            assertTrue(e.getMessage(), e.getMessage().contains("unregistered_test_type"));
+            assertTrue(e.getMessage(), e.getMessage().contains("[f]")); // leaf name is struct-relative
+        }
+    }
+
+    /** Buffers one value under nested scope {@code n} via the public API and writes its leaf. */
+    private static void writeLeaf(FieldVector vector, MappedFieldType fieldType, Object value) {
+        NestedParquetField.writeLeafValue(vector, 0, leafOf(fieldType, value));
+    }
+
+    private static ParquetDocumentInput.NestedLeaf leafOf(MappedFieldType fieldType, Object value) {
+        MappedFieldType withCapability = withParquetCapability(fieldType);
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        doc.addField(nestedPathMarker(), "n");
+        doc.addField(withCapability, value);
+        flush(doc); // a root-level field closes the open nested scope so the child is buffered
+        return doc.getNestedChildren().get(0).fields.get(0);
+    }
+
+    private static NumberFieldMapper.NumberFieldType numberType(NumberFieldMapper.NumberType type) {
+        return new NumberFieldMapper.NumberFieldType("n.f", type);
     }
 
     /** MAP-in-STRUCT: every dynamic key of every element survives, and a no-attributes element writes null. */

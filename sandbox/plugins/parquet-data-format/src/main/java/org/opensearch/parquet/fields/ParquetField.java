@@ -44,28 +44,36 @@ public abstract class ParquetField {
     protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
-     * Writes a single parsed value at an explicit index in the given vector.
+     * Writes a single parsed value at an explicit index in the given vector — the canonical
+     * element conversion for this type, shared by every write path that targets an arbitrary
+     * position: LIST (multi-value) columns writing several values per row, and nested struct-leaf
+     * writes ({@link NestedParquetField#writeLeafValue}) writing one value per element. Scalar
+     * columns write at the row index, so {@link #addToGroup} can derive the position from the
+     * VSR's row count; implementations should route {@code addToGroup} through this method so the
+     * conversion exists exactly once.
      * <p>
-     * Scalar columns write at the row index, so {@link #addToGroup} can derive the position from
-     * the VSR's row count. List columns write several values per row at positions in the child
-     * vector that have nothing to do with the row number, so multi-valued writes need this
-     * index-explicit form instead.
-     * <p>
-     * Subclasses must override this to support being declared multi-valued; the default throws.
+     * Every scalar type must implement this; the default throws. Note {@link #supportsMultiValue}
+     * separately gates whether a type may be DECLARED multi-valued — implementing this method is
+     * necessary but not sufficient for list storage.
      *
-     * @param vector the target vector (the child data vector when writing into a list)
+     * @param vector the target vector (the child data vector when writing into a list or struct)
      * @param index the position to write at
      * @param parseValue the parsed non-null value to write
      */
     protected void addToVector(FieldVector vector, int index, Object parseValue) {
         throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
+            "Field type ["
+                + getClass().getSimpleName()
+                + "] does not define a single-element encoder (addToVector), "
+                + "required for multi-valued (list) storage and nested struct-leaf writes"
         );
     }
 
     /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
+     * Returns whether this field may be declared multi-valued (stored as a Parquet LIST column).
+     * A policy gate, deliberately narrower than "implements {@link #addToVector}": every scalar
+     * type has an element encoder, but only types returning true here accept the
+     * {@code multi_value} mapping parameter.
      *
      * @return true if multi-valued storage is supported
      */

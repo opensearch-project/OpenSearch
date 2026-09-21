@@ -8,28 +8,13 @@
 
 package org.opensearch.parquet.fields;
 
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.Float2Vector;
-import org.apache.arrow.vector.Float4Vector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.SmallIntVector;
-import org.apache.arrow.vector.TimeStampMilliVector;
-import org.apache.arrow.vector.TimeStampNanoVector;
-import org.apache.arrow.vector.TinyIntVector;
-import org.apache.arrow.vector.UInt8Vector;
-import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -38,8 +23,6 @@ import org.opensearch.parquet.vsr.ManagedVSR;
 import org.opensearch.parquet.writer.MismatchedInputException;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 
-import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -177,7 +160,7 @@ public class NestedParquetField extends ParquetField {
                     );
                 }
                 if (leaf.value != null) {
-                    writeLeafValue(leafVector, elemIndex, leaf.value);
+                    writeLeafValue(leafVector, elemIndex, leaf);
                 }
             }
             // map children of this element (e.g. a flat_object `attributes`). Write every map child
@@ -205,32 +188,22 @@ public class NestedParquetField extends ParquetField {
         listVector.endValue(rowIndex, children.size());
     }
 
-    /** Writes one supported scalar value into a nested struct child. */
-    static void writeLeafValue(FieldVector vector, int index, Object value) {
-        switch (vector) {
-            case VarCharVector typed -> typed.setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
-            case IntVector typed -> typed.setSafe(index, (Integer) value);
-            case BigIntVector typed -> typed.setSafe(index, (Long) value);
-            case Float8Vector typed -> typed.setSafe(index, (Double) value);
-            case Float4Vector typed -> typed.setSafe(index, (Float) value);
-            case BitVector typed -> typed.setSafe(index, (Boolean) value ? 1 : 0);
-            case SmallIntVector typed -> typed.setSafe(index, (Short) value);
-            case TinyIntVector typed -> typed.setSafe(index, ((Number) value).byteValue());
-            case TimeStampMilliVector typed -> typed.setSafe(index, (long) value);
-            case TimeStampNanoVector typed -> typed.setSafe(index, (long) value);
-            case Float2Vector typed -> typed.setSafeWithPossibleTruncate(index, ((Number) value).floatValue());
-            case UInt8Vector typed -> typed.setSafe(index, ((Number) value).longValue());
-            case VarBinaryVector typed -> {
-                if (value instanceof InetAddress address) {
-                    BytesRef encoded = new BytesRef(InetAddressPoint.encode(address));
-                    typed.setSafe(index, encoded.bytes, encoded.offset, encoded.length);
-                } else {
-                    typed.setSafe(index, (byte[]) value);
-                }
-            }
-            default -> throw new IllegalArgumentException(
-                "Unsupported struct-leaf vector type [" + vector.getClass().getSimpleName() + "] for nested field"
+    /**
+     * Writes one scalar value into a nested struct child by dispatching to the leaf type's own
+     * {@link ParquetField#addToVector} — the single canonical element conversion for that type, shared
+     * with the root column and multi-value (LIST) paths. Dispatching by the leaf's
+     * {@link org.opensearch.index.mapper.MappedFieldType#typeName()} (rather than switching on the
+     * vector class) means a newly registered scalar type works inside nested automatically, the
+     * conversion cannot drift between nesting depths, and types sharing a vector class (e.g.
+     * {@code binary} and {@code ip} on {@code VarBinaryVector}) each use their own encoding.
+     */
+    static void writeLeafValue(FieldVector vector, int index, ParquetDocumentInput.NestedLeaf leaf) {
+        ParquetField parquetField = ArrowFieldRegistry.getParquetField(leaf.fieldType.typeName());
+        if (parquetField == null) {
+            throw new MismatchedInputException(
+                "No Parquet field registered for nested leaf [" + leaf.name + "] of type [" + leaf.fieldType.typeName() + "]"
             );
         }
+        parquetField.addToVector(vector, index, leaf.value);
     }
 }
