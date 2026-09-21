@@ -208,6 +208,19 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         }));
     }
 
+    /** {@code multi_value: true} on a nested leaf is rejected — a nested element's struct child is single-valued. */
+    public void testMultiValueInsideNestedRejected() throws IOException {
+        startCluster();
+        assertRejected(
+            nestedMapping(
+                "false",
+                b -> b.startObject("a").field("type", "keyword").field("index", false).field("multi_value", true).endObject()
+            ),
+            "Field [a] inside nested field [n]",
+            "multi_value"
+        );
+    }
+
     /** strict is equally safe as false: an undeclared leaf is rejected outright rather than skipped. */
     public void testNestedDynamicStrictAllowed() throws IOException {
         startCluster();
@@ -237,19 +250,19 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         ensureGreen(indexName);
     }
 
-    /** Nested-in-nested, itself declaring dynamic:false, is accepted. */
-    public void testNestedInNestedAllowed() throws IOException {
+    /** Nested-in-nested is not supported in this storage mode — rejected even when fully declared. */
+    public void testNestedInNestedRejected() throws IOException {
         startCluster();
-        assertAccepted(nestedMapping("false", b -> {
-            b.startObject("author").field("type", "keyword").endObject();
+        assertRejected(nestedMapping("false", b -> {
+            b.startObject("author").field("type", "keyword").field("index", false).endObject();
             b.startObject("replies");
             b.field("type", "nested");
             b.field("dynamic", "false");
             b.startObject("properties");
-            b.startObject("text").field("type", "keyword").endObject();
+            b.startObject("text").field("type", "keyword").field("index", false).endObject();
             b.endObject();
             b.endObject();
-        }));
+        }), "Nested field [replies] inside nested field [n]", "cannot contain further nested objects");
     }
 
     // ---- mapping updates (PUT _mapping) -----------------------------------------------------------
