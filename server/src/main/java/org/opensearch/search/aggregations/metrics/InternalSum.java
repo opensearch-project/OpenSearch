@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,6 +55,14 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         super(name, metadata);
         this.sum = sum;
         this.format = formatter;
+    }
+
+    /**
+     * A sum grows linearly with the number of documents, so scaling it estimates the sum over the population.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalSum(name, samplingContext.scaleUp(sum), format, getMetadata());
     }
 
     /**

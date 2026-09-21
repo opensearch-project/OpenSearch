@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -186,6 +187,22 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     public InternalFilters create(List<InternalBucket> buckets) {
         return new InternalFilters(name, buckets, keyed, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        List<InternalBucket> scaled = new ArrayList<>(buckets.size());
+        for (InternalBucket bucket : buckets) {
+            scaled.add(
+                new InternalBucket(
+                    bucket.key,
+                    samplingContext.scaleUp(bucket.docCount),
+                    bucket.aggregations.finalizeSampling(samplingContext),
+                    bucket.keyed
+                )
+            );
+        }
+        return create(scaled);
     }
 
     @Override

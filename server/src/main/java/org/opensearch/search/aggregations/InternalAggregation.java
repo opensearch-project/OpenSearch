@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.Strings;
@@ -308,6 +309,29 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();
+
+    /**
+     * Rewrites this aggregation so that counts measured on a sample are scaled up to estimates for the population the
+     * sample was drawn from. Called once per aggregation during the final reduce, by the sampling aggregation above it
+     * in the tree, and only when sampling actually took place.
+     * <p>
+     * The default is to return {@code this}, which reports the sample as measured. That is the right answer for values
+     * that already estimate the population, such as averages, percentiles and variances, and it is also what an
+     * aggregation gets when nobody has taught it about sampling yet.
+     * <p>
+     * Overriding this on a class opts in <b>every subclass of that class</b>, because they inherit the override.
+     * Enumerate the subclasses before adding one: for example {@code sampler} must not be scaled, since its
+     * {@code doc_count} is the number of top-scoring documents it kept rather than a count of matches.
+     *
+     * @param samplingContext the sampling that produced this result
+     * @return a scaled copy, or {@code this} when nothing needs scaling
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
+    }
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

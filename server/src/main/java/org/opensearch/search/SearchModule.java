@@ -152,7 +152,9 @@ import org.opensearch.search.aggregations.bucket.range.InternalRange;
 import org.opensearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.sampler.InternalRandomSampler;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
+import org.opensearch.search.aggregations.bucket.sampler.RandomSamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
@@ -526,6 +528,14 @@ public class SearchModule {
             new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse)
                 .addResultReader(InternalSampler.NAME, InternalSampler::new)
                 .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(
+                RandomSamplerAggregationBuilder.NAME,
+                RandomSamplerAggregationBuilder::new,
+                RandomSamplerAggregationBuilder.PARSER
+            ).addResultReader(InternalRandomSampler::new),
             builder
         );
         registerAggregation(
