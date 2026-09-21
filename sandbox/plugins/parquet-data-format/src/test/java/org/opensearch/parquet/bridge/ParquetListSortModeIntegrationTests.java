@@ -207,7 +207,7 @@ public class ParquetListSortModeIntegrationTests extends OpenSearchTestCase {
             String second = writeSortedFile(dir.resolve("second.parquet"), sortConfig, toLongArray(secondIds), secondRows);
 
             String merged = dir.resolve("merged.parquet").toString();
-            RustBridge.mergeParquetFilesInRust(List.of(Path.of(first), Path.of(second)), merged, INDEX_NAME, 1L);
+            RustBridge.mergeParquetFilesInRust(List.of(Path.of(first), Path.of(second)), null, merged, INDEX_NAME, 1L);
             assertEquals(rows.size(), RustBridge.getFileMetadata(merged).numRows());
             return readRows(merged);
         } finally {

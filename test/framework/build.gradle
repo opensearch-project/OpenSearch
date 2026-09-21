@@ -90,6 +90,8 @@ tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 thirdPartyAudit.ignoreMissingClasses(
+  // Optional BC ML-KEM/CMS-KEM implementations are not supplied by the FIPS provider.
+  'org.bouncycastle.pqc.jcajce.spec.KTSParameterSpec$Builder',
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
