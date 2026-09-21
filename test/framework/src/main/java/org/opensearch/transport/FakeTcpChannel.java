@@ -37,6 +37,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 public class FakeTcpChannel implements TcpChannel {
 
@@ -123,6 +124,25 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         closeContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        closeContext.addRemovableListener(listener);
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        closeContext.removeRemovableListener(listener);
+    }
+
+    /**
+     * Number of removable close listeners that are currently registered on this channel.
+     *
+     * @return number of registered close listeners
+     */
+    public int numberOfCloseListeners() {
+        return closeContext.removableListeners();
     }
 
     @Override
