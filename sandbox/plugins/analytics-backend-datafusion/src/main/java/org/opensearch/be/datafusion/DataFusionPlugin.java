@@ -23,6 +23,7 @@ import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.docvalues.ParquetDocValuesDirectoryReader;
+import org.opensearch.be.datafusion.docvalues.ParquetSegmentResourceCache;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -785,20 +786,19 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Installs the Parquet DocValues reader wrapper at index open so numeric doc values that live only in
-     * Parquet are served through the standard Lucene search and aggregation path. The wrapper is a no-op
-     * per leaf when a segment has no Parquet-resident fields, so the per-request overhead is negligible.
-     *
-     * <p>Lives here rather than in the parquet-data-format plugin because the reader it installs calls
-     * this plugin's native cursor and needs the DataFusion runtime this plugin starts, so the whole
-     * doc-values read path stays in one plugin.
+     * Installs the doc-values reader wrapper for pluggable-data-format indices; the reader reads
+     * through this plugin's native cursors and DataFusion runtime. The wrapper is a no-op per leaf when
+     * a segment has no Parquet-resident fields, so the per-request overhead is negligible.
      *
      * <p>An index module holds a single reader-wrapper slot ({@code SetOnce}), so a second plugin calling
      * {@link IndexModule#setReaderWrapper} on the same index fails index creation. This claims the slot
      * only for indices that opted into a pluggable data format, leaving every other index free for other
-     * plugins. {@code isPluggableDataFormatEnabled()} - the authoritative check, which also requires the
-     * experimental feature flag - is not reachable from {@link IndexModule}, so it stays inside the
+     * plugins. {@code isPluggableDataFormatEnabled()} (the authoritative check, which also requires the
+     * experimental feature flag) is not reachable from {@link IndexModule}, so it stays inside the
      * factory and can still decline by returning {@code null}.
+     *
+     * <p>Segment-core resources are cached per index in {@link ParquetSegmentResourceCache}; the
+     * per-acquire wrapper carries only the request's cursor registry.
      */
     @Override
     public void onIndexModule(IndexModule indexModule) {
@@ -809,7 +809,8 @@ public class DataFusionPlugin extends Plugin
             if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
                 return null;
             }
-            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, indexService.mapperService());
+            ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(indexService.mapperService());
+            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, cache);
         });
     }
 

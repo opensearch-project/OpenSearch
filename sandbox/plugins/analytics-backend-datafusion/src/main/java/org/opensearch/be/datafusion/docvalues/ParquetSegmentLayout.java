@@ -18,11 +18,10 @@ import java.nio.file.Path;
  * Resolves the Parquet file that backs a Lucene segment's Parquet-resident doc values, and the store
  * its bytes must be read through.
  *
- * <p>The composite engine binds each Lucene segment to its Parquet file at search time, stamping the
- * absolute path onto the segment as {@link #PARQUET_FILE_ATTRIBUTE}. This class is the read-side half
- * of that binding: it reads the stamped path back. There is no directory scan, because a shard's
- * Parquet directory holds one file per writer generation and only the stamped path identifies the one
- * whose rows are this segment's documents; guessing would risk reading the wrong file.
+ * <p>Segments reach this codec with their Parquet path stamped onto the segment as
+ * {@link #PARQUET_FILE_ATTRIBUTE}; this class is the read-side half, reading that stamped path back.
+ * The stamping side ships with the composite-engine integration. Only the stamped path identifies
+ * the segment's file.
  *
  * <p>A shard tiered to warm keeps no local copy of its Parquet files, so the engine also stamps the
  * native object store to read them through as {@link #PARQUET_STORE_ATTRIBUTE}. The stamped path is
@@ -60,7 +59,7 @@ public final class ParquetSegmentLayout {
      *
      * <p>The existence check applies only to a local file. A remote file is not probed: it is not
      * expected on this node's disk at all, and the store reports a genuinely missing object on the first
-     * read rather than being silently downgraded to "serves no Parquet doc values" here.
+     * read.
      */
     public static ParquetSource resolve(SegmentReadState state) {
         String attr = state.segmentInfo.getAttribute(PARQUET_FILE_ATTRIBUTE);
@@ -77,9 +76,8 @@ public final class ParquetSegmentLayout {
 
     /**
      * Returns the stamped native store pointer, or {@link ParquetColumnReader#LOCAL_STORE} when none is
-     * stamped. An unparseable or non-positive value is treated as absent rather than passed to the native
-     * side, which would reject it: a malformed stamp means the segment falls back to a local read, and if
-     * the file is not local {@link #resolve} then serves no Parquet doc values for that segment.
+     * stamped. An unparseable or non-positive value is treated as absent (local read); if the file is not
+     * local {@link #resolve} then serves no Parquet doc values for that segment.
      */
     private static long storePointer(SegmentReadState state) {
         String attr = state.segmentInfo.getAttribute(PARQUET_STORE_ATTRIBUTE);

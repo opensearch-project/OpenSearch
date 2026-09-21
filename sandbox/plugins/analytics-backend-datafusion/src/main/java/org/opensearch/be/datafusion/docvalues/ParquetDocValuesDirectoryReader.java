@@ -11,7 +11,6 @@ package org.opensearch.be.datafusion.docvalues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,28 +20,34 @@ import java.io.UncheckedIOException;
  * Parquet-resident doc values become visible to the standard OpenSearch search and aggregation path
  * at read time.
  *
- * <p>Installed as the index reader wrapper via {@code IndexModule.setReaderWrapper(...)}. Per-leaf
- * wrapping self-gates: a leaf is wrapped only when a Parquet file resolves for its segment and the
- * mapping declares at least one codec-supported field missing doc values in the Lucene segment
- * (see {@link ParquetDocValuesLeafReader#wrapIfApplicable}).
+ * <p>Installed as the index reader wrapper via {@code IndexModule.setReaderWrapper(...)}. Segment-core
+ * resources are resolved through the per-index {@link ParquetSegmentResourceCache}: a leaf is wrapped only
+ * when its core resolves a Parquet file and the mapping declares at least one codec-supported field
+ * missing doc values in the Lucene segment; every other leaf passes through unchanged.
+ *
+ * <p>One {@link CursorRegistry} is created per wrap and shared by all leaves of that wrap. It records
+ * the native cursors the request opens and is closed by {@link #doClose()} when the request ends.
  */
 public final class ParquetDocValuesDirectoryReader extends FilterDirectoryReader {
 
-    private final MapperService mapperService;
+    private final ParquetSegmentResourceCache cache;
+    private final CursorRegistry requestCursors;
 
-    private ParquetDocValuesDirectoryReader(DirectoryReader in, MapperService mapperService) throws IOException {
-        super(in, new ParquetSubReaderWrapper(mapperService));
-        this.mapperService = mapperService;
+    private ParquetDocValuesDirectoryReader(DirectoryReader in, ParquetSegmentResourceCache cache, CursorRegistry requestCursors)
+        throws IOException {
+        super(in, new ParquetSubReaderWrapper(cache, requestCursors));
+        this.cache = cache;
+        this.requestCursors = requestCursors;
     }
 
     /** Wraps {@code in} so Parquet-resident doc values are visible to query and aggregation code. */
-    public static DirectoryReader wrap(DirectoryReader in, MapperService mapperService) throws IOException {
-        return new ParquetDocValuesDirectoryReader(in, mapperService);
+    public static DirectoryReader wrap(DirectoryReader in, ParquetSegmentResourceCache cache) throws IOException {
+        return new ParquetDocValuesDirectoryReader(in, cache, new CursorRegistry());
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new ParquetDocValuesDirectoryReader(in, mapperService);
+        return new ParquetDocValuesDirectoryReader(in, cache, new CursorRegistry());
     }
 
     @Override
@@ -54,45 +59,29 @@ public final class ParquetDocValuesDirectoryReader extends FilterDirectoryReader
 
     @Override
     protected void doClose() throws IOException {
-        IOException first = null;
-        try {
-            for (LeafReader leaf : getSequentialSubReaders()) {
-                if (leaf instanceof ParquetDocValuesLeafReader parquetLeaf) {
-                    try {
-                        parquetLeaf.closeParquetResources();
-                    } catch (IOException e) {
-                        if (first == null) {
-                            first = e;
-                        }
-                    }
-                }
-            }
-        } finally {
-            try {
-                super.doClose();
-            } catch (IOException e) {
-                if (first == null) {
-                    first = e;
-                }
-            }
-        }
-        if (first != null) {
-            throw first;
-        }
+        // Closes exactly the cursors this request opened; the shared per-core resources outlive it.
+        requestCursors.close();
+        super.doClose();
     }
 
-    /** Per-leaf wrapper that swaps in {@link ParquetDocValuesLeafReader} when applicable. */
+    /** Per-leaf wrapper that swaps in {@link ParquetDocValuesLeafReader} when the core has Parquet resources. */
     private static final class ParquetSubReaderWrapper extends SubReaderWrapper {
-        private final MapperService mapperService;
+        private final ParquetSegmentResourceCache cache;
+        private final CursorRegistry requestCursors;
 
-        private ParquetSubReaderWrapper(MapperService mapperService) {
-            this.mapperService = mapperService;
+        private ParquetSubReaderWrapper(ParquetSegmentResourceCache cache, CursorRegistry requestCursors) {
+            this.cache = cache;
+            this.requestCursors = requestCursors;
         }
 
         @Override
         public LeafReader wrap(LeafReader reader) {
             try {
-                return ParquetDocValuesLeafReader.wrapIfApplicable(reader, mapperService);
+                ParquetSegmentResources resources = cache.resourcesFor(reader);
+                if (resources.isAbsent()) {
+                    return reader;
+                }
+                return new ParquetDocValuesLeafReader(reader, resources, requestCursors);
             } catch (IOException e) {
                 // SubReaderWrapper.wrap cannot throw checked exceptions; surface as unchecked so the
                 // search fails loudly rather than silently dropping Parquet doc values.

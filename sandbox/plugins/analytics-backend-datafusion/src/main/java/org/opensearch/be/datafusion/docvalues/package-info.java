@@ -18,6 +18,6 @@
  *
  * <p>Scope: single-valued numeric fields (byte, short, integer, long, unsigned_long, float,
  * double, half_float, scaled_float, date, date_nanos) and boolean. Binary, keyword, and genuinely
- * multi-valued columns are not served yet.
+ * multi-valued columns are not served.
  */
 package org.opensearch.be.datafusion.docvalues;

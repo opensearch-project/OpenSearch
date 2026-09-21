@@ -112,16 +112,13 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
                 yield (long) (bits ^ ((bits >> 31) & 0x7fffffff));
             }
             case KIND_BOOL -> {
-                // Bit-packed, so read the containing byte and mask: the buffer is only guaranteed
-                // byte-addressable, and a wider read could reach past its last significant byte.
+                // Bit-packed: read the containing byte and mask; a wider read could reach past the buffer's last byte.
                 long bit = idx + valueBitOffset;
                 byte bits = values.get(ValueLayout.JAVA_BYTE, bit >>> 3);
                 yield (bits & (1 << (bit & 7))) != 0 ? 1L : 0L;
             }
             case KIND_HALF_FLOAT -> {
-                // Same sign-flip the float/double arms use, at fp16 width. Verified exhaustively to
-                // equal HalfFloatPoint.halfFloatToSortableShort over every canonical non-NaN fp16
-                // bit pattern, so this needs no lucene-sandbox dependency.
+                // fp16-width sign-flip that produces the sortable short HalfFloatPoint stores.
                 short bits = values.getAtIndex(ValueLayout.JAVA_SHORT, idx);
                 yield (short) (bits ^ ((bits >> 15) & 0x7fff));
             }
@@ -132,5 +129,42 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
     /** True when the given global row falls within this batch's range. */
     public boolean contains(long row) {
         return row >= firstRow && row <= lastRow;
+    }
+
+    /**
+     * Returns the first present row at or after {@code fromRow} within this batch, or {@code -1}
+     * when no row from {@code fromRow} to {@link #lastRow} is present. {@code fromRow} must fall
+     * within {@code [firstRow, lastRow]}.
+     *
+     * <p>A batch with no presence bitmap is fully dense, so {@code fromRow} itself is the answer.
+     * Otherwise the bitmap is scanned a byte at a time, eight rows per read, skipping all-null
+     * bytes without testing their bits individually. Reads stay byte-wide because the borrowed
+     * bitmap is only guaranteed byte-addressable (see {@link #isPresent}).
+     */
+    public long nextPresentRow(long fromRow) {
+        if (contains(fromRow) == false) {
+            throw new IndexOutOfBoundsException("row " + fromRow + " outside batch [" + firstRow + ", " + lastRow + "]");
+        }
+        if (presenceBits == null) {
+            return fromRow;
+        }
+        final long lastBit = lastRow - firstRow + presenceBitOffset;
+        long bit = fromRow - firstRow + presenceBitOffset;
+        // First byte: mask off bits below the starting row so an earlier present row is not reported.
+        int bits = (presenceBits.get(ValueLayout.JAVA_BYTE, bit >>> 3) & 0xFF) & (0xFF << (bit & 7));
+        for (long byteIdx = bit >>> 3;;) {
+            if (bits != 0) {
+                long foundBit = (byteIdx << 3) + Integer.numberOfTrailingZeros(bits);
+                if (foundBit > lastBit) {
+                    return -1;
+                }
+                return firstRow + (foundBit - presenceBitOffset);
+            }
+            byteIdx++;
+            if ((byteIdx << 3) > lastBit) {
+                return -1;
+            }
+            bits = presenceBits.get(ValueLayout.JAVA_BYTE, byteIdx) & 0xFF;
+        }
     }
 }

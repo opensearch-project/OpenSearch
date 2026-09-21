@@ -8,8 +8,6 @@
 
 package org.opensearch.be.datafusion.docvalues;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -30,9 +28,6 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -40,31 +35,35 @@ import java.util.Locale;
  * file through Lucene's DocValues iterator API.
  *
  * <p>The constructor resolves the backing file and sanity-checks its row count against the segment's
- * {@code maxDoc}, but opens no cursor. It also captures the store those bytes come from: a hot shard's
- * Parquet files are on local disk, while a shard tiered to warm keeps them only in the remote object
- * store, reachable through the native store the engine stamped on the segment.
+ * {@code maxDoc}, gates once on the stamped format version, but opens no cursor. It also captures the
+ * store those bytes come from: a hot shard's Parquet files are on local disk, while a shard tiered to
+ * warm keeps them only in the remote object store, reachable through the native store the engine
+ * stamped on the segment.
  *
- * <p>Each {@code getNumeric}/{@code getSortedNumeric} opens its own
- * dedicated {@link ParquetColumnReader}: a native cursor is forward-only, so one shared across
- * concurrent segment-search slices would be driven backwards by one slice while another advances it.
- * A reader per iterator keeps each slice's scan independent. {@link #close()} releases every reader
- * and is idempotent.
+ * <p>One producer is cached per segment core by {@link ParquetSegmentResourceCache} and shared
+ * across requests; it is closed by the core's closed-listener, not per request. Each
+ * {@link #getSortedNumeric(FieldInfo, CursorRegistry)} opens its own dedicated
+ * {@link ParquetColumnReader}: a native cursor is forward-only, so one shared across concurrent
+ * segment-search slices would be driven backwards by one slice while another advances it. A reader
+ * per iterator keeps each slice's scan independent, and the cursor's lifetime belongs to the calling
+ * request's {@link CursorRegistry} - the accessor API carries no request identity, so the producer
+ * cannot own it.
  */
 public final class ParquetDocValuesProducer extends DocValuesProducer {
 
-    private static final Logger logger = LogManager.getLogger(ParquetDocValuesProducer.class);
+    /** Scales of the long-encoded {@code major.minor.patch} version: {@code major*1_000_000 + minor*1_000 + patch}. */
+    private static final long MAJOR_SCALE = 1_000_000L;
+    private static final long MINOR_SCALE = 1_000L;
 
     /** Oldest stamped format version this codec can decode, long-encoded as {@code major*1_000_000 + minor*1_000 + patch}. */
-    static final long MIN_SUPPORTED_FORMAT_VERSION = 1_000_000L; // 1.0.0
+    static final long MIN_SUPPORTED_FORMAT_VERSION = 1 * MAJOR_SCALE; // 1.0.0
 
     /**
-     * Newest stamped format version this codec can decode. Deliberately a literal rather than a
-     * reference to {@code ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION}: tracking the writer
-     * automatically would let a writer bump silently admit a file this decode logic has never seen.
-     * {@code ParquetDocValuesProducerTests} asserts the two are equal, so a writer bump fails the build
-     * until someone confirms the new version is readable and bumps this too.
+     * Newest stamped format version this codec can decode. A literal, not a reference to the writer
+     * constant {@code ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION}: a writer bump must not silently
+     * admit an unseen version. {@code ParquetDocValuesProducerTests} asserts the two are equal.
      */
-    static final long MAX_SUPPORTED_FORMAT_VERSION = 1_000_000L; // 1.0.0
+    static final long MAX_SUPPORTED_FORMAT_VERSION = 1 * MAJOR_SCALE; // 1.0.0
 
     private final Path parquetFile;
     /**
@@ -84,7 +83,6 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     private final long parquetRowCount;
 
-    private final List<ParquetColumnReader> dedicatedReaders = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean closed;
 
     /**
@@ -129,22 +127,49 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    @Override
-    public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-        ensureOpen();
-        validate(field, DocValuesType.NUMERIC);
-        return new ParquetNumericDocValues(dedicatedReaderFor(field), maxDoc);
+    /**
+     * Test seam: builds over an already-resolved file, skipping segment resolution, the row-count
+     * check, and the format-version gate. Never reached in production, where the per-index resource
+     * cache constructs the producer from a {@link SegmentReadState}.
+     */
+    ParquetDocValuesProducer(Path parquetFile, long storePointer, Settings indexSettings, int maxDoc, MapperService mapperService) {
+        this.parquetFile = parquetFile;
+        this.storePointer = storePointer;
+        this.indexSettings = indexSettings;
+        this.maxDoc = maxDoc;
+        this.mapperService = mapperService;
+        this.parquetRowCount = maxDoc;
     }
 
     @Override
-    public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        ensureOpen();
+    public NumericDocValues getNumeric(FieldInfo field) throws IOException {
+        // Every field this codec serves is SORTED_NUMERIC (FieldTypeMapping), so per the
+        // DocValuesProducer contract this accessor is never invoked for a valid FieldInfo.
+        throw unsupported("numeric", field);
+    }
+
+    @Override
+    public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+        // The doc-values accessor API carries no request identity; a cursor opened here would have no
+        // request-scoped owner to close it. Callers go through the leaf wrapper, which supplies the
+        // request's CursorRegistry via the overload below.
+        throw new UnsupportedOperationException(
+            "ParquetDocValuesProducer requires a request-scoped cursor registry; call getSortedNumeric(field, cursors)"
+        );
+    }
+
+    /**
+     * Serves {@code field} as a singleton over a dedicated forward-only cursor, recorded on
+     * {@code cursors} so the calling request closes it when it ends.
+     *
+     * <p>Ingest rejects multi-valued numerics (ParquetDocumentInput), so every numeric column on disk
+     * is single-valued and this singleton wrap is exact; OpenSearch value sources recover the inner
+     * iterator via {@code DocValues.unwrapSingleton}.
+     */
+    // TODO(multi-value): no repeated read path; the write path emits single values only.
+    SortedNumericDocValues getSortedNumeric(FieldInfo field, CursorRegistry cursors) throws IOException {
         validate(field, DocValuesType.SORTED_NUMERIC);
-        // Ingest rejects multi-valued numerics (ParquetDocumentInput), so every numeric column on disk
-        // is single-valued and this singleton wrap is exact; OpenSearch value sources recover the inner
-        // iterator via DocValues.unwrapSingleton.
-        // TODO(multi-value): needs a repeated read path once the write path emits arrays.
-        return DocValues.singleton(new ParquetNumericDocValues(dedicatedReaderFor(field), maxDoc));
+        return DocValues.singleton(new ParquetNumericDocValues(openCursor(field.getName(), cursors), maxDoc));
     }
 
     @Override
@@ -172,9 +197,8 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
      * Verifies the backing Parquet file is still accessible and its row count matches the value
      * cached at construction.
      *
-     * <p>Not currently invoked: this producer is a search-time overlay, not a registered
-     * {@code DocValuesFormat}, so codec-driven integrity checks (CheckIndex, merge-time verification)
-     * do not reach it.
+     * <p>This overlay is not a registered {@code DocValuesFormat}, so CheckIndex/merge verification
+     * never reach it.
      */
     @Override
     public void checkIntegrity() throws IOException {
@@ -193,23 +217,11 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
-    public void close() throws IOException {
-        if (closed) {
-            return;
-        }
+    public void close() {
+        // Segment-lifetime producer, closed once by the core's closed-listener. It holds no open file
+        // handle in this codec (each cursor opens its own), so close only marks the producer done;
+        // request cursors are closed by the request's CursorRegistry, not here.
         closed = true;
-        synchronized (dedicatedReaders) {
-            for (ParquetColumnReader reader : dedicatedReaders) {
-                try {
-                    // A teardown failure is logged by the reader itself; this only guards the loop
-                    // so one bad reader cannot leave the rest open.
-                    reader.close();
-                } catch (RuntimeException e) {
-                    logger.warn("Failed to close Parquet column reader for [{}]", parquetFile, e);
-                }
-            }
-            dedicatedReaders.clear();
-        }
     }
 
     /**
@@ -240,10 +252,6 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
             );
         }
     }
-
-    /** Scales of the long-encoded {@code major.minor.patch} version: {@code major*1_000_000 + minor*1_000 + patch}. */
-    private static final long MAJOR_SCALE = 1_000_000L;
-    private static final long MINOR_SCALE = 1_000L;
 
     /** Renders the inclusive supported version range for an error message. */
     private static String supportedRange() {
@@ -276,18 +284,13 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
         return mft.typeName();
     }
 
-    /** Opens a dedicated forward-only cursor for one iterator, registered for close with this producer. */
-    private ParquetColumnReader dedicatedReaderFor(FieldInfo field) throws IOException {
-        ParquetColumnReader reader = ParquetColumnReader.open(parquetFile, field.getName(), indexSettings, storePointer);
-        // Register under the same lock close() clears the list under: an open that races a
-        // concurrent close would otherwise add to an already-drained list and leak the cursor.
-        synchronized (dedicatedReaders) {
-            if (closed) {
-                reader.close();
-                throw new IllegalStateException("producer for " + parquetFile + " is closed");
-            }
-            dedicatedReaders.add(reader);
-        }
+    /**
+     * Opens a dedicated forward-only cursor for one iterator and records it on the request's
+     * {@code cursors}, which closes it at request end.
+     */
+    private ParquetColumnReader openCursor(String field, CursorRegistry cursors) throws IOException {
+        ParquetColumnReader reader = ParquetColumnReader.open(parquetFile, field, indexSettings, storePointer);
+        cursors.register(reader);
         return reader;
     }
 
@@ -295,7 +298,7 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
         return new UnsupportedOperationException(
             String.format(
                 Locale.ROOT,
-                "Parquet DocValues codec does not serve %s doc values (field '%s'); numeric only",
+                "Parquet DocValues codec does not serve %s doc values (field '%s'); sorted-numeric only",
                 kind,
                 field.getName()
             )
@@ -305,11 +308,5 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     /** Whether {@link #close()} has run. */
     boolean isClosed() {
         return closed;
-    }
-
-    private void ensureOpen() {
-        if (closed) {
-            throw new IllegalStateException("ParquetDocValuesProducer is closed");
-        }
     }
 }
