@@ -341,8 +341,12 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("FULL_TEXT_SEARCH"));
     }
 
-    /** Inside a nested scope, a secondary's declared support for the type name is ignored entirely. */
-    public void testInsideNestedScopeOnlySecondaryDeclaredCapabilityIsDropped() {
+    /**
+     * Inside a nested scope, a leaf resolving to a search-shaped capability (keyword's default
+     * [index: true]) throws — a secondary's declared support for the type name is ignored entirely,
+     * and the error directs the user to [index: false].
+     */
+    public void testInsideNestedScopeSearchableLeafThrows() {
         DataFormat parquet = CompositeTestHelper.stubFormat(
             "parquet",
             1,
@@ -364,6 +368,40 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
         );
 
         MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED)
+        );
+        assertTrue(ex.getMessage().contains("FULL_TEXT_SEARCH"));
+        assertTrue(ex.getMessage().contains("inside a nested object"));
+        assertTrue(ex.getMessage().contains("index: false"));
+    }
+
+    /** Inside a nested scope, a leaf with [index: false] requests only storage and succeeds. */
+    public void testInsideNestedScopeIndexFalseLeafSucceeds() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormat lucene = CompositeTestHelper.stubFormat(
+            "lucene",
+            2,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.FULL_TEXT_SEARCH, Capability.STORED_FIELDS)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet, lucene));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                .build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("comments.author", false, true, Map.of());
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED);
 

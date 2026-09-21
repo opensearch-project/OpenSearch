@@ -6,8 +6,8 @@
         "type": "nested",
         "dynamic": "false",
         "properties": {
-          "author": { "type": "keyword" },
-          "votes": { "type": "integer" }
+          "author": { "type": "keyword", "index": false },
+          "votes": { "type": "integer", "index": false }
         }
       }
     }

@@ -8,8 +8,6 @@
 
 package org.opensearch.composite;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -115,17 +113,6 @@ import java.util.stream.Collectors;
  */
 @ExperimentalApi
 public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ExtensiblePlugin, MapperPlugin, ActionPlugin {
-
-    private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
-
-    /**
-     * Capabilities whose loss means data loss rather than a missing query path. These survive the
-     * nested-scope request narrowing and always fail the mapping when left unclaimed.
-     */
-    private static final Set<FieldTypeCapabilities.Capability> STORAGE_SHAPED = Set.of(
-        FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
-        FieldTypeCapabilities.Capability.STORED_FIELDS
-    );
 
     /**
      * Populated during {@link #createComponents} so the {@link IndexSettingProvider} registered by
@@ -430,13 +417,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * {@code LIST<STRUCT>} column) — secondaries are excluded from the claiming loop entirely, even one
      * that declares support for the type name in general.
      * <p>
-     * Inside a nested scope the request is first narrowed to storage-shaped capabilities: nested
-     * leaves live only in the primary's {@code LIST<STRUCT>} column, so search-shaped capabilities
-     * are unsatisfiable there by design and are trimmed up front, with a debug log.
-     * <p>
-     * After that, one invariant holds for every scope: any requested capability left unclaimed once
-     * all formats have been consulted fails the mapping, so a field can never silently lose
-     * something its mapping asked for.
+     * One invariant holds for every scope: any requested capability left unclaimed once all formats
+     * have been consulted fails the mapping, so a field can never silently lose something its mapping
+     * asked for. Inside a nested scope this deliberately means a leaf whose mapping resolves to
+     * {@code index: true} (keyword's default, for example) is rejected — nested leaves are stored
+     * doc-values-only, and the mapping must say so explicitly with {@code index: false}.
      */
     @Override
     public void assignCapabilities(
@@ -446,9 +431,6 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         FieldScope fieldScope
     ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
-        if (fieldScope == FieldScope.NESTED) {
-            requested = satisfiableInNestedScope(fieldType, requested);
-        }
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
             return;
@@ -494,6 +476,19 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         }
 
         if (remaining.isEmpty() == false) {
+            if (fieldScope == FieldScope.NESTED) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldType.name()
+                        + "] of type ["
+                        + typeName
+                        + "] inside a nested object requires capabilities "
+                        + remaining
+                        + " that no data format serves there: fields within a nested object are stored "
+                        + "doc-values-only on composite (pluggable data format) indices. "
+                        + "Set [index: false] or remove the parameter requesting the unserved capability."
+                );
+            }
             throw new MapperParsingException(
                 "Field ["
                     + fieldType.name()
@@ -508,33 +503,6 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             );
         }
         fieldType.setCapabilityMap(Map.copyOf(assigned));
-    }
-
-    /**
-     * Narrows a nested-scope request to the capabilities a nested leaf can actually be granted.
-     * <p>
-     * Nested leaves are represented only by the primary format's {@code LIST<STRUCT>} column, which
-     * provides storage — a search-shaped capability can never be claimed there, so keeping it in the
-     * request would fail every searchable leaf inside a nested field. Storage-shaped capabilities are
-     * kept: losing one of those would be data loss, and the coverage check must still fail for it.
-     */
-    private static Set<FieldTypeCapabilities.Capability> satisfiableInNestedScope(
-        MappedFieldType fieldType,
-        Set<FieldTypeCapabilities.Capability> requested
-    ) {
-        Set<FieldTypeCapabilities.Capability> satisfiable = requested.stream()
-            .filter(STORAGE_SHAPED::contains)
-            .collect(Collectors.toUnmodifiableSet());
-        if (satisfiable.size() < requested.size()) {
-            logger.debug(
-                "Field [{}] of type [{}]: trimming unsatisfiable capabilities {} from the nested-scope request — "
-                    + "nested leaves are represented only by the primary format's LIST<STRUCT> column",
-                fieldType.name(),
-                fieldType.typeName(),
-                requested.stream().filter(cap -> STORAGE_SHAPED.contains(cap) == false).collect(Collectors.toList())
-            );
-        }
-        return satisfiable;
     }
 
     /**

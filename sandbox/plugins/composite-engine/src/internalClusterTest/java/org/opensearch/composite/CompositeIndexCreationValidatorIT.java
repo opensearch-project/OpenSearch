@@ -17,6 +17,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -31,6 +32,12 @@ import java.io.IOException;
  * <p>A dotted field name inside nested (e.g. {@code "meta.name"}) is rejected via the SAME message as
  * a plain {@code object} sub-field — both build the identical disallowed intermediate object mapper in
  * the resolved tree, which this validator walks instead of raw JSON.
+ *
+ * <p>Also covers the strict nested-scope capability rule enforced upstream of the validator in
+ * {@code CompositeDataFormatPlugin#assignCapabilities} (a {@link MapperParsingException}, thrown
+ * during mapping merge): any nested leaf resolving to {@code index: true} — explicitly or by the
+ * type's default — is rejected, so every mapping this suite wants past that gate declares
+ * {@code index: false} on its nested leaves.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT {
@@ -106,13 +113,31 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         ensureGreen(indexName);
     }
 
+    /**
+     * As {@link #assertRejected}, for shapes rejected during mapping merge by the strict nested-scope
+     * capability rule ({@code CompositeDataFormatPlugin#assignCapabilities}), which throws
+     * {@link MapperParsingException} rather than the validator's {@link IllegalArgumentException}.
+     */
+    private void assertRejectedAtMappingMerge(String mapping, String... expectedMessageFragments) {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> client().admin().indices().prepareCreate(nextIndexName()).setSettings(pluggableSettings()).setMapping(mapping).get()
+        );
+        for (String fragment : expectedMessageFragments) {
+            assertTrue(
+                "expected message to contain [" + fragment + "] but was [" + e.getMessage() + "]",
+                e.getMessage().contains(fragment)
+            );
+        }
+    }
+
     // ---- rejections -----------------------------------------------------------------------------
 
     public void testObjectInsideNestedRejected() throws IOException {
         startCluster();
         assertRejected(nestedMapping("false", b -> {
             b.startObject("obj").field("type", "object").startObject("properties");
-            b.startObject("x").field("type", "keyword").endObject();
+            b.startObject("x").field("type", "keyword").field("index", false).endObject();
             b.endObject().endObject();
         }), "Object field [obj] inside nested field [n]", "not supported on composite (pluggable data format)");
     }
@@ -122,7 +147,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         startCluster();
         assertRejected(nestedMapping("false", b -> {
             b.startObject("obj").startObject("properties");
-            b.startObject("x").field("type", "keyword").endObject();
+            b.startObject("x").field("type", "keyword").field("index", false).endObject();
             b.endObject().endObject();
         }), "Object field [obj] inside nested field [n]");
     }
@@ -134,7 +159,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
     public void testDottedFieldNameInsideNestedRejected() throws IOException {
         startCluster();
         assertRejected(
-            nestedMapping("false", b -> b.startObject("meta.name").field("type", "keyword").endObject()),
+            nestedMapping("false", b -> b.startObject("meta.name").field("type", "keyword").field("index", false).endObject()),
             "Object field [meta] inside nested field [n]"
         );
     }
@@ -143,7 +168,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
     public void testNestedWithoutDynamicFalseRejected() throws IOException {
         startCluster();
         assertRejected(
-            nestedMapping(b -> b.startObject("a").field("type", "keyword").endObject()),
+            nestedMapping(b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
             "Nested field [n]",
             "dynamic: false",
             "dynamic: strict"
@@ -152,14 +177,17 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
 
     public void testNestedDynamicTrueRejected() throws IOException {
         startCluster();
-        assertRejected(nestedMapping("true", b -> b.startObject("a").field("type", "keyword").endObject()), "Nested field [n]");
+        assertRejected(
+            nestedMapping("true", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
+            "Nested field [n]"
+        );
     }
 
     /** A matching dynamic template can still add a brand-new mapper under this mode, so it's just as unsafe as dynamic:true. */
     public void testNestedDynamicFalseAllowTemplatesRejected() throws IOException {
         startCluster();
         assertRejected(
-            nestedMapping("false_allow_templates", b -> b.startObject("a").field("type", "keyword").endObject()),
+            nestedMapping("false_allow_templates", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
             "Nested field [n]"
         );
     }
@@ -180,30 +208,50 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         assertAccepted(nestedMapping("false", b -> b.startObject("meta").field("type", "flat_object").endObject()));
     }
 
-    /** {@code index} is not validated inside nested (see class javadoc) — {@code index: false} must be accepted. */
+    /** {@code index: false} is the required declaration for a nested leaf — must be accepted. */
     public void testIndexFalseInsideNestedAllowed() throws IOException {
         startCluster();
         assertAccepted(nestedMapping("false", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()));
     }
 
-    /** Same as {@link #testIndexFalseInsideNestedAllowed}, for the other explicit value: {@code index: true}. */
-    public void testIndexTrueInsideNestedAllowed() throws IOException {
+    /** An explicit {@code index: true} on a nested leaf requests search no format serves there — rejected. */
+    public void testIndexTrueInsideNestedRejected() throws IOException {
         startCluster();
-        assertAccepted(nestedMapping("false", b -> b.startObject("a").field("type", "keyword").field("index", true).endObject()));
+        assertRejectedAtMappingMerge(
+            nestedMapping("false", b -> b.startObject("a").field("type", "keyword").field("index", true).endObject()),
+            "Field [n.a]",
+            "inside a nested object",
+            "index: false"
+        );
     }
 
-    /** A leaf with no explicit index parameter must still be accepted — this is the common, unremarkable case. */
-    public void testDefaultLeafInsideNestedAllowed() throws IOException {
+    /** A leaf with no explicit index parameter resolves to the type's default ({@code index: true}) — equally rejected. */
+    public void testDefaultLeafInsideNestedRejected() throws IOException {
         startCluster();
-        assertAccepted(nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()));
+        assertRejectedAtMappingMerge(
+            nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()),
+            "Field [n.a]",
+            "inside a nested object",
+            "index: false"
+        );
     }
 
-    /** A mix of explicit {@code index} values across a field and its multi-field must be accepted. */
-    public void testMultiFieldIndexTrueInsideNestedAllowed() throws IOException {
+    /** A multi-field inside nested is held to the same rule: {@code index: true} on the sub-field is rejected. */
+    public void testMultiFieldIndexTrueInsideNestedRejected() throws IOException {
+        startCluster();
+        assertRejectedAtMappingMerge(nestedMapping("false", b -> {
+            b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("index", true).endObject();
+            b.endObject().endObject();
+        }), "Field [n.author.raw]", "inside a nested object", "index: false");
+    }
+
+    /** A field and its multi-field, both declaring {@code index: false}, must be accepted. */
+    public void testMultiFieldIndexFalseInsideNestedAllowed() throws IOException {
         startCluster();
         assertAccepted(nestedMapping("false", b -> {
             b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
-            b.startObject("raw").field("type", "keyword").field("index", true).endObject();
+            b.startObject("raw").field("type", "keyword").field("index", false).endObject();
             b.endObject().endObject();
         }));
     }
@@ -224,7 +272,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
     /** strict is equally safe as false: an undeclared leaf is rejected outright rather than skipped. */
     public void testNestedDynamicStrictAllowed() throws IOException {
         startCluster();
-        assertAccepted(nestedMapping("strict", b -> b.startObject("a").field("type", "keyword").endObject()));
+        assertAccepted(nestedMapping("strict", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()));
     }
 
     // ---- vanilla (non-composite) indices are unaffected ---------------------------------------------
@@ -302,7 +350,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         String indexName = createValidIndex();
         assertMappingUpdateRejected(
             indexName,
-            nestedMapping(b -> b.startObject("a").field("type", "keyword").endObject()),
+            nestedMapping(b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
             "Nested field [n]",
             "dynamic: false"
         );
@@ -314,7 +362,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         String indexName = createValidIndex();
         assertMappingUpdateRejected(
             indexName,
-            nestedMapping("true", b -> b.startObject("a").field("type", "keyword").endObject()),
+            nestedMapping("true", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
             "Nested field [n]"
         );
     }
@@ -326,7 +374,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         assertMappingUpdateRejected(indexName, nestedMapping("false", b -> {
             b.startObject("meta");
             b.startObject("properties");
-            b.startObject("name").field("type", "keyword").endObject();
+            b.startObject("name").field("type", "keyword").field("index", false).endObject();
             b.endObject();
             b.endObject();
         }), "Object field [meta] inside nested field [n]");
@@ -339,7 +387,10 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         AcknowledgedResponse response = client().admin()
             .indices()
             .preparePutMapping(indexName)
-            .setSource(nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()), XContentType.JSON)
+            .setSource(
+                nestedMapping("false", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()),
+                XContentType.JSON
+            )
             .get();
         assertTrue(response.isAcknowledged());
     }
