@@ -971,6 +971,84 @@ public class VSRManagerTests extends ParquetBaseTests {
         }
     }
 
+    /**
+     * BUG REPRO (github-actions suggestion on refreshSchema(newSchema) in reconcileSchema's
+     * finally): buffer a row, trigger the partial reconcile (safe "tags" patch applied, unsafe
+     * "comments.aaa" throws rotation), then flush — the exact sequence a RETIRED_FLUSHABLE
+     * writer performs. Pins the current broken behavior: the cached schema declares the
+     * never-patched "aaa" child for the FAILED field while the live vector doesn't have it, so
+     * the buffered row can never flush. The pre-export validation in ManagedVSR#exportToArrow
+     * turns that flush failure into a fail-fast diagnosable error instead of Arrow's misaligned
+     * mid-export crash, which also leaked the partial export's buffers on every attempt. Once
+     * reconcile is fixed (e.g. validate-before-mutate), flip the declared-children assertion to
+     * match live and the flush expectation to success.
+     */
+    public void testFlushAfterPartialReconcileThrowProbe() throws Exception {
+        Field initialTags = nestedField("tags", utf8("name"));
+        Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
+        List<Field> initialFields = new ArrayList<>(metadataFields());
+        initialFields.add(initialTags);
+        initialFields.add(initialComments);
+        schema = new Schema(initialFields);
+
+        String filePath = createTempDir().resolve("partial-reconcile-flush.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        try {
+            // A buffered row: the writer that hits the rotation exception is RETIRED_FLUSHABLE,
+            // so its already-buffered rows MUST later flush through exportToArrow.
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+            manager.addDocument(doc);
+            assertEquals(1, manager.getActiveManagedVSR().getRowCount());
+
+            Field updatedTags = nestedField("tags", utf8("name"), utf8("zzz")); // safe: zzz sorts last
+            Field updatedComments = nestedField("comments", "aaa", "author", "text"); // unsafe
+            List<Field> updatedFields = new ArrayList<>(metadataFields());
+            updatedFields.add(updatedTags);
+            updatedFields.add(updatedComments);
+            expectThrows(SchemaChangeRequiresWriterRotationException.class, () -> manager.reconcileSchema(new Schema(updatedFields)));
+
+            // The failed field's DECLARED schema now contains the never-patched "aaa" child,
+            // while the live vector correctly does not — this divergence is the bug.
+            Field cachedComments = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("comments"))
+                .findFirst()
+                .orElseThrow();
+            List<String> declaredChildren = cachedComments.getChildren().get(0).getChildren().stream().map(Field::getName).toList();
+            List<String> liveChildren = childNames(commentsStruct(manager));
+            assertEquals(List.of("author", "text"), liveChildren); // live vector untouched — correct
+            assertEquals(List.of("aaa", "author", "text"), declaredChildren); // declared includes phantom "aaa" — the bug
+
+            // The safe patch's declaration must be accurate for both (the reason the finally exists).
+            Field cachedTags = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("tags"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals(List.of("name", "zzz"), cachedTags.getChildren().get(0).getChildren().stream().map(Field::getName).toList());
+
+            // Consequence: exporting the buffered row would pair the declared schema against the
+            // live vectors — the phantom "aaa" would consume "author"'s field node, "author"
+            // consumes "text"'s, and "text" has none left; in Arrow 18.1.0 the mid-load throw
+            // (StructVectorLoader.loadBuffers via Data.exportVectorSchemaRoot) also leaked the
+            // partially-loaded struct copy on the VSR's allocator on every attempt. The pre-export
+            // validation in ManagedVSR#exportToArrow now fails fast with a diagnosable error
+            // before any allocation, so nothing leaks. The RETIRED_FLUSHABLE writer's buffered
+            // rows still can never flush — that is the reconcile bug, unchanged.
+            IllegalStateException e = expectThrows(IllegalStateException.class, manager::flush);
+            assertTrue(e.getMessage(), e.getMessage().contains("declared schema for [comments"));
+            assertTrue(e.getMessage(), e.getMessage().contains("partially-applied reconcile"));
+        } finally {
+            manager.close();
+        }
+    }
+
     /** Returns the live struct vector backing the "comments" nested field's active VSR vector. */
     private StructVector commentsStruct(VSRManager manager) {
         ListVector list = (ListVector) manager.getActiveManagedVSR().getVector("comments");

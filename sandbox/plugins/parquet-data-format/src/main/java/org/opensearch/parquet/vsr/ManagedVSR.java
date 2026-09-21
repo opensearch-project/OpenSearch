@@ -14,6 +14,7 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -114,10 +115,81 @@ public class ManagedVSR implements AutoCloseable {
         if (state.get() != VSRState.FROZEN) {
             throw new IllegalStateException("Cannot export VSR in state: " + state.get() + ". Must be FROZEN.");
         }
+        validateDeclaredSchemaMatchesVectors();
         ArrowArray arrowArray = ArrowArray.allocateNew(allocator);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
         Data.exportVectorSchemaRoot(allocator, vsr, null, arrowArray, arrowSchema);
         return new ArrowExport(arrowArray, arrowSchema);
+    }
+
+    /**
+     * Verifies every declared field tree structurally matches its live vector tree before export.
+     * <p>
+     * {@code Data.exportVectorSchemaRoot} walks the DECLARED schema against field nodes unloaded
+     * from the LIVE vectors. If the trees diverge (e.g. a schema refresh cached a child that was
+     * never patched into the live struct), the walk misaligns: with differing child counts it
+     * throws mid-load, and in Arrow 18.1.0 the partially-loaded struct copy is never closed —
+     * only the record batch is (the try-with-resources covers {@code exportVector}, not
+     * {@code StructVectorLoader.load}) — leaking its buffers on this VSR's allocator on every
+     * attempt. Worse, with EQUAL child counts but different names the export would succeed and
+     * silently write each child's data under the wrong column name. Failing fast here turns both
+     * into a clear, allocation-free error.
+     * <p>
+     * Child names are only compared under a declared STRUCT parent: struct children are the trees
+     * reconcile patches by name and downstream matches by position. List/map element names are
+     * exempt — Arrow renames them internally ({@code $data$}/{@code entries}) without changing
+     * what is exported (see {@link #refreshSchema}).
+     */
+    private void validateDeclaredSchemaMatchesVectors() {
+        List<Field> declaredFields = vsr.getSchema().getFields();
+        List<FieldVector> vectors = vsr.getFieldVectors();
+        for (int i = 0; i < declaredFields.size(); i++) {
+            requireMatchingShape(declaredFields.get(i), vectors.get(i).getField(), declaredFields.get(i).getName());
+        }
+    }
+
+    private static void requireMatchingShape(Field declared, Field live, String path) {
+        List<Field> declaredChildren = declared.getChildren();
+        List<Field> liveChildren = live.getChildren();
+        if (declaredChildren.size() != liveChildren.size()) {
+            throw new IllegalStateException(
+                "Cannot export VSR: declared schema for ["
+                    + path
+                    + "] has "
+                    + declaredChildren.size()
+                    + " children "
+                    + fieldNames(declaredChildren)
+                    + " but the live vector has "
+                    + liveChildren.size()
+                    + " "
+                    + fieldNames(liveChildren)
+                    + " — exporting would misalign field nodes and leak the partial export. "
+                    + "The cached schema diverged from the live vectors (e.g. a partially-applied reconcile)."
+            );
+        }
+        boolean namesMustMatch = declared.getType() instanceof ArrowType.Struct;
+        for (int i = 0; i < declaredChildren.size(); i++) {
+            Field declaredChild = declaredChildren.get(i);
+            Field liveChild = liveChildren.get(i);
+            if (namesMustMatch && declaredChild.getName().equals(liveChild.getName()) == false) {
+                throw new IllegalStateException(
+                    "Cannot export VSR: declared struct child ["
+                        + path
+                        + "."
+                        + declaredChild.getName()
+                        + "] does not match live child ["
+                        + liveChild.getName()
+                        + "] at position "
+                        + i
+                        + " — exporting would silently write data under the wrong column."
+                );
+            }
+            requireMatchingShape(declaredChild, liveChild, path + "." + declaredChild.getName());
+        }
+    }
+
+    private static String fieldNames(List<Field> fields) {
+        return fields.stream().map(Field::getName).collect(java.util.stream.Collectors.toList()).toString();
     }
 
     /**
