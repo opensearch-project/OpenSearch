@@ -310,17 +310,13 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
     public void testPutMappingObjectInsideNestedRejected() throws IOException {
         startCluster();
         String indexName = createValidIndex();
-        assertMappingUpdateRejected(
-            indexName,
-            nestedMapping("false", b -> {
-                b.startObject("meta");
-                b.startObject("properties");
-                b.startObject("name").field("type", "keyword").endObject();
-                b.endObject();
-                b.endObject();
-            }),
-            "Object field [meta] inside nested field [n]"
-        );
+        assertMappingUpdateRejected(indexName, nestedMapping("false", b -> {
+            b.startObject("meta");
+            b.startObject("properties");
+            b.startObject("name").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }), "Object field [meta] inside nested field [n]");
     }
 
     /** A VALID nested field added via PUT _mapping must still be accepted — the guard must not over-reject. */
@@ -330,10 +326,7 @@ public class CompositeIndexCreationValidatorIT extends AbstractCompositeEngineIT
         AcknowledgedResponse response = client().admin()
             .indices()
             .preparePutMapping(indexName)
-            .setSource(
-                nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()),
-                XContentType.JSON
-            )
+            .setSource(nestedMapping("false", b -> b.startObject("a").field("type", "keyword").endObject()), XContentType.JSON)
             .get();
         assertTrue(response.isAcknowledged());
     }
