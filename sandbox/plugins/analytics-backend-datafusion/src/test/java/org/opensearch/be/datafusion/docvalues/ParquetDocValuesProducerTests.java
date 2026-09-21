@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.docvalues;
 
+import org.opensearch.be.datafusion.docvalues.bridge.ParquetCodecBridge;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.test.OpenSearchTestCase;
@@ -65,6 +66,43 @@ public class ParquetDocValuesProducerTests extends OpenSearchTestCase {
             "the range's top must equal the writer's current version",
             ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION,
             ParquetDocValuesProducer.MAX_SUPPORTED_FORMAT_VERSION
+        );
+    }
+
+    /**
+     * The producer cross-checks the footer's writer generation against the segment's
+     * {@code writer_generation} attribute, failing closed: equal passes, and a mismatch, a missing
+     * segment attribute, and an unstamped footer are each rejected.
+     */
+    public void testWriterGenerationGateMatchesSegmentAndFailsClosed() throws Exception {
+        Path file = createTempDir().resolve("gate.parquet");
+        String segment = "_0";
+
+        // Equal generations identify the file written alongside this segment: no throw.
+        ParquetDocValuesProducer.checkWriterGeneration("7", 7L, file, segment);
+
+        // Mismatch: the message must carry both generations so the discrepancy is diagnosable.
+        IOException mismatch = expectThrows(
+            IOException.class,
+            () -> ParquetDocValuesProducer.checkWriterGeneration("7", 8L, file, segment)
+        );
+        assertTrue("mismatch message must name the footer generation", mismatch.getMessage().contains("8"));
+        assertTrue("mismatch message must name the segment generation", mismatch.getMessage().contains("7"));
+
+        // A segment with no stamped generation cannot be cross-checked, so it is rejected.
+        IOException noAttr = expectThrows(
+            IOException.class,
+            () -> ParquetDocValuesProducer.checkWriterGeneration(null, 7L, file, segment)
+        );
+        assertTrue(
+            "missing-attribute message must name the writer_generation attribute",
+            noAttr.getMessage().contains(ParquetSegmentLayout.WRITER_GENERATION_ATTRIBUTE)
+        );
+
+        // An unstamped footer carries the unknown sentinel, which cannot match any segment generation.
+        expectThrows(
+            IOException.class,
+            () -> ParquetDocValuesProducer.checkWriterGeneration("7", ParquetCodecBridge.WRITER_GENERATION_UNKNOWN, file, segment)
         );
     }
 }

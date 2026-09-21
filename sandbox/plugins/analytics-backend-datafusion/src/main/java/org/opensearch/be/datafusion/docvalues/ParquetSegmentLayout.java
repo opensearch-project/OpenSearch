@@ -39,6 +39,14 @@ public final class ParquetSegmentLayout {
      */
     public static final String PARQUET_STORE_ATTRIBUTE = "parquet.docvalues.store_ptr";
 
+    /**
+     * {@code SegmentInfo} attribute key holding the writer generation stamped onto the segment, as a
+     * decimal string. The literal matches {@code LuceneWriter.WRITER_GENERATION_ATTRIBUTE} in the
+     * analytics-backend-lucene plugin, which is plugin-private; the writer stamps the same generation
+     * into the Parquet footer, so the two agree for the file written alongside a segment.
+     */
+    public static final String WRITER_GENERATION_ATTRIBUTE = "writer_generation";
+
     private ParquetSegmentLayout() {}
 
     /**

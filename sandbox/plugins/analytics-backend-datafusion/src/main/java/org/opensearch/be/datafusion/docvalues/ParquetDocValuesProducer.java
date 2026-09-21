@@ -34,11 +34,11 @@ import java.util.Locale;
  * Read-only {@link DocValuesProducer} that serves single-valued numeric doc values from a Parquet
  * file through Lucene's DocValues iterator API.
  *
- * <p>The constructor resolves the backing file and sanity-checks its row count against the segment's
- * {@code maxDoc}, gates once on the stamped format version, but opens no cursor. It also captures the
- * store those bytes come from: a hot shard's Parquet files are on local disk, while a shard tiered to
- * warm keeps them only in the remote object store, reachable through the native store the engine
- * stamped on the segment.
+ * <p>The constructor resolves the backing file, gates once on the stamped format version, and verifies
+ * the footer's writer generation equals the segment's {@code writer_generation} attribute, but opens no
+ * cursor. It also captures the store those bytes come from: a hot shard's Parquet files are on local
+ * disk, while a shard tiered to warm keeps them only in the remote object store, reachable through the
+ * native store the engine stamped on the segment.
  *
  * <p>One producer is cached per segment core by {@link ParquetSegmentResourceCache} and shared
  * across requests; it is closed by the core's closed-listener, not per request. Each
@@ -88,8 +88,9 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     /**
      * @param mapperService resolves OpenSearch mapping types for DV-type validation (may be
      *                      {@code null} only in low-level tests that bypass type validation)
-     * @throws IOException if the backing Parquet file for the segment cannot be resolved
-     * @throws IllegalStateException if the Parquet row count does not match the segment's {@code maxDoc}
+     * @throws IOException if the backing Parquet file for the segment cannot be resolved, its stamped
+     *                     format version is unsupported, or its footer writer generation does not equal
+     *                     the segment's {@code writer_generation} attribute
      */
     public ParquetDocValuesProducer(SegmentReadState state, MapperService mapperService) throws IOException {
         this.mapperService = mapperService;
@@ -112,25 +113,19 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
 
         ParquetCodecBridge.FileMetadata metadata = ParquetCodecBridge.fileMetadata(parquetFile.toString(), storePointer);
         checkFormatVersion(metadata.opensearchFormatVersion(), parquetFile);
+        checkWriterGeneration(
+            state.segmentInfo.getAttribute(ParquetSegmentLayout.WRITER_GENERATION_ATTRIBUTE),
+            metadata.writerGeneration(),
+            parquetFile,
+            state.segmentInfo.name
+        );
         this.parquetRowCount = metadata.numRows();
-        if (parquetRowCount != maxDoc) {
-            throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "Parquet/Lucene row-count mismatch for segment '%s': Lucene maxDoc=%d but Parquet numRows=%d (file=%s)",
-                    state.segmentInfo.name,
-                    maxDoc,
-                    parquetRowCount,
-                    parquetFile
-                )
-            );
-        }
     }
 
     /**
-     * Test seam: builds over an already-resolved file, skipping segment resolution, the row-count
-     * check, and the format-version gate. Never reached in production, where the per-index resource
-     * cache constructs the producer from a {@link SegmentReadState}.
+     * Test seam: builds over an already-resolved file, skipping segment resolution, the format-version
+     * gate, and the writer-generation cross-check. Never reached in production, where the per-index
+     * resource cache constructs the producer from a {@link SegmentReadState}.
      */
     ParquetDocValuesProducer(Path parquetFile, long storePointer, Settings indexSettings, int maxDoc, MapperService mapperService) {
         this.parquetFile = parquetFile;
@@ -248,6 +243,64 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
                     file,
                     describeFormatVersion(formatVersion),
                     supportedRange()
+                )
+            );
+        }
+    }
+
+    /**
+     * Rejects a file whose stamped writer generation does not identify it as the one written alongside
+     * this segment. The footer generation must equal the segment's {@code writer_generation} attribute;
+     * both are stamped by the writer for the same batch, so equality identifies the file written
+     * alongside this segment. Fails closed: a missing segment attribute, an unstamped or unparseable
+     * footer, and a mismatch are all rejected.
+     */
+    static void checkWriterGeneration(String segmentAttr, long footerGeneration, Path file, String segmentName) throws IOException {
+        if (segmentAttr == null) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "segment %s carries no %s attribute; cannot verify Parquet file %s",
+                    segmentName,
+                    ParquetSegmentLayout.WRITER_GENERATION_ATTRIBUTE,
+                    file
+                )
+            );
+        }
+        if (footerGeneration == ParquetCodecBridge.WRITER_GENERATION_UNKNOWN) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Parquet file %s carries no parseable opensearch.writer_generation; cannot verify it was written for segment %s",
+                    file,
+                    segmentName
+                )
+            );
+        }
+        final long segmentGeneration;
+        try {
+            segmentGeneration = Long.parseLong(segmentAttr);
+        } catch (NumberFormatException e) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "segment %s has unparseable %s attribute '%s'; cannot verify Parquet file %s",
+                    segmentName,
+                    ParquetSegmentLayout.WRITER_GENERATION_ATTRIBUTE,
+                    segmentAttr,
+                    file
+                )
+            );
+        }
+        if (segmentGeneration != footerGeneration) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Parquet file %s was written by generation %d but segment %s is generation %d",
+                    file,
+                    footerGeneration,
+                    segmentName,
+                    segmentGeneration
                 )
             );
         }

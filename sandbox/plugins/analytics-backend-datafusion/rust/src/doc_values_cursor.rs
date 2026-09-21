@@ -37,7 +37,9 @@ use datafusion::execution::memory_pool::{MemoryConsumer, MemoryReservation};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion_datasource::PartitionedFile;
 use native_bridge_common::ffm_safe;
-use native_bridge_common::format_version::{encode_format_version, FORMAT_VERSION_KEY};
+use native_bridge_common::format_version::{
+    encode_format_version, FORMAT_VERSION_KEY, WRITER_GENERATION_KEY,
+};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
@@ -569,14 +571,15 @@ pub unsafe extern "C" fn parquet_df_open_iter(
     .map_err(|e| e.to_string())
 }
 
-/// Reads a Parquet file's row count and stamped OpenSearch format version through the same store and
-/// footer cache a cursor over that file would use.
+/// Reads a Parquet file's row count, stamped OpenSearch format version, and stamped writer
+/// generation through the same store and footer cache a cursor over that file would use.
 ///
 /// Reads through `store_ptr`, and on the local path costs no extra IO once a cursor has been opened,
 /// because both share the global footer cache.
 ///
-/// Writes `out_num_rows` and `out_format_version` only on success; a caller that gets a negative
-/// return must not read them.
+/// Writes `out_num_rows`, `out_format_version`, and `out_writer_generation` only on success; a caller
+/// that gets a negative return must not read them. `out_writer_generation` is set to `-1` when the
+/// footer carries no parseable `opensearch.writer_generation` stamp (i.e. unstamped).
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_df_file_metadata(
@@ -586,10 +589,11 @@ pub unsafe extern "C" fn parquet_df_file_metadata(
     store_ptr: i64,
     out_num_rows: *mut i64,
     out_format_version: *mut i64,
+    out_writer_generation: *mut i64,
 ) -> i64 {
     static FN: &str = "parquet_df_file_metadata";
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("{FN} file: {e}"))?;
-    if out_num_rows.is_null() || out_format_version.is_null() {
+    if out_num_rows.is_null() || out_format_version.is_null() || out_writer_generation.is_null() {
         return Err(format!("{FN}: null out-parameter"));
     }
     let runtime = io_runtime().map_err(|e| format!("{FN}: {e}"))?;
@@ -627,8 +631,20 @@ pub unsafe extern "C" fn parquet_df_file_metadata(
             })
             .unwrap_or_default(),
     );
+    // Writer generation shares its key with the writer crate. -1 means unstamped: absent, or present
+    // but not a parseable i64. The Java codec owns the accept/reject decision on the value.
+    let writer_generation = file_metadata
+        .key_value_metadata()
+        .and_then(|kvs| {
+            kvs.iter()
+                .find(|kv| kv.key == WRITER_GENERATION_KEY)
+                .and_then(|kv| kv.value.as_deref())
+                .and_then(|v| v.parse::<i64>().ok())
+        })
+        .unwrap_or(-1);
     *out_num_rows = file_metadata.num_rows();
     *out_format_version = format_version;
+    *out_writer_generation = writer_generation;
     Ok(RC_OK)
 }
 
@@ -2024,15 +2040,19 @@ mod ffm_tests {
         let metadata = unsafe {
             let mut num_rows = -1i64;
             let mut format_version = -1i64;
+            // Seed with a non-sentinel so the assertion below proves the call wrote -1, rather than
+            // merely leaving the seed untouched.
+            let mut writer_generation = i64::MIN;
             let rc = parquet_df_file_metadata(
                 path.as_ptr(),
                 path.len() as i64,
                 store_ptr,
                 &mut num_rows,
                 &mut format_version,
+                &mut writer_generation,
             );
             assert_eq!(rc, RC_OK, "{}", error_message(rc));
-            (num_rows, format_version)
+            (num_rows, format_version, writer_generation)
         };
         assert_eq!(
             metadata.0,
@@ -2041,6 +2061,11 @@ mod ffm_tests {
         );
         // The Arrow writer these fixtures use stamps no opensearch.format_version.
         assert_eq!(metadata.1, 0, "an unstamped fixture reads as unknown");
+        // Nor does it stamp opensearch.writer_generation, so the generation reads back as unstamped.
+        assert_eq!(
+            metadata.2, -1,
+            "an unstamped fixture reads generation as -1"
+        );
 
         let handle = unsafe {
             parquet_df_open_iter(
