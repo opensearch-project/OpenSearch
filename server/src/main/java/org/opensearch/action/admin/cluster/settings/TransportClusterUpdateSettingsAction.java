@@ -340,14 +340,16 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                 return;
             }
 
-            // Check current state
-            boolean allNodesRemoteStoreEnabled = currentState.nodes()
+            // Check current state. Balancing primaries is a placement concern, so it only requires the segments to be
+            // remote backed. Keying off isRemoteStoreNode() would additionally demand a cluster state repository, which
+            // segments_only nodes never configure.
+            boolean allNodesRemoteSegmentStoreEnabled = currentState.nodes()
                 .getNodes()
                 .values()
                 .stream()
-                .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+                .allMatch(discoveryNode -> discoveryNode.isRemoteSegmentStoreNode());
 
-            if (!allNodesRemoteStoreEnabled) {
+            if (!allNodesRemoteSegmentStoreEnabled) {
                 throw new IllegalArgumentException(
                     "Setting ["
                         + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()

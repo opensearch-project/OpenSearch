@@ -169,7 +169,7 @@ public class RemoteStoreNodeService {
      * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
     public RepositoriesMetadata updateRepositoriesMetadata(DiscoveryNode joiningNode, RepositoriesMetadata existingRepositories) {
-        if (joiningNode.isRemoteStoreNode() || joiningNode.isRemoteStatePublicationEnabled()) {
+        if (joiningNode.isRemoteSegmentStoreNode() || joiningNode.isRemoteStatePublicationEnabled()) {
             List<RepositoryMetadata> updatedRepositoryMetadataList = new ArrayList<>();
             List<RepositoryMetadata> newRepositoryMetadataList = new RemoteStoreNodeAttribute(joiningNode).getRepositoriesMetadata()
                 .repositories();
