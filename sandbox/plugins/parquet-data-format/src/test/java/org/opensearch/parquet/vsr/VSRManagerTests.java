@@ -20,7 +20,12 @@ import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -40,9 +45,11 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
@@ -924,7 +931,14 @@ public class VSRManagerTests extends ParquetBaseTests {
     }
 
     /** A safe patch to an earlier field is refreshed into the VSR's schema even when a later field throws. */
-    public void testReconcileSchemaRefreshesEarlierSafePatchEvenWhenLaterFieldThrows() throws Exception {
+    /**
+     * Reconcile is all-or-nothing across top-level fields: when a later field's patch would require
+     * rotation, an earlier field's safe patch must NOT be applied either — the caller retires this
+     * writer generation anyway, so a partially-patched field would never receive data, while a
+     * partial application would leave the cached schema and live vectors diverged (the flush-crash
+     * repro below). The dry-run validation pass rejects the whole reconcile before any mutation.
+     */
+    public void testReconcileSchemaAllOrNothingAcrossFieldsWhenLaterFieldThrows() throws Exception {
         Field initialTags = nestedField("tags", utf8("name"));
         Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
         List<Field> initialFields = new ArrayList<>(metadataFields());
@@ -939,19 +953,17 @@ public class VSRManagerTests extends ParquetBaseTests {
             Field updatedComments = nestedField("comments", "aaa", "author", "text"); // unsafe
 
             List<Field> updatedFields = new ArrayList<>(metadataFields());
-            updatedFields.add(updatedTags); // processed first — patched in place successfully
-            updatedFields.add(updatedComments); // processed second — throws
-
+            updatedFields.add(updatedTags); // earlier in schema order — must still not be applied
+            updatedFields.add(updatedComments); // rejected by the dry-run validation
             expectThrows(SchemaChangeRequiresWriterRotationException.class, () -> manager.reconcileSchema(new Schema(updatedFields)));
 
-            // The earlier, safe patch to "tags" must have gone through...
+            // Neither field was touched: live vectors...
             ListVector tagsList = (ListVector) manager.getActiveManagedVSR().getVector("tags");
             StructVector tagsStruct = (StructVector) tagsList.getDataVector();
-            assertEquals(List.of("name", "zzz"), childNames(tagsStruct));
+            assertEquals(List.of("name"), childNames(tagsStruct));
+            assertEquals(List.of("author", "text"), childNames(commentsStruct(manager)));
 
-            // ...and the VSR's cached top-level schema (Schema#getFields(), NOT the live vector
-            // inspected above) must already reflect it, despite the later field's exception —
-            // proving the refresh in reconcileSchema's finally block ran.
+            // ...and the cached top-level schema both remain exactly as before the attempt.
             Field cachedTagsField = manager.getActiveManagedVSR()
                 .getSchema()
                 .getFields()
@@ -960,30 +972,23 @@ public class VSRManagerTests extends ParquetBaseTests {
                 .findFirst()
                 .orElseThrow();
             List<String> cachedChildNames = cachedTagsField.getChildren().get(0).getChildren().stream().map(Field::getName).toList();
-            assertEquals(List.of("name", "zzz"), cachedChildNames);
-
-            // "comments" must remain untouched — "aaa" was never patched in.
-            ListVector commentsList = (ListVector) manager.getActiveManagedVSR().getVector("comments");
-            StructVector commentsStruct = (StructVector) commentsList.getDataVector();
-            assertEquals(List.of("author", "text"), childNames(commentsStruct));
+            assertEquals(List.of("name"), cachedChildNames);
         } finally {
             manager.close();
         }
     }
 
     /**
-     * BUG REPRO (github-actions suggestion on refreshSchema(newSchema) in reconcileSchema's
-     * finally): buffer a row, trigger the partial reconcile (safe "tags" patch applied, unsafe
-     * "comments.aaa" throws rotation), then flush — the exact sequence a RETIRED_FLUSHABLE
-     * writer performs. Pins the current broken behavior: the cached schema declares the
-     * never-patched "aaa" child for the FAILED field while the live vector doesn't have it, so
-     * the buffered row can never flush. The pre-export validation in ManagedVSR#exportToArrow
-     * turns that flush failure into a fail-fast diagnosable error instead of Arrow's misaligned
-     * mid-export crash, which also leaked the partial export's buffers on every attempt. Once
-     * reconcile is fixed (e.g. validate-before-mutate), flip the declared-children assertion to
-     * match live and the flush expectation to success.
+     * REGRESSION (github-actions suggestion on refreshSchema(newSchema) in reconcileSchema's
+     * finally): buffer a row, attempt a reconcile whose "comments.aaa" child requires rotation,
+     * then flush — the exact sequence a RETIRED_FLUSHABLE writer performs. Before the two-phase
+     * (validate-before-mutate) reconcile, the safe "tags" patch was applied and the finally cached
+     * newSchema, leaving the cached schema declaring the never-patched "aaa" child; the flush then
+     * crashed inside Arrow's export (StructVectorLoader: "no more field nodes") and leaked the
+     * partial export's buffers on every attempt. Now the rejected reconcile mutates nothing —
+     * declared and live schemas stay identical — and the buffered row flushes cleanly.
      */
-    public void testFlushAfterPartialReconcileThrowProbe() throws Exception {
+    public void testFlushSucceedsAfterRejectedReconcile() throws Exception {
         Field initialTags = nestedField("tags", utf8("name"));
         Field initialComments = nestedField("comments", utf8("author"), utf8("text"));
         List<Field> initialFields = new ArrayList<>(metadataFields());
@@ -1009,8 +1014,8 @@ public class VSRManagerTests extends ParquetBaseTests {
             updatedFields.add(updatedComments);
             expectThrows(SchemaChangeRequiresWriterRotationException.class, () -> manager.reconcileSchema(new Schema(updatedFields)));
 
-            // The failed field's DECLARED schema now contains the never-patched "aaa" child,
-            // while the live vector correctly does not — this divergence is the bug.
+            // The failed field's DECLARED schema must exactly match the live vector — no phantom
+            // "aaa" child from the unapplied newSchema.
             Field cachedComments = manager.getActiveManagedVSR()
                 .getSchema()
                 .getFields()
@@ -1020,32 +1025,47 @@ public class VSRManagerTests extends ParquetBaseTests {
                 .orElseThrow();
             List<String> declaredChildren = cachedComments.getChildren().get(0).getChildren().stream().map(Field::getName).toList();
             List<String> liveChildren = childNames(commentsStruct(manager));
-            assertEquals(List.of("author", "text"), liveChildren); // live vector untouched — correct
-            assertEquals(List.of("aaa", "author", "text"), declaredChildren); // declared includes phantom "aaa" — the bug
+            assertEquals(List.of("author", "text"), liveChildren);
+            assertEquals(liveChildren, declaredChildren);
 
-            // The safe patch's declaration must be accurate for both (the reason the finally exists).
-            Field cachedTags = manager.getActiveManagedVSR()
-                .getSchema()
-                .getFields()
-                .stream()
-                .filter(f -> f.getName().equals("tags"))
-                .findFirst()
-                .orElseThrow();
-            assertEquals(List.of("name", "zzz"), cachedTags.getChildren().get(0).getChildren().stream().map(Field::getName).toList());
+            // The buffered row flushes cleanly — this crashed with "no more field nodes" (plus an
+            // off-heap leak per attempt) before the two-phase reconcile.
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(1, metadata.numRows());
 
-            // Consequence: exporting the buffered row would pair the declared schema against the
-            // live vectors — the phantom "aaa" would consume "author"'s field node, "author"
-            // consumes "text"'s, and "text" has none left; in Arrow 18.1.0 the mid-load throw
-            // (StructVectorLoader.loadBuffers via Data.exportVectorSchemaRoot) also leaked the
-            // partially-loaded struct copy on the VSR's allocator on every attempt. The pre-export
-            // validation in ManagedVSR#exportToArrow now fails fast with a diagnosable error
-            // before any allocation, so nothing leaks. The RETIRED_FLUSHABLE writer's buffered
-            // rows still can never flush — that is the reconcile bug, unchanged.
-            IllegalStateException e = expectThrows(IllegalStateException.class, manager::flush);
-            assertTrue(e.getMessage(), e.getMessage().contains("declared schema for [comments"));
-            assertTrue(e.getMessage(), e.getMessage().contains("partially-applied reconcile"));
+            // Verify the row's actual content survived, not just the count: read the file back.
+            List<Map<String, Object>> rows = parseJsonRows(RustBridge.readAsJson(filePath));
+            assertEquals(1, rows.size());
+            Map<String, Object> row = rows.get(0);
+            assertEquals(1L, ((Number) row.get("_version")).longValue());
+            assertEquals(100L, ((Number) row.get("_seq_no")).longValue());
+            assertEquals(1L, ((Number) row.get("_primary_term")).longValue());
+            assertNotNull("_id column must be present", row.get("_id"));
+            // The nested columns exist in the file but the doc carried no nested values, so both
+            // cells must read back null — in particular no phantom data materialized from the
+            // rejected reconcile's unapplied "comments.aaa" / "tags.zzz" patches.
+            assertTrue("row must carry the comments column", row.containsKey("comments"));
+            assertNull("comments cell must be null — the doc had no nested values", row.get("comments"));
+            assertTrue("row must carry the tags column", row.containsKey("tags"));
+            assertNull("tags cell must be null — the doc had no nested values", row.get("tags"));
         } finally {
             manager.close();
+        }
+    }
+
+    /** Parses {@link RustBridge#readAsJson}'s output (a JSON array of row objects) into row maps. */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "JSON parsing for test verification of parquet output")
+    private static List<Map<String, Object>> parseJsonRows(String json) throws IOException {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                json
+            )
+        ) {
+            return parser.list().stream().map(o -> (Map<String, Object>) o).collect(Collectors.toList());
         }
     }
 
