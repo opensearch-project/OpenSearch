@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 3.8.99"
-      reason: random_sampler aggregation was added in 3.9.0, so a mixed cluster with older nodes rejects it
+      version: " - 3.9.99"
+      reason: random_sampler aggregation was added in 3.10.0, so a mixed cluster with older nodes rejects it
 
   - do:
       indices.create:
