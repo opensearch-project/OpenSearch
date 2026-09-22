@@ -94,7 +94,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         this(
             logger,
@@ -114,7 +115,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             phaseFactory,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            forceExecutionQueueThreshold
         );
     }
 
@@ -136,7 +138,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         // Use the active shard count so can_match is effectively unthrottled without over-sizing the concurrency budget.
         super(
@@ -158,7 +161,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             activeShardIndexLookup.length,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            forceExecutionQueueThreshold
         );
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
