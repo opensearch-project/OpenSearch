@@ -74,7 +74,7 @@ dependencies {
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api 'org.apache.avro:avro:1.12.1'
+  api 'org.apache.avro:avro:1.12.2'
   api "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -82,7 +82,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
-  api 'org.apache.commons:commons-configuration2:2.15.0'
+  api 'org.apache.commons:commons-configuration2:2.15.1'
   api "commons-io:commons-io:${versions.commonsio}"
   api "org.apache.commons:commons-lang3:${versions.commonslang}"
   implementation 'com.google.re2j:re2j:1.8'
