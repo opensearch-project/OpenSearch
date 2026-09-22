@@ -345,7 +345,9 @@ public class JavaDateMathParserTests extends OpenSearchTestCase {
         // a timestamp before 100000 is a year
         assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
         assertDateMathEquals("10000", "10000-01-01T00:00:00.000");
-        assertDateMathEquals("100000", "1970-01-01T00:01:40.000");
+        assertDateMathEquals("100000", "100000-01-01T00:00:00.000");
+        // a timestamp with more than 9digits is epoch, for date_optional_time
+        assertDateMathEquals("1000000000", "1970-01-12T13:46:40.000Z");
 
         // but 10000 with T is still a date format
         assertDateMathEquals("10000-01-01T", "10000-01-01T00:00:00.000");
