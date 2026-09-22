@@ -28,7 +28,13 @@ public final class ApproximateScoreQuery extends Query {
     private final Query originalQuery;
     private final ApproximateQuery approximationQuery;
 
-    Query resolvedQuery;
+    /**
+     * The query resolved for the search context by {@link #setContext}, refreshed by {@link #rewrite}. The
+     * resolution is published by {@link org.opensearch.search.internal.ContextIndexSearcher#rewrite} and read by
+     * {@link #createWeight}, which under concurrent segment search can run on different threads for the same
+     * query instance because all the slices of a shard request share it, hence the volatile.
+     */
+    volatile Query resolvedQuery;
 
     public ApproximateScoreQuery(Query originalQuery, ApproximateQuery approximationQuery) {
         this.originalQuery = originalQuery;
