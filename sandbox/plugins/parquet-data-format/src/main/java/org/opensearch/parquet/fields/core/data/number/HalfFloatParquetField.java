@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -25,10 +26,12 @@ public class HalfFloatParquetField extends NumericParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafeWithPossibleTruncate(
-            managedVSR.getRowCount(),
-            ((Number) parseValue).floatValue()
-        );
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((Float2Vector) vector).setSafeWithPossibleTruncate(index, ((Number) parseValue).floatValue());
     }
 
     @Override

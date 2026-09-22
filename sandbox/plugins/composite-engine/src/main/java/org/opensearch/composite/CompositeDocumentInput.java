@@ -19,11 +19,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A composite {@link DocumentInput} that wraps one {@link DocumentInput} per registered
- * data format and broadcasts all field additions to every per-format input.
+ * A composite {@link DocumentInput} that wraps one {@link DocumentInput} per registered data format
+ * and broadcasts every operation — metadata and {@link #addField} alike — to all of them unconditionally.
  * <p>
- * Metadata operations ({@code setRowId}, {@code setVersion}, {@code setSeqNo},
- * {@code setPrimaryTerm}) and field additions are broadcast to all per-format inputs.
+ * There is no nested-scope bookkeeping here: {@code nested} and {@code flat_object} data flow through
+ * the same {@link #addField} as everything else. Each per-format {@link DocumentInput} decides for
+ * itself whether and how to represent what it's given (see {@code ParquetDocumentInput}), and its own
+ * capability self-filter drops anything outside what it was assigned for the field's mapping scope.
  *
  * @opensearch.experimental
  */
@@ -56,23 +58,17 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        try {
-            primaryDocumentInput.addField(fieldType, value);
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                "Failed to add field [" + fieldType.name() + "] in primary format [" + primaryFormat.name() + "]",
-                e
-            );
-        }
+        addFieldTo(primaryDocumentInput, primaryFormat.name(), fieldType, value);
         for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
-            try {
-                entry.getValue().addField(fieldType, value);
-            } catch (Exception e) {
-                throw new IllegalStateException(
-                    "Failed to add field [" + fieldType.name() + "] in secondary format [" + entry.getKey().name() + "]",
-                    e
-                );
-            }
+            addFieldTo(entry.getValue(), entry.getKey().name(), fieldType, value);
+        }
+    }
+
+    private static void addFieldTo(DocumentInput<?> input, String formatName, MappedFieldType fieldType, Object value) {
+        try {
+            input.addField(fieldType, value);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to add field [" + fieldType.name() + "] in format [" + formatName + "]", e);
         }
     }
 

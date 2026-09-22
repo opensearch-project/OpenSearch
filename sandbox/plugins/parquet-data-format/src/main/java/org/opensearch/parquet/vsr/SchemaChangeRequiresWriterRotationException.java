@@ -17,4 +17,8 @@ public class SchemaChangeRequiresWriterRotationException extends RuntimeExceptio
     public SchemaChangeRequiresWriterRotationException(String fieldName, Object previousType, Object nextType) {
         super("Field [" + fieldName + "] changed Parquet type from [" + previousType + "] to [" + nextType + "]");
     }
+
+    public SchemaChangeRequiresWriterRotationException(String message) {
+        super(message);
+    }
 }

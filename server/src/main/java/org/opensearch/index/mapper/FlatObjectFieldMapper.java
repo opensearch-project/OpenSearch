@@ -33,6 +33,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -44,6 +45,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,6 +54,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -211,6 +214,24 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        /**
+         * Requests only storage-shaped capabilities from pluggable data formats: no configured
+         * format represents flat_object's inverted-index search, so requesting a search capability
+         * would fail the mapping. Only the pluggable path consults this method, so classic
+         * (non-composite) flat_object search is unaffected.
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
+            if (hasDocValues()) {
+                caps.add(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+            }
+            if (isStored()) {
+                caps.add(FieldTypeCapabilities.Capability.STORED_FIELDS);
+            }
+            return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
         }
 
         NamedAnalyzer normalizer() {
@@ -556,6 +577,26 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     }
 
+    // Pluggable-dataformat indices force derived source on (IndexSettings: derivedSourceEnabled ||
+    // pluggableDataFormatEnabled), so every field must satisfy the derive-source create-time contract or
+    // the index cannot be created. flat_object is keyword-like (UTF-8 term storage), so it derives like
+    // keyword. NOTE: correct reconstruction of the object from the parquet MAP<Utf8,Utf8> column is a
+    // read-path concern; this satisfies the create-time contract. The translog derived-source setting
+    // defaults off, so this generator does not run during ingest.
+    @Override
+    protected void canDeriveSourceInternal() {
+        // flat_object has no ignore_above/normalizer restrictions that would block derivation.
+    }
+
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     @Override
     public FlatObjectFieldType fieldType() {
         return (FlatObjectFieldType) super.fieldType();
@@ -566,6 +607,82 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         HashSet<String> pathParts = parseObjectPathParts(context);
         if (pathParts != null) {
             createPathFields(context, pathParts);
+        }
+    }
+
+    /**
+     * Pluggable-data-format path (e.g. parquet composite): instead of exploding the object into
+     * per-key leaf columns, emit each leaf as one {@code (key, value)} map entry via
+     * {@link ParseContext#documentInput()}. Downstream this becomes a single {@code MAP<Utf8,Utf8>}
+     * column, so the open attribute key space is stored losslessly against a static schema.
+     * <p>
+     * The key is the flattened dotted path relative to this field ({@code http.method}, not
+     * {@code LogAttributes.http.method}) — the column name already carries the field prefix that
+     * Lucene's {@code _valueAndPath} sub-field has to spell out. Values are stringified. Duplicate keys
+     * are preserved, since a parquet MAP is physically a repeated key/value group.
+     * <p>
+     * Emitting per-leaf (rather than handing over one collection) is what lets the same signal serve a
+     * flat_object at the document root and one inside a nested element: the {@code DocumentInput}
+     * routes each entry to whichever scope is currently open.
+     */
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        XContentParser ctxParser = context.parser();
+        if (fieldType().isSearchable() == false && fieldType().isStored() == false && fieldType().hasDocValues() == false) {
+            ctxParser.skipChildren();
+            return;
+        }
+        if (ctxParser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
+        }
+        if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                ctxParser.getTokenLocation(),
+                "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
+            );
+        }
+        ctxParser.nextToken();
+        LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldType().name()));
+        while (ctxParser.currentToken() != XContentParser.Token.END_OBJECT) {
+            emitMapEntries(ctxParser, context, path);
+        }
+    }
+
+    /** Recursively walks the object (mirroring {@link #parseToken}) and emits one map entry per leaf. */
+    private void emitMapEntries(XContentParser parser, ParseContext context, Deque<String> path) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+            final String currentFieldName = parser.currentName();
+            path.addLast(currentFieldName);
+            parser.nextToken();
+            emitMapEntries(parser, context, path);
+            path.removeLast();
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.nextToken();
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                emitMapEntries(parser, context, path);
+            }
+            parser.nextToken();
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+            while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                emitMapEntries(parser, context, path);
+            }
+            parser.nextToken();
+        } else {
+            String value = parseValue(parser);
+            if (value == null || value.length() > fieldType().ignoreAbove) {
+                parser.nextToken();
+                return;
+            }
+            NamedAnalyzer normalizer = fieldType().normalizer();
+            if (normalizer != null) {
+                value = normalizeValue(normalizer, name(), value);
+            }
+            final String leafPath = Strings.collectionToDelimitedString(path, ".");
+            // Key relative to this flat_object field: strip the "<fieldName>." prefix.
+            final String key = leafPath.substring(name().length() + 1);
+            context.documentInput().addField(fieldType(), new AbstractMap.SimpleEntry<>(key, value));
+            parser.nextToken();
         }
     }
 
@@ -608,17 +725,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 context.doc().add(new Field(name(), value, fieldType));
             }
             if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(name(), value));
+                addDocValueOnlyPathMarker(context.doc(), name(), part);
             } else {
                 createFieldNamesField(context);
             }
-        }
-    }
-
-    private void createPathFieldsForPluggableFormat(ParseContext context, HashSet<String> pathParts) {
-        for (String part : pathParts) {
-            final BytesRef value = new BytesRef(name() + DOT_SYMBOL + part);
-            context.documentInput().addField(fieldType(), value);
         }
     }
 
@@ -628,6 +738,32 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     private static String getPathPrefix(String path) {
         return path + EQUAL_SYMBOL;
+    }
+
+    /**
+     * Writes one flat_object-style, doc-values-ONLY leaf entry under {@code rootFieldName} — no
+     * indexed terms (matching {@code "index": false}: no inverted index). This is the doc-values
+     * half of {@link #parseToken}'s leaf-writing branch.
+     *
+     * @param rootFieldName    the flat_object field's own name
+     * @param leafRelativePath the leaf's dotted path relative to {@code rootFieldName}
+     * @param value            the (already-stringified) leaf value
+     */
+    private static void addDocValueOnlyLeaf(ParseContext.Document doc, String rootFieldName, String leafRelativePath, String value) {
+        String dvPrefix = getDVPrefix(rootFieldName);
+        doc.add(new SortedSetDocValuesField(rootFieldName + VALUE_SUFFIX, new BytesRef(dvPrefix + value)));
+        String valueAndPath = getPathPrefix(rootFieldName + DOT_SYMBOL + leafRelativePath) + value;
+        doc.add(new SortedSetDocValuesField(rootFieldName + VALUE_AND_PATH_SUFFIX, new BytesRef(dvPrefix + valueAndPath)));
+    }
+
+    /**
+     * Writes a flat_object-style, doc-values-ONLY "this path exists" marker under {@code
+     * rootFieldName} — the doc-values half of {@link #createPathFields}, so {@link
+     * FlatObjectFieldType#existsQuery} (root-field, doc-values branch) can find it via {@code
+     * FieldExistsQuery(rootFieldName)}.
+     */
+    private static void addDocValueOnlyPathMarker(ParseContext.Document doc, String rootFieldName, String relativePathPart) {
+        doc.add(new SortedSetDocValuesField(rootFieldName, new BytesRef(rootFieldName + DOT_SYMBOL + relativePathPart)));
     }
 
     private void parseToken(XContentParser parser, ParseContext context, Deque<String> path, HashSet<String> pathParts) throws IOException {
@@ -663,6 +799,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 value = normalizeValue(normalizer, name(), value);
             }
             final String leafPath = Strings.collectionToDelimitedString(path, ".");
+            final String relativePath = leafPath.substring(name().length() + 1);
             final String valueAndPath = getPathPrefix(leafPath) + value;
             if (fieldType().isSearchable() || fieldType().isStored()) {
                 context.doc().add(new Field(valueFieldType.name(), new BytesRef(value), fieldType));
@@ -670,12 +807,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(valueFieldType.name(), new BytesRef(getDVPrefix(name()) + value)));
-                context.doc()
-                    .add(new SortedSetDocValuesField(valueAndPathFieldType.name(), new BytesRef(getDVPrefix(name()) + valueAndPath)));
+                addDocValueOnlyLeaf(context.doc(), name(), relativePath, value);
             }
 
-            pathParts.addAll(Arrays.asList(leafPath.substring(name().length() + 1).split("\\.")));
+            pathParts.addAll(Arrays.asList(relativePath.split("\\.")));
             parser.nextToken();
         }
     }

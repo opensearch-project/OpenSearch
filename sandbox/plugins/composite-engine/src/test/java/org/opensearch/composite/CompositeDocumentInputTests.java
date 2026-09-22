@@ -46,6 +46,22 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         assertEquals(1, secondaryInput.addedFields.size());
     }
 
+    /** A field inside a nested scope still broadcasts to every per-format input — no bookkeeping here. */
+    public void testAddFieldInsideNestedScopeStillBroadcastsToAllFormats() {
+        RecordingDocumentInput primaryInput = new RecordingDocumentInput();
+        RecordingDocumentInput secondaryInput = new RecordingDocumentInput();
+
+        DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
+        DataFormat secondaryFormat = mockFormat("parquet", 2, Set.of());
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, Map.of(secondaryFormat, secondaryInput));
+
+        MappedFieldType keywordField = mockFieldType("keyword");
+        composite.addField(keywordField, "value1");
+
+        assertEquals(1, primaryInput.addedFields.size());
+        assertEquals(1, secondaryInput.addedFields.size());
+    }
+
     public void testSetRowIdBroadcastsToAllInputs() {
         RecordingDocumentInput primaryInput = new RecordingDocumentInput();
         RecordingDocumentInput secondary1 = new RecordingDocumentInput();

@@ -15,6 +15,8 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -24,14 +26,18 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.NestedParquetField;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.FieldValuePair;
@@ -253,6 +259,12 @@ public class VSRManager implements AutoCloseable {
                 parquetField.createField(fieldType, activeVSR, pair.getValue());
                 writtenFields++;
             }
+            NestedParquetField nestedField = (NestedParquetField) ArrowFieldRegistry.getParquetField(ObjectMapper.NESTED_CONTENT_TYPE);
+            nestedField.writeNestedChildren(doc, activeVSR, rowIndex);
+            FlatObjectParquetField flatObjectField = (FlatObjectParquetField) ArrowFieldRegistry.getParquetField(
+                FlatObjectFieldMapper.CONTENT_TYPE
+            );
+            flatObjectField.writeTopLevelMaps(doc, activeVSR, rowIndex);
             BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
             if (rowIdVector != null) {
                 rowIdVector.setSafe(rowIndex, doc.getRowId());
@@ -352,27 +364,83 @@ public class VSRManager implements AutoCloseable {
     }
 
     /**
-     * Reconciles the active VSR with the given schema by adding vectors for any fields
-     * present in {@code newSchema} but not yet in the active VSR. Also updates the pool
-     * schema so subsequently rotated VSRs include the new fields.
+     * Reconciles the active VSR with the given schema: adds vectors for any fields present in
+     * {@code newSchema} but not yet in the active VSR, and for a field that already exists, recurses
+     * into it to add any missing child too — so a mapping update that only adds a leaf to an existing
+     * nested field is patched into this writer rather than dropped until the next rotation.
      * <p>
-     * Called from {@link org.opensearch.parquet.writer.ParquetWriter#updateMappingVersion}
-     * when the mapping version advances. No-op if every field in {@code newSchema} is
-     * already present in the active VSR.
+     * Called from {@link org.opensearch.parquet.writer.ParquetWriter#updateMappingVersion} when the
+     * mapping version advances. No-op if every field in {@code newSchema} is already present.
+     * <p>
+     * Top-level fields are matched by name on read, so always safe to append. Nested struct children
+     * are matched by position instead — see {@link #requireSortedAppendPosition}.
      *
      * @param newSchema the schema to reconcile against
+     * @throws SchemaChangeRequiresWriterRotationException if a missing nested struct child can't be
+     *         patched in without breaking the sorted position downstream reads rely on — the caller
+     *         must end this writer generation as-is and retry on a fresh one. Thrown by the dry-run
+     *         validation pass BEFORE anything is mutated, so reconcile is all-or-nothing: a rejected
+     *         reconcile leaves both the live vectors and the cached schema exactly as they were, and
+     *         the retired writer's buffered rows still export cleanly. (Patching earlier fields
+     *         before rejecting a later one would buy nothing — the caller retires this generation
+     *         anyway, so the patched field would never receive data — while leaving the cached
+     *         schema declaring children the live vectors don't have, which poisons the flush.)
      */
     public boolean reconcileSchema(Schema newSchema) {
         ManagedVSR activeVSR = managedVSR.get();
+        validateReconcilable(activeVSR, newSchema);
         boolean changed = false;
+        try {
+            for (Field schemaField : newSchema.getFields()) {
+                FieldVector existingVector = activeVSR.getVector(schemaField.getName());
+                if (existingVector == null) {
+                    // Pass the schema field through as-is: rebuilding it from name + FieldType alone
+                    // would drop getChildren(), leaving a LIST column with no element vector.
+                    activeVSR.addFieldVector(schemaField);
+                    changed = true;
+                } else if (reconcileExistingChildren(existingVector, schemaField)) {
+                    changed = true;
+                } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
+                    throw new SchemaChangeRequiresWriterRotationException(
+                        schemaField.getName(),
+                        existingVector.getField().getType(),
+                        schemaField.getType()
+                    );
+                }
+            }
+        } finally {
+            // The dry-run validation above means the rotation-exception class can no longer leave a
+            // partial application — this refresh normally runs only after a fully-applied reconcile,
+            // where newSchema exactly describes the live vectors. It stays in a finally as a backstop
+            // for unexpected mid-apply failures (Arrow allocation errors): the cached schema then
+            // over-declares the unapplied remainder, which ManagedVSR#exportToArrow's pre-export
+            // validation reports as a clear error instead of a misaligned native export. Also updates
+            // the pool schema so a VSR rotated later in this same generation includes the new fields.
+            if (changed) {
+                activeVSR.refreshSchema(newSchema);
+                vsrPool.updateSchema(activeVSR.getSchema());
+            } else {
+                logger.debug("no changes in schema despite change in mapping version");
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Dry-run of {@link #reconcileSchema}: walks {@code newSchema} against the active VSR exactly the
+     * way the apply loop will, raising the same {@link SchemaChangeRequiresWriterRotationException}s
+     * it would, without mutating anything. Running this first makes reconcile all-or-nothing.
+     * Mirrors the apply loop's structure; the shape check fires only when the walk would add no
+     * child, matching the apply loop's else-if ordering.
+     */
+    private void validateReconcilable(ManagedVSR activeVSR, Schema newSchema) {
         for (Field schemaField : newSchema.getFields()) {
             FieldVector existingVector = activeVSR.getVector(schemaField.getName());
             if (existingVector == null) {
-                // Pass the schema field through as-is: rebuilding it from name + FieldType alone
-                // would drop getChildren(), leaving a LIST column with no element vector.
-                activeVSR.addFieldVector(schemaField);
-                changed = true;
-            } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
+                continue; // top-level fields are matched by name on read — appending is always safe
+            }
+            if (validateExistingChildren(existingVector, schemaField) == false
+                && hasSameStorageShape(existingVector.getField(), schemaField) == false) {
                 throw new SchemaChangeRequiresWriterRotationException(
                     schemaField.getName(),
                     existingVector.getField().getType(),
@@ -380,12 +448,146 @@ public class VSRManager implements AutoCloseable {
                 );
             }
         }
-        if (changed) {
-            vsrPool.updateSchema(activeVSR.getSchema());
-        } else {
-            logger.debug("no changes in schema despite change in mapping version");
+    }
+
+    /** Dry-run counterpart of {@link #reconcileExistingChildren}: true if the apply walk would add a child. */
+    private boolean validateExistingChildren(FieldVector existingVector, Field schemaField) {
+        if (existingVector instanceof ListVector existingList && schemaField.getChildren().size() == 1) {
+            FieldVector existingElement = existingList.getDataVector();
+            if (existingElement instanceof StructVector existingStruct) {
+                return validateStructChildren(existingStruct, schemaField.getChildren().get(0));
+            }
+        } else if (existingVector instanceof StructVector existingStruct) {
+            return validateStructChildren(existingStruct, schemaField);
+        }
+        return false;
+    }
+
+    /**
+     * Dry-run counterpart of {@link #reconcileStructChildren}: applies the
+     * {@link #requireSortedAppendPosition} rule to each missing child, tracking the simulated
+     * last-appended name so a second missing child is checked against the first one's position —
+     * the same state the apply loop's live appends would produce.
+     */
+    private boolean validateStructChildren(StructVector existingStruct, Field structField) {
+        boolean wouldChange = false;
+        List<Field> existingChildren = existingStruct.getField().getChildren();
+        String lastChildName = existingChildren.isEmpty() ? null : existingChildren.get(existingChildren.size() - 1).getName();
+        for (Field childField : structField.getChildren()) {
+            FieldVector existingChild = existingStruct.getChild(childField.getName());
+            if (existingChild == null) {
+                if (lastChildName != null && childField.getName().compareTo(lastChildName) < 0) {
+                    throw new SchemaChangeRequiresWriterRotationException(
+                        "Cannot patch struct child ["
+                            + childField.getName()
+                            + "] into an already-active vector: appending it after ["
+                            + lastChildName
+                            + "] would not match its sorted position (it sorts before ["
+                            + lastChildName
+                            + "]), and struct children are matched by position downstream. Writer generation "
+                            + "must rotate so a fresh generation can rebuild this struct fully sorted."
+                    );
+                }
+                lastChildName = childField.getName();
+                wouldChange = true;
+            } else if (validateExistingChildren(existingChild, childField)) {
+                wouldChange = true;
+            }
+        }
+        return wouldChange;
+    }
+
+    /**
+     * Recurses into an already-present complex vector (a nested field's {@code LIST<STRUCT>}, or a
+     * struct/map inside one) and adds any child {@code schemaField} declares that {@code existingVector}
+     * doesn't have yet. Returns true if anything was added. No-op (returns false) for a scalar leaf —
+     * nothing to walk into.
+     */
+    private boolean reconcileExistingChildren(FieldVector existingVector, Field schemaField) {
+        if (existingVector instanceof ListVector existingList && schemaField.getChildren().size() == 1) {
+            // path: LIST<STRUCT<...>> (nested) or MAP<Utf8,Utf8> (flat_object, its "element" is the
+            // key_value struct) — either way, the single child is the element/entries struct.
+            FieldVector existingElement = existingList.getDataVector();
+            if (existingElement instanceof StructVector existingStruct) {
+                return reconcileStructChildren(existingStruct, schemaField.getChildren().get(0));
+            }
+        } else if (existingVector instanceof StructVector existingStruct) {
+            return reconcileStructChildren(existingStruct, schemaField);
+        }
+        return false;
+    }
+
+    /**
+     * Adds any child of {@code structField} missing from {@code existingStruct}, recursing into
+     * children present in both.
+     *
+     * @throws SchemaChangeRequiresWriterRotationException if a missing child would have to be
+     *         appended at a position other than where the fully-sorted fresh schema would put
+     *         it — see {@link #requireSortedAppendPosition}.
+     */
+    private boolean reconcileStructChildren(StructVector existingStruct, Field structField) {
+        boolean changed = false;
+        for (Field childField : structField.getChildren()) {
+            FieldVector existingChild = existingStruct.getChild(childField.getName());
+            if (existingChild == null) {
+                requireSortedAppendPosition(existingStruct, childField);
+                addMissingChild(existingStruct, childField);
+                changed = true;
+            } else if (reconcileExistingChildren(existingChild, childField)) {
+                changed = true;
+            }
         }
         return changed;
+    }
+
+    /**
+     * Verifies that appending {@code childField} to {@code existingStruct} reproduces the position a
+     * fresh, fully-sorted build would give it, before {@link #addMissingChild} is allowed to patch it
+     * in. {@code existingStruct}'s children are always already sorted by name (fresh-built, or every
+     * prior patch through this method was itself verified) — so appending stays sorted iff
+     * {@code childField}'s name sorts after the last existing child's name.
+     * <p>
+     * Struct children are matched BY POSITION downstream (Substrait/DataFusion), so an append that
+     * doesn't reproduce sorted position would desync this generation's on-disk order from every
+     * other's — not safe to patch at any point; the caller must rotate to a fresh generation instead.
+     *
+     * @throws SchemaChangeRequiresWriterRotationException if {@code childField}'s name sorts
+     *         before the last existing child's name
+     */
+    private void requireSortedAppendPosition(StructVector existingStruct, Field childField) {
+        List<Field> existingChildren = existingStruct.getField().getChildren();
+        if (existingChildren.isEmpty()) {
+            // Nothing to be out of order with — a single element is trivially sorted.
+            return;
+        }
+        String lastExistingName = existingChildren.get(existingChildren.size() - 1).getName();
+        if (childField.getName().compareTo(lastExistingName) < 0) {
+            throw new SchemaChangeRequiresWriterRotationException(
+                "Cannot patch struct child ["
+                    + childField.getName()
+                    + "] into an already-active vector: appending it after ["
+                    + lastExistingName
+                    + "] would not match its sorted position (it sorts before ["
+                    + lastExistingName
+                    + "]), and struct children are matched by position downstream. Writer generation "
+                    + "must rotate so a fresh generation can rebuild this struct fully sorted."
+            );
+        }
+    }
+
+    /**
+     * Adds {@code childField} as a new named child of {@code parentStruct}, building out its full
+     * subtree with the same names {@code Field#createVector} would use for a fresh schema (e.g.
+     * {@code "element"} for a LIST's struct, {@code "key_value"} for a MAP's entries struct) — NOT
+     * {@code addOrGetList}/{@code addOrGetMap}/{@code addOrGetVector(FieldType)}'s hardcoded internal
+     * defaults ({@code "$data$"}/{@code "entries"}), which would silently diverge from the schema this
+     * same field gets when built fresh, e.g. by {@link org.opensearch.parquet.fields.NestedParquetField}.
+     * Safe to call for a field confirmed missing: it only ever creates new vectors, never touches an
+     * existing child. Callers must have already verified (see {@link #requireSortedAppendPosition})
+     * that appending preserves this struct's sorted-by-name invariant.
+     */
+    private void addMissingChild(StructVector parentStruct, Field childField) {
+        parentStruct.initializeChildrenFromFields(List.of(childField));
     }
 
     /**

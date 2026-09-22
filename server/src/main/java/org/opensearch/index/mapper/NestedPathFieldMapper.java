@@ -21,6 +21,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Replacement for TypesFieldMapper used in nested fields
@@ -64,6 +65,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return NAME;
+    }
+
+    @Override
+    FieldTypeCapabilities.FieldScope dataFormatFieldScope() {
+        return FieldTypeCapabilities.FieldScope.NESTED;
     }
 
     private static final NestedPathFieldMapper LEGACY_INSTANCE = new NestedPathFieldMapper(LEGACY_NAME);
@@ -111,6 +117,18 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
+
+        /**
+         * Requests nothing from pluggable data formats. On a composite index this internal field is
+         * used only as a parse-time scope marker for nested elements — it needs no storage or search
+         * from any format, and its classic Lucene search field (this type is searchable-only) would
+         * otherwise fail the strict nested-scope capability coverage check on every composite index.
+         * Only the pluggable path consults this method, so classic nested queries are unaffected.
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            return Set.of();
         }
     }
 }

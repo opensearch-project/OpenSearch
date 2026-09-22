@@ -44,30 +44,36 @@ public abstract class ParquetField {
     protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
-     * Writes a single parsed value at an explicit index in the given vector.
+     * Writes a single parsed value at an explicit index in the given vector — the canonical
+     * element conversion for this type, shared by every write path that targets an arbitrary
+     * position: LIST (multi-value) columns writing several values per row, and nested struct-leaf
+     * writes ({@link NestedParquetField#writeLeafValue}) writing one value per element. Scalar
+     * columns write at the row index, so {@link #addToGroup} can derive the position from the
+     * VSR's row count; implementations should route {@code addToGroup} through this method so the
+     * conversion exists exactly once.
      * <p>
-     * Scalar columns write at the row index, so {@link #addToGroup} can derive the position from
-     * the VSR's row count. List columns write several values per row at positions in the child
-     * vector that have nothing to do with the row number, so multi-value writes need this
-     * index-explicit form instead.
-     * <p>
-     * Subclasses must override this to support being declared multi-valued; the default throws.
-     * When overridden, {@link #addToGroup} should delegate to it so the scalar and list paths
-     * share one value-coercion implementation.
+     * Every scalar type must implement this; the default throws. Note {@link #supportsMultiValue}
+     * separately gates whether a type may be DECLARED multi-valued — implementing this method is
+     * necessary but not sufficient for list storage.
      *
-     * @param vector the target vector (the child data vector when writing into a list)
+     * @param vector the target vector (the child data vector when writing into a list or struct)
      * @param index the position to write at
-     * @param parseValue the parsed value to write
+     * @param parseValue the parsed non-null value to write
      */
     protected void addToVector(FieldVector vector, int index, Object parseValue) {
         throw new UnsupportedOperationException(
-            "Field type [" + getClass().getSimpleName() + "] does not support multi-valued (list) storage"
+            "Field type ["
+                + getClass().getSimpleName()
+                + "] does not define a single-element encoder (addToVector), "
+                + "required for multi-valued (list) storage and nested struct-leaf writes"
         );
     }
 
     /**
-     * Returns whether this field can be stored as a Parquet LIST column, i.e. whether it
-     * implements {@link #addToVector}.
+     * Returns whether this field may be declared multi-valued (stored as a Parquet LIST column).
+     * A policy gate, deliberately narrower than "implements {@link #addToVector}": every scalar
+     * type has an element encoder, but only types returning true here accept the
+     * {@code multi_value} mapping parameter.
      *
      * @return true if multi-valued storage is supported
      */
@@ -115,7 +121,7 @@ public abstract class ParquetField {
         assert managedVSR != null : "ManagedVSR cannot be null";
         FieldVector vector = managedVSR.getVector(fieldType.name());
         if (vector instanceof ListVector listVector) {
-            writeList(fieldType, managedVSR, listVector, parseValue);
+            writeList(managedVSR, listVector, parseValue);
             return;
         }
         addToGroup(fieldType, managedVSR, parseValue);
@@ -128,7 +134,7 @@ public abstract class ParquetField {
      * represented. An empty list is written as a zero-length, non-null list, preserving the
      * distinction between {@code "tags": []} and no {@code tags} at all.
      */
-    private void writeList(MappedFieldType fieldType, ManagedVSR managedVSR, ListVector listVector, Object parseValue) {
+    private void writeList(ManagedVSR managedVSR, ListVector listVector, Object parseValue) {
         int row = managedVSR.getRowCount();
         if (parseValue == null) {
             listVector.setNull(row);
@@ -163,4 +169,17 @@ public abstract class ParquetField {
 
     /** Returns the Arrow field type with nullability metadata. */
     public abstract FieldType getFieldType();
+
+    /**
+     * Builds the Arrow {@link Field} named {@code name} for this type. Default is a leaf with no
+     * children, using {@link #getFieldType()} — correct for every scalar type. Overridden by types
+     * whose Arrow representation has children (e.g. {@code flat_object}'s {@code MAP<Utf8,Utf8>}),
+     * so schema-building code can call this uniformly instead of special-casing by type name.
+     *
+     * @param name the field's name — a full dotted path at the document root, or a leaf name
+     *             relative to its parent struct when nested inside a {@code LIST<STRUCT>}
+     */
+    public Field buildField(String name) {
+        return new Field(name, getFieldType(), null);
+    }
 }
