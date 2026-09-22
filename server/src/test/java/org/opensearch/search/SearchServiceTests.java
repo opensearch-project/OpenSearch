@@ -102,6 +102,7 @@ import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.AliasFilter;
@@ -112,6 +113,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -139,6 +141,7 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -733,6 +736,47 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                     + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
                 ex.getMessage()
             );
+        }
+    }
+
+    public void testCollapseSearchAfterRejectsScoreAndDocSort() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder[] sources = new SearchSourceBuilder[] {
+            new SearchSourceBuilder().collapse(new CollapseBuilder("user"))
+                .sort(new FieldSortBuilder(FieldSortBuilder.DOC_FIELD_NAME))
+                .searchAfter(new Object[] { 0 }),
+            new SearchSourceBuilder().collapse(new CollapseBuilder("user"))
+                .sort(new ScoreSortBuilder().order(SortOrder.ASC))
+                .searchAfter(new Object[] { 1.0f }) };
+
+        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
+            for (SearchSourceBuilder source : sources) {
+                SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).source(source);
+                ShardSearchRequest request = new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    searchRequest,
+                    indexShard.shardId(),
+                    1,
+                    new AliasFilter(null, Strings.EMPTY_ARRAY),
+                    1.0f,
+                    -1,
+                    null,
+                    null
+                );
+                SearchException ex = expectThrows(
+                    SearchException.class,
+                    () -> service.createContext(reader, request, null, randomBoolean())
+                );
+                assertThat(
+                    ex.getMessage(),
+                    containsString("collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`")
+                );
+            }
         }
     }
 

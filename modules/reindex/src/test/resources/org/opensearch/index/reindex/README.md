@@ -27,16 +27,20 @@ openssl x509 -req \
 rm "$NAME".csr
 ```
 # repeat the same for server key + cert
+The server certificate must contain a `localhost` Subject Alternative Name; a SAN on the CA does not identify the server.
+
 ```bash
 export NAME='http'
 openssl genpkey -algorithm RSA -out "$NAME".key -aes256 -pass pass:"$KEY_PW"
 openssl req -new \
     -key "$NAME".key \
     -subj "/C=CA/ST=ONTARIO/L=TORONTO/O=ORG/OU=UNIT/CN=localhost" \
+    -addext "subjectAltName=DNS:localhost" \
     -out "$NAME".csr \
     -passin pass:"$KEY_PW"
 openssl x509 -req \
     -in "$NAME".csr \
+    -copy_extensions copy \
     -CA ../ca.pem \
     -CAkey ../ca.key \
     -CAcreateserial \

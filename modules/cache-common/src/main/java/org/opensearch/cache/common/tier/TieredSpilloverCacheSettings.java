@@ -39,6 +39,13 @@ public class TieredSpilloverCacheSettings {
     public static final long MIN_DISK_CACHE_SIZE_IN_BYTES = 10485760L;
 
     /**
+     * Ceiling on the default segment count. Segments divide tier capacity ({@code capacity / segments}), so on
+     * hosts with many CPU cores the default segment count splits capacity into partitions too small and hurts the hit rate.
+     * Override via the {@code *.tiered_spillover.segments} setting.
+     */
+    public static final int DEFAULT_SEGMENT_COUNT_CEILING = 16;
+
+    /**
      * The default took time threshold for a value to enter the heap tier of the cache, and therefore to enter the cache at all.
      */
     public static final TimeValue DEFAULT_TOOK_TIME_THRESHOLD = TimeValue.ZERO;
@@ -198,6 +205,8 @@ public class TieredSpilloverCacheSettings {
         // For now, we use number of search threads as the default segment count. If needed each cache type can
         // configure its own segmentCount via setting in the future.
         int defaultSegmentCount = ThreadPool.searchThreadPoolSize(Runtime.getRuntime().availableProcessors());
+        // Limit the segment count to keep each segment's capacity large enough (see DEFAULT_SEGMENT_COUNT_CEILING).
+        defaultSegmentCount = Math.min(defaultSegmentCount, DEFAULT_SEGMENT_COUNT_CEILING);
         // Now round it off to the next power of 2 as we don't support any other values.
         for (int segmentValue : VALID_SEGMENT_COUNT_VALUES) {
             if (defaultSegmentCount <= segmentValue) {
