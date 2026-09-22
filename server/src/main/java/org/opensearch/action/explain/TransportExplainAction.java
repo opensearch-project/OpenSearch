@@ -44,11 +44,13 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
@@ -159,7 +161,30 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
+            int topLevelDocId;
+            if (result instanceof DocumentLookupResult.PreMaterialized) {
+                // A PreMaterialized get result carries no docId. Resolve the docId against the explain
+                // searcher's own reader in DOC_ID_ONLY mode: an engine that returns a PreMaterialized result
+                // may index the _id term without writing _version doc values, so a FULL-mode lookup
+                // (loadDocIdAndVersion) could throw, and DOC_ID_ONLY also reuses the cache entry the get
+                // path already created for this reader.
+                VersionsAndSeqNoResolver.DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocId(
+                    context.searcher().getIndexReader(),
+                    uidTerm
+                );
+                if (docIdAndSeqNo == null) {
+                    // The id term is not present in this searcher's reader; report no match rather than erroring.
+                    return new ExplainResponse(
+                        shardId.getIndexName(),
+                        request.id(),
+                        true,
+                        Explanation.noMatch("Failed to locate document")
+                    );
+                }
+                topLevelDocId = docIdAndSeqNo.docId + docIdAndSeqNo.context.docBase;
+            } else {
+                topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
+            }
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
