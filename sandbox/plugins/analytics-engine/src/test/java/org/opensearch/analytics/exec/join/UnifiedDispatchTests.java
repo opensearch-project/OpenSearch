@@ -28,6 +28,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -118,6 +120,91 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression for cancellation landing BETWEEN capture waves (nested broadcast). The capture-phase cancel
+     * callback is installed once, by the first wave, and reads {@code activeRoots} so it can cancel whichever
+     * wave is in flight. But there is a window: after wave N's builds have all SUCCEEDED and its
+     * {@code isCancelled()} check has passed, and before wave N+1 publishes its own roots, {@code activeRoots}
+     * still holds wave N's roots — which are terminal. {@code AbstractStageExecution#cancel} no-ops on a
+     * terminal state (its {@code transitionTo} returns false), so the callback fires no listener. Wave N+1 then
+     * observes the cancellation in its own {@code isCancelled()} branch and returns without scheduling — and
+     * without cancelling its fresh roots or failing the terminal. Nothing completes the query: it hangs.
+     */
+    public void testRunFailsTerminalWhenTaskCancelledBetweenWaves() {
+        AnalyticsQueryTask task = new AnalyticsQueryTask(/* id */ 1L, "transport", "analytics_query", "qid", TaskId.EMPTY_TASK_ID, Map.of()
+        );
+
+        FakeStageExecution innerExec = new FakeStageExecution(/* stageId */ 0);
+        FakeStageExecution outerExec = new FakeStageExecution(/* stageId */ 1);
+
+        StageExecutionBuilder builder = mock(StageExecutionBuilder.class);
+        AtomicInteger buildCalls = new AtomicInteger();
+        when(builder.buildSubGraphWithSink(any(Stage.class), any(ExchangeSink.class), any(QueryContext.class), any())).thenAnswer(
+            invocation -> {
+                if (buildCalls.getAndIncrement() == 0) {
+                    return new StageExecutionBuilder.SubGraph(innerExec, List.of(innerExec));
+                }
+                // Wave 1 is being built. Cancel NOW: wave 0 has already succeeded and passed its
+                // isCancelled() check, but wave 1 has not yet published its roots, so the one-shot
+                // callback still points at wave 0's terminal roots and cancels nothing.
+                task.cancel("user cancel between capture waves");
+                return new StageExecutionBuilder.SubGraph(outerExec, List.of(outerExec));
+            }
+        );
+
+        QueryScheduler scheduler = mock(QueryScheduler.class);
+        when(scheduler.getStageExecutionBuilder()).thenReturn(builder);
+        QueryContext ctx = mock(QueryContext.class);
+        when(ctx.parentTask()).thenReturn(task);
+        when(ctx.queryId()).thenReturn("qid");
+
+        // Nested broadcast: build 1's own build is build 0, so collectBuildWaves yields two waves,
+        // innermost (build 0) first.
+        Stage innerBuild = newRoleStage(/* stageId */ 0, Stage.StageRole.BROADCAST_BUILD);
+        Stage outerBuild = newRoleStage(/* stageId */ 1, Stage.StageRole.BROADCAST_BUILD, innerBuild);
+        Stage root = newRoleStage(/* stageId */ 2, Stage.StageRole.COORDINATOR_REDUCE, outerBuild);
+        QueryDAG dag = new QueryDAG("qid", root);
+
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        ActionListener<Iterable<VectorSchemaRoot>> terminal = ActionListener.wrap(v -> {
+            throw new AssertionError("expected onFailure, got onResponse");
+        }, failure::set);
+
+        UnifiedDispatch dispatch = new UnifiedDispatch(
+            scheduler,
+            mock(ClusterService.class),
+            mock(CapabilityRegistry.class),
+            /* preferMetadataDriver */ false,
+            /* sortMergeJoinMinRows */ Long.MAX_VALUE
+        );
+        dispatch.run(ctx, dag, buildStage -> new FakeCaptureSink(), /* queryExecutionSink */ null, terminal);
+
+        // Drive wave 0 to SUCCEEDED. Its listener advances to wave 1, whose subgraph construction cancels
+        // the task in the window described above.
+        innerExec.succeed();
+
+        assertTrue("precondition: wave 1 must have been reached", buildCalls.get() >= 2);
+        assertNotNull(
+            "terminal must complete when cancellation lands between capture waves; otherwise the query "
+                + "hangs — the one-shot cancel callback still points at wave 0's terminal roots, and wave 1 "
+                + "returns from its isCancelled() branch without cancelling its own roots or failing",
+            failure.get()
+        );
+    }
+
+    /** Capture-sink stand-in exposing the {@code ipcBytesFuture()} that {@code extractIpcBytes} reflects on. */
+    static final class FakeCaptureSink implements ExchangeSink {
+        @Override
+        public void feed(VectorSchemaRoot batch) {}
+
+        @Override
+        public void close() {}
+
+        public CompletableFuture<byte[]> ipcBytesFuture() {
+            return CompletableFuture.completedFuture(new byte[] { 1, 2, 3 });
+        }
+    }
+
+    /**
      * Hand-rolled StageExecution stand-in. Captures listeners; cancel(...) fires CANCELLED on any listeners
      * present at cancel-time — the same contract AbstractStageExecution honors. Listeners attached AFTER
      * cancel see nothing, which is the bug surface this test guards.
@@ -174,6 +261,18 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
             state = State.CANCELLED;
             for (StageStateListener l : listeners) {
                 l.onStateChange(previous, State.CANCELLED);
+            }
+        }
+
+        /** Drives SUCCEEDED, firing listeners — the transition the capture phase keys its wave advance off. */
+        synchronized void succeed() {
+            if (isTerminal(state)) {
+                return;
+            }
+            State previous = state;
+            state = State.SUCCEEDED;
+            for (StageStateListener l : List.copyOf(listeners)) {
+                l.onStateChange(previous, State.SUCCEEDED);
             }
         }
 

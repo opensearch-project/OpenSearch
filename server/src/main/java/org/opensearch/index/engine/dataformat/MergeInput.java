@@ -17,20 +17,25 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * input data for a merge operation.
+ * Input data for a merge operation.
  * Use {@link Builder} to construct instances.
+ *
+ * <p>{@code liveDocs} provides per-segment delete filtering. See {@link LiveDocs} for
+ * the contract. The snapshot is taken once at merge start; mid-merge deletes are not
+ * reflected.</p>
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, LiveDocs liveDocs) {
 
     public MergeInput {
         segments = List.copyOf(segments);
+        Objects.requireNonNull(liveDocs, "liveDocs must not be null; use LiveDocs.ALL_ALIVE for no filtering");
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration, builder.liveDocs);
     }
 
     /**
@@ -41,6 +46,14 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
      */
     public List<WriterFileSet> getFilesForFormat(String formatName) {
         return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Returns the live-docs bitset for the given segment generation, or {@code null} if all
+     * rows in that segment are alive. Convenience delegate to {@link LiveDocs#packedBits(long)}.
+     */
+    public long[] getLiveDocsForSegment(long generation) {
+        return liveDocs.packedBits(generation);
     }
 
     /**
@@ -60,6 +73,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
         private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private LiveDocs liveDocs = LiveDocs.ALL_ALIVE;
 
         private Builder() {}
 
@@ -104,6 +118,17 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
          */
         public Builder newWriterGeneration(long newWriterGeneration) {
             this.newWriterGeneration = newWriterGeneration;
+            return this;
+        }
+
+        /**
+         * Sets the live-docs for delete filtering during merge.
+         *
+         * @param liveDocs the live-docs instance
+         * @return this builder
+         */
+        public Builder liveDocs(LiveDocs liveDocs) {
+            this.liveDocs = Objects.requireNonNull(liveDocs, "liveDocs must not be null; use LiveDocs.ALL_ALIVE");
             return this;
         }
 

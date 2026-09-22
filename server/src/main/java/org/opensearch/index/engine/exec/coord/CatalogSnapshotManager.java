@@ -31,6 +31,7 @@ import org.opensearch.index.shard.ShardPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -175,7 +176,9 @@ public class CatalogSnapshotManager implements Closeable {
             );
         }
 
-        // Row count conservation: merged output must have the same total rows as the inputs
+        // Row count conservation: merged output must not exceed sum of input rows.
+        // Compaction with deletes may drop rows, so the merged total can be lower —
+        // only a merged count strictly greater than the source total is an invariant violation.
         if (!assertRowCountConservation(segmentsToRemove, segmentToAdd)) {
             long inputRows = segmentsToRemove.stream()
                 .flatMap(s -> s.dfGroupedSearchableFiles().values().stream())
@@ -271,11 +274,8 @@ public class CatalogSnapshotManager implements Closeable {
             throw e;
         }
 
-        // Segment generation uniqueness: a generation that appeared in a previous snapshot
-        // must not reappear with different files. This prevents generation overlap bugs
-        // where a merge output reuses a writer generation, causing file identity confusion.
         assert assertSegmentGenerationFileConsistency(refreshedSegments)
-            : "segment generation-to-file mapping is inconsistent with previous snapshots";
+            : "segment generation refers to an unrelated file set compared with a previous snapshot";
 
         // No duplicate generations within the same snapshot
         assert refreshedSegments.stream().map(Segment::generation).distinct().count() == refreshedSegments.size()
@@ -627,21 +627,27 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
-     * Asserts that no segment generation in the new snapshot conflicts with a different
-     * file set in any existing tracked snapshot. This catches generation overlap bugs
-     * where a merge or writer reuses a generation number, causing the catalog to track
-     * two different file sets under the same generation — which would lead to data loss
-     * when the "wrong" files are deleted.
+     * Checks that reused generations retain an overlapping file set. Live-doc updates may change
+     * file names, but disjoint sets indicate generation reuse for unrelated data.
      */
     private boolean assertSegmentGenerationFileConsistency(List<Segment> newSegments) {
         for (Segment newSeg : newSegments) {
             for (CatalogSnapshot existing : catalogSnapshotMap.values()) {
                 for (Segment existingSeg : existing.getSegments()) {
                     if (existingSeg.generation() == newSeg.generation()) {
-                        // Same generation — files must be identical per format
+                        // Live-doc updates may change files, but the sets must still overlap.
                         for (Map.Entry<String, WriterFileSet> entry : newSeg.dfGroupedSearchableFiles().entrySet()) {
                             WriterFileSet existingWfs = existingSeg.dfGroupedSearchableFiles().get(entry.getKey());
-                            if (existingWfs != null && existingWfs.files().equals(entry.getValue().files()) == false) {
+                            if (existingWfs == null) {
+                                // New format for this generation; nothing to compare.
+                                continue;
+                            }
+                            Set<String> existingFiles = existingWfs.files();
+                            Set<String> newFiles = entry.getValue().files();
+                            if (existingFiles.isEmpty() && newFiles.isEmpty()) {
+                                continue;
+                            }
+                            if (existingFiles.isEmpty() || newFiles.isEmpty() || Collections.disjoint(existingFiles, newFiles)) {
                                 logger.error(
                                     "Generation {} has conflicting files for format [{}]: existing={}, new={}",
                                     newSeg.generation(),
@@ -660,9 +666,10 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
-     * Asserts that the total row count across all formats in the merged segment equals
-     * the total row count across all formats in the source segments. This catches bugs
-     * where rows are silently dropped or duplicated during merge.
+     * Asserts that the total row count across all formats in the merged segment does not
+     * exceed the total row count across all formats in the source segments. Catches bugs
+     * where rows are duplicated during merge. Rows may be legitimately dropped when the
+     * merger compacts deleted rows (see {@code MergeInput#liveDocs}).
      */
     private boolean assertRowCountConservation(Set<Segment> sourceSegments, Segment mergedSegment) {
         long sourceRows = 0;
@@ -675,7 +682,7 @@ public class CatalogSnapshotManager implements Closeable {
         for (WriterFileSet wfs : mergedSegment.dfGroupedSearchableFiles().values()) {
             mergedRows += wfs.numRows();
         }
-        if (sourceRows != mergedRows) {
+        if (mergedRows > sourceRows) {
             logger.error("Row count mismatch: source segments have {} rows but merged segment has {} rows", sourceRows, mergedRows);
             return false;
         }
