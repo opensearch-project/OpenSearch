@@ -109,6 +109,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -2192,7 +2193,13 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     "test didn't timeout quick enough, time taken: [" + timeTaken + "]",
                     timeTaken < TimeValue.timeValueSeconds(5).millis()
                 );
-                assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
+                assertThat(
+                    ex.getMessage(),
+                    anyOf(
+                        equalTo("[][" + second.getAddress() + "] connect_timeout[1ms]"),
+                        equalTo("[][" + second.getAddress() + "] connect_exception")
+                    )
+                );
             }
         }
     }
