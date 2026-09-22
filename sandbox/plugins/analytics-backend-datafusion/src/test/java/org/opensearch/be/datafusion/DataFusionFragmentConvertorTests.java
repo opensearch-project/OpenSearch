@@ -413,6 +413,47 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * Multi-key sort with a scalar lead and a LIST tiebreaker ({@code sort ts, tags}): only the
+     * LIST key is reduced, the scalar lead stays a field reference, and key order is preserved.
+     * This is the query-side half of the {@code index.sort.field=[ts, tags]} case — the scan
+     * advertises {@code [ts ASC, array_min(tags) ASC]} and the Sort must ask for the same keys
+     * for DataFusion to eliminate it.
+     */
+    public void testScalarLeadWithListTiebreaker_reducesOnlyTheListKey() throws Exception {
+        RelDataType rowType = typeFactory.builder()
+            .add("ts", typeFactory.createSqlType(SqlTypeName.BIGINT))
+            .add("tags", listOfVarchar())
+            .build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
+        RelNode sort = LogicalSort.create(
+            scan,
+            RelCollations.of(
+                new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST),
+                new RelFieldCollation(1, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST)
+            ),
+            null,
+            null
+        );
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
+        Rel root = rootRel(plan);
+        assertTrue(root.hasSort());
+        assertEquals(2, root.getSort().getSortsCount());
+
+        SortField lead = root.getSort().getSorts(0);
+        assertTrue("scalar lead must stay a field reference", lead.getExpr().hasSelection());
+        assertEquals(0, lead.getExpr().getSelection().getDirectReference().getStructField().getField());
+
+        SortField tie = root.getSort().getSorts(1);
+        assertEquals("array_min", scalarFunctionName(plan, tie.getExpr()));
+        assertEquals(
+            "reduction must be applied to the LIST tiebreaker column",
+            1,
+            tie.getExpr().getScalarFunction().getArguments(0).getValue().getSelection().getDirectReference().getStructField().getField()
+        );
+    }
+
+    /**
      * Regression for the multi-shard {@code sort <list_field> | head N} shape (QTF places the
      * anchor Sort above a coordinator Project, so {@code FragmentConversionDriver} attaches it
      * on top of the reduce stage rather than converting it inside a fragment).

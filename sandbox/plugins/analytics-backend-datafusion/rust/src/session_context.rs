@@ -757,6 +757,14 @@ fn try_acquire_budget(
 /// physical row order already on disk. There is no independent per-query
 /// sort-mode setting — direction is the only signal, exactly as it is for the
 /// writer's default branch.
+///
+/// The LIST argument is wrapped in a `CAST` to DataFusion's canonical
+/// `List(item: T)` type before the reduction. The query's `array_min(col)`
+/// acquires exactly that cast from the `TypeCoercion` analyzer (parquet names
+/// the child `element`, DataFusion's `Signature::array()` renames it `item`),
+/// and `EnforceSorting` compares sort keys structurally — without the same
+/// cast here the declared order would never satisfy the query's. See
+/// `build_projected_lex_ordering` in `table_provider.rs` for the indexed path.
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
@@ -776,11 +784,23 @@ pub(crate) fn build_file_sort_order(
             let nulls_first = ascending;
             let column = Expr::Column(Column::from_name(name.clone()));
             let key = match schema.field_with_name(name).map(|field| field.data_type()) {
-                Ok(arrow::datatypes::DataType::List(_)) => {
-                    if ascending {
-                        array_min(column)
+                Ok(list_type @ arrow::datatypes::DataType::List(child)) => {
+                    let coerced = arrow::datatypes::DataType::new_list(
+                        child.data_type().clone(),
+                        child.is_nullable(),
+                    );
+                    let arg = if *list_type == coerced {
+                        column
                     } else {
-                        array_max(column)
+                        Expr::Cast(datafusion::logical_expr::Cast::new(
+                            Box::new(column),
+                            coerced,
+                        ))
+                    };
+                    if ascending {
+                        array_min(arg)
+                    } else {
+                        array_max(arg)
                     }
                 }
                 _ => column,
@@ -788,6 +808,16 @@ pub(crate) fn build_file_sort_order(
             key.sort(ascending, nulls_first)
         })
         .collect();
+    // Surfaces what the scan claims about the on-disk order (incl. the LIST
+    // reductions) so it can be verified end-to-end without EXPLAIN.
+    native_bridge_common::log_debug!(
+        "declared file sort order: [{}]",
+        sort_exprs
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     Some(sort_exprs)
 }
 
@@ -833,6 +863,45 @@ mod tests {
         let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
         assert!(!format!("{}", scalar[0].expr).contains("array_min"));
         assert!(!format!("{}", scalar[0].expr).contains("array_max"));
+    }
+
+    /// Multi-key `index.sort.field=[id, tags]`: the scalar lead stays a bare
+    /// column and the LIST tiebreaker is reduced per its own direction. The
+    /// reduction is positional, mirroring the writer's per-column
+    /// `max_sort_modes`, so a LIST key in a non-lead slot must still be reduced.
+    #[test]
+    fn file_sort_order_reduces_list_tiebreaker_behind_scalar_lead() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("id", DataType::Int64, true),
+            Field::new("tags", DataType::List(child), true),
+        ]);
+
+        for (tie_order, tie_asc, reduction) in
+            [("asc", true, "array_min"), ("desc", false, "array_max")]
+        {
+            let ordering = build_file_sort_order(
+                &["id".into(), "tags".into()],
+                &["asc".into(), tie_order.into()],
+                &schema,
+            )
+            .unwrap();
+            assert_eq!(ordering.len(), 2, "both sort keys must be declared");
+
+            let lead = format!("{}", ordering[0].expr);
+            assert_eq!(
+                lead, "id",
+                "scalar lead must stay a bare column, got: {lead}"
+            );
+            assert!(ordering[0].asc);
+
+            let tie = format!("{}", ordering[1].expr);
+            assert!(
+                tie.contains(reduction) && tie.contains("tags"),
+                "LIST tiebreaker ({tie_order}) should be {reduction}(tags), got: {tie}"
+            );
+            assert_eq!(ordering[1].asc, tie_asc);
+        }
     }
 
     #[tokio::test]

@@ -38,7 +38,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use datafusion::functions_nested::min_max::{array_max_udf, array_min_udf};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_expr::expressions::col as physical_col;
+use datafusion::physical_expr::expressions::{cast as physical_cast, col as physical_col};
 use datafusion::physical_expr::{
     EquivalenceProperties, LexOrdering, Partitioning, PhysicalExpr, PhysicalSortExpr,
     ScalarFunctionExpr,
@@ -145,10 +145,27 @@ pub type EvaluatorFactory = Arc<
 /// built-in `array_min` for ASC, `array_max` for DESC (see that function's doc
 /// for why direction alone — not an explicit per-query mode — decides the
 /// reduction).
+///
+/// # Why the LIST key is wrapped in a `CAST`
+///
+/// `EnforceSorting` decides whether the scan's ordering satisfies the query's
+/// `ORDER BY` by **structural equality** of the `PhysicalSortExpr`s. The
+/// query side arrives as `array_min(tags)` from Substrait and then passes
+/// through the `TypeCoercion` analyzer, whose `Signature::array()` handling
+/// rebuilds the argument type as `DataType::new_list(child, nullable)` — i.e.
+/// child field named `item`. Parquet-derived schemas name the child
+/// `element`, so the analyzer inserts `CAST(tags AS List(item: T))` and the
+/// physical sort key becomes `array_min(CAST(tags@1 AS List(T)))`. If we
+/// advertised bare `array_min(tags@1)` the two would never compare equal and
+/// the `SortExec` would stay. We therefore apply the same canonicalising cast
+/// here (`expressions::cast` is a no-op when the types already match) and
+/// attach the same `ConfigOptions` the planner attaches (compared by content
+/// in `ScalarFunctionExpr::eq`).
 fn build_projected_lex_ordering(
     projected_schema: &SchemaRef,
     sort_fields: &[String],
     sort_orders: &[String],
+    config_options: Arc<ConfigOptions>,
 ) -> Option<LexOrdering> {
     if sort_fields.is_empty() {
         return None;
@@ -165,17 +182,25 @@ fn build_projected_lex_ordering(
                 .field_with_name(field)
                 .map(|field| field.data_type())
             {
-                Ok(DataType::List(_)) => {
+                Ok(DataType::List(child)) => {
                     let udf = if ascending {
                         array_min_udf()
                     } else {
                         array_max_udf()
                     };
+                    // Mirror `TypeCoercion`'s `array_valid_types`: canonical
+                    // `List(item: child_type, child_nullable)`.
+                    let coerced =
+                        DataType::new_list(child.data_type().clone(), child.is_nullable());
+                    let arg = match physical_cast(expr, projected_schema.as_ref(), coerced) {
+                        Ok(arg) => arg,
+                        Err(_) => break,
+                    };
                     match ScalarFunctionExpr::try_new(
                         udf,
-                        vec![expr],
+                        vec![arg],
                         projected_schema.as_ref(),
-                        Arc::new(ConfigOptions::default()),
+                        Arc::clone(&config_options),
                     ) {
                         Ok(expr) => Arc::new(expr) as Arc<dyn PhysicalExpr>,
                         Err(_) => break,
@@ -294,7 +319,7 @@ impl TableProvider for IndexedTableProvider {
 
     async fn scan(
         &self,
-        _state: &dyn Session,
+        state: &dyn Session,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
@@ -407,10 +432,19 @@ impl TableProvider for IndexedTableProvider {
         // `physical-expr/src/physical_expr.rs:134` — break on first
         // unresolvable column rather than erroring out.
         let lex_ordering = if chain_ok {
+            // Same `ConfigOptions` the physical planner attaches to the
+            // query's `array_min`/`array_max` sort key, so the advertised
+            // expression compares equal to it (see `build_projected_lex_ordering`).
+            let config_options = state
+                .execution_props()
+                .config_options()
+                .cloned()
+                .unwrap_or_else(|| Arc::new(state.config_options().clone()));
             build_projected_lex_ordering(
                 &projected_schema,
                 &self.config.sort_fields,
                 &self.config.sort_orders,
+                config_options,
             )
         } else {
             None
@@ -893,6 +927,10 @@ mod tests {
         }
     }
 
+    fn test_opts() -> Arc<ConfigOptions> {
+        Arc::new(ConfigOptions::default())
+    }
+
     #[test]
     fn list_sort_key_advertises_array_min_for_asc_and_array_max_for_desc_physical_ordering() {
         let child = Arc::new(Field::new("element", DataType::Utf8View, true));
@@ -903,16 +941,51 @@ mod tests {
         )]));
 
         let desc_ordering =
-            build_projected_lex_ordering(&schema, &["tags".into()], &["desc".into()]).unwrap();
+            build_projected_lex_ordering(&schema, &["tags".into()], &["desc".into()], test_opts())
+                .unwrap();
         assert!(format!("{}", desc_ordering[0].expr).contains("array_max"));
         assert!(desc_ordering[0].options.descending);
         assert!(!desc_ordering[0].options.nulls_first);
 
         let asc_ordering =
-            build_projected_lex_ordering(&schema, &["tags".into()], &["asc".into()]).unwrap();
+            build_projected_lex_ordering(&schema, &["tags".into()], &["asc".into()], test_opts())
+                .unwrap();
         assert!(format!("{}", asc_ordering[0].expr).contains("array_min"));
         assert!(!asc_ordering[0].options.descending);
         assert!(asc_ordering[0].options.nulls_first);
+    }
+
+    /// `index.sort.field=[ts, tags]`: scalar lead stays a column reference,
+    /// LIST tiebreaker is reduced per its own direction. The reduction must be
+    /// positional (not lead-only) to match the writer's `max_sort_modes`.
+    #[test]
+    fn list_tiebreaker_behind_scalar_lead_is_reduced_in_physical_ordering() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Int64, false),
+            Field::new("tags", DataType::List(child), true),
+        ]));
+
+        for (tie_order, tie_desc, reduction) in
+            [("asc", false, "array_min"), ("desc", true, "array_max")]
+        {
+            let ordering = build_projected_lex_ordering(
+                &schema,
+                &["ts".into(), "tags".into()],
+                &["asc".into(), tie_order.into()],
+                test_opts(),
+            )
+            .unwrap();
+            assert_eq!(ordering.len(), 2, "both keys must be advertised");
+            assert_eq!(format!("{}", ordering[0].expr), "ts@0");
+            assert!(!ordering[0].options.descending);
+            let tie = format!("{}", ordering[1].expr);
+            assert!(
+                tie.contains(reduction) && tie.contains("tags@1"),
+                "tiebreaker ({tie_order}) should be {reduction}(tags@1), got: {tie}"
+            );
+            assert_eq!(ordering[1].options.descending, tie_desc);
+        }
     }
 
     // QueryShardExec holds an ExecutionPlanMetricsSet (not Clone). We only
