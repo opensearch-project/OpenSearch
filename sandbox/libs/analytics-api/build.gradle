@@ -1,0 +1,30 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Analytics Engine API surface consumable from JDK 21 code paths.
+ */
+
+java { sourceCompatibility = JavaVersion.toVersion(21); targetCompatibility = JavaVersion.toVersion(21) }
+
+// no test for now, so disable
+testingConventions.enabled = false
+
+dependencies {
+  compileOnly project(':server')
+  // Declared compileOnly rather than api because analytics-api is never
+  // loaded standalone — downstream consumers should declare Calcite themselves.
+  compileOnly "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
+  compileOnly "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
+
+  // Calcite bytecode references annotations from apiguardian (@API) and
+  // checker-framework (@EnsuresNonNullIf). compileOnlyApi propagates to
+  // consumers' compile/javadoc classpath without becoming a runtime dep.
+  compileOnlyApi 'org.apiguardian:apiguardian-api:1.1.2'
+  compileOnlyApi 'org.checkerframework:checker-qual:3.43.0'
+}

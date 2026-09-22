@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "ltrimmed",
+      "type": "string"
+    },
+    {
+      "name": "rtrimmed",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "hello world test",
+      "hello world test"
+    ],
+    [
+      "sample data entry",
+      "sample data entry",
+      "sample data entry"
+    ],
+    [
+      "test example record",
+      "test example record",
+      "test example record"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

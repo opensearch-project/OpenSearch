@@ -1,0 +1,1 @@
+source=function_tests | stats max(amount) as max_amount, max(temperature) as max_temp by user | sort - max_amount | head 5

@@ -1,0 +1,1 @@
+source=test_data | dedup category | fields category, value

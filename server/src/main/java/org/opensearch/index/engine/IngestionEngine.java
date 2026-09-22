@@ -18,9 +18,12 @@ import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -36,10 +39,12 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.IngestPipelineExecutor;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.ingest.IngestService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_LOCATION;
@@ -57,15 +63,28 @@ import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
  */
 public class IngestionEngine extends InternalEngine {
 
-    private StreamPoller streamPoller;
+    private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
-    private final DocumentMapperForType documentMapperForType;
+    private final IngestionPayloadDecoderFactory payloadDecoderFactory;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
+    private final IngestPipelineExecutor pipelineExecutor;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
-    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
+    public IngestionEngine(
+        EngineConfig engineConfig,
+        IngestionConsumerFactory ingestionConsumerFactory,
+        IngestService ingestService,
+        IngestionPayloadDecoderFactory payloadDecoderFactory
+    ) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
-        this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
+        this.payloadDecoderFactory = Objects.requireNonNull(payloadDecoderFactory);
+        this.pipelineExecutor = new IngestPipelineExecutor(
+            Objects.requireNonNull(ingestService),
+            engineConfig.getIndexSettings().getIndex().getName(),
+            engineConfig.getIndexSettings()
+        );
+        this.documentMapperForTypeSupplier = engineConfig.getDocumentMapperForTypeSupplier();
         registerDynamicIndexSettingsHandlers();
     }
 
@@ -85,8 +104,6 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-        // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
@@ -137,17 +154,37 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getShardId().getId(),
             this
         );
-        streamPoller = streamPollerBuilder.resetState(resetState)
-            .resetValue(resetValue)
-            .errorStrategy(ingestionErrorStrategy)
-            .initialState(initialPollerState)
-            .maxPollSize(ingestionSource.getMaxPollSize())
-            .pollTimeout(ingestionSource.getPollTimeout())
-            .numProcessorThreads(ingestionSource.getNumProcessorThreads())
-            .blockingQueueSize(ingestionSource.getBlockingQueueSize())
-            .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
-            .mapperType(ingestionSource.getMapperType())
-            .build();
+        // Create the decoder before the builder so it can be closed if poller initialization fails.
+        IngestionPayloadDecoder payloadDecoder = payloadDecoderFactory.create(
+            indexMetadata,
+            engineConfig.getShardId().getId(),
+            ingestionSource.getDecoderSettings()
+        );
+        try {
+            streamPoller = streamPollerBuilder.resetState(resetState)
+                .resetValue(resetValue)
+                .errorStrategy(ingestionErrorStrategy)
+                .initialState(initialPollerState)
+                .maxPollSize(ingestionSource.getMaxPollSize())
+                .pollTimeout(ingestionSource.getPollTimeout())
+                .numProcessorThreads(ingestionSource.getNumProcessorThreads())
+                .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+                .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
+                .mapperType(ingestionSource.getMapperType())
+                .mapperSettings(ingestionSource.getMapperSettings())
+                .pipelineExecutor(pipelineExecutor)
+                .warmupConfig(ingestionSource.getWarmupConfig())
+                .indexMetadata(indexMetadata)
+                .payloadDecoder(payloadDecoder)
+                .build();
+        } catch (Exception e) {
+            try {
+                payloadDecoder.close();
+            } catch (Exception closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
         registerStreamPollerListener();
 
         // start the polling loop
@@ -278,7 +315,7 @@ public class IngestionEngine extends InternalEngine {
         ) {
             ensureOpen();
             validateDocumentVersion(delete);
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id(), delete.routing());
             boolean isExternalVersioning = delete.versionType() == VersionType.EXTERNAL;
             if (isExternalVersioning) {
                 tombstone.version().setLongValue(delete.version());
@@ -477,8 +514,17 @@ public class IngestionEngine extends InternalEngine {
         super.close();
     }
 
+    /**
+     * Handler for updating warmup configuration on dynamic index settings update.
+     */
+    private void updateWarmupConfig(TimeValue timeout, Long lagThreshold) {
+        if (streamPoller != null) {
+            streamPoller.updateWarmupConfig(new IngestionSource.WarmupConfig(timeout, lagThreshold));
+        }
+    }
+
     public DocumentMapperForType getDocumentMapperForType() {
-        return documentMapperForType;
+        return documentMapperForTypeSupplier.get();
     }
 
     @Override
@@ -504,13 +550,26 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public PollingIngestStats pollingIngestStats() {
-        return streamPoller.getStats();
+        PollingIngestStats pollerStats = streamPoller.getStats();
+        // Enrich with pipeline execution metrics from the shared executor
+        return new PollingIngestStats(
+            pollerStats.getMessageProcessorStats(),
+            pollerStats.getConsumerStats(),
+            pipelineExecutor.getMetrics()
+        );
     }
 
     private void registerDynamicIndexSettingsHandlers() {
         engineConfig.getIndexSettings()
             .getScopedSettings()
             .addSettingsUpdateConsumer(IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING, this::updateErrorHandlingStrategy);
+        engineConfig.getIndexSettings()
+            .getScopedSettings()
+            .addSettingsUpdateConsumer(
+                IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
+                this::updateWarmupConfig
+            );
     }
 
     /**
@@ -536,13 +595,13 @@ public class IngestionEngine extends InternalEngine {
 
         logger.info("Ingestion source params updated, reinitializing consumer");
 
-        // Get current ingestion source with updated params from index metadata
+        // Get current index metadata with updated ingestion source params
         IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
         assert indexMetadata != null;
-        IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+        assert indexMetadata.getIngestionSource() != null;
 
         // Request consumer reinitialization in the poller
-        streamPoller.requestConsumerReinitialization(updatedIngestionSource);
+        streamPoller.requestConsumerReinitialization(indexMetadata);
         logger.info("Successfully processed ingestion source params update");
     }
 
@@ -654,4 +713,25 @@ public class IngestionEngine extends InternalEngine {
             shardPointer != null ? shardPointer.toString() : ""
         );
     }
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * This method handles all warmup logic internally. On timeout, always logs a warning and proceeds.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    public void awaitWarmupComplete() throws InterruptedException {
+        IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
+        if (ingestionSource == null || !ingestionSource.getWarmupConfig().isEnabled() || streamPoller.isPaused()) {
+            return;
+        }
+
+        long timeoutMs = ingestionSource.getWarmupConfig().timeout().millis();
+        boolean completed = streamPoller.awaitWarmupComplete(timeoutMs);
+
+        if (!completed) {
+            logger.warn("Ingestion warmup timed out for shard after {}ms, proceeding with potentially stale data.", timeoutMs);
+        }
+    }
+
 }

@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "min_rt",
+      "type": "int"
+    },
+    {
+      "name": "min_score",
+      "type": "float"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      53,
+      0.0,
+      50,
+      "North"
+    ],
+    [
+      59,
+      1.0,
+      50,
+      "South"
+    ],
+    [
+      83,
+      3.0,
+      50,
+      "East"
+    ],
+    [
+      159,
+      0.0,
+      50,
+      "West"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

@@ -1,0 +1,1 @@
+source=test_data | eval seconds = time_to_sec(timestamp) | fields timestamp, seconds | head 3

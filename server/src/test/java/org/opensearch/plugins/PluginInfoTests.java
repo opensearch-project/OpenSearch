@@ -32,8 +32,6 @@
 
 package org.opensearch.plugins;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +41,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -410,7 +409,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             false
         );
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).prettyPrint().toString();
+        String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).toString();
         assertTrue(prettyPrint.contains("\"name\" : \"fake\""));
         assertTrue(prettyPrint.contains("\"version\" : \"dummy\""));
         assertTrue(prettyPrint.contains("\"opensearch_version\" : \"" + Version.CURRENT));

@@ -44,6 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
+import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -70,6 +71,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -843,6 +845,76 @@ public class PeerFinderTests extends OpenSearchTestCase {
             runAllRunnableTasks();
         }
         assertFoundPeers(newNode);
+    }
+
+    public void testConnectionFailureDoesNotRemoveNewerConnection() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        final AtomicReference<ActionListener<DiscoveryNode>> firstConnectionListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<DiscoveryNode>> secondConnectionListener = new AtomicReference<>();
+
+        // Use isolated TransportService to avoid handler registration conflicts
+        CapturingTransport testTransport = new CapturingTransport();
+        TransportService testTransportService = new TransportService(
+            Settings.EMPTY,
+            testTransport,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet(),
+            new StubbableConnectionManager(new ClusterConnectionManager(Settings.EMPTY, testTransport)),
+            NoopTracer.INSTANCE
+        );
+        testTransportService.start();
+
+        // Create an isolated PeerFinder to tightly control connection attempt interleaving
+        PeerFinder isolatedFinder = new TestPeerFinder(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "node").build(),
+            testTransportService,
+            new TransportAddressConnector() {
+                @Override
+                public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+                    if (firstConnectionListener.get() == null) {
+                        firstConnectionListener.set(listener);
+                    } else {
+                        secondConnectionListener.set(listener);
+                    }
+                }
+            }
+        );
+
+        DiscoveryNodes newNodes = DiscoveryNodes.builder(lastAcceptedNodes).add(otherNode).build();
+
+        // Start the first connection attempt
+        isolatedFinder.activate(newNodes);
+
+        // Assert the initial async connection is pending
+        assertNotNull(firstConnectionListener.get());
+
+        // Deactivate PeerFinder. This clears peersByAddress, but the connection listener remains in-flight.
+        isolatedFinder.deactivate(localNode);
+
+        // Reactivate to trigger a second connection attempt to the same address, creating a new Peer state.
+        isolatedFinder.activate(newNodes);
+        assertNotNull(secondConnectionListener.get());
+
+        // Simulate an asynchronous failure of the first connection attempt.
+        // A stale failure callback must not remove the more recent Peer state from peersByAddress.
+        firstConnectionListener.get().onFailure(new IOException("simulated timeout / failure of first connection attempt"));
+
+        // Succeed the second connection callback
+        secondConnectionListener.get().onResponse(otherNode);
+
+        // Advance deterministic task queue to flush any remaining onFoundPeersUpdated() calls
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        // Assert that the second connection survived the stale failure exception
+        Iterable<DiscoveryNode> foundPeers = isolatedFinder.getFoundPeers();
+        assertThat(foundPeers, contains(otherNode));
+
+        isolatedFinder.deactivate(localNode);
+        testTransportService.stop();
+        testTransportService.close();
     }
 
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {

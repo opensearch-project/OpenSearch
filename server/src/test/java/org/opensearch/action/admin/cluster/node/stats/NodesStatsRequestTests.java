@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -155,6 +156,30 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
                 return new NodesStatsRequest(in);
             }
         }
+    }
+
+    /**
+     * Verifies that {@code fileCacheDetailed} is serialized on V_3_7_0+ and skipped (defaults false) on older versions.
+     */
+    public void testFileCacheDetailedVersionGate() throws Exception {
+        NodesStatsRequest request = new NodesStatsRequest();
+        request.fileCacheDetailed(true);
+
+        // V_3_7_0: field is written and read back
+        BytesStreamOutput out370 = new BytesStreamOutput();
+        out370.setVersion(Version.V_3_7_0);
+        request.writeTo(out370);
+        StreamInput in370 = out370.bytes().streamInput();
+        in370.setVersion(Version.V_3_7_0);
+        assertTrue(new NodesStatsRequest(in370).isFileCacheDetailed());
+
+        // Pre-V_3_7_0: field is not written; deserialization defaults to false
+        BytesStreamOutput outOld = new BytesStreamOutput();
+        outOld.setVersion(Version.V_2_18_0);
+        request.writeTo(outOld);
+        StreamInput inOld = outOld.bytes().streamInput();
+        inOld.setVersion(Version.V_2_18_0);
+        assertFalse(new NodesStatsRequest(inOld).isFileCacheDetailed());
     }
 
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {

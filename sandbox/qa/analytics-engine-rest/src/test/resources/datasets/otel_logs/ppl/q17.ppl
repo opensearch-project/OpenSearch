@@ -1,0 +1,1 @@
+source=otel_logs | stats count() as c, avg(severityNumber) as avg_sev by `resource.telemetry.sdk.language` | sort - c

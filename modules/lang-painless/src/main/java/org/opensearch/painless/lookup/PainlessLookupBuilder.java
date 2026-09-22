@@ -65,9 +65,11 @@ import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.opensearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
@@ -1925,20 +1927,23 @@ public final class PainlessLookupBuilder {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
         }
 
-        if (javaClassNamesToClasses.values().containsAll(canonicalClassNamesToClasses.values()) == false) {
+        Set<Class<?>> javaClasses = new HashSet<>(javaClassNamesToClasses.values());
+        Set<Class<?>> canonicalClasses = new HashSet<>(canonicalClassNamesToClasses.values());
+        Set<Class<?>> painlessClasses = classesToPainlessClasses.keySet();
+
+        if (javaClasses.containsAll(canonicalClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of java class names to classes " + "must be a superset of the values of canonical class names to classes"
             );
         }
 
-        if (javaClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false) {
+        if (javaClasses.containsAll(painlessClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of java class names to classes " + "must be a superset of the keys of classes to painless classes"
             );
         }
 
-        if (canonicalClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false
-            || classesToPainlessClasses.keySet().containsAll(canonicalClassNamesToClasses.values()) == false) {
+        if (canonicalClasses.equals(painlessClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of canonical class names to classes " + "must have the same classes as the keys of classes to painless classes"
             );

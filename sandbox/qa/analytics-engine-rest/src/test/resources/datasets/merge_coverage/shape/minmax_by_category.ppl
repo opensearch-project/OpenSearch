@@ -1,0 +1,1 @@
+source=%INDEX% | stats min(amount), max(amount) by category

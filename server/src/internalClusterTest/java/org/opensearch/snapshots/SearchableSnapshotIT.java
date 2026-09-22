@@ -42,6 +42,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
@@ -547,6 +548,82 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         } catch (ClusterBlockException e) {
             MatcherAssert.assertThat(e.blocks(), contains(IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE));
         }
+    }
+
+    /**
+     * After a searchable snapshot restore completes, all file cache blocks
+     * fetched during DirectoryReader.open() should be unpinned (refCount=0)
+     * so the file cache can evict them under LRU pressure.
+     *
+     * Tests both CFS (compound file) and non-CFS indexes in a single snapshot/restore cycle.
+     * Uses index.codec=default to avoid AssertingCodec (test-only codec that creates extra clones)
+     * and dummyDocuments=false for a clean single-segment layout after force merge.
+     */
+    public void testBlocksUnpinnedAfterRestore() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String cfsIndex = "test-idx-cfs";
+        final String nonCfsIndex = "test-idx-noncfs";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(1);
+
+        // Disable check_on_startup: Lucene's CodecUtil.checksumEntireFile() clones IndexInput
+        // without closing it, leaving file cache blocks pinned until GC. The test framework
+        // randomizes this setting, which would cause assertNoPinnedBlocks to fail
+        // non-deterministically.
+        Settings.Builder commonSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+            .put("index.codec", "default")
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
+
+        createIndex(cfsIndex, commonSettings.build());
+        createIndex(nonCfsIndex, Settings.builder().put(commonSettings.build()).put("index.compound_format", false).build());
+        ensureGreen();
+
+        for (String indexName : new String[] { cfsIndex, nonCfsIndex }) {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[100];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            }
+            indexRandom(true, false, builders);
+            client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        }
+        flushAndRefresh(cfsIndex, nonCfsIndex);
+        ensureGreen();
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, cfsIndex, nonCfsIndex);
+        deleteIndicesAndEnsureGreen(client, cfsIndex, nonCfsIndex);
+
+        internalCluster().ensureAtLeastNumWarmNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        assertNoPinnedBlocks("after restore");
+        assertDocCount(cfsIndex + "-copy", 100L);
+        assertDocCount(nonCfsIndex + "-copy", 100L);
+    }
+
+    private void assertNoPinnedBlocks(String context) throws IOException {
+        int pinnedCount = 0;
+        for (Node node : internalCluster().getInstances(Node.class)) {
+            if (node.fileCache() == null) continue;
+
+            Path fileCachePath = node.getNodeEnvironment().fileCacheNodePath().fileCachePath;
+            try (Stream<Path> paths = Files.walk(fileCachePath)) {
+                List<Path> blockFiles = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+                for (Path blockFile : blockFiles) {
+                    Integer refCount = node.fileCache().getRef(blockFile);
+                    if (refCount != null && refCount > 0) {
+                        pinnedCount++;
+                        logger.warn("--> [{}] PINNED block={}, refCount={}", context, blockFile.getFileName(), refCount);
+                    }
+                }
+            }
+        }
+        assertEquals("All blocks should be unpinned " + context, 0, pinnedCount);
     }
 
     public void testUpdateIndexSettings() throws InterruptedException {

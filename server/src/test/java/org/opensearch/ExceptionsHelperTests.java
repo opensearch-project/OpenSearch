@@ -32,11 +32,9 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -49,6 +47,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -111,18 +111,19 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
 
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new InputCoercionException(null, "illegal", null, null)), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new InputCoercionException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new JsonParseException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyClauses()), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyNestedClauses()), equalTo(RestStatus.BAD_REQUEST));
+        // Sanity check: arbitrary RuntimeException still falls through to 500.
+        assertThat(ExceptionsHelper.status(new RuntimeException("boom")), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testSummaryMessage() {
         assertThat(ExceptionsHelper.summaryMessage(new IllegalArgumentException("illegal")), equalTo("Invalid argument"));
-        assertThat(
-            ExceptionsHelper.summaryMessage(new InputCoercionException(null, "illegal", null, null)),
-            equalTo("Incompatible JSON value")
-        );
-        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException(null, "illegal")), equalTo("Failed to parse JSON"));
+        assertThat(ExceptionsHelper.summaryMessage(new InputCoercionException("illegal")), equalTo("Incompatible JSON value"));
+        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException("illegal")), equalTo("Failed to parse JSON"));
         assertThat(ExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
     }
 

@@ -1,0 +1,1 @@
+source=app_logs | where message like '%Dropping quote%' | stats count() by host, service_name

@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "auth",
+      "host1",
+      "Database connection refused"
+    ],
+    [
+      "order",
+      "host3",
+      "Inventory service connection refused"
+    ],
+    [
+      "auth",
+      "host2",
+      "Session store connection refused"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

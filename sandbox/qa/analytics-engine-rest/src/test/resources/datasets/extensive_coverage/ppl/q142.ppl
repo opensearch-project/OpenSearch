@@ -1,0 +1,1 @@
+source=test_data | eval parsed = str_to_date('2026-05-15', '%Y-%m-%d') | fields id, parsed | head 1

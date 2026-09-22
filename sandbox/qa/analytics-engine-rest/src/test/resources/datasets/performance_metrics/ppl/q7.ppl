@@ -1,0 +1,1 @@
+source=performance_metrics | where memory_usage >= 75 | stats count() as violations by host | where violations > 5

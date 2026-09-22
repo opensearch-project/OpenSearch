@@ -37,6 +37,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.Explicit;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -47,6 +48,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -283,7 +285,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public void parse(ParseContext context) throws IOException {
         try {
-            parseCreateField(context);
+            if (isPluggableDataFormatFeatureEnabled(context)) {
+                parseCreateFieldForPluggableFormat(context);
+            } else {
+                parseCreateField(context);
+            }
             extractGroupingCriteriaParams(context);
         } catch (Exception e) {
 
@@ -332,6 +338,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
+    /**
+     * Parse the field value and populate the pluggable data format's {@link ParseContext#documentInput()}.
+     * <p>
+     * Subclasses that support pluggable data formats should override this method to extract the
+     * parsed value and call {@code context.documentInput().addField(fieldType(), value)}.
+     * The default implementation throws {@link UnsupportedOperationException}.
+     *
+     * @param context the parse context carrying the document input
+     * @throws IOException if an I/O error occurs while parsing
+     * @throws UnsupportedOperationException if the mapper does not support pluggable data formats
+     */
+    @ExperimentalApi
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException("Field mapper [" + typeName() + "] does not support pluggable data formats");
+    };
+
+    /**
+     * Returns true if this mapper accepts values from {@link ExtraFieldValues}.
+     */
+    public boolean supportsExtraFieldValues() {
+        return false;
+    }
+
     private void extractGroupingCriteriaParams(ParseContext context) throws IOException {
         if (context.docMapper() != null && context.docMapper().mappers() != null) {
             final Mapper mapper = context.docMapper().mappers().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
@@ -366,9 +395,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                if (isPluggableDataFormatFeatureEnabled(context)) {
+                    context.documentInput().addField(fieldNamesFieldType, fieldName);
+                } else {
+                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                }
             }
         }
+    }
+
+    protected final boolean isPluggableDataFormatFeatureEnabled(ParseContext parseContext) {
+        return parseContext.indexSettings().isPluggableDataFormatEnabled();
     }
 
     @Override
@@ -765,6 +802,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return empty();
                 } else {
                     context.path().add(mainFieldBuilder.name());
+                    // Save and restore the previous value so that nested multi-field builds (deprecated
+                    // but still allowed) do not clear the flag for sibling sub-fields of the outer build.
+                    final boolean prevMultiField = context.isMultiField();
+                    context.setMultiField(true);
                     Map mapperBuilders = this.mapperBuilders;
                     for (final Map.Entry<String, Mapper.Builder> cursor : this.mapperBuilders.entrySet()) {
                         String key = cursor.getKey();
@@ -773,6 +814,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         assert mapper instanceof FieldMapper;
                         mapperBuilders.put(key, mapper);
                     }
+                    context.setMultiField(prevMultiField);
                     context.path().remove();
                     final Map<String, FieldMapper> mappers = (Map<String, FieldMapper>) mapperBuilders;
                     return new MultiFields(mappers);

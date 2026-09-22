@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "avg_cpu",
+      "type": "double"
+    },
+    {
+      "name": "max_cpu",
+      "type": "bigint"
+    },
+    {
+      "name": "min_cpu",
+      "type": "bigint"
+    },
+    {
+      "name": "samples",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      82.12,
+      95,
+      70,
+      25,
+      "host1"
+    ],
+    [
+      41.08,
+      60,
+      21,
+      25,
+      "host2"
+    ],
+    [
+      41.12,
+      58,
+      22,
+      25,
+      "host3"
+    ],
+    [
+      43.72,
+      58,
+      22,
+      25,
+      "host4"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

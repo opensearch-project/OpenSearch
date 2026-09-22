@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "temperature",
+      "type": "float"
+    },
+    {
+      "name": "floor_temp",
+      "type": "float"
+    }
+  ],
+  "datarows": [
+    [
+      "BOB",
+      20.34,
+      20.0
+    ],
+    [
+      "ALICE",
+      7.2,
+      7.0
+    ],
+    [
+      "BOB",
+      1.27,
+      1.0
+    ],
+    [
+      "ALICE",
+      -7.78,
+      -8.0
+    ],
+    [
+      "BOB",
+      17.96,
+      17.0
+    ],
+    [
+      "BOB",
+      38.49,
+      38.0
+    ],
+    [
+      "CHARLIE",
+      28.13,
+      28.0
+    ],
+    [
+      "CHARLIE",
+      11.94,
+      11.0
+    ],
+    [
+      "ALICE",
+      34.57,
+      34.0
+    ],
+    [
+      "ALICE",
+      2.84,
+      2.0
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

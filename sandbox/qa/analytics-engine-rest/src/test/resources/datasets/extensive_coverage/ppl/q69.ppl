@@ -1,0 +1,1 @@
+source=test_data | eval val_str = tostring(value) | fields value, val_str | head 3

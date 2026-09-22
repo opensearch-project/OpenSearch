@@ -19,11 +19,13 @@ public enum ClusterManagerTask {
     // Tasks with default threshold (50)
     CREATE_INDEX("create-index", 50),
     UPDATE_SETTINGS("update-settings", 50),
+    PUT_INDEX_FIELD_DOMAINS("put-index-field-domains", 50),
     CLUSTER_UPDATE_SETTINGS("cluster-update-settings", 50),
     DELETE_INDEX("delete-index", 50),
     DELETE_DANGLING_INDEX("delete-dangling-index", 50),
     CREATE_DATA_STREAM("create-data-stream", 50),
     REMOVE_DATA_STREAM("remove-data-stream", 50),
+    MODIFY_DATA_STREAM("modify-data-stream", 50),
     CREATE_INDEX_TEMPLATE("create-index-template", 50),
     REMOVE_INDEX_TEMPLATE("remove-index-template", 50),
     CREATE_COMPONENT_TEMPLATE("create-component-template", 50),
@@ -37,7 +39,7 @@ public enum ClusterManagerTask {
     CREATE_PERSISTENT_TASK("create-persistent-task", 50),
     FINISH_PERSISTENT_TASK("finish-persistent-task", 50),
     REMOVE_PERSISTENT_TASK("remove-persistent-task", 50),
-    UPDATE_TASK_STATE("update-task-state", 50),
+    UPDATE_TASK_STATE("update-task-state", 300),
     CREATE_QUERY_GROUP("create-query-group", 50),
     DELETE_QUERY_GROUP("delete-query-group", 50),
     UPDATE_QUERY_GROUP("update-query-group", 50),
@@ -49,13 +51,15 @@ public enum ClusterManagerTask {
     DELETE_SNAPSHOT("delete-snapshot", 50),
     RESTORE_SNAPSHOT("restore-snapshot", 50),
     CLUSTER_REROUTE_API("cluster-reroute-api", 50),
+    TRANSITION_DEPLOYMENT("transition-deployment", 50),
 
     // Tasks with custom thresholds
     AUTO_CREATE("auto-create", 200),
     ROLLOVER_INDEX("rollover-index", 200),
     INDEX_ALIASES("index-aliases", 200),
     PUT_MAPPING("put-mapping", 10000),
-    UPDATE_SNAPSHOT_STATE("update-snapshot-state", 5000);
+    UPDATE_SNAPSHOT_STATE("update-snapshot-state", 5000),
+    IN_PLACE_SPLIT_SHARD("in-place-split-shard", 50);
 
     private final String key;
     private final int threshold;

@@ -1,0 +1,1 @@
+source=app_monitor | where application_id="ap127143" and monitor_type="monitor" | dedup log_tracking_id | stats count() as total_monitors, sum(error_count) as total_errors by application_id, log_level | eval description="Application Monitor Tracking" | sort - total_monitors

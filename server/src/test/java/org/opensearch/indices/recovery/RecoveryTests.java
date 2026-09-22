@@ -180,7 +180,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id", null);
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
@@ -437,7 +437,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
-            assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
+            assertBusy(() -> assertThat(getIndexer(replica).shouldPeriodicallyFlush(), equalTo(false)));
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
             shards.assertAllEqual(numDocs);

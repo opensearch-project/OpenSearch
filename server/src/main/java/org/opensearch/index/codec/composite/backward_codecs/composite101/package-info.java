@@ -7,6 +7,6 @@
  */
 
 /**
- *  Responsible for handling all composite index codecs and operations associated with Composite100 codec
+ *  Responsible for handling all composite index codecs and operations associated with Composite101 codec
  */
 package org.opensearch.index.codec.composite.backward_codecs.composite101;

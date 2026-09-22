@@ -25,10 +25,15 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -136,8 +141,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
                 segmentTracker.updateLocalRefreshTimeAndSeqNo();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshotRef.get().getFiles(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                 }
             } catch (Throwable t) {
@@ -205,8 +210,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff all the local files are uploaded to remote store.
      */
     boolean isRemoteSegmentStoreInSync() {
-        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-            return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+            return catalogSnapshotRef.get().getFiles(true).stream().allMatch(this::skipUpload);
         } catch (Throwable throwable) {
             logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
         }
@@ -223,7 +228,27 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+            // Accept DataFormatAwareEngine alongside InternalEngine (DFA primaries need the retry path).
+            return indexShard.state() != IndexShardState.STARTED
+                || !(isInternalEngineIndexer(indexShard.getIndexer()) || indexShard.getIndexer() instanceof DataFormatAwareEngine);
+        }
+
+        // Publishing segment metadata and collecting stale segments both mutate state shared with any other live copy
+        // of this shard, and neither is on the acknowledgement path that the fence CAS gates. A superseded copy doing
+        // either can break a legitimate owner: an unfenced publish moves the reference set that collection prunes to,
+        // so the owner's own collection then deletes files it is still hydrating. Both are therefore gated on this copy
+        // still owning the fence - but on SEPARATE checks with OPPOSITE failure directions. This one gates the
+        // publication and fails OPEN (an unreadable fence proceeds - the worst case is an orphan, the pre-existing
+        // harmless case); the stale-segment collection below has its own fail-CLOSED gate, as do the translog trims.
+        // FenceSegmentFlow.tla measures why the separation matters: relaxing the publication gate alone is safe and
+        // relaxing a collection gate alone is safe, but relaxing both violates HydrationIntegrity - so one shared
+        // fail-open check would turn a single unreadable-fence event into exactly that unsafe combination. Returning
+        // true rather than requesting a retry is deliberate: a superseded copy will never regain ownership, so
+        // retrying would spin. The setting is checked first so that an unfenced index never pays for the ownership
+        // read.
+        if (indexShard.indexSettings().isRemoteStoreFencingEnabled() && indexShard.isRemoteStoreFenceSuperseded()) {
+            logger.info("Skipping segment upload and cleanup: a higher primary term has taken the remote store fence");
+            return true;
         }
 
         // Extract crypto metadata once at start of sync
@@ -242,13 +267,33 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
+                // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
+                // to prevent unbounded memory growth when flushes do not happen.
+                if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
+                    // Collection fails CLOSED, on its own gate, unlike the publication gate at the top of this sync
+                    // (which fails open - an unreadable fence there costs at most an orphan). The two directions must
+                    // sit on separate checks: FenceSegmentFlow.tla measures that relaxing the publication gate alone
+                    // is safe and relaxing a collection gate alone is safe, but relaxing BOTH violates
+                    // HydrationIntegrity - and a single shared fail-open check would relax both on one
+                    // unreadable-fence event, a perfectly correlated failure. A skipped cycle is retried on the next
+                    // commit-refresh; a wrongly permitted delete is not recoverable.
+                    if (indexShard.indexSettings().isRemoteStoreFencingEnabled()
+                        && indexShard.isRemoteStoreFenceSupersededFailingClosed()) {
+                        logger.info("Skipping stale segment cleanup: remote store fence ownership is superseded or unreadable");
+                    } else {
+                        remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
+                    }
                 }
 
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    // Clone to freeze lastCommitGeneration and other mutable state for the
+                    // duration of this upload cycle. Without cloning, a concurrent flush can
+                    // call CatalogSnapshotManager.updateLastCommitInfo which mutates the live
+                    // snapshot's lastCommitGeneration — causing the retry path (which runs
+                    // asynchronously) to serialize segment metadata with a different generation
+                    // than the one used for the initial segment file upload.
+                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get().clone();
+                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                     if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                         throw new IllegalStateException(
                             String.format(
@@ -261,9 +306,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
-                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+                    long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
+                    evictUploadedChecksums(localSegmentsPostRefresh);
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
@@ -274,8 +320,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                // Start metadata file upload in plaintext
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                // Start metadata file upload
+                                uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
@@ -343,6 +389,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
     }
 
+    private static boolean isInternalEngineIndexer(org.opensearch.index.engine.exec.Indexer indexer) {
+        return indexer instanceof EngineBackedIndexer engineBacked && engineBacked.getEngine() instanceof InternalEngine;
+    }
+
     /**
      * Uploads new segment files to the remote store.
      *
@@ -385,6 +435,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             .forEach(localSegmentChecksumMap::remove);
     }
 
+    /**
+     * Evicts pre-computed checksums for files no longer in the current catalog snapshot.
+     * Once uploaded, the checksum is stored in remote metadata and no longer needed in the local cache.
+     */
+    private void evictUploadedChecksums(Collection<String> currentSnapshotFiles) {
+        DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+        if (dfasd != null) {
+            dfasd.evictStaleChecksums(currentSnapshotFiles);
+        }
+    }
+
     private void beforeSegmentsSync() {
         // Start tracking total uploads started
         segmentTracker.incrementTotalUploadsStarted();
@@ -405,10 +466,39 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // The above trimming makes the translog-size based periodic flush condition ineffective on remote-store
+        // shards, hence publish the size of segment bytes not yet referenced by the last commit point, together with
+        // the threshold to flush at, so that the engine can flush once they breach it.
+        if (indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
+            if (remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled()) {
+                engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap, flushOnUncommittedSegmentsThresholdBytes());
+            } else {
+                // discard whatever was published while the condition was on, otherwise it stays armed and can still
+                // trigger a flush after the operator turned the condition off
+                engineBacked.getEngine().clearUncommittedSegmentBytes();
+            }
+        }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
+    }
+
+    /**
+     * Resolves the uncommitted segment bytes to flush at: the per-index
+     * {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} if the index sets it explicitly,
+     * otherwise the cluster default {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size}.
+     * <p>
+     * This lives here, at the publication site, because it is the only place holding both scopes: the shard's
+     * {@link org.opensearch.index.IndexSettings} and the node's {@link RemoteStoreSettings}, whose values are kept
+     * current by cluster settings update consumers. Resolving on every publication rather than caching means an update
+     * to either setting is picked up by the next successful segments sync.
+     */
+    private long flushOnUncommittedSegmentsThresholdBytes() {
+        final IndexSettings indexSettings = indexShard.indexSettings();
+        return indexSettings.isFlushOnUncommittedSegmentsThresholdSizeExplicit()
+            ? indexSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes()
+            : remoteStoreSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes();
     }
 
     /**
@@ -447,27 +537,43 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return false;
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
-        throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
-        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
-        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+    private boolean uploadedSegmentsMapExceedsThreshold() {
+        int threshold = indexShard.getRemoteStoreSettings().getUploadedSegmentsCleanupThreshold();
+        return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
+    }
+
+    void uploadMetadata(
+        Collection<String> localSegmentsPostRefresh,
+        CatalogSnapshot catalogSnapshot,
+        ReplicationCheckpoint replicationCheckpoint
+    ) throws IOException {
+        final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.clone();
+        Map<String, String> userData = new HashMap<>(catalogSnapshotCloned.getUserData());
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-        segmentInfosSnapshot.setUserData(userData, false);
+        catalogSnapshotCloned.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        // Pass the serializer from the indexer. For DFA primary it delegates to the
+        // CatalogSnapshotManager → LuceneCommitter.serializeToCommitFormat which uses the
+        // reader registered for this snapshot to produce bytes strictly consistent with the
+        // catalog's Lucene files — no race between catalog acquisition and IndexWriter re-capture.
+        org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> serializer = indexShard
+            .catalogSnapshotToRemoteMetadataSerializer();
+
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localSegmentsPostRefresh,
-                segmentInfosSnapshot,
+                catalogSnapshotCloned,
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
-                indexShard.getNodeId()
+                indexShard.getNodeId(),
+                serializer
             );
         }
     }
@@ -497,6 +603,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     private String getChecksumOfLocalFile(String file) throws IOException {
         if (!localSegmentChecksumMap.containsKey(file)) {
+            if (indexShard.indexSettings().isPluggableDataFormatEnabled()) {
+                DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                if (dfasd == null) {
+                    throw new IllegalStateException("DataFormatAwareStoreDirectory expected when pluggable data format is enabled");
+                }
+                String checksum = dfasd.calculateUploadChecksum(file);
+                localSegmentChecksumMap.put(file, checksum);
+                return checksum;
+            }
             try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.READONCE)) {
                 String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
                 localSegmentChecksumMap.put(file, checksum);
@@ -573,8 +688,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             if (indexShard.state() != null) {
                 sb.append(" indexShardState=").append(indexShard.state());
             }
-            if (indexShard.getEngineOrNull() != null) {
-                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            if (indexShard.getIndexerOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getIndexer().getClass().getSimpleName());
             }
             if (indexShard.recoveryState() != null) {
                 sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());

@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "trimmed",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ],
+    [
+      "  Test Message  ",
+      "  Test Message"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

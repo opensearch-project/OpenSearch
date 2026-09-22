@@ -1,0 +1,1 @@
+source=test_data | lookup lookup category output category_name | fields category, category_name | head 5

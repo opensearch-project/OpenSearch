@@ -1,0 +1,1 @@
+source=test_data | eval day_name = dayname(timestamp) | fields timestamp, day_name | head 3

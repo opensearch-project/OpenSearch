@@ -1,0 +1,1 @@
+source=test_data | eval now_ts = current_timestamp() | fields id, now_ts | head 1

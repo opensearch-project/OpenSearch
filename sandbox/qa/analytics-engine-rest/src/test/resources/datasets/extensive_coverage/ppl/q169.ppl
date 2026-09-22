@@ -1,0 +1,1 @@
+source=test_data | eval acos_val = acos(0.5) | fields id, acos_val | head 1

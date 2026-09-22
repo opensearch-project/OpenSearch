@@ -83,6 +83,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -1398,7 +1399,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
-            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
+            .setIndicesOptions(IndicesOptions.strictExpandOpenHiddenAndForbidClosed())
             .execute()
             .actionGet();
         assertNoFailures(actionGet);
@@ -1643,6 +1644,24 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         if (forceRefresh) {
             waitForReplication();
+        }
+    }
+
+    /**
+     * Indexes documents in bulk across the specified number of segments. Documents are evenly distributed
+     * across segments with a refresh between each batch to create segment boundaries. This is useful for
+     * tests that need multiple predefined segments for testing.
+     *
+     * @param builders   the documents to index
+     * @param numSegments the number of segments to create
+     */
+    public void indexBulkWithSegments(List<IndexRequestBuilder> builders, int numSegments) throws InterruptedException {
+        assert numSegments > 0 && numSegments <= builders.size() : "numSegments must be between 1 and builders.size()";
+        int batchSize = builders.size() / numSegments;
+        for (int seg = 0; seg < numSegments; seg++) {
+            int from = seg * batchSize;
+            int to = (seg == numSegments - 1) ? builders.size() : from + batchSize;
+            indexRandom(true, false, false, builders.subList(from, to));
         }
     }
 
@@ -2534,38 +2553,35 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         try {
             for (String index : indices) {
                 if (isSegmentReplicationEnabledForIndex(index)) {
-                    if (isInternalCluster()) {
+                    assertTrue("Unable to wait for replication with external test cluster", isInternalCluster());
+                    assertBusy(() -> {
                         IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
                         if (indexRoutingTable != null) {
-                            assertBusy(() -> {
-                                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                                    final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-                                    if (primaryRouting.state().toString().equals("STARTED")) {
-                                        if (isSegmentReplicationEnabledForIndex(index)) {
-                                            final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                            final IndexShard primaryShard = getIndexShard(primaryRouting, index);
-                                            for (ShardRouting replica : replicaRouting) {
-                                                if (replica.state().toString().equals("STARTED")) {
-                                                    IndexShard replicaShard = getIndexShard(replica, index);
-                                                    if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
-                                                        assertEquals(
-                                                            "replica shards haven't caught up with primary",
-                                                            getLatestSegmentInfoVersion(primaryShard),
-                                                            getLatestSegmentInfoVersion(replicaShard)
-                                                        );
-                                                    }
+                            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                                final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                                if (primaryRouting.state() == ShardRoutingState.STARTED) {
+                                    if (isSegmentReplicationEnabledForIndex(index)) {
+                                        final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                        final IndexShard primaryShard = getIndexShard(primaryRouting, index);
+                                        for (ShardRouting replica : replicaRouting) {
+                                            if (replica.state() == ShardRoutingState.STARTED) {
+                                                IndexShard replicaShard = getIndexShard(replica, index);
+                                                if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+                                                    assertEquals(
+                                                        "replica shards haven't caught up with primary",
+                                                        getLatestSegmentInfoVersion(primaryShard),
+                                                        getLatestSegmentInfoVersion(replicaShard)
+                                                    );
                                                 }
+                                            } else if (replica.state() == ShardRoutingState.INITIALIZING) {
+                                                fail("replica shard still INITIALIZING, not caught up with primary");
                                             }
                                         }
                                     }
                                 }
-                            }, 30, TimeUnit.SECONDS);
+                            }
                         }
-                    } else {
-                        throw new IllegalStateException(
-                            "Segment Replication is not supported for testing tests using External Test Cluster"
-                        );
-                    }
+                    }, 30, TimeUnit.SECONDS);
                 }
             }
         } catch (Exception e) {

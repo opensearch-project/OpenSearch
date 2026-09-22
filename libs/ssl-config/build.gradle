@@ -57,6 +57,16 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /bc.*/, to: 'bouncycastle'
 }
 
+thirdPartyAudit.ignoreMissingClasses(
+  // Optional BC ML-KEM/CMS-KEM implementations are not supplied by the FIPS provider.
+  'org.bouncycastle.pqc.jcajce.SecretKeyWithEncapsulation',
+  'org.bouncycastle.pqc.jcajce.interfaces.MLKEMPublicKey',
+  'org.bouncycastle.pqc.jcajce.spec.KEMExtractSpec$Builder',
+  'org.bouncycastle.pqc.jcajce.spec.KEMGenerateSpec$Builder',
+  'org.bouncycastle.pqc.jcajce.spec.MLKEMParameterSpec',
+  'org.bouncycastle.pqc.jcajce.spec.KTSParameterSpec$Builder'
+)
+
 tasks.test {
     jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
 }

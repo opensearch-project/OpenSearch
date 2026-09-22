@@ -1,0 +1,1 @@
+source=security_logs | where event_type="authentication_failure" | stats count() as failed_attempts by user | inner join left=l right=r on l.user = r.user [ source=security_logs | where event_type="suspicious_activity" | stats count() as suspicious_count by user ] | eval risk_score = failed_attempts + suspicious_count * 2 | where risk_score > 5 | sort - risk_score

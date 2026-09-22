@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = cast(amount as double) | sort id | fields id, r

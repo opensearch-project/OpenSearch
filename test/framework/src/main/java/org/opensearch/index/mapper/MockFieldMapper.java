@@ -91,6 +91,9 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) {}
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) {}
+
     public static class Builder extends ParametrizedFieldMapper.Builder {
         private final MappedFieldType fieldType;
 

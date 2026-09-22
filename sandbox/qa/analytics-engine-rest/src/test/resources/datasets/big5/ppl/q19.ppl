@@ -1,0 +1,1 @@
+source = big5 | stats count() as station by `aws.cloudwatch.log_stream` | sort - station | head 500

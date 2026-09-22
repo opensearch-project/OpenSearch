@@ -1,0 +1,1 @@
+source=%INDEX% | stats max(price) by span(amount, 5)

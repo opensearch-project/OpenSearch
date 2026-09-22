@@ -672,4 +672,24 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns the native (Rust) object store wrapper for this repository, or
+     * {@link NativeStoreRepository#EMPTY} if native object store is not supported or not initialized.
+     *
+     * <p>The returned value is a {@link NativeStoreRepository} wrapper managed by the
+     * repository implementation. Callers must NOT cache or use the wrapper across
+     * repository lifecycle boundaries. The wrapper is invalidated when the repository
+     * is closed — accessing it after close throws {@link IllegalStateException}.
+     *
+     * <p>Only sandbox tiered storage code should call this method. The default
+     * implementation returns {@link NativeStoreRepository#EMPTY} (no native store).
+     *
+     * @return the native (Rust) object store wrapper, or {@link NativeStoreRepository#EMPTY} if not available
+     * @throws IllegalStateException if the native store has been closed
+     * @opensearch.experimental
+     */
+    default NativeStoreRepository getNativeStore() {
+        return NativeStoreRepository.EMPTY;
+    }
 }

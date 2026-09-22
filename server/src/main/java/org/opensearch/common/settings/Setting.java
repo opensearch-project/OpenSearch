@@ -177,7 +177,15 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as immutable on snapshot restore
          * i.e. the setting will not be allowed to be removed or modified during restore
          */
-        UnmodifiableOnRestore
+        UnmodifiableOnRestore,
+
+        /**
+         * Marks a setting as sensitive. Can only be applied to dynamic settings.
+         * The Sensitive property has default enforcement but enables plugins to implement
+         * different policies for these settings. In practice the security plugin will
+         * require higher privileges for modifying sensitive settings.
+         */
+        Sensitive
     }
 
     private final Key key;
@@ -216,6 +224,9 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
                 throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Sensitive) && propertiesAsSet.contains(Property.Dynamic) == false) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -359,6 +370,14 @@ public class Setting<T> implements ToXContentObject {
 
     public final boolean isUnmodifiableOnRestore() {
         return properties.contains(Property.UnmodifiableOnRestore);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is sensitive, meaning it requires security admin
+     * privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public final boolean isSensitive() {
+        return properties.contains(Property.Sensitive);
     }
 
     public final boolean isInternalIndex() {
@@ -2243,22 +2262,31 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * A writeable parser for memory size value
+     * A writeable parser for memory size value. Supports resolving percentages against
+     * either JVM heap or available native memory (total physical minus JVM heap).
      */
     public static class MemorySizeValueParser implements Function<String, ByteSizeValue>, Writeable {
         private String key;
+        private boolean useNativeMemory;
 
         public MemorySizeValueParser(String key) {
+            this(key, false);
+        }
+
+        public MemorySizeValueParser(String key, boolean useNativeMemory) {
             this.key = key;
+            this.useNativeMemory = useNativeMemory;
         }
 
         public MemorySizeValueParser(StreamInput in) throws IOException {
             key = in.readString();
+            useNativeMemory = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
+            out.writeBoolean(useNativeMemory);
         }
 
         public String getKey() {
@@ -2267,18 +2295,20 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public ByteSizeValue apply(String s) {
-            return MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+            return useNativeMemory
+                ? MemorySizeValue.parseBytesSizeValueOrNativeMemoryRatio(s, key)
+                : MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
         }
 
         public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             MemorySizeValueParser that = (MemorySizeValueParser) obj;
-            return Objects.equals(key, that.key);
+            return Objects.equals(key, that.key) && useNativeMemory == that.useNativeMemory;
         }
 
         public int hashCode() {
-            return Objects.hash(key);
+            return Objects.hash(key, useNativeMemory);
         }
     }
 
@@ -2294,6 +2324,19 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    /**
+     * Creates a setting which specifies a memory size as either an absolute bytes value or
+     * a percentage of available native memory (total physical memory minus JVM heap).
+     *
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of native memory
+     * @param properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> nativeMemorySizeSetting(String key, String defaultPercentage, Property... properties) {
+        return new Setting<>(key, (s) -> defaultPercentage, new MemorySizeValueParser(key, true), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

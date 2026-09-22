@@ -37,6 +37,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -131,6 +132,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
     }
 
     private final boolean required;
@@ -148,9 +154,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
-            context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
-            createFieldNamesField(context);
+            if (context.indexSettings().isPluggableDataFormatEnabled()) {
+                context.documentInput().addField(this.fieldType(), routing);
+            } else {
+                context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
+                createFieldNamesField(context);
+            }
         }
+
     }
 
     @Override

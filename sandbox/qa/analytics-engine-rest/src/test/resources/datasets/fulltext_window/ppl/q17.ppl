@@ -1,0 +1,1 @@
+source=transactions | sort region, amount desc | streamstats count() as rn by region | where rn = 1 | fields region, userid, product, amount

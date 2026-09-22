@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "event=\\{\"type\":\"(?<eventtype>\w+)\",\"user\":\"(?<user>\w+)\"" | fields eventtype, user | where eventtype is not null

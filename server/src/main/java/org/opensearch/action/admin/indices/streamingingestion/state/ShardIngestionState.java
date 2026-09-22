@@ -10,7 +10,7 @@ package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -26,9 +26,9 @@ import java.util.Map;
 /**
  * Represents ingestion shard state.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class ShardIngestionState implements Writeable, ToXContentFragment {
     private static final String SHARD = "shard";
     private static final String POLLER_STATE = "poller_state";

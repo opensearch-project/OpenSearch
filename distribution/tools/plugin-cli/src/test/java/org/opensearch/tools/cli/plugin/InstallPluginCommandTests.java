@@ -448,6 +448,20 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 }
             }
         }
+        if (Files.exists(original.resolve("shared"))) {
+            Path libDir = env.pluginsDir().resolve("lib").resolve(name);
+            assertTrue("lib dir exists", Files.exists(libDir));
+            assertTrue("lib is a dir", Files.isDirectory(libDir));
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(libDir)) {
+                for (Path file : stream) {
+                    assertFalse("lib entry is not a dir", Files.isDirectory(file));
+                    if (isPosix) {
+                        PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
+                        assertEquals(InstallPluginCommand.PLUGIN_FILES_PERMS, attributes.permissions());
+                    }
+                }
+            }
+        }
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
@@ -812,6 +826,43 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertTrue(Files.exists(installedConfigDir));
         assertTrue(Files.isDirectory(installedConfigDir));
         assertTrue(Files.exists(installedConfigDir.resolve("myconfig.yml")));
+    }
+
+    public void testLib() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path sharedDir = pluginDir.resolve("shared");
+        Files.createDirectory(sharedDir);
+        writeJar(sharedDir.resolve("dep.jar"), "DepClass");
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+        // shared jar must be in plugins/lib/fake/
+        assertTrue(Files.exists(env.v2().pluginsDir().resolve("lib").resolve("fake").resolve("dep.jar")));
+        // shared dir must NOT remain inside the plugin dir
+        assertFalse(Files.exists(env.v2().pluginsDir().resolve("fake").resolve("shared")));
+    }
+
+    public void testLibNotDir() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Files.createFile(pluginDir.resolve("shared"));
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
+        assertInstallCleaned(env.v2());
+    }
+
+    public void testLibContainsDir() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path dirInSharedDir = pluginDir.resolve("shared").resolve("subdir");
+        Files.createDirectories(dirInSharedDir);
+        Files.createFile(dirInSharedDir.resolve("dep.jar"));
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in shared dir for plugin"));
+        assertInstallCleaned(env.v2());
     }
 
     public void testMissingDescriptor() throws Exception {

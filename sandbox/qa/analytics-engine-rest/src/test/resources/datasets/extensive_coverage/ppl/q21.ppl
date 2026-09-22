@@ -1,0 +1,1 @@
+source=test_data | eval hr = hour(timestamp), min = minute(timestamp), sec = second(timestamp) | fields timestamp, hr, min, sec | head 3

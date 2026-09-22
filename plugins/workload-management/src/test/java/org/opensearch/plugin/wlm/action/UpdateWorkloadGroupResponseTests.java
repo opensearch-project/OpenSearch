@@ -53,15 +53,43 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         UpdateWorkloadGroupResponse otherResponse = new UpdateWorkloadGroupResponse(workloadGroupOne, RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
-            + "  \"name\" : \"workload_group_one\",\n"
-            + "  \"resiliency_mode\" : \"monitor\",\n"
-            + "  \"resource_limits\" : {\n"
-            + "    \"memory\" : 0.3\n"
-            + "  },\n"
-            + "  \"updated_at\" : 4513232413\n"
-            + "}";
+        String expected = """
+            {
+              "_id" : "AgfUO5Ja9yfsYlONlYi3TQ==",
+              "name" : "workload_group_one",
+              "resiliency_mode" : "monitor",
+              "resource_limits" : {
+                "memory" : 0.3
+              },
+              "settings" : { },
+              "updated_at" : 4513232413
+            }""";
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * Test case to verify the toXContent method of UpdateWorkloadGroupResponse with search settings.
+     */
+    public void testToXContentUpdateWorkloadGroupWithSearchSettings() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        UpdateWorkloadGroupResponse response = new UpdateWorkloadGroupResponse(
+            WorkloadManagementTestUtils.workloadGroupWithSearchSettings,
+            RestStatus.OK
+        );
+        String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
+        String expected = """
+            {
+              "_id" : "H6jVP6Kb0zgtZmPOmZj4UQ==",
+              "name" : "workload_group_three",
+              "resiliency_mode" : "enforced",
+              "resource_limits" : {
+                "memory" : 0.5
+              },
+              "settings" : {
+                "search.default_search_timeout" : "30s"
+              },
+              "updated_at" : 4513232417
+            }""";
         assertEquals(expected, actual);
     }
 }

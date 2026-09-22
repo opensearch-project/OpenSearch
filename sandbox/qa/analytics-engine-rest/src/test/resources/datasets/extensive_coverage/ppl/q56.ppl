@@ -1,0 +1,1 @@
+source=test_data | eval tag_array = split(tags, ","), array_len = array_length(tag_array) | fields tags, array_len | head 3

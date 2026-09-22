@@ -51,6 +51,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -345,6 +346,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             return rangeType.name;
         }
 
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
@@ -479,6 +485,15 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (index || store)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Range range = parseRange(context);
+        if (range == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), range);
     }
 
     private Range parseRange(ParseContext context) throws IOException {

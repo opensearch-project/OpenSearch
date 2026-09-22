@@ -150,6 +150,17 @@ public class ContextAwareGroupingFieldMapperTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("context_aware_grouping cannot be ingested in the document"));
     }
 
+    public void testPluggableDataFormatIngestThrowsException() {
+        ContextAwareGroupingFieldType fieldType = new ContextAwareGroupingFieldType(Collections.emptyList(), null);
+        ContextAwareGroupingFieldMapper mapper = new ContextAwareGroupingFieldMapper(
+            "context_aware_grouping",
+            fieldType,
+            new ContextAwareGroupingFieldMapper.Builder("context_aware_grouping")
+        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parseCreateFieldForPluggableFormat(null));
+        assertTrue(e.getMessage().contains("context_aware_grouping cannot be ingested in the document"));
+    }
+
     public void testContextAwareFieldMapperWithDerivedSource() throws IOException {
         ContextAwareGroupingFieldType fieldType = new ContextAwareGroupingFieldType(Collections.emptyList(), null);
         ContextAwareGroupingFieldMapper mapper = new ContextAwareGroupingFieldMapper(

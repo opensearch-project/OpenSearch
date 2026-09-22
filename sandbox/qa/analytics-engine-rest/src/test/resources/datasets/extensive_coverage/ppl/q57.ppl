@@ -1,0 +1,1 @@
+source=test_data | eval tag_array = split(tags, ","), joined = mvjoin(tag_array, "|") | fields tags, joined | head 3

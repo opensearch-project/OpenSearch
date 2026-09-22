@@ -224,6 +224,7 @@ public class RemoteClusterStateService implements Closeable {
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
     private final LongSupplier relativeTimeNanosSupplier;
+    private final LongSupplier applicationDurationMsSupplier;
     private final ThreadPool threadpool;
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
@@ -269,13 +270,15 @@ public class RemoteClusterStateService implements Closeable {
         LongSupplier relativeTimeNanosSupplier,
         ThreadPool threadPool,
         List<IndexMetadataUploadListener> indexMetadataUploadListeners,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        LongSupplier applicationDurationMsSupplier
     ) {
         assert isRemoteClusterStateConfigured(settings) : "Remote cluster state is not configured";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.relativeTimeNanosSupplier = relativeTimeNanosSupplier;
+        this.applicationDurationMsSupplier = applicationDurationMsSupplier;
         this.threadpool = threadPool;
         clusterSettings = clusterService.getClusterSettings();
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
@@ -2115,11 +2118,15 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public PersistedStateStats getFullDownloadStats() {
-        return remoteStateStats.getRemoteFullDownloadStats();
+        RemoteDownloadStats stats = (RemoteDownloadStats) remoteStateStats.getRemoteFullDownloadStats();
+        stats.setCurrentApplicationDurationMs(applicationDurationMsSupplier.getAsLong());
+        return stats;
     }
 
     public PersistedStateStats getDiffDownloadStats() {
-        return remoteStateStats.getRemoteDiffDownloadStats();
+        RemoteDownloadStats stats = (RemoteDownloadStats) remoteStateStats.getRemoteDiffDownloadStats();
+        stats.setCurrentApplicationDurationMs(applicationDurationMsSupplier.getAsLong());
+        return stats;
     }
 
     public void fullDownloadFailed() {

@@ -256,6 +256,6 @@ tasks.configureEach { t ->
 
 tasks.each {
   if (it.name.startsWith("build")) {
-    it.dependsOn project(':libs:agent-sm:agent').assemble
+    it.dependsOn project(':libs:agent-sm:agent').tasks.named('assemble')
   }
 }

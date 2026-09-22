@@ -119,6 +119,13 @@ interface AwsEc2Service extends Closeable {
     AmazonEc2ClientReference client();
 
     /**
+     * Builds then caches an {@link software.amazon.awssdk.imds.Ec2MetadataClient} using the
+     * current client settings. Returns an {@link AmazonEc2MetadataClientReference} wrapper which
+     * should be released as soon as it is not required anymore.
+     */
+    AmazonEc2MetadataClientReference metadataClient();
+
+    /**
      * Updates the settings for building the client and releases the cached one.
      * Future client requests will use the new settings to lazily built the new
      * client.

@@ -84,4 +84,57 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
         // for the third time it should be in duress
         assertTrue(nodeDuressTrackers.isNodeInDuress());
     }
+
+    public void testNodeInDuressWhenNativeMemoryInDuress() {
+        // Only NATIVE_MEMORY tracker registered. With breach threshold 9, isNodeInDuress
+        // crosses the threshold on the third call (each isNodeInDuress invocation triggers
+        // updateCache once per ResourceType value, so each call increments the streak by
+        // ResourceType.values().length).
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> true, () -> 9));
+            }
+        };
+
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
+
+        assertFalse(nodeDuressTrackers.isNodeInDuress());
+        assertFalse(nodeDuressTrackers.isNodeInDuress());
+        assertTrue(nodeDuressTrackers.isNodeInDuress());
+        assertTrue(nodeDuressTrackers.isNativeMemoryInDuress());
+    }
+
+    public void testIsNativeMemoryInDuressFalseWhenUnregistered() {
+        // CPU + MEMORY only — NATIVE_MEMORY missing entirely. Per
+        // NodeDuressTrackers#updateCache, missing trackers must be treated as "not in duress"
+        // rather than throwing on the absent enum value.
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 1));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 1));
+            }
+        };
+
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
+        // Drive isResourceInDuress to populate the cache for all enum values.
+        assertTrue(nodeDuressTrackers.isResourceInDuress(ResourceType.CPU));
+        assertFalse(nodeDuressTrackers.isResourceInDuress(ResourceType.MEMORY));
+        // NATIVE_MEMORY was not registered — must be reported as not in duress.
+        assertFalse(nodeDuressTrackers.isResourceInDuress(ResourceType.NATIVE_MEMORY));
+        assertFalse(nodeDuressTrackers.isNativeMemoryInDuress());
+    }
+
+    public void testIsNativeMemoryInDuressFalseWhenStreakNotMet() {
+        // Tracker is registered but breach threshold not reached. With threshold 100 the
+        // streak never crosses regardless of how many calls we make in this test loop.
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> true, () -> 100));
+            }
+        };
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
+        for (int i = 0; i < 10; i++) {
+            assertFalse(nodeDuressTrackers.isNativeMemoryInDuress());
+        }
+    }
 }

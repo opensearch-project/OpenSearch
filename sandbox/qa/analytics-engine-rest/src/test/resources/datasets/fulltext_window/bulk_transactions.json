@@ -1,0 +1,60 @@
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:00Z", "userid": "user1", "orderid": "ord001", "amount": 150.50, "category": "electronics", "region": "US", "product": "wireless mouse"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:05Z", "userid": "user2", "orderid": "ord002", "amount": 89.99, "category": "books", "region": "EU", "product": "programming guide"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:10Z", "userid": "user1", "orderid": "ord003", "amount": 299.00, "category": "electronics", "region": "US", "product": "mechanical keyboard"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:15Z", "userid": "user3", "orderid": "ord004", "amount": 45.00, "category": "clothing", "region": "APAC", "product": "cotton t-shirt"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:20Z", "userid": "user2", "orderid": "ord005", "amount": 199.99, "category": "electronics", "region": "EU", "product": "bluetooth headphones"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:25Z", "userid": "user4", "orderid": "ord006", "amount": 1250.00, "category": "electronics", "region": "US", "product": "laptop computer"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:30Z", "userid": "user1", "orderid": "ord007", "amount": 75.50, "category": "books", "region": "US", "product": "data structures textbook"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:35Z", "userid": "user5", "orderid": "ord008", "amount": 320.00, "category": "clothing", "region": "EU", "product": "winter jacket"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:40Z", "userid": "user3", "orderid": "ord009", "amount": 55.00, "category": "books", "region": "APAC", "product": "fiction novel"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:45Z", "userid": "user2", "orderid": "ord010", "amount": 499.99, "category": "electronics", "region": "EU", "product": "tablet device"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:50Z", "userid": "user6", "orderid": "ord011", "amount": 89.00, "category": "clothing", "region": "US", "product": "running shoes"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:55Z", "userid": "user4", "orderid": "ord012", "amount": 2500.00, "category": "electronics", "region": "US", "product": "gaming desktop"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:00Z", "userid": "user1", "orderid": "ord013", "amount": 125.00, "category": "clothing", "region": "US", "product": "denim jeans"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:05Z", "userid": "user7", "orderid": "ord014", "amount": 35.99, "category": "books", "region": "APAC", "product": "cookbook recipes"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:10Z", "userid": "user5", "orderid": "ord015", "amount": 180.00, "category": "electronics", "region": "EU", "product": "smart watch"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:15Z", "userid": "user3", "orderid": "ord016", "amount": 65.50, "category": "clothing", "region": "APAC", "product": "polo shirt"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:20Z", "userid": "user2", "orderid": "ord017", "amount": 399.00, "category": "electronics", "region": "EU", "product": "wireless earbuds"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:25Z", "userid": "user8", "orderid": "ord018", "amount": 99.99, "category": "books", "region": "US", "product": "business strategy"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:30Z", "userid": "user6", "orderid": "ord019", "amount": 145.00, "category": "clothing", "region": "US", "product": "leather belt"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:35Z", "userid": "user4", "orderid": "ord020", "amount": 850.00, "category": "electronics", "region": "US", "product": "monitor display"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:40Z", "userid": "user1", "orderid": "ord021", "amount": 220.00, "category": "electronics", "region": "US", "product": "external hard drive"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:45Z", "userid": "user9", "orderid": "ord022", "amount": 42.50, "category": "books", "region": "EU", "product": "travel guide"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:50Z", "userid": "user5", "orderid": "ord023", "amount": 275.00, "category": "clothing", "region": "EU", "product": "formal suit"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:55Z", "userid": "user3", "orderid": "ord024", "amount": 159.99, "category": "electronics", "region": "APAC", "product": "portable speaker"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:00Z", "userid": "user7", "orderid": "ord025", "amount": 78.00, "category": "clothing", "region": "APAC", "product": "sports cap"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:05Z", "userid": "user2", "orderid": "ord026", "amount": 599.00, "category": "electronics", "region": "EU", "product": "camera lens"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:10Z", "userid": "user10", "orderid": "ord027", "amount": 29.99, "category": "books", "region": "US", "product": "mystery thriller"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:15Z", "userid": "user6", "orderid": "ord028", "amount": 195.00, "category": "clothing", "region": "US", "product": "backpack"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:20Z", "userid": "user4", "orderid": "ord029", "amount": 3200.00, "category": "electronics", "region": "US", "product": "professional camera"}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:25Z", "userid": "user1", "orderid": "ord030", "amount": 110.00, "category": "books", "region": "US", "product": "algorithm design"}

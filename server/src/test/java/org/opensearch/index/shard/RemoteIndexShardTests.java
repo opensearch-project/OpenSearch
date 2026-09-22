@@ -156,7 +156,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
-            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+            assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
 
             // refresh and push segments to our other replica.
@@ -193,7 +193,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         CountDownLatch latch = new CountDownLatch(1);
         shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
             try {
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+                assertAtMostOneLuceneDocumentPerSequenceNumber(getEngine(replicaShard));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

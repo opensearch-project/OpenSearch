@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -161,6 +162,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).autoExpandToAll()) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is ignored, this index is set to auto-expand to all");
+        }
         int shardCount = shardRouting.isSearchOnly()
             ? indexMetadata.getNumberOfSearchOnlyReplicas()
             : indexMetadata.getNumberOfReplicas() + 1; // 1 for primary

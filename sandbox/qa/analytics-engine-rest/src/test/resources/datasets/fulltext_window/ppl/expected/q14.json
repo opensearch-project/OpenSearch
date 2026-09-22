@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "rnk",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "host2",
+      "auth",
+      "Token validation failed connection error",
+      "2026-05-20 10:00:25",
+      1
+    ],
+    [
+      "host2",
+      "auth",
+      "Multiple failed login attempts detected",
+      "2026-05-20 10:00:19",
+      2
+    ],
+    [
+      "host2",
+      "auth",
+      "Authentication failed connection timeout",
+      "2026-05-20 10:00:06",
+      3
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

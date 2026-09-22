@@ -1,0 +1,1 @@
+source=security_logs | stats count(case(event_type='authentication_failure', 1)) as failed_logins, count(case(event_type='suspicious_activity', 1)) as suspicious_events by user | where failed_logins > 0 or suspicious_events > 0 | sort - failed_logins

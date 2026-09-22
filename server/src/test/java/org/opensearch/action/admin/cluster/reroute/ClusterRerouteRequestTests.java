@@ -215,7 +215,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         boolean hasBody = false;
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder.startObject();
         if (randomBoolean()) {

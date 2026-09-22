@@ -136,7 +136,11 @@ import static java.util.Collections.singletonList;
  * Requests can be either synchronous or asynchronous. The asynchronous variants all end with {@code Async}.
  * <p>
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
+ *
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
+@Deprecated
 public class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);

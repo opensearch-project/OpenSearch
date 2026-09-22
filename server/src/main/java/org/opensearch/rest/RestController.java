@@ -40,6 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
@@ -55,6 +56,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
@@ -97,6 +99,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     private static final String OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER = "X-opensearch-product-origin";
+
+    private volatile int requestIdMaxLength = HttpTransportSettings.SETTING_HTTP_REQUEST_ID_MAX_LENGTH.getDefault(Settings.EMPTY);
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -143,6 +147,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             "/favicon.ico",
             (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
+    }
+
+    public void setRequestIdMaxLength(int maxLength) {
+        this.requestIdMaxLength = maxLength;
     }
 
     /**
@@ -435,7 +443,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                     // Validate request-id header if present
                     if (Task.X_REQUEST_ID.equals(restHeader.getName())) {
-                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst());
+                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst(), requestIdMaxLength);
                     }
                 }
             }
@@ -599,7 +607,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final AtomicBoolean closed = new AtomicBoolean();
+        /** Guards the in-flight-requests breaker release, which must happen exactly once. */
+        private final AtomicBoolean released = new AtomicBoolean();
+        /** Guards the response handoff. Claimed atomically and reset if the delegate rejects the response. */
+        private final AtomicBoolean responseSent = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
@@ -649,16 +660,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            if (responseSent.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("A response was already sent on this channel");
+            }
+            boolean accepted = false;
+            try {
+                releaseRequestBytes();
+                delegate.sendResponse(response);
+                accepted = true;
+            } finally {
+                if (accepted == false) {
+                    // Nothing reached the client, so the failure response must still be allowed through this channel.
+                    responseSent.set(false);
+                }
+            }
         }
 
-        private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+        private void releaseRequestBytes() {
+            if (released.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
     }
 
@@ -666,7 +687,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final StreamingRestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final AtomicBoolean closed = new AtomicBoolean();
+        /** Guards the in-flight-requests breaker release, which must happen exactly once. */
+        private final AtomicBoolean released = new AtomicBoolean();
+        /** Guards the response handoff. Claimed atomically and reset if subscription setup rejects the response. */
+        private final AtomicBoolean responseSent = new AtomicBoolean();
         private final AtomicBoolean subscribed = new AtomicBoolean();
 
         StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
@@ -717,15 +741,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-
-            // Check if subscribe() is already called, the headers and status are going to be sent
-            // over so we need to populate those **before** that, if possible.
-            if (subscribed.get() == false) {
-                prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+            if (responseSent.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("A response was already sent on this channel");
             }
+            boolean handedOff = false;
+            try {
+                releaseRequestBytes();
 
-            Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
+                // Check if subscribe() is already called, the headers and status are going to be sent
+                // over so we need to populate those **before** that, if possible.
+                if (subscribed.get() == false) {
+                    prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+                }
+
+                Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
+                // The delegate is invoked from the subscription above rather than inline, so a later failure is not
+                // observable here. Handing the response to the subscription is the strongest signal available.
+                handedOff = true;
+            } finally {
+                if (handedOff == false) {
+                    responseSent.set(false);
+                }
+            }
         }
 
         @Override
@@ -744,12 +781,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             delegate.subscribe(subscriber);
         }
 
-        private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+        private void releaseRequestBytes() {
+            if (released.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
         @Override

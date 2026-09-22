@@ -1,0 +1,133 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "denied_count",
+      "type": "bigint"
+    },
+    {
+      "name": "r.user",
+      "type": "string"
+    },
+    {
+      "name": "combined_risk",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      43,
+      "bwilson",
+      20,
+      "bwilson",
+      146
+    ],
+    [
+      33,
+      "mjones",
+      17,
+      "mjones",
+      117
+    ],
+    [
+      41,
+      "asmith",
+      8,
+      "asmith",
+      106
+    ],
+    [
+      25,
+      "admin",
+      10,
+      "admin",
+      80
+    ],
+    [
+      31,
+      "jdoe",
+      4,
+      "jdoe",
+      74
+    ],
+    [
+      7,
+      "user3",
+      6,
+      "user3",
+      32
+    ],
+    [
+      7,
+      "user1",
+      5,
+      "user1",
+      29
+    ],
+    [
+      8,
+      "user4",
+      4,
+      "user4",
+      28
+    ],
+    [
+      5,
+      "user2",
+      4,
+      "user2",
+      22
+    ],
+    [
+      5,
+      "user7",
+      3,
+      "user7",
+      19
+    ],
+    [
+      4,
+      "user10",
+      3,
+      "user10",
+      17
+    ],
+    [
+      4,
+      "user6",
+      3,
+      "user6",
+      17
+    ],
+    [
+      3,
+      "user9",
+      3,
+      "user9",
+      15
+    ],
+    [
+      2,
+      "user8",
+      3,
+      "user8",
+      13
+    ],
+    [
+      3,
+      "user5",
+      2,
+      "user5",
+      12
+    ]
+  ],
+  "total": 15,
+  "size": 15
+}

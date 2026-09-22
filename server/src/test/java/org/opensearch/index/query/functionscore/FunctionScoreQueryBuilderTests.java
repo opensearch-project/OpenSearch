@@ -32,8 +32,6 @@
 
 package org.opensearch.index.query.functionscore;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -72,6 +70,7 @@ import org.opensearch.search.approximate.ApproximateMatchAllQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.hamcrest.CoreMatchers;

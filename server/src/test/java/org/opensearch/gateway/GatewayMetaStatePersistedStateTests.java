@@ -524,7 +524,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                                 DefaultRemoteStoreSettings.INSTANCE
                             )
                         ),
-                        writableRegistry()
+                        writableRegistry(),
+                        () -> 0L
                     );
                 } else {
                     return null;

@@ -63,6 +63,7 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -439,5 +440,22 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     private static MappedFieldType defaultFieldType(NumberType numberType) {
         return new NumberFieldMapper.NumberFieldType(FIELD_NAME, numberType);
+    }
+
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(new SumAggregationBuilder("test").field(FIELD_NAME))
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, defaultFieldType())
+                            .getQueryShardContext(),
+                        null
+                    );
+                assertTrue(factories.allFactoriesSupportIntraSegmentSearch());
+            }
+        }
     }
 }

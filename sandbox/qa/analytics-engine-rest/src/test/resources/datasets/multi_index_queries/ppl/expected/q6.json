@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "request_count",
+      "type": "bigint"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      45,
+      "/SCS/Retail/v1/orders"
+    ],
+    [
+      43,
+      "/api/orders"
+    ],
+    [
+      43,
+      "/api/payments"
+    ],
+    [
+      43,
+      "/api/users"
+    ],
+    [
+      26,
+      "/api/products"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

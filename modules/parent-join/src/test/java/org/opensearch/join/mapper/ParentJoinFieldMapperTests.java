@@ -48,14 +48,15 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinModulePlugin.class);
+        return List.of(ParentJoinModulePlugin.class);
     }
 
     public void testSingleLevel() throws Exception {

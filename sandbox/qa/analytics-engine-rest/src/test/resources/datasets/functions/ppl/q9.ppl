@@ -1,0 +1,1 @@
+source=function_tests | eval lower_user = lower(user) | fields user, lower_user | head 10

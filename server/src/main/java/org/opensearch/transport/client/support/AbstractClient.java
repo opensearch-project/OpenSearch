@@ -74,6 +74,9 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -1059,6 +1062,26 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetTaskRequestBuilder prepareGetTask(TaskId taskId) {
             return new GetTaskRequestBuilder(this, GetTaskAction.INSTANCE).setTaskId(taskId);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteTask(DeleteTaskRequest request) {
+            return execute(DeleteTaskAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteTask(DeleteTaskRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteTaskAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(String taskId) {
+            return prepareDeleteTask(new TaskId(taskId));
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(TaskId taskId) {
+            return new DeleteTaskRequestBuilder(this, DeleteTaskAction.INSTANCE).setTaskId(taskId);
         }
 
         @Override

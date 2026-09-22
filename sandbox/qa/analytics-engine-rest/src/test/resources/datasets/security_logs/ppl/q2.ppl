@@ -1,0 +1,1 @@
+source=security_logs | where event_type="suspicious_activity" and severity in ("ERROR", "CRITICAL") | stats count() as incident_count, values(action) as actions by user, source_ip | where incident_count > 3 | sort - incident_count

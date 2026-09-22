@@ -35,7 +35,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -330,7 +330,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
          */
         public static synchronized PostingsFormat postingsFormat() {
             if (postingsFormat == null) {
-                postingsFormat = new Completion101PostingsFormat();
+                postingsFormat = new Completion104PostingsFormat();
             }
             return postingsFormat;
         }
@@ -649,6 +649,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        // no-op
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
         // no-op
     }
 

@@ -1002,7 +1002,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return null;
         }
         if (indexRoutingTable.shards().size() == 1) {
-            return indexRoutingTable.shards().get(0).shardId();
+            ShardRouting primary = indexRoutingTable.iterator().next().primaryShard();
+            return primary != null ? primary.shardId() : null;
         }
 
         // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
@@ -1031,7 +1032,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, List<ShardRouting>> node2Shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable.shards().values()) {
             ShardRouting primary = shardRoutingTable.primaryShard();
-            if (primary.active()) {
+            if (primary != null && primary.active()) {
                 node2Shards.compute(primary.currentNodeId(), (nodeId, shardList) -> {
                     if (shardList == null) {
                         shardList = new ArrayList<>();
@@ -1290,7 +1291,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 e
             );
 
-            // We hit a error during preprocessing a request, so we:
+            // We hit an error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.

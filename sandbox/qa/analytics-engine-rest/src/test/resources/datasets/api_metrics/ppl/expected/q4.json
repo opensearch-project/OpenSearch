@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      18,
+      "host1"
+    ],
+    [
+      10,
+      "host2"
+    ],
+    [
+      8,
+      "host3"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

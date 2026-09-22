@@ -1,0 +1,49 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "UserID|m|SearchPhrase": {
+      "multi_terms": {
+        "terms": [
+          {
+            "field": "UserID"
+          },
+          {
+            "script": {
+              "source": "{\"langType\":\"calcite\",\"script\":\"rO0ABXQCZnsKICAib3AiOiB7CiAgICAibmFtZSI6ICJFWFRSQUNUIiwKICAgICJraW5kIjogIk9USEVSX0ZVTkNUSU9OIiwKICAgICJzeW50YXgiOiAiRlVOQ1RJT04iCiAgfSwKICAib3BlcmFuZHMiOiBbCiAgICB7CiAgICAgICJkeW5hbWljUGFyYW0iOiAwLAogICAgICAidHlwZSI6IHsKICAgICAgICAidHlwZSI6ICJWQVJDSEFSIiwKICAgICAgICAibnVsbGFibGUiOiBmYWxzZSwKICAgICAgICAicHJlY2lzaW9uIjogLTEKICAgICAgfQogICAgfSwKICAgIHsKICAgICAgImR5bmFtaWNQYXJhbSI6IDEsCiAgICAgICJ0eXBlIjogewogICAgICAgICJ1ZHQiOiAiRVhQUl9USU1FU1RBTVAiLAogICAgICAgICJ0eXBlIjogIlZBUkNIQVIiLAogICAgICAgICJudWxsYWJsZSI6IHRydWUsCiAgICAgICAgInByZWNpc2lvbiI6IC0xCiAgICAgIH0KICAgIH0KICBdLAogICJjbGFzcyI6ICJvcmcub3BlbnNlYXJjaC5zcWwuZXhwcmVzc2lvbi5mdW5jdGlvbi5Vc2VyRGVmaW5lZEZ1bmN0aW9uQnVpbGRlciQxIiwKICAidHlwZSI6IHsKICAgICJ0eXBlIjogIkJJR0lOVCIsCiAgICAibnVsbGFibGUiOiB0cnVlCiAgfSwKICAiZGV0ZXJtaW5pc3RpYyI6IHRydWUsCiAgImR5bmFtaWMiOiBmYWxzZQp9\"}",
+              "lang": "opensearch_compounded_script",
+              "params": {
+                "utcTimestamp": 1765261854238124000,
+                "SOURCES": [
+                  2,
+                  0
+                ],
+                "DIGESTS": [
+                  "minute",
+                  "EventTime"
+                ]
+              }
+            },
+            "value_type": "long"
+          },
+          {
+            "field": "SearchPhrase"
+          }
+        ],
+        "size": 10,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "_count": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      }
+    }
+  }
+}

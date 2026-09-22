@@ -34,6 +34,8 @@ import io.opentelemetry.sdk.metrics.data.DoublePointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 1)
 public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
 
@@ -128,30 +130,29 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     public void testGauge() throws Exception {
-        String metricName = "test-gauge";
+        String metricName = "test-gauge-" + randomAlphaOfLength(8);
         MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
         final AtomicInteger testValue = new AtomicInteger(0);
         Supplier<Double> valueProvider = () -> { return Double.valueOf(testValue.incrementAndGet()); };
         Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider, tags);
-        // Sleep for about 2.2s to wait for metrics to be published.
-        Thread.sleep(2200);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
+        assertBusy(() -> assertThat(getMaxObservableGaugeValue(exporter, metricName), greaterThanOrEqualTo(2.0)));
 
-        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
         gaugeCloseable.close();
-        double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
-
-        // Sleep for about 1.2s to wait for metrics to see that closed observableGauge shouldn't execute the callable.
-        Thread.sleep(1200);
-        assertEquals(observableGaugeValueAfterStop, getMaxObservableGaugeValue(exporter, metricName), 0.0);
-
+        // Verify the callback is no longer invoked: snapshot the counter, wait longer than the publish interval, and
+        // assert it hasn't changed. assertBusy retries if an in-flight collection was still draining at close time.
+        assertBusy(() -> {
+            int val = testValue.get();
+            Thread.sleep(1500);
+            assertEquals("Gauge callback should no longer be invoked after close", val, testValue.get());
+        });
     }
 
     public void testGaugeWithValueAndTagSupplier() throws Exception {
-        String metricName = "test-gauge";
+        String metricName = "test-gauge-" + randomAlphaOfLength(8);
         MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
@@ -160,24 +161,21 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
             return TaggedMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
         };
         Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider);
-        // Sleep for about 2.2s to wait for metrics to be published.
-        Thread.sleep(2200);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
-
-        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
-
-        gaugeCloseable.close();
-        double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
+        assertBusy(() -> assertThat(getMaxObservableGaugeValue(exporter, metricName), greaterThanOrEqualTo(2.0)));
 
         Map<AttributeKey<?>, Object> attributes = getMetricAttributes(exporter, metricName);
-
         assertEquals("integ-test", attributes.get(AttributeKey.stringKey("test")));
 
-        // Sleep for about 1.2s to wait for metrics to see that closed observableGauge shouldn't execute the callable.
-        Thread.sleep(1200);
-        assertEquals(observableGaugeValueAfterStop, getMaxObservableGaugeValue(exporter, metricName), 0.0);
-
+        gaugeCloseable.close();
+        // Verify the callback is no longer invoked: snapshot the counter, wait longer than the publish interval, and
+        // assert it hasn't changed. assertBusy retries if an in-flight collection was still draining at close time.
+        assertBusy(() -> {
+            int val = testValue.get();
+            Thread.sleep(1500);
+            assertEquals("Gauge callback should no longer be invoked after close", val, testValue.get());
+        });
     }
 
     private static double getMaxObservableGaugeValue(InMemorySingletonMetricsExporter exporter, String metricName) {

@@ -95,4 +95,9 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

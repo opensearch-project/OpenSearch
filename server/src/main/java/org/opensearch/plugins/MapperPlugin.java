@@ -32,6 +32,8 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.index.mapper.DynamicFieldTypeInferencer;
+import org.opensearch.index.mapper.DynamicTemplateTypeHandler;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MappingTransformer;
 import org.opensearch.index.mapper.MetadataFieldMapper;
@@ -99,5 +101,25 @@ public interface MapperPlugin {
      */
     default List<MappingTransformer> getMappingTransformers() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns dynamic field type inferencers provided by this plugin.
+     * These are consulted when an unmapped array field is encountered during document indexing
+     * and no template matches. The first inferencer to claim a field wins.
+     */
+    default List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns dynamic template types registered by this plugin.
+     * These allow plugins to register custom match_mapping_type strings
+     * (e.g. "knn_vector") that users can reference in dynamic templates.
+     * The key is the type string, and the value is the handler that adjusts
+     * the mapper builder when a template matches.
+     */
+    default Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+        return Collections.emptyMap();
     }
 }

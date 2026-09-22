@@ -41,10 +41,16 @@ import org.opensearch.core.index.Index;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.Mockito.eq;
@@ -127,6 +133,78 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
     }
 
+    private static IndexMetadata backingIndex(String dataStreamName, int generation) {
+        try {
+            return createBackingIndex(dataStreamName, generation).putMapping(generateMapping("@timestamp")).build();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testAttachRestoredBackingIndexAdvancesGeneration() {
+        String ds = "logs-attach";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        IndexMetadata b2 = backingIndex(ds, 2);
+        // Stream is at generation 1; the restored gen-2 index is present in the builder but not yet a member.
+        Metadata.Builder metadata = Metadata.builder().put(b1, false).put(b2, false);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+        updatedDataStreams.put(ds, new DataStream(ds, createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+
+        RestoreService.attachRestoredBackingIndices(Set.of(b2.getIndex().getName()), metadata, updatedDataStreams);
+
+        DataStream result = updatedDataStreams.get(ds);
+        assertEquals(List.of(b1.getIndex(), b2.getIndex()), result.getIndices());
+        assertEquals(2L, result.getGeneration());
+    }
+
+    public void testAttachSkipsNonConventionAndNonMemberCases() {
+        String ds = "logs-attach";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        Metadata.Builder metadata = Metadata.builder().put(b1, false);
+        DataStream original = new DataStream(ds, createTimestampField("@timestamp"), List.of(b1.getIndex()), 1);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+        updatedDataStreams.put(ds, original);
+
+        // A non-convention name (no matching stream) and an already-member index are both skipped, leaving the
+        // stream unchanged.
+        RestoreService.attachRestoredBackingIndices(Set.of("some-regular-index", b1.getIndex().getName()), metadata, updatedDataStreams);
+
+        assertEquals(original, updatedDataStreams.get(ds));
+    }
+
+    public void testAttachSkipsWhenStreamDoesNotExist() {
+        // Restored index parses to a stream name, but no such stream exists on the target: skipped, no exception.
+        String ds = "logs-missing";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        Metadata.Builder metadata = Metadata.builder().put(b1, false);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+
+        RestoreService.attachRestoredBackingIndices(Set.of(b1.getIndex().getName()), metadata, updatedDataStreams);
+
+        assertTrue(updatedDataStreams.isEmpty());
+    }
+
+    public void testAttachRejectsIndexWithoutTimestampMapping() {
+        String ds = "logs-attach";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        // A convention-named gen-2 index whose @timestamp is not a date type.
+        IndexMetadata bad;
+        try {
+            bad = createBackingIndex(ds, 2).putMapping(generateMapping("@timestamp", "text")).build();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        Metadata.Builder metadata = Metadata.builder().put(b1, false).put(bad, false);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+        updatedDataStreams.put(ds, new DataStream(ds, createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestoreService.attachRestoredBackingIndices(Set.of(bad.getIndex().getName()), metadata, updatedDataStreams)
+        );
+        assertTrue(e.getMessage().contains("does not have a [@timestamp] field mapped as a date type"));
+    }
+
     public void testValidateReplicationTypeRestoreSettings_WhenSnapshotIsDocument_RestoreToDocument() {
         SnapshotId snapshotId = new SnapshotId("snapshotId", "123");
         Snapshot snapshot = new Snapshot("testRepo", snapshotId);
@@ -158,5 +236,66 @@ public class RestoreServiceTests extends OpenSearchTestCase {
             SnapshotRestoreException.class,
             () -> RestoreService.validateReplicationTypeRestoreSettings(snapshot, ReplicationType.SEGMENT.toString(), indexMetadata)
         );
+    }
+
+    // Tests for internal vs user ignore settings filter separation (PR #20494)
+
+    public void testInternalIgnoreOverridesProtection() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] {},
+            new String[] { "index.remote_store.*" },
+            RestoreService.getUserUnremovableSettings()
+        );
+        // Internal pattern can filter protected settings
+        assertFalse(filter.test("index.remote_store.enabled"));
+    }
+
+    public void testUserIgnoreRespectsProtection() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] { "index.number_of_replicas" },
+            new String[] {},
+            RestoreService.getUserUnremovableSettings()
+        );
+        // User cannot filter protected settings
+        assertTrue(filter.test("index.number_of_replicas"));
+    }
+
+    public void testUserIgnoreWorksForNonProtected() {
+        var filter = RestoreService.createSettingsFilterPredicate(
+            new String[] { "index.custom.*" },
+            new String[] {},
+            RestoreService.getUserUnremovableSettings()
+        );
+        // User can filter non-protected settings
+        assertFalse(filter.test("index.custom.setting"));
+    }
+
+    // Tests for internal ignore settings gating on remote data attributes
+
+    public void testIgnoreSettingsInternalOnClusterWithoutRemoteAttributes() {
+        // A cluster with no remote store attributes must strip remote store index settings on restore
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(Settings.EMPTY);
+        assertArrayEquals(new String[] { "index.remote_store.*" }, ignoreSettings);
+    }
+
+    public void testIgnoreSettingsInternalOnRemotePublicationOnlyCluster() {
+        // A cluster with only remote cluster state/routing table publication enabled does not
+        // store index data remotely, so remote store index settings must still be stripped
+        Settings nodeSettings = Settings.builder()
+            .put("node.attr.remote_publication.state.repository", "cluster-state-repo")
+            .put("node.attr.remote_publication.routing_table.repository", "routing-table-repo")
+            .build();
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(nodeSettings);
+        assertArrayEquals(new String[] { "index.remote_store.*" }, ignoreSettings);
+    }
+
+    public void testIgnoreSettingsInternalOnRemoteDataCluster() {
+        // A cluster that stores index data remotely must preserve remote store index settings
+        Settings nodeSettings = Settings.builder()
+            .put("node.attr.remote_store.segment.repository", "segment-repo")
+            .put("node.attr.remote_store.translog.repository", "translog-repo")
+            .build();
+        String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(nodeSettings);
+        assertEquals(0, ignoreSettings.length);
     }
 }

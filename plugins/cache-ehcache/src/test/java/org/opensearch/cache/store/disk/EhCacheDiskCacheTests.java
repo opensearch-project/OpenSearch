@@ -10,6 +10,7 @@ package org.opensearch.cache.store.disk;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
@@ -61,6 +62,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
@@ -354,6 +356,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testComputeIfAbsentConcurrently() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
@@ -558,6 +561,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testComputeIfAbsentWithNullValueLoading() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();

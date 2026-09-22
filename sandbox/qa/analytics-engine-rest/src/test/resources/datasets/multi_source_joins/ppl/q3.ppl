@@ -1,0 +1,1 @@
+source=event_processor | where log_level="INFO" and processor_type in ("processor_success", "eventProcessor_success") | stats sum(filter_in_count) as total_filter_count, count() as success_count by cluster_name, namespace | sort - total_filter_count

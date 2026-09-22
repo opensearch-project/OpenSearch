@@ -207,6 +207,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
             }
         }
 
+        if (metrics.contains(NodesStatsRequest.Metric.FILE_CACHE_STATS.metricName()) || metrics.contains("_all")) {
+            nodesStatsRequest.fileCacheDetailed(request.paramAsBoolean("detailed", false));
+        }
+
         if (nodesStatsRequest.indices().isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
             nodesStatsRequest.indices()
                 .fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null)));

@@ -32,14 +32,12 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
@@ -48,6 +46,8 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -132,6 +132,7 @@ public final class ExceptionsHelper {
             case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
             case JsonParseException ignored -> RestStatus.BAD_REQUEST;
             case NotXContentException ignored -> RestStatus.BAD_REQUEST;
+            case IndexSearcher.TooManyClauses ignored -> RestStatus.BAD_REQUEST;
             case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
             case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
         };

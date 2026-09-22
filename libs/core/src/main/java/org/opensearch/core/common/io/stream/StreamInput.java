@@ -723,11 +723,28 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Maximum depth for recursive deserialization of nested generic values.
+     * Protects against StackOverflowError from deeply nested binary payloads.
+     * Deliberately on its own property (not {@code opensearch.xcontent.depth.max}) so that relaxing
+     * the XContent parsing limit does not relax this transport-level security bound.
+     */
+    private static final int MAX_DESERIALIZATION_DEPTH = Integer.parseInt(
+        System.getProperty("opensearch.stream.depth.max", "1000" /* aligned with StreamReadConstraints.DEFAULT_MAX_DEPTH */)
+    );
+
+    /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
      * be immutable if it is empty.
      */
     @Nullable
     public Object readGenericValue() throws IOException {
+        return readGenericValue(0);
+    }
+
+    private Object readGenericValue(int depth) throws IOException {
+        if (depth > MAX_DESERIALIZATION_DEPTH) {
+            throw new IOException("Maximum nesting depth [" + MAX_DESERIALIZATION_DEPTH + "] exceeded for binary deserialization");
+        }
         byte type = readByte();
         Writeable.Reader<?> r = Writeable.WriteableRegistry.getReader(type);
         if (r != null) {
@@ -752,13 +769,13 @@ public abstract class StreamInput extends InputStream {
             case 6:
                 return readByteArray();
             case 7:
-                return readArrayList();
+                return readArrayList(depth);
             case 8:
-                return readArray();
+                return readArray(depth);
             case 9:
-                return readLinkedHashMap();
+                return readLinkedHashMap(depth);
             case 10:
-                return readHashMap();
+                return readHashMap(depth);
             case 11:
                 return readByte();
             case 12:
@@ -784,9 +801,9 @@ public abstract class StreamInput extends InputStream {
             case 23:
                 return readZonedDateTime();
             case 24:
-                return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
+                return readCollection(si -> si.readGenericValue(depth + 1), LinkedHashSet::new, Collections.emptySet());
             case 25:
-                return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+                return readCollection(si -> si.readGenericValue(depth + 1), HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
             case 27:
@@ -814,14 +831,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List readArrayList() throws IOException {
+    private List readArrayList(int depth) throws IOException {
         int size = readArraySize();
         if (size == 0) {
             return Collections.emptyList();
         }
         List list = new ArrayList(size);
         for (int i = 0; i < size; i++) {
-            list.add(readGenericValue());
+            list.add(readGenericValue(depth + 1));
         }
         return list;
     }
@@ -833,40 +850,40 @@ public abstract class StreamInput extends InputStream {
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
-    private Object[] readArray() throws IOException {
+    private Object[] readArray(int depth) throws IOException {
         int size8 = readArraySize();
         if (size8 == 0) {
             return EMPTY_OBJECT_ARRAY;
         }
         Object[] list8 = new Object[size8];
         for (int i = 0; i < size8; i++) {
-            list8[i] = readGenericValue();
+            list8[i] = readGenericValue(depth + 1);
         }
         return list8;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private Map readLinkedHashMap() throws IOException {
+    private Map readLinkedHashMap(int depth) throws IOException {
         int size9 = readArraySize();
         if (size9 == 0) {
             return Collections.emptyMap();
         }
         Map map9 = new LinkedHashMap(size9);
         for (int i = 0; i < size9; i++) {
-            map9.put(readString(), readGenericValue());
+            map9.put(readString(), readGenericValue(depth + 1));
         }
         return map9;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private Map readHashMap() throws IOException {
+    private Map readHashMap(int depth) throws IOException {
         int size10 = readArraySize();
         if (size10 == 0) {
             return Collections.emptyMap();
         }
         Map map10 = new HashMap(size10);
         for (int i = 0; i < size10; i++) {
-            map10.put(readString(), readGenericValue());
+            map10.put(readString(), readGenericValue(depth + 1));
         }
         return map10;
     }

@@ -1,0 +1,120 @@
+{"index": {}}
+{"@timestamp": "2023-01-01 00:30:00", "message": "elephant monkey tiger", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "kernel"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-00"}, "event": {"id": "evt-00000"}, "meta": {"file": "meta-0"}, "metrics": {"size": -50, "tmin": 100}}
+{"index": {}}
+{"@timestamp": "2023-01-01 01:30:00", "message": "elephant bear jackal", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "systemd"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-01"}, "event": {"id": "evt-00001"}, "meta": {"file": "meta-1"}, "metrics": {"size": -10, "tmin": 107}}
+{"index": {}}
+{"@timestamp": "2023-01-01 02:30:00", "message": "jackal elephant monkey", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "sshd"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-02"}, "event": {"id": "evt-00002"}, "meta": {"file": "meta-2"}, "metrics": {"size": 10, "tmin": 114}}
+{"index": {}}
+{"@timestamp": "2023-01-01 03:30:00", "message": "elephant tiger monkey", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "nginx"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-03"}, "event": {"id": "evt-00003"}, "meta": {"file": "meta-3"}, "metrics": {"size": 50, "tmin": 121}}
+{"index": {}}
+{"@timestamp": "2023-01-01 04:30:00", "message": "tiger wolf monkey", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "docker"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-04"}, "event": {"id": "evt-00004"}, "meta": {"file": "meta-4"}, "metrics": {"size": 100, "tmin": 128}}
+{"index": {}}
+{"@timestamp": "2023-01-01 05:30:00", "message": "monkey elephant jackal", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "cron"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-05"}, "event": {"id": "evt-00005"}, "meta": {"file": "meta-5"}, "metrics": {"size": 500, "tmin": 135}}
+{"index": {}}
+{"@timestamp": "2023-01-01 06:30:00", "message": "jackal tiger monkey", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "kernel"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-06"}, "event": {"id": "evt-00006"}, "meta": {"file": "meta-6"}, "metrics": {"size": 1000, "tmin": 142}}
+{"index": {}}
+{"@timestamp": "2023-01-01 07:30:00", "message": "tiger jackal wolf", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "systemd"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-07"}, "event": {"id": "evt-00007"}, "meta": {"file": "meta-7"}, "metrics": {"size": 1500, "tmin": 149}}
+{"index": {}}
+{"@timestamp": "2023-01-01 08:30:00", "message": "jackal wolf bear", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "sshd"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-08"}, "event": {"id": "evt-00008"}, "meta": {"file": "meta-0"}, "metrics": {"size": 2000, "tmin": 156}}
+{"index": {}}
+{"@timestamp": "2023-01-01 09:30:00", "message": "monkey jackal wolf", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "nginx"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-09"}, "event": {"id": "evt-00009"}, "meta": {"file": "meta-1"}, "metrics": {"size": 3000, "tmin": 163}}
+{"index": {}}
+{"@timestamp": "2023-01-01 10:30:00", "message": "bear elephant jackal", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "docker"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-10"}, "event": {"id": "evt-00010"}, "meta": {"file": "meta-2"}, "metrics": {"size": -5, "tmin": 170}}
+{"index": {}}
+{"@timestamp": "2023-01-01 11:30:00", "message": "jackal bear monkey", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "cron"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-11"}, "event": {"id": "evt-00011"}, "meta": {"file": "meta-3"}, "metrics": {"size": 5, "tmin": 177}}
+{"index": {}}
+{"@timestamp": "2023-01-01 12:30:00", "message": "monkey wolf elephant", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "kernel"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-12"}, "event": {"id": "evt-00012"}, "meta": {"file": "meta-4"}, "metrics": {"size": 25, "tmin": 184}}
+{"index": {}}
+{"@timestamp": "2023-01-01 13:30:00", "message": "bear elephant tiger", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "systemd"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-13"}, "event": {"id": "evt-00013"}, "meta": {"file": "meta-5"}, "metrics": {"size": 250, "tmin": 191}}
+{"index": {}}
+{"@timestamp": "2023-01-01 14:30:00", "message": "monkey wolf elephant", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "sshd"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-14"}, "event": {"id": "evt-00014"}, "meta": {"file": "meta-6"}, "metrics": {"size": 750, "tmin": 198}}
+{"index": {}}
+{"@timestamp": "2023-01-01 15:30:00", "message": "wolf monkey bear", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "nginx"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-15"}, "event": {"id": "evt-00015"}, "meta": {"file": "meta-7"}, "metrics": {"size": 1200, "tmin": 205}}
+{"index": {}}
+{"@timestamp": "2023-01-01 16:30:00", "message": "elephant tiger bear", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "docker"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-16"}, "event": {"id": "evt-00016"}, "meta": {"file": "meta-0"}, "metrics": {"size": 2500, "tmin": 212}}
+{"index": {}}
+{"@timestamp": "2023-01-01 17:30:00", "message": "tiger jackal monkey", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "cron"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-17"}, "event": {"id": "evt-00017"}, "meta": {"file": "meta-1"}, "metrics": {"size": -20, "tmin": 219}}
+{"index": {}}
+{"@timestamp": "2023-01-01 18:30:00", "message": "monkey jackal bear", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "kernel"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-18"}, "event": {"id": "evt-00018"}, "meta": {"file": "meta-2"}, "metrics": {"size": -50, "tmin": 226}}
+{"index": {}}
+{"@timestamp": "2023-01-01 19:30:00", "message": "monkey jackal elephant", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "systemd"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-19"}, "event": {"id": "evt-00019"}, "meta": {"file": "meta-3"}, "metrics": {"size": -10, "tmin": 233}}
+{"index": {}}
+{"@timestamp": "2023-01-01 20:30:00", "message": "wolf bear elephant", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "sshd"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-00"}, "event": {"id": "evt-00020"}, "meta": {"file": "meta-4"}, "metrics": {"size": 10, "tmin": 240}}
+{"index": {}}
+{"@timestamp": "2023-01-01 21:30:00", "message": "elephant bear jackal", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "nginx"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-01"}, "event": {"id": "evt-00021"}, "meta": {"file": "meta-5"}, "metrics": {"size": 50, "tmin": 247}}
+{"index": {}}
+{"@timestamp": "2023-01-01 22:30:00", "message": "bear elephant jackal", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "docker"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-02"}, "event": {"id": "evt-00022"}, "meta": {"file": "meta-6"}, "metrics": {"size": 100, "tmin": 254}}
+{"index": {}}
+{"@timestamp": "2023-01-01 23:30:00", "message": "elephant bear monkey", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "cron"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-03"}, "event": {"id": "evt-00023"}, "meta": {"file": "meta-7"}, "metrics": {"size": 500, "tmin": 261}}
+{"index": {}}
+{"@timestamp": "2023-01-03 00:00:00", "message": "tiger jackal elephant", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "kernel"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-04"}, "event": {"id": "evt-00024"}, "meta": {"file": "meta-0"}, "metrics": {"size": 1000, "tmin": 268}}
+{"index": {}}
+{"@timestamp": "2023-01-03 02:00:00", "message": "jackal wolf tiger", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "systemd"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-05"}, "event": {"id": "evt-00025"}, "meta": {"file": "meta-1"}, "metrics": {"size": 1500, "tmin": 275}}
+{"index": {}}
+{"@timestamp": "2023-01-03 04:00:00", "message": "bear tiger jackal", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "sshd"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-06"}, "event": {"id": "evt-00026"}, "meta": {"file": "meta-2"}, "metrics": {"size": 2000, "tmin": 282}}
+{"index": {}}
+{"@timestamp": "2023-01-03 06:00:00", "message": "elephant bear monkey", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "nginx"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-07"}, "event": {"id": "evt-00027"}, "meta": {"file": "meta-3"}, "metrics": {"size": 3000, "tmin": 289}}
+{"index": {}}
+{"@timestamp": "2023-01-03 08:00:00", "message": "jackal monkey bear", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "docker"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-08"}, "event": {"id": "evt-00028"}, "meta": {"file": "meta-4"}, "metrics": {"size": -5, "tmin": 296}}
+{"index": {}}
+{"@timestamp": "2023-01-03 10:00:00", "message": "wolf bear monkey", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "cron"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-09"}, "event": {"id": "evt-00029"}, "meta": {"file": "meta-5"}, "metrics": {"size": 5, "tmin": 303}}
+{"index": {}}
+{"@timestamp": "2023-01-03 12:00:00", "message": "jackal tiger bear", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "kernel"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-10"}, "event": {"id": "evt-00030"}, "meta": {"file": "meta-6"}, "metrics": {"size": 25, "tmin": 310}}
+{"index": {}}
+{"@timestamp": "2023-01-03 14:00:00", "message": "jackal wolf tiger", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "systemd"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-11"}, "event": {"id": "evt-00031"}, "meta": {"file": "meta-7"}, "metrics": {"size": 250, "tmin": 317}}
+{"index": {}}
+{"@timestamp": "2023-01-03 16:00:00", "message": "elephant wolf jackal", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "sshd"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-12"}, "event": {"id": "evt-00032"}, "meta": {"file": "meta-0"}, "metrics": {"size": 750, "tmin": 324}}
+{"index": {}}
+{"@timestamp": "2023-01-03 18:00:00", "message": "bear jackal tiger", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "nginx"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-13"}, "event": {"id": "evt-00033"}, "meta": {"file": "meta-1"}, "metrics": {"size": 1200, "tmin": 331}}
+{"index": {}}
+{"@timestamp": "2023-01-03 20:00:00", "message": "elephant tiger bear", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "docker"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-14"}, "event": {"id": "evt-00034"}, "meta": {"file": "meta-2"}, "metrics": {"size": 2500, "tmin": 338}}
+{"index": {}}
+{"@timestamp": "2023-01-03 22:00:00", "message": "elephant tiger wolf", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "cron"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-15"}, "event": {"id": "evt-00035"}, "meta": {"file": "meta-3"}, "metrics": {"size": -20, "tmin": 345}}
+{"index": {}}
+{"@timestamp": "2023-01-05 00:15:00", "message": "tiger wolf bear", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "kernel"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-16"}, "event": {"id": "evt-00036"}, "meta": {"file": "meta-4"}, "metrics": {"size": -50, "tmin": 352}}
+{"index": {}}
+{"@timestamp": "2023-01-05 04:15:00", "message": "jackal elephant wolf", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "systemd"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-17"}, "event": {"id": "evt-00037"}, "meta": {"file": "meta-5"}, "metrics": {"size": -10, "tmin": 359}}
+{"index": {}}
+{"@timestamp": "2023-01-05 08:15:00", "message": "monkey elephant tiger", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "sshd"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-18"}, "event": {"id": "evt-00038"}, "meta": {"file": "meta-6"}, "metrics": {"size": 10, "tmin": 366}}
+{"index": {}}
+{"@timestamp": "2023-01-05 12:15:00", "message": "jackal elephant wolf", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "nginx"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-19"}, "event": {"id": "evt-00039"}, "meta": {"file": "meta-7"}, "metrics": {"size": 50, "tmin": 373}}
+{"index": {}}
+{"@timestamp": "2023-01-05 16:15:00", "message": "tiger monkey wolf", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "docker"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-00"}, "event": {"id": "evt-00000"}, "meta": {"file": "meta-0"}, "metrics": {"size": 100, "tmin": 380}}
+{"index": {}}
+{"@timestamp": "2023-01-05 20:15:00", "message": "wolf tiger elephant", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "cron"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-01"}, "event": {"id": "evt-00001"}, "meta": {"file": "meta-1"}, "metrics": {"size": 500, "tmin": 387}}
+{"index": {}}
+{"@timestamp": "2023-01-08 00:45:00", "message": "tiger bear monkey", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "kernel"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-02"}, "event": {"id": "evt-00002"}, "meta": {"file": "meta-2"}, "metrics": {"size": 1000, "tmin": 394}}
+{"index": {}}
+{"@timestamp": "2023-01-08 06:45:00", "message": "elephant monkey bear", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "systemd"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-03"}, "event": {"id": "evt-00003"}, "meta": {"file": "meta-3"}, "metrics": {"size": 1500, "tmin": 401}}
+{"index": {}}
+{"@timestamp": "2023-01-08 12:45:00", "message": "elephant bear monkey", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "sshd"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-04"}, "event": {"id": "evt-00004"}, "meta": {"file": "meta-4"}, "metrics": {"size": 2000, "tmin": 408}}
+{"index": {}}
+{"@timestamp": "2023-01-08 18:45:00", "message": "bear wolf jackal", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "nginx"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-05"}, "event": {"id": "evt-00005"}, "meta": {"file": "meta-5"}, "metrics": {"size": 3000, "tmin": 415}}
+{"index": {}}
+{"@timestamp": "2023-01-12 04:30:00", "message": "wolf monkey bear", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "docker"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-06"}, "event": {"id": "evt-00006"}, "meta": {"file": "meta-6"}, "metrics": {"size": -5, "tmin": 422}}
+{"index": {}}
+{"@timestamp": "2023-01-12 16:30:00", "message": "tiger jackal monkey", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "cron"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-07"}, "event": {"id": "evt-00007"}, "meta": {"file": "meta-7"}, "metrics": {"size": 5, "tmin": 429}}
+{"index": {}}
+{"@timestamp": "2023-01-02 04:00:00", "message": "elephant bear jackal", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "kernel"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-08"}, "event": {"id": "evt-00008"}, "meta": {"file": "meta-0"}, "metrics": {"size": 25, "tmin": 436}}
+{"index": {}}
+{"@timestamp": "2023-01-02 16:00:00", "message": "jackal bear elephant", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "systemd"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-09"}, "event": {"id": "evt-00009"}, "meta": {"file": "meta-1"}, "metrics": {"size": 250, "tmin": 443}}
+{"index": {}}
+{"@timestamp": "2023-01-02 22:30:00", "message": "tiger elephant monkey", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "sshd"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-10"}, "event": {"id": "evt-00010"}, "meta": {"file": "meta-2"}, "metrics": {"size": 750, "tmin": 450}}
+{"index": {}}
+{"@timestamp": "2023-01-06 09:00:00", "message": "tiger bear wolf", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "nginx"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-11"}, "event": {"id": "evt-00011"}, "meta": {"file": "meta-3"}, "metrics": {"size": 1200, "tmin": 457}}
+{"index": {}}
+{"@timestamp": "2023-01-06 14:00:00", "message": "monkey elephant bear", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "docker"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-12"}, "event": {"id": "evt-00012"}, "meta": {"file": "meta-4"}, "metrics": {"size": 2500, "tmin": 464}}
+{"index": {}}
+{"@timestamp": "2023-01-09 00:30:00", "message": "bear jackal monkey", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "cron"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-13"}, "event": {"id": "evt-00013"}, "meta": {"file": "meta-5"}, "metrics": {"size": -20, "tmin": 471}}
+{"index": {}}
+{"@timestamp": "2023-01-09 09:30:00", "message": "jackal tiger monkey", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "kernel"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-14"}, "event": {"id": "evt-00014"}, "meta": {"file": "meta-6"}, "metrics": {"size": -50, "tmin": 478}}
+{"index": {}}
+{"@timestamp": "2023-01-09 18:30:00", "message": "monkey wolf elephant", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "systemd"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "indigodagger"}}, "agent": {"name": "agent-15"}, "event": {"id": "evt-00015"}, "meta": {"file": "meta-7"}, "metrics": {"size": -10, "tmin": 485}}
+{"index": {}}
+{"@timestamp": "2023-01-10 02:30:00", "message": "tiger jackal elephant", "log": {"file": {"path": "/var/log/messages/birdknight"}}, "process": {"name": "sshd"}, "cloud": {"region": "us-east-1"}, "aws": {"cloudwatch": {"log_stream": "redfox"}}, "agent": {"name": "agent-16"}, "event": {"id": "evt-00016"}, "meta": {"file": "meta-0"}, "metrics": {"size": 10, "tmin": 492}}
+{"index": {}}
+{"@timestamp": "2023-01-10 11:30:00", "message": "elephant wolf jackal", "log": {"file": {"path": "/var/log/messages/solarshark"}}, "process": {"name": "nginx"}, "cloud": {"region": "us-west-2"}, "aws": {"cloudwatch": {"log_stream": "goldenfish"}}, "agent": {"name": "agent-17"}, "event": {"id": "evt-00017"}, "meta": {"file": "meta-1"}, "metrics": {"size": 50, "tmin": 499}}
+{"index": {}}
+{"@timestamp": "2023-01-10 23:30:00", "message": "bear tiger wolf", "log": {"file": {"path": "/var/log/messages/foo"}}, "process": {"name": "docker"}, "cloud": {"region": "eu-west-1"}, "aws": {"cloudwatch": {"log_stream": "silverwolf"}}, "agent": {"name": "agent-18"}, "event": {"id": "evt-00018"}, "meta": {"file": "meta-2"}, "metrics": {"size": 100, "tmin": 506}}
+{"index": {}}
+{"@timestamp": "2023-01-01 00:30:00", "message": "jackal tiger elephant", "log": {"file": {"path": "/var/log/messages/bar"}}, "process": {"name": "cron"}, "cloud": {"region": "ap-south-1"}, "aws": {"cloudwatch": {"log_stream": "bluedragon"}}, "agent": {"name": "agent-19"}, "event": {"id": "evt-00019"}, "meta": {"file": "meta-3"}, "metrics": {"size": 500, "tmin": 513}}

@@ -1512,7 +1512,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
         GetRequest getRequest = new GetRequest(
             "posts", // <1>
             "1");    // <2>
-        getRequest.fetchSourceContext(new FetchSourceContext(false)); // <3>
+        getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE); // <3>
         getRequest.storedFields("_none_");                            // <4>
         // end::exists-request
         {

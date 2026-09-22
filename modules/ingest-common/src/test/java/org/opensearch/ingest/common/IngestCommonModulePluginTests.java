@@ -74,6 +74,7 @@ public class IngestCommonModulePluginTests extends OpenSearchTestCase {
                 "dissect",
                 "uppercase",
                 "split",
+                "split_to_fields",
                 "hierarchical_routing",
                 "temporal_routing",
                 "acl_routing"

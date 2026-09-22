@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "latency",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "payment",
+      "Payment gateway timeout error",
+      10000
+    ],
+    [
+      "auth",
+      "Authentication failed connection timeout",
+      3000
+    ],
+    [
+      "payment",
+      "Credit card validation timeout",
+      6000
+    ],
+    [
+      "order",
+      "Shipping service connection timeout",
+      9000
+    ],
+    [
+      "payment",
+      "Fraud detection service timeout",
+      8500
+    ],
+    [
+      "order",
+      "Order validation timeout exceeded",
+      11000
+    ],
+    [
+      "payment",
+      "Payment processor API timeout",
+      12000
+    ],
+    [
+      "payment",
+      "Currency conversion service timeout",
+      7500
+    ],
+    [
+      "order",
+      "Warehouse system connection timeout",
+      10500
+    ],
+    [
+      "auth",
+      "Slow query detected timeout approaching",
+      2500
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

@@ -112,11 +112,10 @@ public class BitmapIndexQuery extends Query implements Accountable {
                 return new ScorerSupplier() {
                     long cost = -1;
 
-                    final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                    final MergePointVisitor visitor = new MergePointVisitor(result);
-
                     @Override
                     public Scorer get(long leadCost) throws IOException {
+                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                        final MergePointVisitor visitor = new MergePointVisitor(result);
                         values.intersect(visitor);
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }

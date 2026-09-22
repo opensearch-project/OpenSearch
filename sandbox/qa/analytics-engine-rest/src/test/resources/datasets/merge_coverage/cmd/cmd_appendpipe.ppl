@@ -1,0 +1,1 @@
+source=%INDEX% | stats count() as c by category | appendpipe [ stats sum(c) as c ] | sort category

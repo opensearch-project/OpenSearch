@@ -111,6 +111,8 @@ teardown:
   - skip:
       features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "index template [example-template] has index patterns [template-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [example-template] will take precedence during new index creation"
       # test v2 template
       indices.put_index_template:
         name: example-template
@@ -120,8 +122,6 @@ teardown:
             settings:
               index.example_system_ingest_processor_plugin.trigger_setting: true
   - do:
-      allowed_warnings:
-        - "index [template-index-1] matches multiple legacy templates [example-template, global], composable templates will only match a single template"
       index:
         index: template-index-1
         id: 1

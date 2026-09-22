@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -56,6 +57,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -440,6 +442,15 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
                 (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
             );
         }
+    }
+
+    public void testCreateIndexWithMappingsAsString() {
+        CreateIndexRequest request = new CreateIndexRequest("test");
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> request.source("{\"mappings\": \"{}\"}", MediaTypeRegistry.JSON)
+        );
+        assertEquals("key [mappings] must be an object", e.getMessage());
     }
 
     public void testCreateIndexWithContextSettingsAndTemplate() throws Exception {

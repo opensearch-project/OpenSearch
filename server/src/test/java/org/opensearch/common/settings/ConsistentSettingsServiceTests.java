@@ -36,8 +36,12 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assume;
 import org.junit.Before;
 
+import javax.crypto.SecretKeyFactory;
+
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +59,12 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
 
     @Before
     public void init() throws Exception {
+        try {
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+        } catch (NoSuchAlgorithmException e) {
+            Assume.assumeNoException("PBKDF2WithHmacSHA512 algorithm is not available", e);
+        }
+
         clusterState.set(ClusterState.EMPTY_STATE);
         clusterService = mock(ClusterService.class);
         Mockito.doAnswer((Answer) invocation -> { return clusterState.get(); }).when(clusterService).state();

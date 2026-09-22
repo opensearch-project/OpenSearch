@@ -1,0 +1,1 @@
+source = big5 | where `log.file.path` = '/var/log/messages/birdknight' | head 10

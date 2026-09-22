@@ -1,0 +1,1 @@
+source=test_data | eval matches = regexp_match(text, 'test') | fields text, matches | head 3

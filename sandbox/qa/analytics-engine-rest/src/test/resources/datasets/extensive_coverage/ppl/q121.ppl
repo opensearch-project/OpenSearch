@@ -1,0 +1,1 @@
+source=test_data | eval dom = dayofmonth(timestamp) | fields timestamp, dom | head 3

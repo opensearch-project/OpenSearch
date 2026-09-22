@@ -18,6 +18,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
@@ -44,6 +45,7 @@ import java.util.function.Supplier;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/20005")
 public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIndexWriterBaseTests {
 
     // For refresh

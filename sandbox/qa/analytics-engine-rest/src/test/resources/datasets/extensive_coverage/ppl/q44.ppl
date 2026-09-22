@@ -1,0 +1,1 @@
+source=test_data | eval ltrimmed = ltrim(text), rtrimmed = rtrim(text) | fields text, ltrimmed, rtrimmed | head 3

@@ -1,0 +1,1 @@
+source=%INDEX% | rex field=label "lbl(?<d>[0-9]+)" | sort id | head 5 | fields id, d

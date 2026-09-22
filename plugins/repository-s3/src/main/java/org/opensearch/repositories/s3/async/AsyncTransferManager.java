@@ -275,6 +275,14 @@ public final class AsyncTransferManager {
 
         return (response, throwable) -> {
             if (throwable != null) {
+                log.warn(
+                    () -> new ParameterizedMessage(
+                        "Multipart upload failed for file [{}] (upload id: {}), aborting. Cause: {}",
+                        uploadRequest.getKey(),
+                        uploadId,
+                        throwable.getClass().getSimpleName() + ": " + throwable.getMessage()
+                    )
+                );
                 AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
                 handleException(returnFuture, () -> "Failed to send multipart upload requests.", throwable);
             } else {

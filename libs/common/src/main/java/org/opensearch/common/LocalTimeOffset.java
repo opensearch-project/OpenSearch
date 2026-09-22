@@ -48,7 +48,7 @@ import java.util.Locale;
  * Converts utc into local time and back again.
  * <p>
  * "Local time" is defined by some time zone, specifically and {@link ZoneId}.
- * At any point in time a particular time zone is at some offset from from
+ * At any point in time a particular time zone is at some offset from
  * utc. So converting from utc is as simple as adding the offset.
  * <p>
  * Getting from local time back to utc is harder. Most local times happen once.

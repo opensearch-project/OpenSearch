@@ -1,0 +1,1 @@
+source=otel_logs | stats dc(serviceName) as services, dc(`resource.host.name`) as hosts, dc(`resource.k8s.pod.name`) as pods

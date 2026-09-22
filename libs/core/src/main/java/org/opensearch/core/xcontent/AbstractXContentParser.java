@@ -304,13 +304,13 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public List<Object> list() throws IOException {
         skipToListStart(this);
-        return readListUnsafe(this, SIMPLE_MAP_FACTORY);
+        return readListUnsafe(this, SIMPLE_MAP_FACTORY, 0);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
         skipToListStart(this);
-        return readListUnsafe(this, ORDERED_MAP_FACTORY);
+        return readListUnsafe(this, ORDERED_MAP_FACTORY, 0);
     }
 
     private static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
@@ -328,12 +328,21 @@ public abstract class AbstractXContentParser implements XContentParser {
         Supplier<Map<String, Object>> mapFactory,
         Map<String, Object> map
     ) throws IOException {
+        return readMapEntries(parser, mapFactory, map, 0);
+    }
+
+    private static Map<String, Object> readMapEntries(
+        XContentParser parser,
+        Supplier<Map<String, Object>> mapFactory,
+        Map<String, Object> map,
+        int depth
+    ) throws IOException {
         assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
         do {
             // Must point to field name
             String fieldName = parser.currentName();
             // And then the value...
-            Object value = readValueUnsafe(parser.nextToken(), parser, mapFactory);
+            Object value = readValueUnsafe(parser.nextToken(), parser, mapFactory, depth);
             map.put(fieldName, value);
         } while (parser.nextToken() == Token.FIELD_NAME);
         return map;
@@ -375,18 +384,31 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    // Maximum depth for recursive deserialization of nested objects/arrays.
+    // Must stay aligned with XContentConstraints.DEFAULT_MAX_DEPTH_PROPERTY / DEFAULT_MAX_DEPTH (same property,
+    // same default) since both guards sit on the same parse path; libs/core cannot reference libs/x-content,
+    // hence the duplicated definitions.
+    private static final String DEFAULT_MAX_DEPTH_PROPERTY = "opensearch.xcontent.depth.max";
+    private static final int MAX_NESTING_DEPTH = Integer.parseInt(
+        System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "1000" /* StreamReadConstraints.DEFAULT_MAX_DEPTH */)
+    );
+
     // read a list without bounds checks, assuming the current parser is always on an array start
-    private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+    private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory, int depth)
+        throws IOException {
+        if (depth > MAX_NESTING_DEPTH) {
+            throw new IllegalStateException("Maximum nesting depth [" + MAX_NESTING_DEPTH + "] exceeded");
+        }
         assert parser.currentToken() == Token.START_ARRAY;
         ArrayList<Object> list = new ArrayList<>();
         for (Token token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-            list.add(readValueUnsafe(token, parser, mapFactory));
+            list.add(readValueUnsafe(token, parser, mapFactory, depth + 1));
         }
         return list;
     }
 
     public static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return readValueUnsafe(parser.currentToken(), parser, mapFactory);
+        return readValueUnsafe(parser.currentToken(), parser, mapFactory, 0);
     }
 
     /**
@@ -395,8 +417,9 @@ public abstract class AbstractXContentParser implements XContentParser {
      * @param currentToken current token that the parser is at
      * @param parser       parser to read from
      * @param mapFactory   map factory to use for reading objects
+     * @param depth        current recursion depth
      */
-    private static Object readValueUnsafe(Token currentToken, XContentParser parser, Supplier<Map<String, Object>> mapFactory)
+    private static Object readValueUnsafe(Token currentToken, XContentParser parser, Supplier<Map<String, Object>> mapFactory, int depth)
         throws IOException {
         assert currentToken == parser.currentToken() : "Supplied current token ["
             + currentToken
@@ -411,11 +434,14 @@ public abstract class AbstractXContentParser implements XContentParser {
             case VALUE_BOOLEAN:
                 return parser.booleanValue();
             case START_OBJECT: {
+                if (depth > MAX_NESTING_DEPTH) {
+                    throw new IllegalStateException("Maximum nesting depth [" + MAX_NESTING_DEPTH + "] exceeded");
+                }
                 final Map<String, Object> map = mapFactory.get();
-                return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map);
+                return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map, depth + 1);
             }
             case START_ARRAY:
-                return readListUnsafe(parser, mapFactory);
+                return readListUnsafe(parser, mapFactory, depth);
             case VALUE_EMBEDDED_OBJECT:
                 return parser.binaryValue();
             case VALUE_NULL:

@@ -11,7 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
@@ -37,10 +37,7 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public void initialize(IngestionSource ingestionSource) {}
-
-        @Override
-        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId) {
+        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
             return new FakeIngestionConsumer(messages, shardId);
         }
 

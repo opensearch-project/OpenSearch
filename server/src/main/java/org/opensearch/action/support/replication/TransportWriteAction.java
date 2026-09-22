@@ -54,7 +54,6 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Location;
 import org.opensearch.indices.IndicesService;
@@ -573,20 +572,15 @@ public abstract class TransportWriteAction<
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            // If a write action fails due to the closure of the primary shard
-            // then the replicas should not be marked as failed since they are
-            // still up-to-date with the (now closed) primary shard
-            if (exception instanceof PrimaryShardClosedException == false) {
-                shardStateAction.remoteShardFailed(
-                    replica.shardId(),
-                    replica.allocationId().getId(),
-                    primaryTerm,
-                    true,
-                    message,
-                    exception,
-                    listener
-                );
-            }
+            shardStateAction.remoteShardFailed(
+                replica.shardId(),
+                replica.allocationId().getId(),
+                primaryTerm,
+                true,
+                message,
+                exception,
+                listener
+            );
         }
 
         @Override

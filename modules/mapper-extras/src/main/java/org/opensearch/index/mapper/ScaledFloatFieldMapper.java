@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
@@ -50,6 +48,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -63,6 +62,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -90,7 +90,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -129,6 +129,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
@@ -251,6 +252,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
         }
 
         @Override
@@ -408,7 +414,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
@@ -452,51 +458,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = parse(parser, coerce.value());
-            } catch (IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value()) {
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-            value = numericValue;
-        }
-
-        if (value == null) {
-            value = nullValue;
-        }
-
-        if (value == null) {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
             return;
         }
-
-        if (numericValue == null) {
-            numericValue = parse(value);
-        }
-
-        double doubleValue = numericValue.doubleValue();
-        if (Double.isFinite(doubleValue) == false) {
-            if (ignoreMalformed.value()) {
-                return;
-            } else {
-                // since we encode to a long, we have no way to carry NaNs and infinities
-                throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
-            }
-        }
-        long scaledValue = Math.round(doubleValue * scalingFactor);
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
             fieldType().name(),
@@ -511,6 +476,62 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (indexed || stored)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), scaledValue);
+    }
+
+    private Long parseScaledValue(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        Object value;
+        Number numericValue = null;
+        if (context.externalValueSet()) {
+            value = context.externalValue();
+        } else if (parser.currentToken() == Token.VALUE_NULL) {
+            value = null;
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            value = null;
+        } else {
+            try {
+                numericValue = parse(parser, coerce.value());
+            } catch (IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value()) {
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+            value = numericValue;
+        }
+
+        if (value == null) {
+            value = nullValue;
+        }
+
+        if (value == null) {
+            return null;
+        }
+
+        if (numericValue == null) {
+            numericValue = parse(value);
+        }
+
+        double doubleValue = numericValue.doubleValue();
+        if (Double.isFinite(doubleValue) == false) {
+            if (ignoreMalformed.value()) {
+                return null;
+            } else {
+                // since we encode to a long, we have no way to carry NaNs and infinities
+                throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
+            }
+        }
+        return Math.round(doubleValue * scalingFactor);
     }
 
     static Double parse(Object value) {

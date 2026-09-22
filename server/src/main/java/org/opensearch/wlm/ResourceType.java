@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.wlm.tracker.CpuUsageCalculator;
 import org.opensearch.wlm.tracker.MemoryUsageCalculator;
+import org.opensearch.wlm.tracker.NativeMemoryUsageCalculator;
 import org.opensearch.wlm.tracker.ResourceUsageCalculator;
 
 import java.io.IOException;
@@ -26,12 +27,20 @@ import java.util.function.Function;
 @PublicApi(since = "2.17.0")
 public enum ResourceType {
     CPU("cpu", true, CpuUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelCpuCancellationThreshold),
-    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelMemoryCancellationThreshold);
+    MEMORY("memory", true, MemoryUsageCalculator.INSTANCE, WorkloadManagementSettings::getNodeLevelMemoryCancellationThreshold),
+    // NATIVE_MEMORY is off-heap memory reported by native backends (e.g. DataFusion). It is
+    // NOT tracked per workload group — {@code statsEnabled=false} keeps WorkloadGroupState
+    // from allocating state slots for it, and its node-level WLM threshold is pinned at 1.0
+    // so WLM cancellation never fires on this resource. The real consumer is search
+    // backpressure, which pulls the duress signal via NodeDuressTrackers#isResourceInDuress.
+    NATIVE_MEMORY("native_memory", false, NativeMemoryUsageCalculator.INSTANCE, settings -> 1.0);
 
     private final String name;
     private final boolean statsEnabled;
     private final ResourceUsageCalculator resourceUsageCalculator;
     private final Function<WorkloadManagementSettings, Double> nodeLevelThresholdSupplier;
+    // sortedValues intentionally excludes NATIVE_MEMORY — WLM XContent output and related
+    // consumers stayed at "CPU, MEMORY" before this enum grew, and we keep that stable.
     private static List<ResourceType> sortedValues = List.of(CPU, MEMORY);
 
     ResourceType(

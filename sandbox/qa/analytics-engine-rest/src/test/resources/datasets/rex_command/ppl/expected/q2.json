@@ -1,0 +1,24 @@
+{
+  "schema": [
+    {
+      "name": "svc",
+      "type": "string"
+    },
+    {
+      "name": "lat",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "auth",
+      "1200"
+    ],
+    [
+      "db",
+      "5000"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

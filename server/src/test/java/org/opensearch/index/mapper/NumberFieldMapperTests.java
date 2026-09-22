@@ -49,18 +49,24 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.opensearch.index.termvectors.TermVectorsService;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -218,7 +224,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                     assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
                 } else {
                     assertThat(e.getCause().getMessage(), containsString("Current token"));
-                    assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+                    assertThat(e.getCause().getMessage(), containsString("not numeric, cannot use numeric value accessors"));
                 }
 
                 ParsedDocument doc = ignoring.parse(source);
@@ -267,15 +273,15 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, "-1", "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of `int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("18446744073709551616"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of `int`"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("-1"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
@@ -738,5 +744,233 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         encoded = type.encodePoint(-100, false);
         decoded = IntPoint.decodeDimension(encoded, 0);
         assertEquals(-101, decoded);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIntegerValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 42)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(42));
+        assertTrue("Expected integer value 42", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatLongValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "long").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 123456789L)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(123456789L));
+        assertTrue("Expected long value 123456789", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDoubleValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "double").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 3.14)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(3.14));
+        assertTrue("Expected double value 3.14", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws Exception {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            settings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField(FIELD_NAME)), docInput);
+
+        assertFalse(docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME)));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: integer value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.field(FIELD_NAME, 42),
+            FIELD_NAME,
+            42
+        );
+
+        // Scenario 2: long value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "long").endObject()),
+            b -> b.field(FIELD_NAME, 123456789L),
+            FIELD_NAME,
+            123456789L
+        );
+
+        // Scenario 3: double value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "double").endObject()),
+            b -> b.field(FIELD_NAME, 3.14),
+            FIELD_NAME,
+            3.14
+        );
+
+        // Scenario 4: null value — no field produced
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.nullField(FIELD_NAME),
+            FIELD_NAME,
+            null
+        );
+    }
+
+    private void assertNumericLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        Number expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue.doubleValue(), luceneFields[0].numericValue().doubleValue(), 0.001d);
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MockDocValuesDataFormatPlugin());
+    }
+
+    private static Settings pluggableSettings() {
+        return Settings.builder()
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", MockDocValuesDataFormatPlugin.FORMAT_NAME)
+            .build();
+    }
+
+    /**
+     * On a pluggable-dataformat index no BKD points are written for numeric fields, so {@code index}
+     * defaults to false and the field reports itself as not searchable — routing queries to the
+     * doc-values column instead of an empty point index.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultsIndexToFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /** An explicit {@code index: false} is accepted on a pluggable-dataformat index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatAcceptsExplicitIndexFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /**
+     * An explicit {@code index: true} cannot be honoured on a pluggable-dataformat index — no point
+     * index is written — so the mapping is rejected rather than silently producing a field whose
+     * queries match nothing.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRejectsExplicitIndexTrue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(pluggableSettings(), fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }))
+        );
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
+    }
+
+    /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
+    public void testNonPluggableDataFormatKeepsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isSearchable());
+
+        MapperService explicit = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        }));
+        assertTrue(explicit.fieldType("field").isSearchable());
+    }
+
+    /**
+     * A field added by a later mapping update also defaults to not-indexed, and the update leaves the
+     * value of the already-mapped field unchanged.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateDefaultsNewFieldToNotIndexed() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.endObject();
+        }));
+
+        assertFalse("newly added field should default to not-indexed", mapperService.fieldType("field2").isSearchable());
+        assertFalse("existing field's value should be preserved across the update", mapperService.fieldType("field").isSearchable());
+    }
+
+    /** A mapping update that sets index:true on a new field is rejected on a pluggable data format index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateRejectsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.field("index", true);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 }

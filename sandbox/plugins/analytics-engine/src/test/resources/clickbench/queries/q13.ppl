@@ -1,0 +1,9 @@
+/*
+SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> ''
+GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
+*/
+source=hits
+| where SearchPhrase != ''
+| stats bucket_nullable=false count() as c by SearchPhrase
+| sort - c
+| head 10

@@ -1,0 +1,1 @@
+source=performance_metrics | stats count() as total_metrics, avg(cpu_usage) as avg_cpu, avg(memory_usage) as avg_memory by host | eval performance_score = round((100 - avg_cpu + 100 - avg_memory) / 2, 2) | fields host, total_metrics, avg_cpu, avg_memory, performance_score | sort - performance_score

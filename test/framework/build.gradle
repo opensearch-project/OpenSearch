@@ -33,6 +33,16 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 apply from: "$rootDir/gradle/fips.gradle"
 
+configurations {
+  agent {
+    canBeConsumed = false
+    canBeResolved = true
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-jar'))
+    }
+  }
+}
+
 dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
@@ -57,9 +67,11 @@ dependencies {
   fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   compileOnly project(":libs:agent-sm:bootstrap")
-  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.8"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.10.4"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  agent project(path: ':libs:agent-sm:agent', configuration: 'agentJar')
 }
 
 compileJava.options.compilerArgs -= '-Xlint:cast'
@@ -78,6 +90,8 @@ tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 thirdPartyAudit.ignoreMissingClasses(
+  // Optional BC ML-KEM/CMS-KEM implementations are not supplied by the FIPS provider.
+  'org.bouncycastle.pqc.jcajce.spec.KTSParameterSpec$Builder',
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -105,8 +119,7 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 
-  dependsOn(project(':libs:agent-sm:agent').prepareAgent)
-  jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+  jvmArgs += ["-javaagent:${-> configurations.agent.incoming.artifactView({}).files.singleFile}"]
 }
 
 tasks.register("integTest", Test) {

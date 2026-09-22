@@ -44,6 +44,17 @@ public class IndicesOptionsProtoUtils {
     }
 
     /**
+     * Extracts indices options from a Protocol Buffer CreatePitRequest.
+     *
+     * @param request the Protocol Buffer CreatePitRequest to extract options from
+     * @param defaultSettings the default IndicesOptions to use if not specified in the request
+     * @return the IndicesOptions based on the request parameters
+     */
+    protected static IndicesOptions fromRequest(org.opensearch.protobufs.CreatePitRequest request, IndicesOptions defaultSettings) {
+        return fromProtoParameters(request, defaultSettings);
+    }
+
+    /**
      * Creates IndicesOptions from Protocol Buffer SearchRequest parameters.
      * Similar to {@link IndicesOptions#fromParameters(Object, Object, Object, Object, IndicesOptions)}
      *
@@ -52,30 +63,68 @@ public class IndicesOptionsProtoUtils {
      * @return the IndicesOptions based on the request parameters
      */
     protected static IndicesOptions fromProtoParameters(SearchRequest request, IndicesOptions defaultSettings) {
-        if (!(request.getExpandWildcardsCount() > 0)
-            && !request.hasIgnoreUnavailable()
-            && !request.hasAllowNoIndices()
-            && !request.hasIgnoreThrottled()) {
+        return fromProtoParameters(
+            request.getExpandWildcardsCount(),
+            request.getExpandWildcardsList(),
+            request.hasIgnoreUnavailable(),
+            request.getIgnoreUnavailable(),
+            request.hasAllowNoIndices(),
+            request.getAllowNoIndices(),
+            request.hasIgnoreThrottled(),
+            request.getIgnoreThrottled(),
+            defaultSettings
+        );
+    }
+
+    /**
+     * Creates IndicesOptions from Protocol Buffer CreatePitRequest parameters.
+     *
+     * @param request the Protocol Buffer CreatePitRequest to extract parameters from
+     * @param defaultSettings the default IndicesOptions to use if not specified in the request
+     * @return the IndicesOptions based on the request parameters
+     */
+    protected static IndicesOptions fromProtoParameters(org.opensearch.protobufs.CreatePitRequest request, IndicesOptions defaultSettings) {
+        return fromProtoParameters(
+            request.getExpandWildcardsCount(),
+            request.getExpandWildcardsList(),
+            request.hasIgnoreUnavailable(),
+            request.getIgnoreUnavailable(),
+            request.hasAllowNoIndices(),
+            request.getAllowNoIndices(),
+            request.hasIgnoreThrottled(),
+            request.getIgnoreThrottled(),
+            defaultSettings
+        );
+    }
+
+    private static IndicesOptions fromProtoParameters(
+        int expandWildcardsCount,
+        List<org.opensearch.protobufs.ExpandWildcard> expandWildcards,
+        boolean hasIgnoreUnavailable,
+        boolean ignoreUnavailable,
+        boolean hasAllowNoIndices,
+        boolean allowNoIndices,
+        boolean hasIgnoreThrottled,
+        boolean ignoreThrottled,
+        IndicesOptions defaultSettings
+    ) {
+        if (expandWildcardsCount == 0 && !hasIgnoreUnavailable && !hasAllowNoIndices && !hasIgnoreThrottled) {
             return defaultSettings;
         }
 
-        // TODO double check this works
-        EnumSet<IndicesOptions.WildcardStates> wildcards = parseProtoParameter(
-            request.getExpandWildcardsList(),
-            defaultSettings.getExpandWildcards()
-        );
+        EnumSet<IndicesOptions.WildcardStates> wildcards = parseProtoParameter(expandWildcards, defaultSettings.getExpandWildcards());
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-            request.hasIgnoreUnavailable() ? request.getIgnoreUnavailable() : defaultSettings.ignoreUnavailable(),
-            request.hasAllowNoIndices() ? request.getAllowNoIndices() : defaultSettings.allowNoIndices(),
+            hasIgnoreUnavailable ? ignoreUnavailable : defaultSettings.ignoreUnavailable(),
+            hasAllowNoIndices ? allowNoIndices : defaultSettings.allowNoIndices(),
             wildcards.contains(OPEN),
             wildcards.contains(CLOSED),
-            wildcards.contains(IndicesOptions.WildcardStates.HIDDEN),
+            wildcards.contains(HIDDEN),
             defaultSettings.allowAliasesToMultipleIndices(),
             defaultSettings.forbidClosedIndices(),
             defaultSettings.ignoreAliases(),
-            request.hasIgnoreThrottled() ? request.getIgnoreThrottled() : defaultSettings.ignoreThrottled()
+            hasIgnoreThrottled ? ignoreThrottled : defaultSettings.ignoreThrottled()
         );
     }
 

@@ -770,10 +770,10 @@ public class Strings {
     private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
         XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
         if (pretty) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         if (human) {
-            builder.humanReadable(true);
+            builder = builder.humanReadable(true);
         }
         return builder;
     }

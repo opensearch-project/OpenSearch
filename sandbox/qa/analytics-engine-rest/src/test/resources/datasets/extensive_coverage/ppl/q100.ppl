@@ -1,0 +1,1 @@
+source=test_data | eval upper_tags = transform(split(tags, ','), x -> upper(x)) | fields tags, upper_tags | head 3

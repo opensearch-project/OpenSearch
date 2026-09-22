@@ -78,10 +78,12 @@ final class PointTreeTraversal {
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
             intersectWithRanges(visitor, tree, collector);
+            collector.finalizePreviousRange();
         } catch (CollectionTerminatedException e) {
+            // early termination is always preceded by a finalizePreviousRange call
+            // in the visitor, so there is nothing left to flush here
             logger.debug("Early terminate since no more range to collect");
         }
-        collector.finalizePreviousRange();
         return collector.getResult();
     }
 

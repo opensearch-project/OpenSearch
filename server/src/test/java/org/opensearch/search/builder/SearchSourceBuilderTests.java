@@ -32,8 +32,6 @@
 
 package org.opensearch.search.builder;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -61,6 +59,7 @@ import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -76,7 +75,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser xParser = createParser(builder)) {

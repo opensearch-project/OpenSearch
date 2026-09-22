@@ -114,4 +114,17 @@ public class DerivedFieldMapperTests extends MapperTestCase {
     // TODO TESTCASE: testWithFieldInSource() (derived field with that field present in source)
     // This is more checking search behavior so may need to revisit this after query implementation
 
+    public void testPluggableDataFormatDerivedFieldThrows() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startObject("derived");
+            b.startObject("derived_field");
+            b.field("type", "keyword");
+            b.startObject("script").field("source", "emit(params._source.field)").field("lang", "painless").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        DerivedFieldMapper derivedMapper = (DerivedFieldMapper) mapper.mappers().getMapper("derived_field");
+        assertNotNull(derivedMapper);
+        expectThrows(UnsupportedOperationException.class, () -> derivedMapper.parseCreateFieldForPluggableFormat(null));
+    }
 }

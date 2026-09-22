@@ -409,6 +409,22 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        return getRemoteClusterClient(threadPool, clusterAlias, null);
+    }
+
+    /**
+     * Returns a client to the remote cluster that additionally supports streaming requests over the
+     * given {@link StreamTransportService} (Arrow Flight) via
+     * {@link RemoteClusterAwareClient#sendStreamRequest}. Regular request/response behaviour is
+     * identical to {@link #getRemoteClusterClient(ThreadPool, String)}; passing a null
+     * {@code streamTransportService} yields a client whose streaming path is disabled.
+     *
+     * @param threadPool             the {@link ThreadPool} for the client
+     * @param clusterAlias           the cluster alias the remote cluster is registered under
+     * @param streamTransportService node-local stream transport service, or null if not enabled
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     */
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, StreamTransportService streamTransportService) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -417,7 +433,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, streamTransportService);
     }
 
     Collection<RemoteClusterConnection> getConnections() {

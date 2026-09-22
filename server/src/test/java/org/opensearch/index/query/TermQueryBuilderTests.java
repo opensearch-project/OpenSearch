@@ -32,8 +32,6 @@
 
 package org.opensearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -51,6 +49,8 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.opensearch.index.query.MatchQueryBuilderTests.testGetComplementNumericField;
@@ -80,7 +80,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 } else {
                     // generate unicode string in 10% of cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                    final StringBuilder sb = new StringBuilder();
+                    encoder.quoteAsString(randomUnicodeOfLength(10), sb);
+                    value = sb.toString();
                 }
                 break;
             case 2:

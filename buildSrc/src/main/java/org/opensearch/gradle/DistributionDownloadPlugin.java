@@ -32,7 +32,6 @@
 
 package org.opensearch.gradle;
 
-import org.opensearch.gradle.OpenSearchDistribution.Platform;
 import org.opensearch.gradle.OpenSearchDistribution.Type;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
@@ -221,40 +220,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * coordinates that resolve to the OpenSearch download service through an ivy repository.
      */
     private String dependencyNotation(OpenSearchDistribution distribution) {
-        Version distroVersion = Version.fromString(distribution.getVersion());
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
             return "org.opensearch.distribution.integ-test-zip:opensearch:" + distribution.getVersion() + "@zip";
         }
 
-        String extension = distribution.getType().toString();
-        String classifier = distroVersion.onOrAfter("1.0.0") ? ":x64" : ":x86_64";
-        if (distribution.getType() == Type.ARCHIVE) {
-            extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-
-            switch (distribution.getArchitecture()) {
-                case ARM64:
-                    classifier = ":" + distribution.getPlatform() + "-arm64";
-                    break;
-                case X64:
-                    classifier = ":" + distribution.getPlatform() + "-x64";
-                    break;
-                case S390X:
-                    classifier = ":" + distribution.getPlatform() + "-s390x";
-                    break;
-                case PPC64LE:
-                    classifier = ":" + distribution.getPlatform() + "-ppc64le";
-                    break;
-                case RISCV64:
-                    classifier = ":" + distribution.getPlatform() + "-riscv64";
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported architecture: " + distribution.getArchitecture());
-            }
-        } else if (distribution.getType() == Type.DEB) {
-            classifier = ":amd64";
-        }
-
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":opensearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":opensearch:" + distribution.getVersion() + distribution.classifierAndExtension();
     }
 }

@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = nullif(amount, 5) | sort id | fields id, r

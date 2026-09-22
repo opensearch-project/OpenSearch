@@ -69,7 +69,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
@@ -324,7 +323,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             logger.info(ShardAllocations.printShardDistribution(clusterState));
             try {
                 verifyPrimaryBalance(clusterState, buffer);
-            } catch (Exception e) {
+            } catch (AssertionError | Exception e) {
                 balanceFailed++;
                 logger.info("Unexpected assertion failure");
             }
@@ -647,23 +646,21 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    private void verifyPrimaryBalance(ClusterState clusterState, float buffer) throws Exception {
-        assertBusy(() -> {
-            RoutingNodes nodes = clusterState.getRoutingNodes();
-            int totalPrimaryShards = 0;
-            for (final IndexRoutingTable index : clusterState.getRoutingTable().indicesRouting().values()) {
-                totalPrimaryShards += index.primaryShardsActive();
-            }
-            final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / clusterState.getRoutingNodes().size());
-            for (RoutingNode node : nodes) {
-                final int primaryCount = node.shardsWithState(STARTED)
-                    .stream()
-                    .filter(ShardRouting::primary)
-                    .collect(Collectors.toList())
-                    .size();
-                assertTrue(primaryCount <= (avgPrimaryShardsPerNode * (1 + buffer)));
-            }
-        }, 60, TimeUnit.SECONDS);
+    private static void verifyPrimaryBalance(ClusterState clusterState, float buffer) {
+        RoutingNodes nodes = clusterState.getRoutingNodes();
+        int totalPrimaryShards = 0;
+        for (final IndexRoutingTable index : clusterState.getRoutingTable().indicesRouting().values()) {
+            totalPrimaryShards += index.primaryShardsActive();
+        }
+        final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / clusterState.getRoutingNodes().size());
+        for (RoutingNode node : nodes) {
+            final int primaryCount = node.shardsWithState(STARTED)
+                .stream()
+                .filter(ShardRouting::primary)
+                .collect(Collectors.toList())
+                .size();
+            assertTrue(primaryCount <= (avgPrimaryShardsPerNode * (1 + buffer)));
+        }
     }
 
     public void testShardBalance() {

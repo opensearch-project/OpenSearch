@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "type_val",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      100.5,
+      "DOUBLE"
+    ],
+    [
+      200.75,
+      "DOUBLE"
+    ],
+    [
+      150.25,
+      "DOUBLE"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

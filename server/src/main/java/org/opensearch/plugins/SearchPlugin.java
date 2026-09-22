@@ -870,7 +870,7 @@ public interface SearchPlugin {
         /**
          * Build the spec with a String.
          *
-         * @param name the name of the behavior. The parser and the reader are are registered under this name so be sure that that is the
+         * @param name the name of the behavior. The parser and the reader are registered under this name so be sure that is the
          *        name that W's {@link NamedWriteable#getWriteableName()} returns.  It is an error if this name conflicts with another
          *        registered name, including names from other plugins.
          * @param reader reader that reads the behavior from the internode protocol

@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * removal. All new code should use this class instead of the JDK's {@code AccessController}.
  *
  * Running code in a privileged context will ensure that the code has the necessary permissions
- * without traversing through the entire call stack. See {@code org.opensearch.javaagent.StackCallerProtectionDomainChainExtractor}
+ * without traversing through the entire call stack. See {@code org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor}
  *
  * Example usages:
  * <pre>

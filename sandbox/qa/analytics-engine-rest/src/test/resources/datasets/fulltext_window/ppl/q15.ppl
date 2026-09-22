@@ -1,0 +1,1 @@
+source=transactions | where match(product, "electronics") | eventstats sum(amount) as totalcat by category | sort category, amount desc | streamstats count() as rnk by category | where rnk = 1 | fields category, product, amount, totalcat

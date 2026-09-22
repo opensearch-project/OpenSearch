@@ -417,4 +417,17 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         // In the future we will want to make sure parameter updates are covered.
     }
 
+    public void testDefaultsDoNotUseDocumentInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .toString();
+        ParsedDocument doc = mapper.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+    }
 }

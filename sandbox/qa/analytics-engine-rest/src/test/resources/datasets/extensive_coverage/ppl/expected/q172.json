@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "atan2_val",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "1",
+      0.7853981633974483
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

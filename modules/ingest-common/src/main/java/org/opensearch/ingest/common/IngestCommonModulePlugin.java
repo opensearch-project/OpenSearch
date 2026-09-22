@@ -94,6 +94,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService));
         processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService));
         processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
+        processors.put(SplitToFieldsProcessor.TYPE, new SplitToFieldsProcessor.Factory());
         processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
         processors.put(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
         processors.put(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory());

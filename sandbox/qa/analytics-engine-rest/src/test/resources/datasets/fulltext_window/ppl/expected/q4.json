@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "cnt",
+      "type": "bigint"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      "payment"
+    ],
+    [
+      3,
+      "order"
+    ],
+    [
+      1,
+      "auth"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

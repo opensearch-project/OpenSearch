@@ -1,0 +1,1 @@
+source=sales_data | where status='completed' | sort timestamp | eventstats sum(sales_amount) as running_total by user | fields timestamp, user, sales_amount, running_total | head 20

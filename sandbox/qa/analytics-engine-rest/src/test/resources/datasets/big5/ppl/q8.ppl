@@ -1,0 +1,1 @@
+source = big5 | where `@timestamp` >= '2022-12-30 00:00:00' and `@timestamp` < '2023-01-07 12:00:00' | stats count() by span(`@timestamp`, 1d)

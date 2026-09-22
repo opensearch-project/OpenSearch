@@ -58,4 +58,21 @@ public class SearchShardTaskDetailsLogMessageTests extends OpenSearchSingleNodeT
             equalTo("{0=[{cpu_time_in_nanos=100, memory_in_bytes=100}, stats_type=worker_stats, is_active=true, threadId=0]}")
         );
     }
+
+    public void testTaskDetailsLogWithJsonMetadata() {
+        String jsonMetadata = "{\"query\":{\"match_all\":{}},\"size\":10}";
+        SearchShardTask task = new SearchShardTask(
+            1,
+            "transport",
+            "indices:data/read/search[phase/query]",
+            "test",
+            null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"),
+            () -> jsonMetadata
+        );
+        SearchShardTaskDetailsLogMessage p = new SearchShardTaskDetailsLogMessage(task);
+
+        // Verify that metadata with JSON content is stored correctly
+        assertThat(p.getValueFor("metadata"), equalTo(jsonMetadata));
+    }
 }

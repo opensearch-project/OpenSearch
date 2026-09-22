@@ -194,7 +194,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
             SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder();
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                builder.prettyPrint();
+                builder = builder.prettyPrint();
             }
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);

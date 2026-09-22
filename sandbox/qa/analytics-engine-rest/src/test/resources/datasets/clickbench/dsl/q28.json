@@ -1,0 +1,87 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "URL",
+                  "boost": 1.0
+                }
+              }
+            ],
+            "must_not": [
+              {
+                "term": {
+                  "URL": {
+                    "value": "",
+                    "boost": 1.0
+                  }
+                }
+              }
+            ],
+            "adjust_pure_negative": true,
+            "boost": 1.0
+          }
+        },
+        {
+          "exists": {
+            "field": "CounterID",
+            "boost": 1.0
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "URL",
+      "CounterID"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "composite_buckets": {
+      "composite": {
+        "size": 10000,
+        "sources": [
+          {
+            "CounterID": {
+              "terms": {
+                "field": "CounterID",
+                "missing_bucket": false,
+                "order": "asc"
+              }
+            }
+          }
+        ]
+      },
+      "aggregations": {
+        "l": {
+          "avg": {
+            "script": {
+              "source": "{\"langType\":\"calcite\",\"script\":\"rO0ABXQA/3sKICAib3AiOiB7CiAgICAibmFtZSI6ICJDSEFSX0xFTkdUSCIsCiAgICAia2luZCI6ICJDSEFSX0xFTkdUSCIsCiAgICAic3ludGF4IjogIkZVTkNUSU9OIgogIH0sCiAgIm9wZXJhbmRzIjogWwogICAgewogICAgICAiZHluYW1pY1BhcmFtIjogMCwKICAgICAgInR5cGUiOiB7CiAgICAgICAgInR5cGUiOiAiVkFSQ0hBUiIsCiAgICAgICAgIm51bGxhYmxlIjogdHJ1ZSwKICAgICAgICAicHJlY2lzaW9uIjogLTEKICAgICAgfQogICAgfQogIF0KfQ==\"}",
+              "lang": "opensearch_compounded_script",
+              "params": {
+                "utcTimestamp": 1765261854565507000,
+                "SOURCES": [
+                  0
+                ],
+                "DIGESTS": [
+                  "URL"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

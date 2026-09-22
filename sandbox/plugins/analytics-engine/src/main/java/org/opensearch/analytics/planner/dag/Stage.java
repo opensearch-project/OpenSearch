@@ -1,0 +1,257 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.dag;
+
+import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterExtractor;
+import org.opensearch.analytics.exec.canmatch.SortSpec;
+import org.opensearch.analytics.exec.canmatch.SortSpecExtractor;
+import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.common.Nullable;
+
+import java.util.List;
+
+/**
+ * A stage in the query DAG. Each stage holds a marked plan fragment (annotations
+ * intact, multiple viableBackends per operator/expression), a {@link TargetResolver}
+ * for the Scheduler to resolve execution targets lazily, and references to child stages.
+ *
+ * <p>Execution shape is surfaced explicitly via {@link #getExecutionType()}, derived
+ * at construction in priority order:
+ * <ol>
+ *   <li>{@link #getTargetResolver()} non-null → {@link StageExecutionType#SHARD_FRAGMENT}
+ *       — dispatch fragment per-shard to data nodes.</li>
+ *   <li>{@link #getExchangeSinkProvider()} non-null → {@link StageExecutionType#COORDINATOR_REDUCE}
+ *       — coordinator-side reduction via backend sink.</li>
+ *   <li>Otherwise → {@link StageExecutionType#LOCAL_PASSTHROUGH} — coordinator gather
+ *       via {@code RowProducingSink}.</li>
+ * </ol>
+ *
+ * <p>After plan forking, {@code planAlternatives} contains resolved variants
+ * where every viableBackends is narrowed to exactly one backend.
+ *
+ * @opensearch.internal
+ */
+public class Stage {
+
+    /**
+     * Semantic role of this stage within a potentially multi-stage join execution. Orthogonal to
+     * {@link StageExecutionType} (which describes *how* the stage runs); {@code StageRole}
+     * describes *why* the stage exists so the coordinator can route MPP-specific dispatch paths.
+     *
+     * <p>Defaults to {@link #SHARD_SOURCE} for every stage constructed by {@code DAGBuilder};
+     * MPP rewrites in {@code DefaultPlanExecutor} / {@code QueryScheduler} may re-tag stages as
+     * {@link #BROADCAST_BUILD} / {@link #BROADCAST_PROBE} / {@link #SHUFFLE_SCAN_LEFT} /
+     * {@link #SHUFFLE_SCAN_RIGHT} / {@link #SHUFFLE_WORKER} before dispatch.
+     */
+    public enum StageRole {
+        /** Data-node scan stage — default for anything built by the DAG cutter. */
+        SHARD_SOURCE,
+        /** Coordinator-side reduce/gather stage. */
+        COORDINATOR_REDUCE,
+        /** Broadcast-join build side — results are collected and re-dispatched as broadcast payload. */
+        BROADCAST_BUILD,
+        /** Broadcast-join probe side — each task carries the join plan plus broadcast data. */
+        BROADCAST_PROBE,
+        /** Hash-shuffle left scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_LEFT,
+        /** Hash-shuffle right scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_RIGHT,
+        /** Hash-shuffle aggregate scan — single producer feeding an aggregate worker (M3). */
+        SHUFFLE_SCAN_AGG,
+        /** Hash-shuffle worker stage — one task per shuffle partition. Consumes two input streams
+         *  for a join (M2) or one for an aggregate FINAL (M3). */
+        SHUFFLE_WORKER
+    }
+
+    private final int stageId;
+    private final RelNode fragment;
+    private final List<Stage> childStages;
+    private final ExchangeInfo exchangeInfo;
+    private final ExchangeSinkProvider exchangeSinkProvider;
+    private final TargetResolver targetResolver;
+    private final StageExecutionType executionType;
+    private List<StagePlan> planAlternatives;
+    private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    private StageRole role = StageRole.SHARD_SOURCE;
+    /**
+     * Optional decorator wrapping this stage's incoming child sink. Set at DAG-build
+     * time (today only by {@code DAGBuilder.cutAtLateMaterialization}); applied at
+     * sink-resolution time inside the parent execution's {@code inputSink(...)}.
+     * Null when this stage doesn't need any decoration.
+     */
+    @Nullable
+    private InputSinkDecorator inputSinkDecorator;
+
+    private final List<CanMatchFilter> canMatchFilters;
+
+    /** Primary sort key of this fragment; null when it isn't a {@code sort | head N} shape. */
+    @Nullable
+    private final SortSpec sortSpec;
+
+    public Stage(
+        int stageId,
+        RelNode fragment,
+        List<Stage> childStages,
+        ExchangeInfo exchangeInfo,
+        ExchangeSinkProvider exchangeSinkProvider,
+        TargetResolver targetResolver
+    ) {
+        this.stageId = stageId;
+        this.fragment = fragment;
+        this.childStages = List.copyOf(childStages);
+        this.exchangeInfo = exchangeInfo;
+        this.exchangeSinkProvider = exchangeSinkProvider;
+        this.targetResolver = targetResolver;
+        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver, fragment);
+        this.planAlternatives = List.of();
+        this.canMatchFilters = fragment != null ? CanMatchFilterExtractor.extract(fragment) : List.of();
+        this.sortSpec = fragment != null ? SortSpecExtractor.extract(fragment) : null;
+    }
+
+    public int getStageId() {
+        return stageId;
+    }
+
+    /** Marked plan fragment with annotations intact. */
+    public RelNode getFragment() {
+        return fragment;
+    }
+
+    /** Range filters extracted from the fragment at DAG-build time for can-match pre-filtering. */
+    public List<CanMatchFilter> getCanMatchFilters() {
+        return canMatchFilters;
+    }
+
+    /** Sort column + direction used to order shards in the can-match phase; null when not applicable. */
+    @Nullable
+    public SortSpec getSortSpec() {
+        return sortSpec;
+    }
+
+    public List<Stage> getChildStages() {
+        return childStages;
+    }
+
+    /** How this stage connects to its parent. Null for the root stage. */
+    @Nullable
+    public ExchangeInfo getExchangeInfo() {
+        return exchangeInfo;
+    }
+
+    /**
+     * Non-null for coordinator stages with backend computation (final aggregate, sort).
+     * Null for simple gather stages — Scheduler uses a {@code RowProducingSink} instead.
+     */
+    @Nullable
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        return exchangeSinkProvider;
+    }
+
+    /**
+     * Non-null for DATA_NODE stages. Null for coordinator/gather stages.
+     * Scheduler calls {@code targetResolver.resolve(clusterState, childManifest)} lazily
+     * just before dispatch.
+     */
+    @Nullable
+    public TargetResolver getTargetResolver() {
+        return targetResolver;
+    }
+
+    /**
+     * Returns where this stage's compute runs. Derived at construction from the
+     * target resolver / sink provider pair — see the class-level javadoc.
+     */
+    public StageExecutionType getExecutionType() {
+        return executionType;
+    }
+
+    public List<StagePlan> getPlanAlternatives() {
+        return planAlternatives;
+    }
+
+    public void setPlanAlternatives(List<StagePlan> planAlternatives) {
+        this.planAlternatives = planAlternatives;
+    }
+
+    public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        return instructionHandlerFactory;
+    }
+
+    public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
+        this.instructionHandlerFactory = instructionHandlerFactory;
+    }
+
+    /** Returns the semantic role tag. Defaults to {@link StageRole#SHARD_SOURCE}. */
+    public StageRole getRole() {
+        return role;
+    }
+
+    /** Re-tag this stage's role — called by MPP rewrites before dispatch. */
+    public void setRole(StageRole role) {
+        this.role = role;
+    }
+
+    @Nullable
+    public InputSinkDecorator getInputSinkDecorator() {
+        return inputSinkDecorator;
+    }
+
+    public void setInputSinkDecorator(InputSinkDecorator inputSinkDecorator) {
+        this.inputSinkDecorator = inputSinkDecorator;
+    }
+
+    private StageExecutionType setStageExecutionType(
+        ExchangeSinkProvider exchangeSinkProvider,
+        TargetResolver targetResolver,
+        RelNode fragment
+    ) {
+        // QTF Scatter-Gather marker — orchestrates fetch-by-rowid + stitch internally,
+        // no targetResolver / no sinkProvider. Checked first so other categories don't
+        // accidentally claim the wrapper-stage. Null-fragment tolerant — some stub Stages
+        // in unit tests construct without a fragment.
+        if (fragment != null && RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) != null) {
+            return StageExecutionType.LATE_MATERIALIZATION;
+        }
+        if (targetResolver instanceof WorkerTargetResolver) {
+            return StageExecutionType.WORKER_FRAGMENT;
+        } else if (targetResolver != null) {
+            return StageExecutionType.SHARD_FRAGMENT;
+        } else if (hasComputeLeaf(fragment)) {
+            // Coord-only compute leaf (e.g. OpenSearchValues) — run the plan locally
+            // via the backend's in-process engine. Takes precedence over the
+            // sink-provider check because LOCAL_COMPUTE also requires a sink
+            // provider (DAGBuilder attaches one), but the routing differs.
+            return StageExecutionType.LOCAL_COMPUTE;
+        } else if (exchangeSinkProvider != null) {
+            return StageExecutionType.COORDINATOR_REDUCE;
+        } else {
+            return StageExecutionType.LOCAL_PASSTHROUGH;
+        }
+    }
+
+    /**
+     * True iff {@code fragment} contains a coord-only compute leaf —
+     * an {@link org.opensearch.analytics.planner.rel.OpenSearchValues} today;
+     * future literal-source rels would extend this list. A null fragment
+     * (some Stage tests construct stub stages without a fragment) cannot
+     * contain a compute leaf — return false rather than NPE.
+     */
+    private static boolean hasComputeLeaf(RelNode fragment) {
+        if (fragment == null) {
+            return false;
+        }
+        return RelNodeUtils.findNode(fragment, OpenSearchValues.class) != null;
+    }
+}

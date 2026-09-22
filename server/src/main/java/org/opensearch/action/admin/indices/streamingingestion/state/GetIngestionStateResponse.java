@@ -10,7 +10,7 @@ package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -26,9 +26,9 @@ import java.util.Map;
 /**
  * Transport response for retrieving ingestion state.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class GetIngestionStateResponse extends BroadcastResponse {
     private static final String INGESTION_STATE = "ingestion_state";
     private static final String NEXT_PAGE_TOKEN = "next_page_token";

@@ -1,0 +1,1 @@
+source=aggregation_tests | stats distinct_count(status_code) as unique_codes, count() as total by region | sort - total

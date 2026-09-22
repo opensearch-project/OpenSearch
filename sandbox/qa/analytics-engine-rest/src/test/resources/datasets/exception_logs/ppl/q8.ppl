@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.exception_message` like '%NullPointerException%' or `exception.exception_message` like '%IllegalArgumentException%' or `exception.exception_message` like '%RuntimeException%' | stats count() as count by service_name

@@ -1,0 +1,4 @@
+/*
+SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0 GROUP BY AdvEngineID ORDER BY COUNT(*) DESC;
+*/
+source=hits | where AdvEngineID!=0 | stats bucket_nullable=false count() by AdvEngineID | sort - `count()`

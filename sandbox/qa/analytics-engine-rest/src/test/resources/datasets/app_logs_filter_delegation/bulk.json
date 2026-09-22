@@ -1,0 +1,400 @@
+{"index": {}}
+{"timestamp": "2026-05-14T11:40:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T11:41:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host3", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T11:42:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:43:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "Exception while getting WebSocket session", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:44:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:45:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T11:46:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "api-service", "host": "host2", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T11:47:47.406", "message": "Exception: Connection timeout", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:48:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Error: Database unavailable", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:49:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:50:47.406", "message": "Normal operation log", "service_name": "api-service", "host": "host3", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T11:51:47.406", "message": "Dropping quote from message", "service_name": "db-service", "host": "host1", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T11:52:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host1", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:53:47.406", "message": "Unexpected_error occurred in service", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:54:47.406", "message": "Exception while getting WebSocket session", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "Exception while getting WebSocket session", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:55:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "db-service", "host": "host1", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T11:56:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T11:57:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "api-service", "host": "host1", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:58:47.406", "message": "Exception: Connection timeout", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T11:59:47.406", "message": "Error: Database unavailable", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:00:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:01:47.406", "message": "Normal operation log", "service_name": "db-service", "host": "host1", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:02:47.406", "message": "Dropping quote from message", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:03:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "db-service", "host": "host1", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:04:47.406", "message": "Unexpected_error occurred in service", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:05:47.406", "message": "Exception while getting WebSocket session", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:06:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:07:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:08:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:09:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": "Exception: Connection timeout", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:10:47.406", "message": "Error: Database unavailable", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": "Error: Database unavailable", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:11:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:12:47.406", "message": "Normal operation log", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:13:47.406", "message": "Dropping quote from message", "service_name": "db-service", "host": "host3", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:14:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "auth-service", "host": "host2", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:15:47.406", "message": "Unexpected_error occurred in service", "service_name": "auth-service", "host": "host3", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:16:47.406", "message": "Exception while getting WebSocket session", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:17:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "api-service", "host": "host2", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:18:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:19:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "auth-service", "host": "host2", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:20:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:21:47.406", "message": "Error: Database unavailable", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:22:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:23:47.406", "message": "Normal operation log", "service_name": "db-service", "host": "host2", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:24:47.406", "message": "Dropping quote from message", "service_name": "api-service", "host": "host3", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:25:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "api-service", "host": "host2", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:26:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:27:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:28:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "api-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:29:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:30:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:31:47.406", "message": "Exception: Connection timeout", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "Exception: Connection timeout", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:32:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "Error: Database unavailable", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:33:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:34:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:35:47.406", "message": "Dropping quote from message", "service_name": "web-service", "host": "host1", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:36:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "api-service", "host": "host2", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:37:47.406", "message": "Unexpected_error occurred in service", "service_name": "api-service", "host": "host3", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:38:47.406", "message": "Exception while getting WebSocket session", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:39:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:40:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "api-service", "host": "host1", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:41:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:42:47.406", "message": "Exception: Connection timeout", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Exception: Connection timeout", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:43:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:44:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:45:47.406", "message": "Normal operation log", "service_name": "db-service", "host": "host1", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:46:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:47:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:48:47.406", "message": "Unexpected_error occurred in service", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:49:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:50:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:51:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:52:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:53:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "Exception: Connection timeout", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:54:47.406", "message": "Error: Database unavailable", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": "Error: Database unavailable", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:55:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "api-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T12:56:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T12:57:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host3", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:58:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T12:59:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:00:47.406", "message": "Exception while getting WebSocket session", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:01:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "auth-service", "host": "host1", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:02:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "api-service", "host": "host2", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:03:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:04:47.406", "message": "Exception: Connection timeout", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:05:47.406", "message": "Error: Database unavailable", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "Error: Database unavailable", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:06:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:07:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host1", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:08:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:09:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:10:47.406", "message": "Unexpected_error occurred in service", "service_name": "api-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:11:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:12:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:13:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:14:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:15:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception: Connection timeout", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:16:47.406", "message": "Error: Database unavailable", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Error: Database unavailable", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:17:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:18:47.406", "message": "Normal operation log", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:19:47.406", "message": "Dropping quote from message", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:20:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:21:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:22:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:23:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:24:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "web-service", "host": "host2", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:25:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:26:47.406", "message": "Exception: Connection timeout", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception: Connection timeout", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:27:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": "Error: Database unavailable", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:28:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:29:47.406", "message": "Normal operation log", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:30:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:31:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host3", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:32:47.406", "message": "Unexpected_error occurred in service", "service_name": "auth-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:33:47.406", "message": "Exception while getting WebSocket session", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": "Exception while getting WebSocket session", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:34:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:35:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:36:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "auth-service", "host": "host2", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:37:47.406", "message": "Exception: Connection timeout", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "Exception: Connection timeout", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:38:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Error: Database unavailable", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:39:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:40:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host3", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:41:47.406", "message": "Dropping quote from message", "service_name": "api-service", "host": "host2", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:42:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:43:47.406", "message": "Unexpected_error occurred in service", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:44:47.406", "message": "Exception while getting WebSocket session", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Exception while getting WebSocket session", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:45:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:46:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:47:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "web-service", "host": "host3", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:48:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception: Connection timeout", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:49:47.406", "message": "Error: Database unavailable", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": "Error: Database unavailable", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:50:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:51:47.406", "message": "Normal operation log", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:52:47.406", "message": "Dropping quote from message", "service_name": "db-service", "host": "host2", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:53:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:54:47.406", "message": "Unexpected_error occurred in service", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:55:47.406", "message": "Exception while getting WebSocket session", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T13:56:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T13:57:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:58:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T13:59:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 500, "error_message": "Exception: Connection timeout", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:00:47.406", "message": "Error: Database unavailable", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:01:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:02:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host3", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:03:47.406", "message": "Dropping quote from message", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:04:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:05:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:06:47.406", "message": "Exception while getting WebSocket session", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:07:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:08:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host3", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:09:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "api-service", "host": "host2", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:10:47.406", "message": "Exception: Connection timeout", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": "Exception: Connection timeout", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:11:47.406", "message": "Error: Database unavailable", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Error: Database unavailable", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:12:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:13:47.406", "message": "Normal operation log", "service_name": "web-service", "host": "host1", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:14:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:15:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "db-service", "host": "host2", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:16:47.406", "message": "Unexpected_error occurred in service", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:17:47.406", "message": "Exception while getting WebSocket session", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:18:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "api-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:19:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "api-service", "host": "host3", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:20:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:21:47.406", "message": "Exception: Connection timeout", "service_name": "auth-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "Exception: Connection timeout", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:22:47.406", "message": "Error: Database unavailable", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": "Error: Database unavailable", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:23:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:24:47.406", "message": "Normal operation log", "service_name": "web-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:25:47.406", "message": "Dropping quote from message", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:26:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host2", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:27:47.406", "message": "Unexpected_error occurred in service", "service_name": "web-service", "host": "host1", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:28:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:29:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:30:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 400, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:31:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:32:47.406", "message": "Exception: Connection timeout", "service_name": "api-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:33:47.406", "message": "Error: Database unavailable", "service_name": "web-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:34:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:35:47.406", "message": "Normal operation log", "service_name": "db-service", "host": "host2", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:36:47.406", "message": "Dropping quote from message", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:37:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "web-service", "host": "host3", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:38:47.406", "message": "Unexpected_error occurred in service", "service_name": "web-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:39:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": "Exception while getting WebSocket session", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:40:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "db-service", "host": "host1", "log_level": "WARN", "status": 200, "error_message": null, "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:41:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "auth-service", "host": "host2", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:42:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host1", "log_level": "WARN", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:43:47.406", "message": "Exception: Connection timeout", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": "Exception: Connection timeout", "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:44:47.406", "message": "Error: Database unavailable", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 500, "error_message": "Error: Database unavailable", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:45:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "db-service", "host": "host2", "log_level": "ERROR", "status": 500, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:46:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host1", "log_level": "WARN", "status": 500, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:47:47.406", "message": "Dropping quote from message", "service_name": "web-service", "host": "host2", "log_level": "INFO", "status": 400, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:48:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:49:47.406", "message": "Unexpected_error occurred in service", "service_name": "db-service", "host": "host2", "log_level": "INFO", "status": 500, "error_message": null, "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:50:47.406", "message": "Exception while getting WebSocket session", "service_name": "api-service", "host": "host2", "log_level": "ERROR", "status": 200, "error_message": "Exception while getting WebSocket session", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:51:47.406", "message": "ElapsedTime: 1234ms ServiceName: api-service ServiceStatus: SUCCESS", "service_name": "auth-service", "host": "host3", "log_level": "INFO", "status": 200, "error_message": null, "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:52:47.406", "message": "ElapsedTime: 567ms ServiceName: web-service ServiceStatus: FAILURE", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:53:47.406", "message": "HEALTHCHECK_DB_CONNECTION_FAILED", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 400, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:54:47.406", "message": "Exception: Connection timeout", "service_name": "api-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": "Exception: Connection timeout", "bytes_sent": 5000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:55:47.406", "message": "Error: Database unavailable", "service_name": "db-service", "host": "host1", "log_level": "ERROR", "status": 201, "error_message": "Error: Database unavailable", "bytes_sent": 100}
+{"index": {}}
+{"timestamp": "2026-05-14T14:56:47.406", "message": "SocketTimeoutException: Read timed out", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": "SocketTimeoutException: Read timed out", "bytes_sent": 500}
+{"index": {}}
+{"timestamp": "2026-05-14T14:57:47.406", "message": "Normal operation log", "service_name": "auth-service", "host": "host3", "log_level": "ERROR", "status": 200, "error_message": null, "bytes_sent": 1000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:58:47.406", "message": "Dropping quote from message", "service_name": "web-service", "host": "host3", "log_level": "INFO", "status": 201, "error_message": null, "bytes_sent": 2000}
+{"index": {}}
+{"timestamp": "2026-05-14T14:59:47.406", "message": "ServiceLoggingFilter processing request", "service_name": "db-service", "host": "host3", "log_level": "ERROR", "status": 201, "error_message": null, "bytes_sent": 5000}

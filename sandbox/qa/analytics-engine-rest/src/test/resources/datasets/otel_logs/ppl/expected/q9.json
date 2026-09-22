@@ -1,0 +1,14 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "resource.telemetry.sdk.language", "type": "string"}
+  ],
+  "datarows": [
+    [40, "java"],
+    [30, "go"],
+    [20, "python"],
+    [10, "nodejs"]
+  ],
+  "total": 4,
+  "size": 4
+}

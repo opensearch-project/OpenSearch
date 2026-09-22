@@ -17,6 +17,8 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.HitsMetadataHitsInner;
+import org.opensearch.protobufs.NullValue;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
@@ -137,6 +139,32 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("SeqNo should not be set", hit.hasXSeqNo());
         assertFalse("PrimaryTerm should not be set", hit.hasXPrimaryTerm());
         assertFalse("Source should not be set", hit.hasXSource());
+    }
+
+    public void testToProtoWithNullSortValue() throws IOException {
+        SearchHit searchHit = new SearchHit(1);
+        searchHit.sortValues(new Object[] { "first", null }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
+
+        assertNotNull("Hit should not be null", hit);
+        assertEquals("Should have 2 sort values", 2, hit.getSortCount());
+        assertTrue("First sort value should be a string", hit.getSort(0).hasString());
+        assertEquals("First sort value should match", "first", hit.getSort(0).getString());
+        assertTrue("Second sort value should be null", hit.getSort(1).hasNullValue());
+        assertEquals("Null sort value should match proto enum", NullValue.NULL_VALUE_NULL, hit.getSort(1).getNullValue());
+    }
+
+    public void testToProtoWithOnlyNullSortValue() throws IOException {
+        SearchHit searchHit = new SearchHit(1);
+        searchHit.sortValues(new Object[] { null }, new DocValueFormat[] { DocValueFormat.RAW });
+
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
+
+        assertNotNull("Hit should not be null", hit);
+        assertEquals("Should have 1 sort value", 1, hit.getSortCount());
+        assertTrue("Sort value should be null", hit.getSort(0).hasNullValue());
+        assertEquals("Null sort value should match proto enum", NullValue.NULL_VALUE_NULL, hit.getSort(0).getNullValue());
     }
 
     public void testToProtoWithDocumentFields() throws IOException {

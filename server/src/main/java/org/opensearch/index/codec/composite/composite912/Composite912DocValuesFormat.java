@@ -61,6 +61,12 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
     /** Filename extension for the composite index meta doc values */
     public static final String META_DOC_VALUES_EXTENSION = "cidvm";
 
+    /** Skip index doc values codec name for Composite Doc Values Format */
+    public static final String SKIP_INDEX_DOC_VALUES_CODEC = "Composite912DocValuesSkipIndex";
+
+    /** Filename extension for the composite index skip index doc values */
+    public static final String SKIP_INDEX_DOC_VALUES_EXTENSION = "cidvs";
+
     /** Initial version for the Composite90DocValuesFormat */
     public static final int VERSION_START = 0;
 

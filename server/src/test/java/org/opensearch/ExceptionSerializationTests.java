@@ -902,6 +902,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(175, ResponseLimitBreachedException.class);
         ids.put(176, IngestionEngineException.class);
         ids.put(177, StreamException.class);
+        ids.put(178, org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class);
+        ids.put(179, org.opensearch.storage.action.tiering.MergeDrainTimeoutException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

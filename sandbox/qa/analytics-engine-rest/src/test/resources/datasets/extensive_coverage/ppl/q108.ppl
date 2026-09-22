@@ -1,0 +1,1 @@
+source=test_data | eval is_blank = isblank(text) | fields id, text, is_blank | head 3

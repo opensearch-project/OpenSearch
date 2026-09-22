@@ -32,9 +32,11 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -70,6 +72,17 @@ public final class AnalyzerComponents {
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
+        return createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters, Collections.emptyMap());
+    }
+
+    static AnalyzerComponents createComponents(
+        String name,
+        Settings analyzerSettings,
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters,
+        final Map<String, Analyzer> analyzersBuiltSoFar
+    ) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
@@ -103,7 +116,13 @@ public final class AnalyzerComponents {
                     "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
                 );
             }
-            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
+            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(
+                tokenizer,
+                charFiltersList,
+                tokenFilterList,
+                tokenFilters::get,
+                analyzersBuiltSoFar::get
+            );
             tokenFilterList.add(tokenFilter);
         }
 

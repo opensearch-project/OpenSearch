@@ -72,8 +72,10 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -105,6 +107,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -1093,7 +1096,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+    private MapperService createDerivedSourceMapperService() throws IOException {
         IndexMetadata build = IndexMetadata.builder("test_index")
             .settings(
                 Settings.builder()
@@ -1113,7 +1116,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        MapperService mapperService = new MapperService(
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -1125,10 +1128,87 @@ public class TextFieldMapperTests extends MapperTestCase {
             () -> true,
             scriptService
         );
+    }
 
+    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+        MapperService mapperService = createDerivedSourceMapperService();
         merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
         TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertTrue(textFieldMapper.fieldType.stored());
+    }
+
+    public void testMultiFieldTextNotStoredForDerivedSource() throws IOException {
+        MapperService mapperService = createDerivedSourceMapperService();
+        merge(mapperService, mapping(b -> {
+            // top-level text field: still force-stored (it is walked by _source reconstruction)
+            b.startObject("desc").field("type", "text").field("store", false).endObject();
+            // keyword field with a text multi-field: the multi-field must NOT be force-stored,
+            // as multi-fields are never used for derived-source reconstruction
+            b.startObject("app_name");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("analyzed").field("type", "text").field("store", false).endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        TextFieldMapper topLevel = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("desc");
+        assertTrue("top-level text field should be force-stored under derived_source", topLevel.fieldType.stored());
+
+        TextFieldMapper multiField = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("app_name.analyzed");
+        assertFalse("text multi-field should NOT be force-stored under derived_source", multiField.fieldType.stored());
+    }
+
+    public void testNestedMultiFieldTextNotStoredForDerivedSource() throws IOException {
+        // Multi-fields within multi-fields are deprecated but still allowed. The multiField flag on
+        // BuilderContext is saved and restored across nested builds, so a nested multi-field build
+        // must not clear the flag for sibling sub-fields of the outer build (subB below).
+        MapperService mapperService = createDerivedSourceMapperService();
+        merge(mapperService, mapping(b -> {
+            b.startObject("parent");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("subA");
+                    {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("inner").field("type", "text").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("subB").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        TextFieldMapper subA = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subA");
+        assertFalse("multi-field subA should NOT be force-stored under derived_source", subA.fieldType.stored());
+
+        TextFieldMapper inner = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subA.inner");
+        assertFalse("nested multi-field inner should NOT be force-stored under derived_source", inner.fieldType.stored());
+
+        // subB is built AFTER subA's nested multi-field build; without save/restore of the multiField
+        // flag it would be incorrectly force-stored
+        TextFieldMapper subB = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subB");
+        assertFalse("multi-field subB after a nested multi-field should NOT be force-stored", subB.fieldType.stored());
+
+        assertWarnings(
+            "At least one multi-field, [subA], was encountered that itself contains a multi-field. "
+                + "Defining multi-fields within a multi-field is deprecated and will no longer be supported in 8.0. "
+                + "To resolve the issue, all instances of [fields] that occur within a [fields] block should be removed "
+                + "from the mappings, either by flattening the chained [fields] blocks into a single level, or "
+                + "switching to [copy_to] if appropriate."
+        );
     }
 
     public void testDerivedValueFetching_StoredField() throws IOException {
@@ -1172,5 +1252,146 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         return doc;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextValue() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(b -> b.field("type", "text")));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "hello world")), capturingDocInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = capturingDocInput.getCapturedFields();
+        assertTrue(captured.stream().anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("hello world")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextNullSkipped() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(b -> b.field("type", "text")));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = capturingDocInput.getCapturedFields();
+        assertTrue(captured.stream().noneMatch(e -> e.getKey().name().equals("field")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextWithExternalValue() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("sub").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_text")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.sub") && e.getValue().equals("external_text"));
+        assertTrue("Expected text sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPhraseFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_phrases", true))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper phraseMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_phrase")) {
+                phraseMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected phrase sub-mapper", phraseMapper);
+        assertTrue(phraseMapper instanceof FieldMapper);
+        FieldMapper phraseFieldMapper = (FieldMapper) phraseMapper;
+        expectThrows(UnsupportedOperationException.class, () -> phraseFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPrefixFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_prefixes", new java.util.HashMap<>()))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper prefixMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_prefix")) {
+                prefixMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected prefix sub-mapper", prefixMapper);
+        assertTrue(prefixMapper instanceof FieldMapper);
+        FieldMapper prefixFieldMapper = (FieldMapper) prefixMapper;
+        expectThrows(UnsupportedOperationException.class, () -> prefixFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: default text value
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.field("field", "hello world"),
+            "field",
+            "hello world"
+        );
+
+        // Scenario 2: null value — no field produced
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+    }
+
+    private void assertTextLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        String expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue, luceneFields[0].stringValue());
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

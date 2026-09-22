@@ -1,0 +1,1 @@
+source=test_data | eval mod_val = modulus(total, 3) | fields total, mod_val | head 3

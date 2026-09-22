@@ -158,6 +158,7 @@ import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -419,6 +420,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Integer> SEARCH_MAX_QUERY_NESTING_DEPTH = Setting.intSetting(
+        "search.query.max_query_nesting_depth",
+        200,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FIELD_SETTING = Setting.boolSetting(
         "search.derived_field.enabled",
         true,
@@ -529,7 +539,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -543,7 +554,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+            workloadGroupService
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
         this.taskResourceTrackingService = taskResourceTrackingService;
@@ -591,6 +603,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
                 QueryStringQueryParser::setMaxQueryStringLengthMonitorMode
             );
+
+        QueryStringQueryParser.setMaxQueryNestingDepth(SEARCH_MAX_QUERY_NESTING_DEPTH.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_NESTING_DEPTH, QueryStringQueryParser::setMaxQueryNestingDepth);
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
@@ -1751,7 +1767,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (context.searchAfter() != null) {
                 SortField[] sort = context.sort().sort.getSort();
-                if (sort.length != 1 || !sort[0].getField().equals(source.collapse().getField())) {
+                // SCORE/DOC sorts have a null field name; compare null-safely so this is a SearchException, not an NPE
+                if (sort.length != 1 || Objects.equals(sort[0].getField(), source.collapse().getField()) == false) {
                     throw new SearchException(
                         shardTarget,
                         "collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`"

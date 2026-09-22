@@ -1,0 +1,36 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "exists": {
+            "field": "AdvEngineID",
+            "boost": 1.0
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "term": {
+            "AdvEngineID": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "AdvEngineID"
+    ],
+    "excludes": []
+  },
+  "track_total_hits": 2147483647
+}

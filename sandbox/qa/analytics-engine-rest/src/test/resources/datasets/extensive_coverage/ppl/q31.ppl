@@ -1,0 +1,1 @@
+source=test_data | eval abs_val = abs(value - 200), sqrt_val = sqrt(value) | fields value, abs_val, sqrt_val | head 3

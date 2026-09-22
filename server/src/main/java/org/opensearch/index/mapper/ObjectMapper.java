@@ -319,6 +319,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
             parseNested(name, node, builder, parserContext);
+            // Parse disable_objects first so it's available when parseProperties is called.
+            // Map iteration order is not guaranteed, so disable_objects might come after properties
+            // in the map. Without this, parseProperties won't know to treat dotted field names as
+            // literal names and will incorrectly split them into intermediate object mappers.
+            Object disableObjectsNode = node.remove("disable_objects");
+            if (disableObjectsNode != null) {
+                parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
+            }
             Object compositeField = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -419,6 +427,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (type.equals(CONTENT_TYPE)) {
                     builder.nested = Nested.NO;
                 } else if (type.equals(NESTED_CONTENT_TYPE)) {
+                    if (isPluggableDataFormatEnabled(parserContext.getSettings())) {
+                        throw new MapperParsingException("nested type is not supported with pluggable data format on field [" + name + "]");
+                    }
                     nested = true;
                 } else {
                     throw new MapperParsingException(

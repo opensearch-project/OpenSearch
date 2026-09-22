@@ -1,0 +1,1 @@
+source=test_data | eval utc_t = utc_time() | fields id, utc_t | head 1

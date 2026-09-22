@@ -1,0 +1,1 @@
+source=otel_logs | stats count() as c by serviceName | head 0

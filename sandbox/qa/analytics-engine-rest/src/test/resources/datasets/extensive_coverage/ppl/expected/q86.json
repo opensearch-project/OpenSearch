@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "word1",
+      "type": "string"
+    },
+    {
+      "name": "word2",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "",
+      ""
+    ],
+    [
+      "sample data entry",
+      "",
+      ""
+    ],
+    [
+      "test example record",
+      "",
+      ""
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

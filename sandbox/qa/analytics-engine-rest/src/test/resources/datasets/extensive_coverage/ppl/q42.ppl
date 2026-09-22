@@ -1,0 +1,1 @@
+source=test_data | eval replaced = replace(text, "test", "TEST") | fields text, replaced | head 3

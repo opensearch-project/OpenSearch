@@ -13,23 +13,30 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Default implementation of {@link StreamPoller}
@@ -53,12 +60,21 @@ public class DefaultStreamPoller implements StreamPoller {
     // flag to indicate if consumer needs to be reinitialized
     private volatile boolean reinitializeConsumer;
 
+    // the index metadata used to create the consumer; updated on settings changes
+    private volatile IndexMetadata currentIndexMetadata;
+
     private volatile long lastPolledMessageTimestamp = 0;
-    private volatile long cachedPointerBasedLag = 0;
+    private volatile long cachedPointerBasedLag = -1; // -1 indicates poller has not consumed any message yet
     private volatile long lastPointerBasedLagUpdateTime = 0;
 
+    // Warmup configuration and state
+    private volatile IngestionSource.WarmupConfig warmupConfig;
+    private volatile boolean warmupComplete = false;
+    private volatile long warmupStartTime = 0;
+    private final CountDownLatch warmupLatch = new CountDownLatch(1);
+
     @Nullable
-    private IngestionShardConsumer consumer;
+    private volatile IngestionShardConsumer consumer;
     private IngestionConsumerFactory consumerFactory;
     private String consumerClientId;
     private int shardId;
@@ -66,7 +82,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private ExecutorService consumerThread;
 
     // start of the batch, inclusive
-    private IngestionShardPointer initialBatchStartPointer;
+    private volatile IngestionShardPointer initialBatchStartPointer;
 
     private ResetState resetState;
     private final String resetValue;
@@ -75,6 +91,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private int pollTimeout;
     private long pointerBasedLagUpdateIntervalMs;
     private final IngestionMessageMapper messageMapper;
+    private final IngestionPayloadDecoder payloadDecoder;
 
     private final String indexName;
 
@@ -104,14 +121,26 @@ public class DefaultStreamPoller implements StreamPoller {
         int numProcessorThreads,
         int blockingQueueSize,
         long pointerBasedLagUpdateIntervalMs,
-        IngestionMessageMapper.MapperType mapperType
+        IngestionMessageMapper.MapperType mapperType,
+        Map<String, Object> mapperSettings,
+        IngestPipelineExecutor pipelineExecutor,
+        IngestionSource.WarmupConfig warmupConfig,
+        IndexMetadata indexMetadata,
+        IngestionPayloadDecoder payloadDecoder
     ) {
         this(
             startPointer,
             consumerFactory,
             consumerClientId,
             shardId,
-            new PartitionedBlockingQueueContainer(numProcessorThreads, shardId, ingestionEngine, errorStrategy, blockingQueueSize),
+            new PartitionedBlockingQueueContainer(
+                numProcessorThreads,
+                shardId,
+                ingestionEngine,
+                errorStrategy,
+                blockingQueueSize,
+                pipelineExecutor
+            ),
             resetState,
             resetValue,
             errorStrategy,
@@ -120,7 +149,10 @@ public class DefaultStreamPoller implements StreamPoller {
             pollTimeout,
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
-            IngestionMessageMapper.create(mapperType.getName(), shardId)
+            IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
+            warmupConfig,
+            indexMetadata,
+            payloadDecoder
         );
     }
 
@@ -141,7 +173,10 @@ public class DefaultStreamPoller implements StreamPoller {
         int pollTimeout,
         long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings,
-        IngestionMessageMapper messageMapper
+        IngestionMessageMapper messageMapper,
+        IngestionSource.WarmupConfig warmupConfig,
+        IndexMetadata indexMetadata,
+        IngestionPayloadDecoder payloadDecoder
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -160,9 +195,16 @@ public class DefaultStreamPoller implements StreamPoller {
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
+        this.payloadDecoder = Objects.requireNonNull(payloadDecoder);
+        this.warmupConfig = Objects.requireNonNull(warmupConfig);
+        this.currentIndexMetadata = Objects.requireNonNull(indexMetadata);
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
+        // If warmup is disabled, mark as complete immediately
+        if (!warmupConfig.isEnabled()) {
+            this.warmupComplete = true;
+        }
     }
 
     @Override
@@ -192,10 +234,17 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", shardId);
 
+        // Initialize warmup if enabled
+        if (warmupConfig.isEnabled() && !warmupComplete) {
+            warmupStartTime = System.currentTimeMillis();
+            state = State.WARMING_UP;
+            logger.info("Starting warmup phase for index {} shard {}, waiting for lag to catch up", indexName, shardId);
+        }
+
         while (true) {
             try {
                 if (closed) {
-                    state = State.CLOSED;
+                    setStateWithWarmupAwareness(State.CLOSED);
                     closeConsumer();
                     break;
                 }
@@ -209,8 +258,13 @@ public class DefaultStreamPoller implements StreamPoller {
                 // Update lag periodically. Lag is updated even if the poller is paused.
                 updatePointerBasedLagIfNeeded();
 
+                // Check warmup status if not yet complete
+                if (!warmupComplete) {
+                    updateWarmupStatus();
+                }
+
                 if (paused || isWriteBlockEnabled) {
-                    state = State.PAUSED;
+                    setStateWithWarmupAwareness(State.PAUSED);
                     try {
                         Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     } catch (Throwable e) {
@@ -219,7 +273,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
 
-                state = State.POLLING;
+                setStateWithWarmupAwareness(State.POLLING);
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
                 // Force the consumer to start from forcedShardPointer if available
@@ -237,7 +291,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
 
-                state = State.PROCESSING;
+                setStateWithWarmupAwareness(State.PROCESSING);
                 // processRecords returns failed shard pointers. Update forcedShardPointer to the failed pointer to retry on next iteration
                 // in case of failures
                 forcedShardPointer = processRecords(results);
@@ -255,6 +309,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Process records and write to the blocking queue. In case of error, return the shard pointer of the failed message.
+     * Messages must be written to the blocking queue in the same order in which they were received from the consumer to
+     * ensure ordering guarantees.
      */
     private IngestionShardPointer processRecords(
         List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
@@ -265,8 +321,16 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 totalPolledCount.inc();
 
+                // Decode payload to a field map before the mapper sees the message.
+                // Errors here are caught below and handled by the configured DROP/BLOCK strategy.
+                Map<String, Object> decodedPayload = payloadDecoder.decode(result.getMessage());
+
                 // Use mapper to create ShardUpdateMessage
-                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(result.getPointer(), result.getMessage());
+                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(
+                    result.getPointer(),
+                    result.getMessage(),
+                    decodedPayload
+                );
 
                 blockingQueueContainer.add(shardUpdateMessage);
                 setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
@@ -321,6 +385,7 @@ public class DefaultStreamPoller implements StreamPoller {
         closed = true;
         if (!started) {
             logger.info("consumer thread not started");
+            closePayloadDecoder();
             return;
         }
         long startTime = System.currentTimeMillis(); // Record the start time
@@ -339,7 +404,18 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
+        // Close only after the consumer thread has reached CLOSED (or the wait timed out), so any
+        // in-flight decode() call on the consumer thread is not racing with resource cleanup here.
+        closePayloadDecoder();
         logger.info("closed the poller of shard {}", shardId);
+    }
+
+    private void closePayloadDecoder() {
+        try {
+            payloadDecoder.close();
+        } catch (Exception e) {
+            logger.warn("Error closing payload decoder for shard {}: {}", shardId, e.getMessage());
+        }
     }
 
     @Override
@@ -350,6 +426,123 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public boolean isWarmupComplete() {
+        return warmupComplete || !warmupConfig.isEnabled();
+    }
+
+    /**
+     * Sets the poller state with warmup-aware logic.
+     * During warmup, POLLING and PROCESSING states are reported as WARMING_UP
+     * to allow monitoring via the ingestion state API.
+     *
+     * @param newState the desired state to set
+     */
+    private void setStateWithWarmupAwareness(State newState) {
+        // CLOSED and PAUSED always take effect
+        if (newState == State.CLOSED || newState == State.PAUSED) {
+            this.state = newState;
+            return;
+        }
+
+        // During warmup, stay in WARMING_UP instead of POLLING/PROCESSING
+        if (!isWarmupComplete()) {
+            this.state = State.WARMING_UP;
+            return;
+        }
+
+        this.state = newState;
+    }
+
+    @Override
+    public boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException {
+        if (!warmupConfig.isEnabled() || isWarmupComplete()) {
+            return true;
+        }
+
+        boolean completed = warmupLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        if (!completed) {
+            logger.warn(
+                "Warmup timeout for index {} shard {} - proceeding with current lag (warmupComplete={})",
+                indexName,
+                shardId,
+                isWarmupComplete()
+            );
+        }
+        return completed;
+    }
+
+    /**
+     * Updates the warmup configuration dynamically.
+     * Called when index settings are changed at runtime.
+     * The updated config takes effect on the next polling loop iteration via updateWarmupStatus().
+     */
+    @Override
+    public void updateWarmupConfig(IngestionSource.WarmupConfig newConfig) {
+        this.warmupConfig = newConfig;
+        logger.info(
+            "Warmup config updated for index {} shard {}: timeout={}, lagThreshold={}",
+            indexName,
+            shardId,
+            newConfig.timeout(),
+            newConfig.lagThreshold()
+        );
+    }
+
+    /**
+     * Check if warmup conditions are met and mark warmup as complete if so.
+     *
+     * Warmup uses offset-based lag (cachedPointerBasedLag) which tracks the difference between
+     * the current consumer position and the end of the stream. This is the preferred mode for
+     * Kafka and other sources that support offset-based lag calculation.
+     * Note: cachedPointerBasedLag is -1 by default (indicating no messages consumed yet) and is only updated after updatePointerBasedLagIfNeeded()
+     * is called.
+     */
+    private void updateWarmupStatus() {
+        // Skip warmup if poller is paused or warmup is disabled
+        if (paused || !warmupConfig.isEnabled()) {
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.info(
+                "Warmup skipped for index {} shard {} - {}",
+                indexName,
+                shardId,
+                paused ? "poller is paused" : "warmup is disabled"
+            );
+            return;
+        }
+
+        long currentLag = cachedPointerBasedLag;
+        long threshold = warmupConfig.lagThreshold();
+
+        long elapsedTime = System.currentTimeMillis() - warmupStartTime;
+        boolean lagBelowThreshold = currentLag >= 0 && currentLag <= threshold;
+        boolean timeoutReached = elapsedTime >= warmupConfig.timeout().millis();
+
+        if (lagBelowThreshold) {
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.info(
+                "Warmup complete for index {} shard {} - lag {} is at or below threshold {}",
+                indexName,
+                shardId,
+                currentLag,
+                threshold
+            );
+        } else if (timeoutReached) {
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.warn(
+                "Warmup timeout for index {} shard {} after {}ms - proceeding with lag {} (threshold was {})",
+                indexName,
+                shardId,
+                elapsedTime,
+                currentLag,
+                threshold
+            );
+        }
     }
 
     /**
@@ -408,7 +601,6 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Update the cached pointer-based lag if enough time has elapsed since the last update.
-     * {@code consumer.getPointerBasedLag()} is called from the poller thread, so it's safe to access the consumer.
      * If pointerBasedLagUpdateIntervalMs is 0, pointer-based lag calculation is disabled.
      */
     private void updatePointerBasedLagIfNeeded() {
@@ -462,18 +654,17 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Mark the poller's consumer for reinitialization. A new consumer will be initialized and start consuming from the
-     * latest batchStartPointer. This method also reinitializes the consumer factory with the updated ingestion source.
-     * @param updatedIngestionSource the updated ingestion source with new configuration parameters
+     * latest batchStartPointer using the updated index metadata.
+     * @param updatedIndexMetadata the updated index metadata with new configuration parameters
      */
     @Override
-    public synchronized void requestConsumerReinitialization(IngestionSource updatedIngestionSource) {
+    public synchronized void requestConsumerReinitialization(IndexMetadata updatedIndexMetadata) {
         if (closed) {
             logger.warn("Cannot reinitialize consumer for closed poller of shard {}", shardId);
             return;
         }
 
-        // Reinitialize the consumer factory with updated configuration
-        consumerFactory.initialize(updatedIngestionSource);
+        this.currentIndexMetadata = updatedIndexMetadata;
         logger.info("Configuration parameters updated for index {} shard {}, requesting consumer reinitialization", indexName, shardId);
         reinitializeConsumer = true;
     }
@@ -535,19 +726,26 @@ public class DefaultStreamPoller implements StreamPoller {
      * batchStartPointer if first time initialization, or from the latest available batchStartPointer on reinitialization.
      */
     private void handleConsumerInitialization() {
+        // retrieve batchStartPointer before clearing the partition blocking queues
+        IngestionShardPointer restartPointer = getBatchStartPointer();
         closeConsumer();
         blockingQueueContainer.clearAllQueues();
         initializeConsumer();
+
+        if (this.consumer == null) {
+            return;
+        }
 
         // Handle consumer offset reset the first time an index is created. The reset offset takes precedence if available.
         IngestionShardPointer resetShardPointer = getResetShardPointer();
         if (resetShardPointer != null) {
             initialBatchStartPointer = resetShardPointer;
+            restartPointer = resetShardPointer;
         }
 
         // Force the consumer to start from the batchStartPointer. This will be the initialBatchStartPointer for first
         // time initialization, or the latest batchStartPointer based on processed messages.
-        forcedShardPointer = getBatchStartPointer();
+        forcedShardPointer = restartPointer;
     }
 
     /**
@@ -557,7 +755,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private synchronized void initializeConsumer() {
         try {
             reinitializeConsumer = false;
-            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
+            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId, currentIndexMetadata);
             logger.info("Successfully initialized consumer for shard {}", shardId);
         } catch (Exception e) {
             logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
@@ -604,6 +802,12 @@ public class DefaultStreamPoller implements StreamPoller {
         private int blockingQueueSize = 100;
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
+        private Map<String, Object> mapperSettings = Collections.emptyMap();
+        private IngestPipelineExecutor pipelineExecutor;
+        // Warmup configuration - default matches IndexMetadata settings
+        private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
+        private IndexMetadata indexMetadata;
+        private IngestionPayloadDecoder payloadDecoder = new XContentIngestionPayloadDecoder();
 
         /**
          * Initialize the builder with mandatory parameters
@@ -704,6 +908,46 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set mapper settings
+         */
+        public Builder mapperSettings(Map<String, Object> mapperSettings) {
+            this.mapperSettings = mapperSettings != null ? mapperSettings : Collections.emptyMap();
+            return this;
+        }
+
+        /**
+         * Set pipeline executor for ingest pipeline execution
+         */
+        public Builder pipelineExecutor(IngestPipelineExecutor pipelineExecutor) {
+            this.pipelineExecutor = pipelineExecutor;
+            return this;
+        }
+
+        /**
+         * Set the payload decoder to use for deserializing raw message bytes.
+         */
+        public Builder payloadDecoder(IngestionPayloadDecoder payloadDecoder) {
+            this.payloadDecoder = payloadDecoder;
+            return this;
+        }
+
+        /**
+         * Set warmup configuration
+         */
+        public Builder warmupConfig(IngestionSource.WarmupConfig warmupConfig) {
+            this.warmupConfig = Objects.requireNonNull(warmupConfig);
+            return this;
+        }
+
+        /**
+         * Set the index metadata used to create the consumer.
+         */
+        public Builder indexMetadata(IndexMetadata indexMetadata) {
+            this.indexMetadata = Objects.requireNonNull(indexMetadata);
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -722,7 +966,12 @@ public class DefaultStreamPoller implements StreamPoller {
                 numProcessorThreads,
                 blockingQueueSize,
                 pointerBasedLagUpdateIntervalMs,
-                mapperType
+                mapperType,
+                mapperSettings,
+                pipelineExecutor,
+                warmupConfig,
+                indexMetadata,
+                payloadDecoder
             );
         }
     }

@@ -490,6 +490,44 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         }
     }
 
+    public void testLargeHeaderHttp2() throws InterruptedException {
+        final Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE.getKey(), "32kb").build();
+        final String url = "/thing";
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> channel.sendResponse(new BytesRestResponse(OK, "done"))
+        ).build();
+
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (Netty4HttpClient client = Netty4HttpClient.http2()) {
+                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+                // Exceeds Netty's 8kb default for SETTINGS_MAX_HEADER_LIST_SIZE, but fits within http.max_header_size
+                request.headers().add("x-large-header", randomAlphaOfLength(16 * 1024));
+
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+    }
+
     private Settings createSettings() {
         return createBuilderWithPort().build();
     }

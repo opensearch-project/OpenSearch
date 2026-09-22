@@ -1,0 +1,1 @@
+source=app_logs | where match(message, "nonexistent") | fields service, message

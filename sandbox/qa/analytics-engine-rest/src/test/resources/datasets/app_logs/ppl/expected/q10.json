@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "success",
+      "type": "bigint"
+    },
+    {
+      "name": "failure",
+      "type": "bigint"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "success_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "auth-service",
+      11,
+      43,
+      54,
+      20.37
+    ],
+    [
+      "web-service",
+      9,
+      41,
+      50,
+      18.0
+    ],
+    [
+      "db-service",
+      15,
+      40,
+      55,
+      27.27
+    ],
+    [
+      "api-service",
+      11,
+      30,
+      41,
+      26.83
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

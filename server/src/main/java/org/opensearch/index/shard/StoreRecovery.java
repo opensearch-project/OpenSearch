@@ -203,7 +203,7 @@ final class StoreRecovery {
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
-                    indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
+                    indexShard.getIndexer().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
                     if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                         indexShard.waitForRemoteStoreSync();
                     }
@@ -418,13 +418,16 @@ final class StoreRecovery {
                     threadPool,
                     segmentsPathFixedPrefix
                 );
+                // Pass IndexSettings so DFA indices route to DataFormatAwareRemoteDirectory; Lucene-only falls through unchanged.
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
                     shardId,
                     shallowCopyShardMetadata.getRemoteStorePathStrategy(),
                     null,
-                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata())
+                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata()),
+                    false,
+                    indexShard.indexSettings
                 );
                 RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -446,7 +449,7 @@ final class StoreRecovery {
                 } else {
                     indexShard.openEngineAndRecoverFromTranslog();
                 }
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                     indexShard.waitForRemoteStoreSync();
@@ -507,7 +510,9 @@ final class StoreRecovery {
                         shardId,
                         remoteStorePathStrategy,
                         null,
-                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(prevIndexMetadata)
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(prevIndexMetadata),
+                        false,
+                        indexShard.indexSettings
                     );
                     RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificTimestamp(
                         recoverySource.pinnedTimestamp()
@@ -535,7 +540,7 @@ final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                     indexShard.recoveryState().getIndex().setFileDetailsComplete();
                     indexShard.openEngineAndRecoverFromTranslog(false);
-                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                    indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                     indexShard.finalizeRecovery();
                     if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                         indexShard.waitForRemoteStoreSync();
@@ -543,7 +548,7 @@ final class StoreRecovery {
                     indexShard.postRecovery("post recovery from remote_store");
                     SegmentInfos committedSegmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
                     try {
-                        indexShard.getEngine()
+                        indexShard.getIndexer()
                             .translogManager()
                             .setMinSeqNoToKeep(Long.parseLong(committedSegmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) + 1);
                     } catch (IllegalArgumentException e) {
@@ -681,7 +686,7 @@ final class StoreRecovery {
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.recoveryState().getIndex().setFileDetailsComplete();
             indexShard.openEngineAndRecoverFromTranslog();
-            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from remote_store");
         } catch (IOException | IndexShardRecoveryException e) {
@@ -774,7 +779,7 @@ final class StoreRecovery {
                 indexShard.waitForRemoteStoreSync();
                 logger.info("Remote Store is now seeded via local recovery for {}", indexShard.shardId());
             }
-            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
@@ -842,7 +847,7 @@ final class StoreRecovery {
         bootstrapForSnapshot(indexShard, store);
         indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
 
-        indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+        indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
         indexShard.finalizeRecovery();
         indexShard.postRecovery("Post recovery from shard_store");
     }
@@ -913,7 +918,7 @@ final class StoreRecovery {
             } else {
                 indexShard.openEngineAndRecoverFromTranslog();
             }
-            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            indexShard.getIndexer().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                 indexShard.waitForRemoteStoreSync();
@@ -942,7 +947,7 @@ final class StoreRecovery {
             } else {
                 indexIdListener.onResponse(indexId);
             }
-            assert indexShard.getEngineOrNull() == null;
+            assert indexShard.getIndexerOrNull() == null;
             indexIdListener.whenComplete(
                 idx -> repository.restoreShard(
                     indexShard.store(),

@@ -258,7 +258,10 @@ import static java.util.stream.Collectors.toList;
  * {@link ResponseException}</li>
  * </ul>
  *
+ * @deprecated the {@code RestHighLevelClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
+@Deprecated(since = "3.9.0")
 public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;

@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.indices.streamingingestion;
 
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -23,9 +23,9 @@ import java.util.Map;
 /**
  * Transport response for ingestion state updates.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class IngestionUpdateStateResponse extends AcknowledgedResponse {
     protected static final String SHARD_ACK = "shards_acknowledged";
     protected static final String ERROR = "error";

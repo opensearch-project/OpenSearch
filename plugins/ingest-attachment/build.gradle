@@ -66,7 +66,7 @@ dependencies {
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
-  api 'org.tukaani:xz:1.11'
+  api 'org.tukaani:xz:1.12'
   api "commons-io:commons-io:${versions.commonsio}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
@@ -75,7 +75,7 @@ dependencies {
 
   // external parser libraries
   // HTML
-  api 'org.jsoup:jsoup:1.22.1'
+  api 'org.jsoup:jsoup:1.23.1'
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
@@ -88,7 +88,7 @@ dependencies {
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'org.apache.xmlbeans:xmlbeans:5.3.0'
-  api 'org.apache.commons:commons-collections4:4.5.0'
+  api 'org.apache.commons:commons-collections4:4.6.0'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork

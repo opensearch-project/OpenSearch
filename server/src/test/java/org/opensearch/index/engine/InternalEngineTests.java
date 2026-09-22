@@ -50,6 +50,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -64,6 +65,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -138,6 +140,7 @@ import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParseContext.Document;
@@ -152,6 +155,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -243,6 +247,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -2280,7 +2285,8 @@ public class InternalEngineTests extends EngineTestCase {
                     delete.origin(),
                     delete.startTime(),
                     UNASSIGNED_SEQ_NO,
-                    0
+                    0,
+                    delete.routing()
                 );
             }
         };
@@ -2383,7 +2389,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             UNASSIGNED_SEQ_NO,
-            0
+            0,
+            delete.routing()
         );
         TriFunction<Long, Long, Engine.Index, Engine.Index> indexWithSeq = (seqNo, term, index) -> new Engine.Index(
             index.uid(),
@@ -2409,7 +2416,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             seqNo,
-            term
+            term,
+            delete.routing()
         );
         Function<Engine.Index, Engine.Index> indexWithCurrentTerm = index -> new Engine.Index(
             index.uid(),
@@ -2435,7 +2443,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             delete.getIfSeqNo(),
-            delete.getIfPrimaryTerm()
+            delete.getIfPrimaryTerm(),
+            delete.routing()
         );
         for (Engine.Operation op : ops) {
             final boolean versionConflict = rarely();
@@ -3477,7 +3486,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     retentionLeasesHolder::get,
                     new NoneCircuitBreakerService(),
-                    eventListener
+                    eventListener,
+                    null
                 )
             );
 
@@ -3578,7 +3588,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     retentionLeasesHolder::get,
                     new NoneCircuitBreakerService(),
-                    eventListener
+                    eventListener,
+                    null
                 )
             );
 
@@ -3672,7 +3683,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     retentionLeasesHolder::get,
                     new NoneCircuitBreakerService(),
-                    eventListener
+                    eventListener,
+                    null
                 )
             );
 
@@ -3769,7 +3781,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     retentionLeasesHolder::get,
                     new NoneCircuitBreakerService(),
-                    eventListener
+                    eventListener,
+                    null
                 )
             );
 
@@ -6799,6 +6812,125 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
+    /**
+     * Verifies the engine flush condition on uncommitted segment bytes published by the remote segment upload path:
+     * nothing triggers before a publication, nothing triggers when the published bytes are below the published
+     * threshold, they do once the threshold published with them is low enough, and a stale commit-generation stamp
+     * after a flush can never re-trigger a flush (no flush loop).
+     */
+    public void testShouldPeriodicallyFlushOnUncommittedSegmentBytes() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+        ParsedDocument doc = testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.refresh("test");
+        assertThat("Nothing published yet", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, Long.MAX_VALUE);
+        assertThat("Uncommitted bytes below the published threshold", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Uncommitted bytes breach the published threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.flush();
+        assertThat("Stale commit generation stamp is ignored after flush", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("All published files are committed now", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    /**
+     * Verifies that discarding the published accounting disarms the condition, which is how the publisher stops flushes
+     * when {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} is turned off, instead of leaving an
+     * already-armed value to trigger a flush later.
+     */
+    public void testClearUncommittedSegmentBytesDisarmsFlushCondition() throws Exception {
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Published bytes breach the threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Discarding the accounting disarms the condition", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // and it stays disarmed without a commit having happened, i.e. no flush is needed to make it stick
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+        // the publisher calls this on every sync while disabled, so repeating it must be a harmless no-op
+        engine.clearUncommittedSegmentBytes();
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Repeated discards remain a no-op", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("A fresh publication re-arms it", engine.shouldPeriodicallyFlush(), equalTo(true));
+    }
+
+    /**
+     * Verifies the accounting inside {@code updateUncommittedSegmentBytes}: only segment files absent from the last
+     * commit point are summed, while committed files and {@code segments_N} entries are excluded. The total is
+     * asserted exactly by probing thresholds of the uncommitted size and one byte above it, and a publication
+     * holding only committed files computes zero bytes and can never trigger a flush.
+     */
+    public void testUncommittedSegmentBytesExcludeCommittedAndSegmentsNFiles() throws Exception {
+        // establish a commit point holding the first segment
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.flush();
+        engine.refresh("test");
+        final Set<String> committedFiles;
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            committedFiles = new HashSet<>(snapshot.get().files(false));
+        }
+
+        // write a second, uncommitted segment
+        engine.index(indexForDoc(testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        long uncommittedBytes = 0;
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                final long length = engine.store.directory().fileLength(file);
+                localSegmentsSizeMap.put(file, length);
+                if (committedFiles.contains(file) == false) {
+                    uncommittedBytes += length;
+                }
+            }
+        }
+        localSegmentsSizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
+        assertThat("The workload must produce uncommitted segment files", uncommittedBytes, greaterThan(0L));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes);
+        assertThat("Exactly the uncommitted segment bytes are counted", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes + 1);
+        assertThat("Committed files and segments_N never contribute to the accounting", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        final Map<String, Long> committedOnlySizeMap = new HashMap<>();
+        for (String file : committedFiles) {
+            committedOnlySizeMap.put(file, engine.store.directory().fileLength(file));
+        }
+        committedOnlySizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
+        engine.updateUncommittedSegmentBytes(committedOnlySizeMap, 1L);
+        assertThat("Zero uncommitted bytes never trigger a flush", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    private static void updateIndexSettings(IndexSettings indexSettings, Settings.Builder settingsBuilder) {
+        indexSettings.updateIndexMetadata(
+            IndexMetadata.builder(indexSettings.getIndexMetadata())
+                .settings(Settings.builder().put(indexSettings.getSettings()).put(settingsBuilder.build()))
+                .build()
+        );
+    }
+
     public void testStressShouldPeriodicallyFlush() throws Exception {
         final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
@@ -7216,7 +7348,18 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(
-            config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get, retentionLeasesHolder::get)
+            config(
+                indexSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                null,
+                null,
+                globalCheckpoint::get,
+                retentionLeasesHolder::get,
+                new NoneCircuitBreakerService()
+            )
         );
         assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
         long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
@@ -9335,6 +9478,240 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         return testParsedDocument(id, null, testDocumentWithTextField(), source, null);
+    }
+
+    /**
+     * Verifies that {@code getSegmentFileSizes} correctly accumulates sizes for all files in a
+     * segment, including multiple files that share the same extension.
+     *
+     * <p>When fuzzy-set-for-doc-ID is enabled, {@link
+     * org.opensearch.index.codec.PerFieldMappingPostingFormatCodec} assigns
+     * {@code FuzzyFilterPostingsFormat} to the {@code _id} field and the standard Lucene format to
+     * all other text fields. Because these are two distinct {@code PostingsFormat} implementations,
+     * Lucene's {@code PerFieldPostingsFormat} writes a separate file group for each, producing
+     * multiple files with the same extension in one segment (e.g. two {@code .tim} files, two
+     * {@code .doc} files, etc.).
+     *
+     * <p>The bug was that {@code getSegmentFileSizes} used {@code Map.put(extension, length)},
+     * which silently overwrote earlier entries, causing the reported {@code file_sizes} total to be
+     * less than the actual on-disk size. The fix replaces {@code put} with
+     * {@code map.merge(extension, length, Long::sum)} so every file's bytes are counted.
+     */
+    public void testSegmentFileSizesAccumulatesAllFilesIncludingDuplicateExtensions() throws Exception {
+        // Disable compound file so each Lucene file is a separate entry in the directory,
+        // making it straightforward to compare the expected total (sum of file lengths from the
+        // directory) against the actual total reported by segmentsStats.
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test_file_sizes",
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
+        );
+        // Enable fuzzy set for doc ID so that _id uses FuzzyFilterPostingsFormat while other
+        // text fields use the standard Lucene format. Two distinct PostingsFormat instances
+        // in one segment cause PerFieldPostingsFormat to write two file groups that share
+        // extensions, which is exactly the condition that exposed the map.put() bug.
+        indexSettings.setEnableFuzzySetForDocId(true);
+
+        // Mock MapperService so that PerFieldMappingPostingFormatCodec sees a non-null field
+        // type for _id (required for the FuzzyFilter branch to be reached).
+        MappedFieldType idFieldType = mock(MappedFieldType.class);
+        when(idFieldType.unwrap()).thenReturn(idFieldType);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(any())).thenReturn(null);
+        when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(idFieldType);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        when(mapperService.isCompositeIndexPresent()).thenReturn(false);
+
+        CodecService codecService = new CodecService(mapperService, indexSettings, logger, List.of());
+
+        try (Store store = createStore()) {
+            Path translogPath = createTempDir();
+            // Build a base config then rebuild it with our custom CodecService.
+            EngineConfig base = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, null);
+            EngineConfig engineConfig = new EngineConfig.Builder().shardId(base.getShardId())
+                .threadPool(base.getThreadPool())
+                .indexSettings(indexSettings)
+                .warmer(base.getWarmer())
+                .store(store)
+                .mergePolicy(NoMergePolicy.INSTANCE)
+                .analyzer(base.getAnalyzer())
+                .similarity(base.getSimilarity())
+                .codecService(codecService)
+                .eventListener(base.getEventListener())
+                .queryCache(base.getQueryCache())
+                .queryCachingPolicy(base.getQueryCachingPolicy())
+                .translogConfig(base.getTranslogConfig())
+                .flushMergesAfter(base.getFlushMergesAfter())
+                .externalRefreshListener(base.getExternalRefreshListener())
+                .internalRefreshListener(base.getInternalRefreshListener())
+                .indexSort(base.getIndexSort())
+                .circuitBreakerService(base.getCircuitBreakerService())
+                .globalCheckpointSupplier(base.getGlobalCheckpointSupplier())
+                .retentionLeasesSupplier(base.retentionLeasesSupplier())
+                .primaryTermSupplier(base.getPrimaryTermSupplier())
+                .tombstoneDocSupplier(base.getTombstoneDocSupplier())
+                .build();
+
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                // Index one document. The _id field goes through FuzzyFilterPostingsFormat;
+                // the "value" text field goes through the standard format. Both end up in the
+                // same segment, guaranteeing multiple files per extension.
+                ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(indexForDoc(doc));
+                engine.flush(true, true);
+                engine.refresh("test");
+
+                // Compute the expected total: sum of the actual on-disk lengths of every file
+                // that belongs to the flushed segment.
+                long expectedTotal = 0;
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                        SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                        for (String file : segmentReader.getSegmentInfo().files()) {
+                            if (IndexFileNames.getExtension(file) == null) {
+                                continue;
+                            }
+                            long len = store.directory().fileLength(file);
+                            if (len == 0L) {
+                                continue;
+                            }
+                            expectedTotal += len;
+                        }
+                    }
+                }
+                assertThat("expected at least one segment file after flush", expectedTotal, greaterThan(0L));
+
+                // Compute the actual total reported by segmentsStats with file sizes enabled.
+                SegmentsStats stats = engine.segmentsStats(true, false);
+                Map<String, Long> fileSizes = stats.getFileSizes();
+                assertFalse("file_sizes must not be empty when include_segment_file_sizes=true", fileSizes.isEmpty());
+                long actualTotal = fileSizes.values().stream().mapToLong(Long::longValue).sum();
+
+                // With the old map.put() bug, actualTotal < expectedTotal whenever the codec
+                // writes more than one file per extension (as the FuzzyFilter + standard
+                // postings formats do). With the fix (map.merge(Long::sum)) all bytes are counted.
+                assertEquals(
+                    "file_sizes total must equal the actual sum of all segment file sizes; "
+                        + "a mismatch means some files were silently dropped due to duplicate extensions",
+                    expectedTotal,
+                    actualTotal
+                );
+            }
+        }
+    }
+
+    public void testNRTSegmentInfosCarriesLastCommittedUserData() throws Exception {
+        // Index a doc and flush to establish committed userData (sets translog_uuid, local_checkpoint, history_uuid, etc.)
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.flush(false, true);
+
+        final Map<String, String> committedUserData;
+        try (GatedCloseable<IndexCommit> commit = engine.acquireLastIndexCommit(false)) {
+            committedUserData = commit.get().getUserData();
+        }
+        assertNotNull(committedUserData.get(Translog.TRANSLOG_UUID_KEY));
+        assertNotNull(committedUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
+        // Index more docs + refresh BUT DO NOT FLUSH — NRT state now diverges from last commit.
+        engine.index(indexForDoc(createParsedDoc("2", null)));
+        engine.index(indexForDoc(createParsedDoc("3", null)));
+        engine.refresh("test");
+
+        // The NRT SegmentInfos should still carry the LAST COMMITTED userData (translog anchor preserved).
+        try (GatedCloseable<SegmentInfos> nrtSnapshot = engine.getSegmentInfosSnapshot()) {
+            Map<String, String> nrtUserData = nrtSnapshot.get().getUserData();
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed translog UUID",
+                committedUserData.get(Translog.TRANSLOG_UUID_KEY),
+                nrtUserData.get(Translog.TRANSLOG_UUID_KEY)
+            );
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed local checkpoint",
+                committedUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY),
+                nrtUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+            );
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed history UUID",
+                committedUserData.get(Engine.HISTORY_UUID_KEY),
+                nrtUserData.get(Engine.HISTORY_UUID_KEY)
+            );
+            assertEquals("NRT SegmentInfos userData should match committed userData in full", committedUserData, nrtUserData);
+        }
+    }
+
+    @SuppressWarnings("removal")
+    public void testDeleteRoutingPreservedThroughPrepareDelete() throws IOException {
+        Engine.Delete withRouting = engine.prepareDelete(
+            "1",
+            "my-routing",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertEquals("my-routing", withRouting.routing());
+
+        Engine.Delete withoutRouting = engine.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(withoutRouting.routing());
+
+        // Exercise the 10-param Engine.Delete constructor (delegates to 11-param with null routing)
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1"));
+        Engine.Delete directDelete = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(directDelete.routing());
+
+        Engine.Delete directDeleteWithRouting = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0,
+            "my-routing"
+        );
+        assertEquals("my-routing", directDeleteWithRouting.routing());
+
+        // Exercise the Delete(Delete template, VersionType) copy constructor
+        Engine.Delete copiedDelete = new Engine.Delete(directDeleteWithRouting, VersionType.EXTERNAL);
+        assertEquals("my-routing", copiedDelete.routing());
+
+        // Exercise the deprecated static IndexShard.prepareDelete (no routing) overload
+        Engine.Delete fromShardDeprecated = IndexShard.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(fromShardDeprecated.routing());
     }
 
 }

@@ -1,0 +1,13 @@
+{
+  "settings": {
+    "number_of_shards": 2,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "str0": { "type": "keyword" },
+      "str1": { "type": "keyword" },
+      "num0": { "type": "integer" }
+    }
+  }
+}

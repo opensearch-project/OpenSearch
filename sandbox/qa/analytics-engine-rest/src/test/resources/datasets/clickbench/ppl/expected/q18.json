@@ -1,0 +1,54 @@
+{
+  "rows": [
+    [
+      30,
+      1,
+      ""
+    ],
+    [
+      1,
+      100000,
+      "clickbench schema"
+    ],
+    [
+      1,
+      100000,
+      "opensearch tutorial"
+    ],
+    [
+      1,
+      100001,
+      "data fusion"
+    ],
+    [
+      1,
+      100001,
+      "opensearch tutorial"
+    ],
+    [
+      1,
+      100002,
+      "data fusion"
+    ],
+    [
+      1,
+      100002,
+      "opensearch tutorial"
+    ],
+    [
+      1,
+      100003,
+      "clickbench schema"
+    ],
+    [
+      1,
+      100003,
+      "data fusion"
+    ],
+    [
+      1,
+      200000,
+      ""
+    ]
+  ]
+}

@@ -129,6 +129,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final ClusterManagerMetrics clusterManagerMetrics;
 
+    // application duration tracking
+    private static final long NOT_RUNNING = -1L;
+    private volatile long applicationStartTimeNanos = NOT_RUNNING;
+
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(nodeName, settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
@@ -468,7 +472,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             logger.debug("processing [{}]: ignoring, cluster applier service not started", task.source);
             return;
         }
-
+        this.applicationStartTimeNanos = System.nanoTime();
         logger.debug("processing [{}]: execute", task.source);
         final ClusterState previousClusterState = state.get();
 
@@ -492,6 +496,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 e
             );
             warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+            this.applicationStartTimeNanos = NOT_RUNNING;
             task.listener.onFailure(task.source, e);
             return;
         }
@@ -500,6 +505,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
             logger.debug("processing [{}]: took [{}] no change in cluster state", task.source, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+            this.applicationStartTimeNanos = NOT_RUNNING;
             task.listener.onSuccess(task.source);
         } else {
             if (logger.isTraceEnabled()) {
@@ -524,6 +530,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newClusterState.stateUUID()
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+                this.applicationStartTimeNanos = NOT_RUNNING;
                 // Then we call the ClusterApplyListener of the task
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
@@ -555,6 +562,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
                 // continue we will retry with the same cluster state but that might not help.
                 assert applicationMayFail();
+                this.applicationStartTimeNanos = NOT_RUNNING;
                 task.listener.onFailure(task.source, e);
             }
         }
@@ -783,6 +791,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     // overridden by tests that need to check behaviour in the event of an application failure
     protected boolean applicationMayFail() {
         return false;
+    }
+
+    /**
+     * Returns the duration in milliseconds of the currently running cluster state application,
+     * or 0 if no application is in progress.
+     */
+    @Override
+    public long getCurrentApplicationDurationMs() {
+        long startNanos = this.applicationStartTimeNanos;
+        if (startNanos == NOT_RUNNING) {
+            return 0;
+        }
+        return TimeValue.nsecToMSec(System.nanoTime() - startNanos);
     }
 
     /**

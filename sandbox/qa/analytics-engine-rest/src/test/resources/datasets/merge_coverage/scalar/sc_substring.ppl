@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = substring(label, 1, 2) | sort id | fields id, r

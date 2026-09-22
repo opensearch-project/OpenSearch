@@ -1,0 +1,1 @@
+source=test_data | eval mod_val = mod(total, 3), sign_val = sign(value - 200) | fields value, total, mod_val, sign_val | head 3

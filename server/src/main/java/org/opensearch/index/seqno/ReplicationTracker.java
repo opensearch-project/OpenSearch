@@ -285,10 +285,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         // the primary calculates the non-expired retention leases and syncs them to replicas
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-        final Set<String> leaseIdsForCurrentPeers = routingTable.assignedShards()
-            .stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-            .collect(Collectors.toSet());
+        final Set<String> leaseIdsForCurrentPeers;
+        if (indexSettings.isRemoteStoreEnabled()) {
+            leaseIdsForCurrentPeers = Collections.singleton(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard().currentNodeId()));
+        } else {
+            leaseIdsForCurrentPeers = routingTable.assignedShards()
+                .stream()
+                .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                .collect(Collectors.toSet());
+        }
         final boolean allShardsStarted = routingTable.allShardsStarted();
         final long minimumReasonableRetainedSeqNo = allShardsStarted ? 0L : getMinimumReasonableRetainedSeqNo();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases.leases()
@@ -1851,6 +1856,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private synchronized void setHasAllPeerRecoveryRetentionLeases() {
         hasAllPeerRecoveryRetentionLeases = true;
         assert invariant();
+    }
+
+    /**
+     * Resets hasAllPeerRecoveryRetentionLeases to false. Called when a DFA read-only engine is created
+     * (warm primary) to prevent assertion failures in renewPeerRecoveryRetentionLeases() during the
+     * window between primary activation and async lease creation via ensurePeerRecoveryRetentionLeasesExist().
+     * The flag will be set back to true when createMissingPeerRecoveryRetentionLeases(ActionListener) completes.
+     */
+    public synchronized void resetHasAllPeerRecoveryRetentionLeases() {
+        hasAllPeerRecoveryRetentionLeases = false;
     }
 
     private synchronized void setCreatedMissingRetentionLeases() {

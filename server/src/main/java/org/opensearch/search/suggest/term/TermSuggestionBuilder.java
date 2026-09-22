@@ -300,8 +300,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * to {@code 0.01}.
      * <p>
      * This can be used to exclude high frequency terms from being suggested.
-     * High frequency terms are usually spelled correctly on top of this this
-     * also improves the suggest performance.
+     * High frequency terms are usually spelled correctly. On top of this,
+     * this also improves the suggest performance.
      */
     public TermSuggestionBuilder maxTermFreq(float maxTermFreq) {
         if (maxTermFreq < 0.0f) {

@@ -1,0 +1,1 @@
+source=test_data | eval tag_array = split(tags, ","), deduped = mvdedup(tag_array) | fields tags, deduped | head 3

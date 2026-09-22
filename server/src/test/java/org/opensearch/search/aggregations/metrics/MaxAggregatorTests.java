@@ -71,6 +71,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -1026,5 +1027,23 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
+    }
+
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", 1)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(new MaxAggregationBuilder("test").field("value"))
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldType)
+                            .getQueryShardContext(),
+                        null
+                    );
+                assertTrue(factories.allFactoriesSupportIntraSegmentSearch());
+            }
+        }
     }
 }

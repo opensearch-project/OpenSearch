@@ -18,7 +18,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -31,7 +30,6 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.function.Function;
 
 /**
@@ -162,16 +160,6 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
         }
 
         @Override
-        public void setBytesComparator(Comparator<BytesRef> b) {
-            delegate.setBytesComparator(b);
-        }
-
-        @Override
-        public Comparator<BytesRef> getBytesComparator() {
-            return delegate.getBytesComparator();
-        }
-
-        @Override
         public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
             return delegate.getComparator(numHits, pruning);
         }
@@ -233,7 +221,7 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
 
         @Override
         public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-            // explictly disable pruning
+            // explicitly disable pruning
             return delegate.getComparator(numHits, Pruning.NONE);
         }
 

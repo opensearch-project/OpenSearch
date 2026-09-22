@@ -1,0 +1,1 @@
+source=test_data | eval ts_diff = timestampdiff(DAY, date('2026-01-01'), timestamp) | fields timestamp, ts_diff | head 3

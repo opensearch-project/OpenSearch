@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "float"
+    },
+    {
+      "name": "squared",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "ALICE",
+      6.98,
+      48.72040026626587
+    ],
+    [
+      "BOB",
+      9.74,
+      94.86759554138189
+    ],
+    [
+      "CHARLIE",
+      0.88,
+      0.774399991607666
+    ],
+    [
+      "CHARLIE",
+      5.79,
+      33.52409955825806
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

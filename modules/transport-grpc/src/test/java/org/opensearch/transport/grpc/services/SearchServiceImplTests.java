@@ -19,8 +19,12 @@ import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,6 +48,8 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     private SearchServiceImpl service;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private AggregationBuilderProtoConverterRegistry aggregationRegistry;
+    private AggregateProtoConverterRegistry aggregateRegistry;
 
     @Mock
     private NodeClient client;
@@ -57,50 +63,72 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     @Mock
     private StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
 
+    @Mock
+    private StreamObserver<org.opensearch.protobufs.CreatePITResponse> createPitResponseObserver;
+
+    @Mock
+    private StreamObserver<org.opensearch.protobufs.DeletePITResponse> deletePitResponseObserver;
+
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
         when(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)).thenReturn(circuitBreaker);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
-        service = new SearchServiceImpl(client, queryUtils, circuitBreakerService);
+        aggregationRegistry = new AggregationBuilderProtoConverterRegistryImpl();
+        aggregateRegistry = new AggregateProtoConverterRegistryImpl();
+        service = new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService);
     }
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, queryUtils, circuitBreakerService)
+            () -> new SearchServiceImpl(null, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithNullQueryUtils() {
-        // Test that constructor throws IllegalArgumentException when queryUtils is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, null, circuitBreakerService)
+            () -> new SearchServiceImpl(client, null, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Query utils cannot be null", exception.getMessage());
     }
 
-    public void testConstructorWithNullCircuitBreakerService() {
-        // Test that constructor throws IllegalArgumentException when circuitBreakerService is null
+    public void testConstructorWithNullAggregationRegistry() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, queryUtils, null)
+            () -> new SearchServiceImpl(client, queryUtils, null, aggregateRegistry, circuitBreakerService)
+        );
+
+        assertEquals("Aggregation registry cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithNullAggregateRegistry() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, aggregationRegistry, null, circuitBreakerService)
+        );
+
+        assertEquals("Aggregate registry cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithNullCircuitBreakerService() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, null)
         );
 
         assertEquals("Circuit breaker service cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithBothNull() {
-        // Test that constructor throws IllegalArgumentException when both parameters are null
-        // Should fail on the first null check (client)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, null, circuitBreakerService)
+            () -> new SearchServiceImpl(null, null, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());
@@ -223,10 +251,106 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any());
     }
 
+    public void testCreatePitSuccess() {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(client).createPit(any(org.opensearch.action.search.CreatePitRequest.class), any());
+    }
+
+    public void testCreatePitCircuitBreakerTripsAndRejectsRequest() throws Exception {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+        CircuitBreakingException circuitBreakerException = new CircuitBreakingException(
+            "Data too large",
+            100L,
+            50 * 1024 * 1024L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        doThrow(circuitBreakerException).when(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_request>"));
+        verify(client, never()).createPit(any(org.opensearch.action.search.CreatePitRequest.class), any());
+        verify(createPitResponseObserver).onError(any());
+    }
+
+    public void testCreatePitBytesReleasedOnException() throws Exception {
+        org.opensearch.protobufs.CreatePitRequest request = createTestCreatePitRequest();
+        ArgumentCaptor<Long> addedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> releasedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+
+        doThrow(new RuntimeException("Test exception")).when(client).createPit(any(), any());
+
+        service.createPit(request, createPitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(addedBytesCaptor.capture(), eq("<grpc_request>"));
+        verify(circuitBreaker).addWithoutBreaking(releasedBytesCaptor.capture());
+
+        long addedBytes = addedBytesCaptor.getValue();
+        long releasedBytes = releasedBytesCaptor.getValue();
+        assertTrue("Added bytes should be positive", addedBytes > 0);
+        assertEquals("Released bytes should equal negative of added bytes", -addedBytes, releasedBytes);
+        verify(createPitResponseObserver).onError(any());
+    }
+
+    public void testDeletePitSuccess() {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(client).deletePits(any(org.opensearch.action.search.DeletePitRequest.class), any());
+    }
+
+    public void testDeletePitCircuitBreakerTripsAndRejectsRequest() throws Exception {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+        CircuitBreakingException circuitBreakerException = new CircuitBreakingException(
+            "Data too large",
+            100L,
+            50 * 1024 * 1024L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        doThrow(circuitBreakerException).when(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_request>"));
+        verify(client, never()).deletePits(any(org.opensearch.action.search.DeletePitRequest.class), any());
+        verify(deletePitResponseObserver).onError(any());
+    }
+
+    public void testDeletePitBytesReleasedOnException() throws Exception {
+        org.opensearch.protobufs.DeletePitRequest request = createTestDeletePitRequest();
+        ArgumentCaptor<Long> addedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> releasedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+
+        doThrow(new RuntimeException("Test exception")).when(client).deletePits(any(), any());
+
+        service.deletePit(request, deletePitResponseObserver);
+
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(addedBytesCaptor.capture(), eq("<grpc_request>"));
+        verify(circuitBreaker).addWithoutBreaking(releasedBytesCaptor.capture());
+
+        long addedBytes = addedBytesCaptor.getValue();
+        long releasedBytes = releasedBytesCaptor.getValue();
+        assertTrue("Added bytes should be positive", addedBytes > 0);
+        assertEquals("Released bytes should equal negative of added bytes", -addedBytes, releasedBytes);
+        verify(deletePitResponseObserver).onError(any());
+    }
+
     private org.opensearch.protobufs.SearchRequest createTestSearchRequest() {
         return org.opensearch.protobufs.SearchRequest.newBuilder()
             .addIndex("test-index")
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .build();
+    }
+
+    private org.opensearch.protobufs.CreatePitRequest createTestCreatePitRequest() {
+        return org.opensearch.protobufs.CreatePitRequest.newBuilder().addIndex("test-index").setKeepAlive("1m").build();
+    }
+
+    private org.opensearch.protobufs.DeletePitRequest createTestDeletePitRequest() {
+        return org.opensearch.protobufs.DeletePitRequest.newBuilder().addPitId("pit-id-1").build();
     }
 }

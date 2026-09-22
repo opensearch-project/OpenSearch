@@ -1,0 +1,1 @@
+source=%INDEX% | stats count() as c, avg(price) as a by span(amount, 5)

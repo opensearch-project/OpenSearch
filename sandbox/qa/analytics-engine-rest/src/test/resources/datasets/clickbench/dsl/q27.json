@@ -1,0 +1,49 @@
+{
+  "from": 0,
+  "size": 10,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "exists": {
+            "field": "SearchPhrase",
+            "boost": 1.0
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "term": {
+            "SearchPhrase": {
+              "value": "",
+              "boost": 1.0
+            }
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "SearchPhrase"
+    ],
+    "excludes": []
+  },
+  "sort": [
+    {
+      "EventTime": {
+        "order": "asc",
+        "missing": "_first"
+      }
+    },
+    {
+      "SearchPhrase": {
+        "order": "asc",
+        "missing": "_first"
+      }
+    }
+  ]
+}

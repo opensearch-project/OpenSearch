@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -419,6 +420,43 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(11, fifthStats.getSum(), 0);
     }
 
+    public void testDateHistoWithDocsBeyondQueryUpperBound() throws IOException {
+        // Regression test for https://github.com/opensearch-project/OpenSearch/issues/22342
+        // Documents with values beyond the query's upper bound share the segment with
+        // matching documents. During BKD traversal the collector's activeIndex advances
+        // past the end of the ranges array and traversal terminates early; the final
+        // finalizePreviousRange() then looked up the bucket for activeIndex == ranges.size
+        // and threw ArrayIndexOutOfBoundsException.
+        List<TestDoc> docs = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            docs.add(new TestDoc(month, Instant.parse(String.format(Locale.ROOT, "2024-%02d-15T00:00:00Z", month))));
+        }
+        // docs beyond the query upper bound, in the same segment
+        docs.add(new TestDoc(100, Instant.parse("2025-01-15T00:00:00Z")));
+        docs.add(new TestDoc(101, Instant.parse("2025-02-15T00:00:00Z")));
+
+        Query rangeQuery = LongPoint.newRangeQuery(dateFieldName, Long.MIN_VALUE, dateFieldType.parse("2024-12-31T23:59:59Z"));
+
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder(dateAggName).field(
+            dateFieldName
+        )
+            .calendarInterval(DateHistogramInterval.MONTH)
+            .minDocCount(1L)
+            .subAggregation(AggregationBuilders.stats(statsAggName).field(longFieldName));
+
+        InternalDateHistogram result = executeAggregation(docs, dateHistogramAggregationBuilder, false, rangeQuery);
+
+        List<? extends InternalDateHistogram.Bucket> buckets = result.getBuckets();
+        assertEquals(12, buckets.size());
+        for (int i = 0; i < 12; i++) {
+            InternalDateHistogram.Bucket bucket = buckets.get(i);
+            assertEquals(1, bucket.getDocCount());
+            InternalStats stats = bucket.getAggregations().get(statsAggName);
+            assertEquals(1, stats.getCount());
+            assertEquals(i + 1, stats.getSum(), 0);
+        }
+    }
+
     public void testAutoDateHisto() throws IOException {
         AutoDateHistogramAggregationBuilder autoDateHistogramAggregationBuilder = new AutoDateHistogramAggregationBuilder(dateAggName)
             .field(dateFieldName)
@@ -583,9 +621,18 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder,
         boolean random
     ) throws IOException {
+        return executeAggregation(docs, aggregationBuilder, random, matchAllQuery);
+    }
+
+    private <IA extends InternalAggregation> IA executeAggregation(
+        List<TestDoc> docs,
+        AggregationBuilder aggregationBuilder,
+        boolean random,
+        Query query
+    ) throws IOException {
         try (Directory directory = setupIndex(docs, random)) {
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                return executeAggregationOnReader(indexReader, aggregationBuilder);
+                return executeAggregationOnReader(indexReader, aggregationBuilder, null, query);
             }
         }
     }
@@ -644,13 +691,22 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder,
         IndexSettings indexSettings
     ) throws IOException {
+        return executeAggregationOnReader(indexReader, aggregationBuilder, indexSettings, matchAllQuery);
+    }
+
+    private <IA extends InternalAggregation> IA executeAggregationOnReader(
+        DirectoryReader indexReader,
+        AggregationBuilder aggregationBuilder,
+        IndexSettings indexSettings,
+        Query query
+    ) throws IOException {
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = createBucketConsumer();
         SearchContext searchContext = createSearchContext(
             indexSearcher,
             indexSettings != null ? indexSettings : createIndexSettings(),
-            matchAllQuery,
+            query,
             bucketConsumer,
             longFieldType,
             dateFieldType,
@@ -661,7 +717,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
 
         // Execute aggregation
         countingAggregator.preCollection();
-        indexSearcher.search(matchAllQuery, countingAggregator);
+        indexSearcher.search(query, countingAggregator);
         countingAggregator.postCollection();
 
         // Reduce results

@@ -1,0 +1,1 @@
+source=function_tests | eval abs_amount = abs(amount) | fields user, amount, abs_amount | head 10

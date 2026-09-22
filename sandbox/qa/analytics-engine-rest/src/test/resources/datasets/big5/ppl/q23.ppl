@@ -1,0 +1,1 @@
+source = big5 | where query_string(['message'], 'monkey jackal bear') | head 10

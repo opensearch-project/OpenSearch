@@ -190,8 +190,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
-                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+                "The provided value "
+                    + (XContentConstraints.DEFAULT_MAX_DEPTH + 1)
+                    + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                    + XContentConstraints.DEFAULT_MAX_DEPTH
+                    + ". Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
             )
         );
     }
@@ -615,6 +618,41 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testReloadSearchAnalyzersWithReloadCachedResources() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
+
+        MapperService mapperService = createIndex("test_index", settings).mapperService();
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
+
+        // Call with reloadCachedResources=true — exercises the reload loop and no-op default
+        List<String> reloaded = mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), true);
+        assertEquals(1, reloaded.size());
+        assertEquals("reloadableAnalyzer", reloaded.get(0));
+    }
+
     public void testMapperDynamicAllowedIgnored() {
         final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
             (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
@@ -685,6 +723,16 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 }
             });
         }
+    }
+
+    /** Validates that {@code index.mapping.dynamic_properties.lucene_field.limit} is a recognized index setting. */
+    public void testDynamicPropertiesLuceneFieldLimitSettingRecognized() throws IOException {
+        long customLimit = 5_000L;
+        MapperService mapperService = createIndex(
+            "test",
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit).build()
+        ).mapperService();
+        assertEquals(customLimit, mapperService.getIndexSettings().getMappingDynamicPropertiesLuceneFieldLimit());
     }
 
 }

@@ -696,11 +696,8 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         prepareCreate("idx").setMapping("field", "type=float,doc_values=false").get();
         ensureGreen("idx");
 
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("idx");
-
-        for (float i = 9000.0F; i < 20000.0F; i++) {
-            indexRequestBuilder.setId(String.valueOf(i)).setSource("{\"field\":" + i + "}", MediaTypeRegistry.JSON).get();
-        }
+        client().prepareIndex("idx").setSource("{\"field\": 10000.0}", MediaTypeRegistry.JSON).get();
+        refresh("idx");
         String queryJson = "{ \"filter\" : { \"terms\" : { \"field\" : [ 10000.0 ] } } }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
         parser.nextToken();

@@ -57,6 +57,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -112,6 +113,28 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .version(version)
             .system(isSystem)
             .build();
+    }
+
+    public void testIsAppendOnlyIndexSettingPrecedence() {
+        // Composite (pluggable-dataformat) with no explicit setting -> append-only by default.
+        assertTrue(buildIsAppendOnly(true, null));
+        // Composite with an explicit false -> NOT append-only (opts in to updates/deletes).
+        assertFalse(buildIsAppendOnly(true, false));
+        // Non-composite with an explicit true -> append-only.
+        assertTrue(buildIsAppendOnly(false, true));
+        // Neither set -> default (not append-only).
+        assertFalse(buildIsAppendOnly(false, null));
+    }
+
+    private static boolean buildIsAppendOnly(boolean pluggableDataformat, Boolean explicitAppendOnly) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), pluggableDataformat);
+        if (explicitAppendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), explicitAppendOnly);
+        }
+        return IndexMetadata.builder("idx").settings(settings.build()).numberOfShards(1).numberOfReplicas(0).build().isAppendOnlyIndex();
     }
 
     public void testIndexMetadataSerialization() throws IOException {
@@ -754,5 +777,128 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
         isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
         assertFalse(isAllActiveIngestionEnabled);
+    }
+
+    public void testPrimaryTermsMapXContentRoundTrip() throws IOException {
+        int numShards = randomFrom(2, 4, 8);
+        IndexMetadata.Builder builder = IndexMetadata.builder("test-primary-terms-map")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+
+        // Set distinct primary terms per shard
+        for (int i = 0; i < numShards; i++) {
+            builder.primaryTerm(i, randomLongBetween(1, 100));
+        }
+        IndexMetadata metadata = builder.build();
+
+        // XContent round-trip
+        final XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
+        xContentBuilder.startObject();
+        IndexMetadata.FORMAT.toXContent(xContentBuilder, metadata);
+        xContentBuilder.endObject();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(xContentBuilder));
+        IndexMetadata fromXContent = IndexMetadata.fromXContent(parser);
+
+        assertEquals(metadata, fromXContent);
+        for (int i = 0; i < numShards; i++) {
+            assertEquals(metadata.primaryTerm(i), fromXContent.primaryTerm(i));
+        }
+    }
+
+    public void testPrimaryTermsMapStreamRoundTrip() throws IOException {
+        int numShards = randomFrom(2, 4, 8);
+        IndexMetadata.Builder builder = IndexMetadata.builder("test-primary-terms-map-stream")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+
+        for (int i = 0; i < numShards; i++) {
+            builder.primaryTerm(i, randomLongBetween(1, 100));
+        }
+        IndexMetadata metadata = builder.build();
+
+        // Stream round-trip
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            IndexMetadata deserialized = IndexMetadata.readFrom(in);
+            assertEquals(metadata, deserialized);
+            for (int i = 0; i < numShards; i++) {
+                assertEquals(metadata.primaryTerm(i), deserialized.primaryTerm(i));
+            }
+        }
+    }
+
+    public void testPrimaryTermsMapDiffRoundTrip() throws IOException {
+        int numShards = 4;
+        IndexMetadata.Builder beforeBuilder = IndexMetadata.builder("test-diff")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+        for (int i = 0; i < numShards; i++) {
+            beforeBuilder.primaryTerm(i, 1);
+        }
+        IndexMetadata before = beforeBuilder.build();
+
+        // Bump primary term on shard 2
+        IndexMetadata.Builder afterBuilder = IndexMetadata.builder(before);
+        afterBuilder.primaryTerm(2, 5);
+        afterBuilder.version(before.getVersion() + 1);
+        IndexMetadata after = afterBuilder.build();
+
+        Diff<IndexMetadata> diff = new IndexMetadata.IndexMetadataDiff(before, after);
+
+        // Serialize and deserialize the diff
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            Diff<IndexMetadata> deserializedDiff = IndexMetadata.readDiffFrom(in);
+            IndexMetadata applied = deserializedDiff.apply(before);
+            assertEquals(after, applied);
+            assertEquals(5, applied.primaryTerm(2));
+            assertEquals(1, applied.primaryTerm(0));
+        }
+    }
+
+    public void testLegacyCreatedVersion() {
+        Index index = new Index("test-index", UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, "7090199")
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        try {
+            IndexMetadata.builder(index.getName())
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .version(1)
+                .system(false)
+                .build();
+            fail("Should not be able to create index with legacy created version");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getCause() instanceof Version.UnsupportedVersionException);
+            Version.UnsupportedVersionException versionException = (Version.UnsupportedVersionException) e.getCause();
+            assertEquals("ES 7.9.1", versionException.getVersionString());
+        }
     }
 }

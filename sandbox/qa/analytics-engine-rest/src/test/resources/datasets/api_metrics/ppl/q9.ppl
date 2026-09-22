@@ -1,0 +1,1 @@
+source=api_metrics | stats avg(latency) as avg_latency, max(latency) as max_latency, min(latency) as min_latency, count() as requests by endpoint, status | sort - avg_latency

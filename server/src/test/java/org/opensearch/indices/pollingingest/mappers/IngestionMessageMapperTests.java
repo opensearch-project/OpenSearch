@@ -11,6 +11,7 @@ package org.opensearch.indices.pollingingest.mappers;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.FakeIngestionSource;
+import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -21,14 +22,21 @@ import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIME
 
 public class IngestionMessageMapperTests extends OpenSearchTestCase {
 
+    private static Map<String, Object> decode(byte[] payload) {
+        return IngestionUtils.getParsedPayloadMap(payload);
+    }
+
     public void testMapperTypeFromStringAndName() {
         assertEquals(IngestionMessageMapper.MapperType.DEFAULT, IngestionMessageMapper.MapperType.fromString("default"));
         assertEquals(IngestionMessageMapper.MapperType.DEFAULT, IngestionMessageMapper.MapperType.fromString("DEFAULT"));
         assertEquals(IngestionMessageMapper.MapperType.RAW_PAYLOAD, IngestionMessageMapper.MapperType.fromString("raw_payload"));
         assertEquals(IngestionMessageMapper.MapperType.RAW_PAYLOAD, IngestionMessageMapper.MapperType.fromString("RAW_PAYLOAD"));
+        assertEquals(IngestionMessageMapper.MapperType.FIELD_MAPPING, IngestionMessageMapper.MapperType.fromString("field_mapping"));
+        assertEquals(IngestionMessageMapper.MapperType.FIELD_MAPPING, IngestionMessageMapper.MapperType.fromString("FIELD_MAPPING"));
 
         assertEquals("default", IngestionMessageMapper.MapperType.DEFAULT.getName());
         assertEquals("raw_payload", IngestionMessageMapper.MapperType.RAW_PAYLOAD.getName());
+        assertEquals("field_mapping", IngestionMessageMapper.MapperType.FIELD_MAPPING.getName());
     }
 
     public void testMapperTypeFromStringInvalid() {
@@ -44,6 +52,14 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         assertNotNull(rawPayloadMapper);
         assertTrue(rawPayloadMapper instanceof RawPayloadIngestionMessageMapper);
 
+        IngestionMessageMapper fieldMappingMapper = IngestionMessageMapper.create(
+            "field_mapping",
+            0,
+            Map.of(FieldMappingIngestionMessageMapper.ID_FIELD, "user_id")
+        );
+        assertNotNull(fieldMappingMapper);
+        assertTrue(fieldMappingMapper instanceof FieldMappingIngestionMessageMapper);
+
         expectThrows(IllegalArgumentException.class, () -> IngestionMessageMapper.create("unknown", 0));
     }
 
@@ -55,7 +71,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(5);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         assertEquals(pointer, result.pointer());
@@ -81,7 +97,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(10);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         assertEquals(pointer, result.pointer());
@@ -103,7 +119,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(20);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         Map<String, Object> parsedMap = result.parsedPayloadMap();
@@ -119,7 +135,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(100);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         assertEquals(pointer, result.pointer());
@@ -156,7 +172,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(200);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         Map<String, Object> parsedMap = result.parsedPayloadMap();
@@ -179,7 +195,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(300);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message);
+        ShardUpdateMessage result = mapper.mapAndProcess(pointer, message, decode(payloadBytes));
 
         assertNotNull(result);
         Map<String, Object> parsedMap = result.parsedPayloadMap();
@@ -199,7 +215,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(500);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message));
+        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message, decode(payloadBytes)));
     }
 
     public void testRawPayloadMapperWithInvalidJson() {
@@ -210,6 +226,6 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(600);
         Message message = new FakeIngestionSource.FakeIngestionMessage(payloadBytes);
 
-        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message));
+        expectThrows(Exception.class, () -> mapper.mapAndProcess(pointer, message, decode(payloadBytes)));
     }
 }

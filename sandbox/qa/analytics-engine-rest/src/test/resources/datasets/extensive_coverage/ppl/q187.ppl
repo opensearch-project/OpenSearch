@@ -1,0 +1,1 @@
+source=test_data | eval cbrt_val = cbrt(value) | fields value, cbrt_val | head 3

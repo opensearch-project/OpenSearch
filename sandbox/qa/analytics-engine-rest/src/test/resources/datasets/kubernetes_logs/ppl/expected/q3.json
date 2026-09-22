@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "logs",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.region",
+      "type": "string"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      34,
+      null,
+      "fdas-prod"
+    ],
+    [
+      33,
+      null,
+      "fdas-staging"
+    ],
+    [
+      33,
+      null,
+      "prod-cluster"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

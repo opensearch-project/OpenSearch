@@ -1,0 +1,109 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "CounterID": {
+              "value": 62,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "range": {
+            "EventDate": {
+              "from": "2013-07-01T00:00:00.000Z",
+              "to": "2013-07-31T00:00:00.000Z",
+              "include_lower": true,
+              "include_upper": true,
+              "format": "date_time",
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "term": {
+            "IsRefresh": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "IsLink",
+                  "boost": 1.0
+                }
+              }
+            ],
+            "must_not": [
+              {
+                "term": {
+                  "IsLink": {
+                    "value": 0,
+                    "boost": 1.0
+                  }
+                }
+              }
+            ],
+            "adjust_pure_negative": true,
+            "boost": 1.0
+          }
+        },
+        {
+          "term": {
+            "IsDownload": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "exists": {
+            "field": "URL",
+            "boost": 1.0
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "EventDate",
+      "URL",
+      "IsDownload",
+      "IsLink",
+      "IsRefresh",
+      "CounterID"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "URL": {
+      "terms": {
+        "field": "URL",
+        "size": 1010,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "_count": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -101,6 +101,11 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     }
 
     @Override
+    public boolean skipsDeserialization() {
+        return delegate.skipsDeserialization();
+    }
+
+    @Override
     public String toString() {
         return delegate.toString();
     }

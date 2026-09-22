@@ -1,0 +1,1 @@
+search source=%INDEX% amount > 15 | stats count()

@@ -21,6 +21,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,7 +65,22 @@ public class ReloadableFsRepository extends FsRepository {
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+        this(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, null);
+    }
+
+    /**
+     * Constructs a shared file system repository that is reloadable in-place,
+     * with an optional native object store provider for warm-node reads.
+     */
+    public ReloadableFsRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings,
+        NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
+        super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, nativeStoreProvider);
         fail = new FailSwitch();
         fail.failRate(REPOSITORIES_FAILRATE_SETTING.get(metadata.settings()));
         slowDown = new SlowDownWriteSwitch();
@@ -171,6 +187,19 @@ public class ReloadableFsRepository extends FsRepository {
             super(blobStore, blobPath, path);
             this.fail = fail;
             this.slowDown = slowDown;
+        }
+
+        /**
+         * Test support only. {@link FsBlobContainer} reports {@code false} here because its conditional write is
+         * emulated per JVM, which is no fencing primitive between hosts. This repository type exists to drive
+         * integration tests, whose cluster nodes all run inside a single JVM and therefore share that emulation - so
+         * within its intended use the precondition genuinely does exclude every other writer. Overriding it here keeps
+         * remote store fencing exercisable in {@code internalClusterTest} while the production {@code fs} repository
+         * stays correctly refused.
+         */
+        @Override
+        public boolean isConditionalWriteSupported() {
+            return true;
         }
 
         @Override

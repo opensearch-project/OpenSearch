@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.PARENT_ACTION;
 import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.SEARCH_REQUEST;
 import static org.opensearch.search.pipeline.SystemGeneratedProcessor.ExecutionStage.POST_USER_DEFINED;
 import static org.opensearch.search.pipeline.SystemGeneratedProcessor.ExecutionStage.PRE_USER_DEFINED;
@@ -141,7 +142,10 @@ class SystemGeneratedPipelineWithMetrics extends Pipeline {
             return lists;
         }
         boolean isAllEnabled = enabledSystemGeneratedFactories.contains("*");
-        ProcessorGenerationContext context = new ProcessorGenerationContext((SearchRequest) config.get(SEARCH_REQUEST));
+        ProcessorGenerationContext context = new ProcessorGenerationContext(
+            (SearchRequest) config.get(SEARCH_REQUEST),
+            (String) config.get(PARENT_ACTION)
+        );
 
         for (Map.Entry<String, SystemGeneratedProcessor.SystemGeneratedFactory<T>> entry : factories.entrySet()) {
             String factoryType = entry.getKey();

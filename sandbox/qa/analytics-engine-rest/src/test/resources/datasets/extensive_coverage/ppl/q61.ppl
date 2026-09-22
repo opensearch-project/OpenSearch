@@ -1,0 +1,1 @@
+source=test_data | eval is_valid = json_valid(json_data) | fields json_data, is_valid | head 3

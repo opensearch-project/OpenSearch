@@ -1,0 +1,1 @@
+source=%INDEX% | where like(label, "lbl1%") | sort id | fields id, label

@@ -1,0 +1,1 @@
+source=test_data | eval pos = locate('test', text) | fields text, pos | head 3

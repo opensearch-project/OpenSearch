@@ -1,0 +1,36 @@
+{
+  "schema" : [
+    {
+      "name" : "o_orderpriority",
+      "type" : "string"
+    },
+    {
+      "name" : "order_count",
+      "type" : "bigint"
+    }
+  ],
+  "total" : 5,
+  "datarows" : [
+    [
+      "1-URGENT",
+      9
+    ],
+    [
+      "2-HIGH",
+      7
+    ],
+    [
+      "3-MEDIUM",
+      9
+    ],
+    [
+      "4-NOT SPECIFIED",
+      8
+    ],
+    [
+      "5-LOW",
+      12
+    ]
+  ],
+  "size" : 5
+}

@@ -1490,7 +1490,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         throws IOException {
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
         if (prettyPrint) {
-            xContentBuilder.prettyPrint();
+            xContentBuilder = xContentBuilder.prettyPrint();
         }
         Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
         if (token == Token.START_ARRAY) {

@@ -22,6 +22,8 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -268,5 +270,22 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
         assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+    }
+
+    public void testNullSpanWithinSpanReference() {
+        // invalid span, should not be present in final transients
+        SpanReference spanReference = new SpanReference(null);
+        Map<String, Object> source = new HashMap<>();
+        source.put(ThreadContextBasedTracerContextStorage.CURRENT_SPAN, spanReference);
+        ThreadContextBasedTracerContextStorage context = (ThreadContextBasedTracerContextStorage) threadContextStorage;
+        assertTrue(context.transients(source).isEmpty());
+
+        // valid span, present in final transients
+        final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
+        spanReference = new SpanReference(span);
+        source = new HashMap<>();
+        source.put(ThreadContextBasedTracerContextStorage.CURRENT_SPAN, spanReference);
+        assertFalse(context.transients(source).isEmpty());
+        assertEquals(span, ((SpanReference) context.transients(source).get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN)).getSpan());
     }
 }

@@ -78,6 +78,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -109,6 +110,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -123,6 +125,10 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DataFormatAwareIndexerFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -146,7 +152,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -155,6 +161,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -164,10 +171,12 @@ import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -176,6 +185,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.storage.prefetch.StoredFieldsPrefetch;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -300,6 +312,28 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * Cluster-level default for {@code index.pluggable.dataformat.enabled}.
+     * Applied at index creation time when the index setting is not explicitly provided.
+     */
+    public static final Setting<Boolean> CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.pluggable.dataformat.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Cluster-level default for {@code index.pluggable.dataformat}.
+     * Applied at index creation time when the index setting is not explicitly provided.
+     */
+    public static final Setting<String> CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
+        "cluster.pluggable.dataformat",
+        "",
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to set the minimum refresh interval applicable for all indexes in a cluster. The
      * {@code cluster.default.index.refresh_interval} setting value needs to be higher than this setting's value. Index
      * creation will fail if the index setting {@code index.refresh_interval} is supplied with a value lower than the
@@ -362,6 +396,32 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * If enabled, this setting enforces that indexes will be created with pluggable data-format settings matching the
+     * cluster-level defaults defined in {@code cluster.pluggable.dataformat.enabled} and
+     * {@code cluster.pluggable.dataformat} by rejecting any request that specifies an index-level value
+     * that does not match. If disabled, users may choose the pluggable data-format on a per-index basis using the
+     * {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} settings.
+     */
+    public static final Setting<Boolean> CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING = Setting.boolSetting(
+        "cluster.restrict.pluggable.dataformat",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * A list of index name prefixes that bypass the pluggable data-format restrict validation and
+     * cluster-default stamping. Indices whose name starts with any of these prefixes will not have
+     * cluster defaults applied and will not be rejected by the restrict setting.
+     */
+    public static final Setting<List<String>> CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST = Setting.listSetting(
+        "cluster.pluggable.dataformat.restrict.allowlist",
+        Collections.emptyList(),
+        s -> s,
+        Property.NodeScope
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
@@ -373,12 +433,14 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesFieldDataCache indicesFieldDataCache;
+    private final IndicesBitsetFilterCache indicesBitsetFilterCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
     private final Client client;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -395,6 +457,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
+    private final IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry;
+    private final Supplier<IngestService> ingestServiceSupplier;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
@@ -414,14 +478,17 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean fixedRefreshIntervalSchedulingEnabled;
     private volatile boolean shardLevelRefreshEnabled;
     private final SearchRequestStats searchRequestStats;
-    private final FileCache fileCache;
+    private final NodeCacheService nodeCacheService;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
+    private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final DataFormatRegistry dataFormatRegistry;
+    private final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
 
     @Override
     protected void doStart() {
@@ -450,6 +517,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
+        Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         Map<String, IndexStorePlugin.StoreFactory> storeFactories,
@@ -458,13 +526,16 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry,
+        Supplier<IngestService> ingestServiceSupplier,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings,
-        FileCache fileCache,
+        NodeCacheService nodeCacheService,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        DataFormatRegistry dataFormatRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -496,6 +567,12 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            final TieredStoragePrefetchSettings prefetchSettings = new TieredStoragePrefetchSettings(clusterService.getClusterSettings());
+            this.tieredStoragePrefetchSettingsSupplier = () -> prefetchSettings;
+        } else {
+            this.tieredStoragePrefetchSettingsSupplier = () -> null;
+        }
         this.client = client;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
@@ -511,14 +588,18 @@ public class IndicesService extends AbstractLifecycleComponent
         }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
+        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
         this.directoryFactories = directoryFactories;
         this.compositeDirectoryFactories = compositeDirectoryFactories;
+        this.dataFormatAwareStoreDirectoryFactories = dataFormatAwareStoreDirectoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
+        this.ingestionPayloadDecoderRegistry = ingestionPayloadDecoderRegistry;
+        this.ingestServiceSupplier = ingestServiceSupplier;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -534,7 +615,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesFieldDataCache,
                         cacheCleaner,
                         indicesRequestCache,
-                        indicesQueryCache
+                        indicesQueryCache,
+                        ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -587,7 +669,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
-        this.fileCache = fileCache;
+        this.nodeCacheService = nodeCacheService;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
@@ -605,6 +687,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
     @InternalApi
@@ -634,6 +717,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -658,6 +742,7 @@ public class IndicesService extends AbstractLifecycleComponent
             engineFactoryProviders,
             directoryFactories,
             Collections.emptyMap(),
+            Collections.emptyMap(),
             valuesSourceRegistry,
             recoveryStateFactories,
             Collections.emptyMap(),
@@ -666,13 +751,16 @@ public class IndicesService extends AbstractLifecycleComponent
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
             ingestionConsumerFactories,
+            payloadDecoderRegistry,
+            () -> null,
             recoverySettings,
             cacheService,
             remoteStoreSettings,
             null,
             null,
             null,
-            null
+            null,
+            new DataFormatRegistry(pluginsService)
         );
     }
 
@@ -818,6 +906,12 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
                 case Search:
                     commonStats.search.add(oldShardsStats.searchStats);
+                    for (SearchStatsContributor contributor : searchStatsContributors) {
+                        SearchStats contributed = contributor.contributeSearchStats();
+                        if (contributed != null) {
+                            commonStats.search.add(contributed);
+                        }
+                    }
                     break;
                 case Merge:
                     commonStats.merge.add(oldShardsStats.mergeStats);
@@ -993,6 +1087,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexMetadata,
             indicesQueryCache,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             finalListeners,
             indexingMemoryController
         );
@@ -1048,6 +1143,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexMetadata,
             indicesQueryCache,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             finalListeners,
             indexingMemoryController
         );
@@ -1064,6 +1160,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexMetadata indexMetadata,
         IndicesQueryCache indicesQueryCache,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
@@ -1086,7 +1183,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexModule indexModule = new IndexModule(
             idxSettings,
             analysisRegistry,
-            getEngineFactory(idxSettings),
+            getIndexerFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
             compositeDirectoryFactories,
@@ -1094,16 +1191,23 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             storeFactories,
-            fileCache,
-            compositeIndexSettings
+            nodeCacheService,
+            compositeIndexSettings,
+            dataFormatAwareStoreDirectoryFactories
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
+        // Add tiered storage search listeners
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            indexModule.addSearchOperationListener(new TieredStorageSearchSlowLog(idxSettings));
+            indexModule.addSearchOperationListener(new StoredFieldsPrefetch(tieredStoragePrefetchSettingsSupplier));
+        }
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
+
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
@@ -1118,6 +1222,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
@@ -1131,12 +1236,18 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            dataFormatRegistry
         );
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
-        return new EngineConfigFactory(this.pluginsService, idxSettings);
+        return new EngineConfigFactory(
+            this.pluginsService,
+            idxSettings,
+            dataFormatRegistry.getDocumentLookupProvider(),
+            dataFormatRegistry.getDocumentMetadataResolver()
+        );
     }
 
     private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
@@ -1154,6 +1265,14 @@ public class IndicesService extends AbstractLifecycleComponent
         return null;
     }
 
+    private IndexerFactory getIndexerFactory(final IndexSettings idxSettings) {
+        if (idxSettings.isPluggableDataFormatEnabled()) {
+            return new DataFormatAwareIndexerFactory();
+        } else {
+            return new EngineBackedIndexerFactory(getEngineFactory(idxSettings));
+        }
+    }
+
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
         final IndexMetadata indexMetadata = idxSettings.getIndexMetadata();
         if (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
@@ -1164,7 +1283,11 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            return new IngestionEngineFactory(ingestionConsumerFactory);
+            IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
+                indexMetadata.getIngestionSource().getDecoderType()
+            );
+            decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
+            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
@@ -1207,7 +1330,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexModule indexModule = new IndexModule(
             idxSettings,
             analysisRegistry,
-            getEngineFactory(idxSettings),
+            getIndexerFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
             compositeDirectoryFactories,
@@ -1215,11 +1338,12 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             storeFactories,
-            fileCache,
-            compositeIndexSettings
+            nodeCacheService,
+            compositeIndexSettings,
+            dataFormatAwareStoreDirectoryFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, dataFormatRegistry);
     }
 
     /**
@@ -1238,6 +1362,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 metadata,
                 indicesQueryCache,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 emptyList()
             );
             closeables.add(() -> service.close("metadata verification", false));
@@ -2047,6 +2172,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Updates the native memory budget used by the IndexingMemoryController for flush/throttle decisions.
+     * Called when the indexing pool group's effective limit changes.
+     */
+    public void setNativeIndexBufferBytes(long bytes) {
+        indexingMemoryController.setNativeBufferBytes(bytes);
+    }
+
+    /**
      * Cache something calculated at the shard level.
      * @param shard the shard this item is part of
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
@@ -2369,6 +2502,13 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+    }
+
+    /**
+     * Sets the list of search stats contributors. Called by {@code Node} after plugin discovery.
+     */
+    public void setSearchStatsContributors(List<SearchStatsContributor> contributors) {
+        this.searchStatsContributors = contributors;
     }
 
     private boolean isFixedRefreshIntervalSchedulingEnabled() {

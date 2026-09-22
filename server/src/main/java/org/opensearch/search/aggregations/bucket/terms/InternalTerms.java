@@ -72,8 +72,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     implements
         Terms {
 
-    protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
-    protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
+    public static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
+    public static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
     /**
      * Base internal multi bucket
@@ -217,6 +217,10 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         @Override
         public int hashCode() {
             return Objects.hash(getClass(), docCount, docCountError, aggregations);
+        }
+
+        public DocValueFormat getFormat() {
+            return format;
         }
     }
 

@@ -1,0 +1,1 @@
+source=test_data | where query_string(['text'], 'test AND data') | fields text | head 3

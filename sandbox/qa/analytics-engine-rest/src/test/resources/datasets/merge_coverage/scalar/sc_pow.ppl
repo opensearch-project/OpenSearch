@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = pow(amount, 2) | sort id | fields id, r

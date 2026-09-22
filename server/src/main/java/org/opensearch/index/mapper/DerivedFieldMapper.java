@@ -239,6 +239,13 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        // Leaving this empty as the parsing should be handled via the Builder when root object is parsed.
+        // The context would not contain anything in this case since the DerivedFieldMapper is not indexed or stored.
+        throw new UnsupportedOperationException("should not be invoked");
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), this.indexAnalyzers, defaultDateFormatter, defaultIgnoreMalformed).init(this);
     }

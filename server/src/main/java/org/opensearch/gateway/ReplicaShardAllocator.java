@@ -64,8 +64,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
-
 /**
  * Allocates replica shards
  *
@@ -338,8 +336,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
                 Metadata metadata = allocation.metadata();
                 IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
-                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetadata.getSettings());
+                totalDelayMillis = UnassignedInfo.getNodeLeftDelayedTimeout(indexMetadata.getSettings(), allocation.clusterSettings())
+                    .getMillis();
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                    System.nanoTime(),
+                    indexMetadata.getSettings(),
+                    allocation.clusterSettings()
+                );
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);

@@ -1,0 +1,1 @@
+source=sales_data | stats count() as transactions, avg(sales_amount) as avg_sale by user | lookup user_lookup user | stats sum(transactions) as total_txns, avg(avg_sale) as dept_avg_sale by department | sort - total_txns

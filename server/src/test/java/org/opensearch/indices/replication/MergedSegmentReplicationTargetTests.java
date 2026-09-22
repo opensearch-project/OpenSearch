@@ -18,6 +18,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -66,7 +67,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         spyIndexShard = spy(indexShard);
 
         testSegmentInfos = spyIndexShard.store().readLastCommittedSegmentsInfo();

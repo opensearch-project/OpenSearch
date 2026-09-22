@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "category": {
+        "type": "keyword"
+      },
+      "region": {
+        "type": "keyword"
+      },
+      "amount": {
+        "type": "integer"
+      },
+      "price": {
+        "type": "double"
+      },
+      "label": {
+        "type": "keyword"
+      },
+      "flag": {
+        "type": "boolean"
+      },
+      "ts": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "opt": {
+        "type": "integer"
+      },
+      "payload": {
+        "type": "keyword"
+      },
+      "big_amount": {
+        "type": "long"
+      },
+      "client_ip": {
+        "type": "ip"
+      },
+      "opt_ts": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "@timestamp": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      }
+    }
+  }
+}

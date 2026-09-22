@@ -44,6 +44,8 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -239,8 +241,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // copy all sandbox modules if the distribution is a snapshot
 if (VersionProperties.isOpenSearchSnapshot()) {
   Properties sysProps = System.getProperties();
-  // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
+  // setting this property to true will include the sandbox modules in the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "false");
   if(sysProps != null && enableSandbox == "true") {
     tasks.withType(NoticeTask).configureEach {
       project(':sandbox:libs').subprojects.each { Project lib ->
@@ -269,6 +271,11 @@ copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 project(':test:external-modules').subprojects.each { Project testModule ->
   copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
+
+// Captured here, where the version-catalog accessor is in scope. Referencing `libs` inside the
+// configure {} block below would resolve it by implicit lookup in the parent project, which is
+// deprecated in Gradle 9.6 and an error in Gradle 10.
+def bouncycastleBundle = libs.bundles.bouncycastle
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
@@ -309,7 +316,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'bcFips'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'libsHeapProfCli', 'bcFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -318,6 +325,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
           attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
         }
+      }
+    }
+    create('agent') {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
       }
     }
   }
@@ -331,8 +345,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
+    libsHeapProfCli project(path: ':distribution:tools:heap-prof-cli')
 
-    bcFips libs.bundles.bouncycastle
+    bcFips bouncycastleBundle
+
+    agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }
 
   project.ext {
@@ -357,12 +374,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/fips-demo-installer-cli') {
           from(configurations.libsFipsInstallerCli)
         }
+        into('tools/heap-prof-cli') {
+          from(configurations.libsHeapProfCli)
+        }
       }
     }
 
     agentFiles = {
       copySpec {
-        from(project(':libs:agent-sm:agent').prepareAgent) {
+        from(configurations.agent) {
           include '**/*.jar'
           exclude '**/*-javadoc.jar'
           exclude '**/*-sources.jar'

@@ -59,6 +59,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -246,6 +247,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with GCS client initialization
         }
 
         @Override

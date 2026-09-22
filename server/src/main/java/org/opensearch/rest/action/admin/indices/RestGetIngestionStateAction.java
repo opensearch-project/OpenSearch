@@ -11,7 +11,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -31,9 +31,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 /**
  * Transport action to get ingestion state. This API supports pagination.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class RestGetIngestionStateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

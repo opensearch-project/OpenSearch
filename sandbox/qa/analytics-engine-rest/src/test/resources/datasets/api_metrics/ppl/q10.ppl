@@ -1,0 +1,1 @@
+source=api_metrics | where latency > 1000 | stats count() as high_latency_count, avg(latency) as avg_latency by endpoint | sort - high_latency_count

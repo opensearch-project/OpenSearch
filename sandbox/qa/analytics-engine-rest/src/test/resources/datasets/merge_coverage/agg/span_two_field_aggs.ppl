@@ -1,0 +1,1 @@
+source=%INDEX% | stats sum(price) as sp, avg(amount) as aa by span(amount, 5)

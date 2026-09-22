@@ -8,8 +8,10 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -18,9 +20,11 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
@@ -31,17 +35,28 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     public static final String RESILIENCY_MODE_STRING = "resiliency_mode";
     public static final String RESOURCE_LIMITS_STRING = "resource_limits";
+    public static final String SETTINGS_STRING = "settings";
     private ResiliencyMode resiliencyMode;
     private Map<ResourceType, Double> resourceLimits;
+    private Settings settings;
 
-    public static final List<String> acceptedFieldNames = List.of(RESILIENCY_MODE_STRING, RESOURCE_LIMITS_STRING);
+    public static final List<String> acceptedFieldNames = List.of(RESILIENCY_MODE_STRING, RESOURCE_LIMITS_STRING, SETTINGS_STRING);
 
     public MutableWorkloadGroupFragment() {}
 
+    /**
+     * Constructor for tests only. Production code should use the full constructor below.
+     */
     public MutableWorkloadGroupFragment(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits) {
+        this(resiliencyMode, resourceLimits, Settings.EMPTY);
+    }
+
+    public MutableWorkloadGroupFragment(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits, Settings settings) {
         validateResourceLimits(resourceLimits);
+        WorkloadGroupSearchSettings.validate(settings);
         this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
+        this.settings = settings != null ? settings : Settings.EMPTY;
     }
 
     public MutableWorkloadGroupFragment(StreamInput in) throws IOException {
@@ -52,6 +67,18 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
         String updatedResiliencyMode = in.readOptionalString();
         resiliencyMode = updatedResiliencyMode == null ? null : ResiliencyMode.fromName(updatedResiliencyMode);
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            settings = Settings.readOptionalSettingsFromStream(in);
+        } else if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            // Legacy 3.6 format: read and discard (experimental API, no backward compat guarantee)
+            boolean isNull = in.readBoolean();
+            if (isNull == false) {
+                in.readMap(StreamInput::readString, StreamInput::readString);
+            }
+            settings = Settings.EMPTY;
+        } else {
+            settings = Settings.EMPTY;
+        }
     }
 
     interface FieldParser<T> {
@@ -80,14 +107,26 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
     }
 
+    static class SearchSettingsParser implements FieldParser<Settings> {
+        public Settings parseField(XContentParser parser) throws IOException {
+            // "settings": null means clear all settings
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return Settings.EMPTY;
+            }
+            Settings settings = Settings.fromXContent(parser);
+            WorkloadGroupSearchSettings.validate(settings);
+            return settings;
+        }
+    }
+
     static class FieldParserFactory {
         static Optional<FieldParser<?>> fieldParserFor(String fieldName) {
-            if (fieldName.equals(RESOURCE_LIMITS_STRING)) {
-                return Optional.of(new ResourceLimitsParser());
-            } else if (fieldName.equals(RESILIENCY_MODE_STRING)) {
-                return Optional.of(new ResiliencyModeParser());
-            }
-            return Optional.empty();
+            return switch (fieldName) {
+                case RESILIENCY_MODE_STRING -> Optional.of(new ResiliencyModeParser());
+                case RESOURCE_LIMITS_STRING -> Optional.of(new ResourceLimitsParser());
+                case SETTINGS_STRING -> Optional.of(new SearchSettingsParser());
+                default -> Optional.empty();
+            };
         }
     }
 
@@ -111,23 +150,42 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         } catch (IOException e) {
             throw new IllegalStateException("writing error encountered for the field " + RESOURCE_LIMITS_STRING);
         }
+    }, SETTINGS_STRING, (builder) -> {
+        try {
+            builder.startObject(SETTINGS_STRING);
+            Settings s = settings != null ? settings : Settings.EMPTY;
+            Map<String, String> sortedSettingsMap = new TreeMap<>();
+            for (String key : s.keySet()) {
+                sortedSettingsMap.put(key, s.get(key));
+            }
+            for (Map.Entry<String, String> e : sortedSettingsMap.entrySet()) {
+                builder.field(e.getKey(), e.getValue());
+            }
+            builder.endObject();
+            return null;
+        } catch (IOException e) {
+            throw new IllegalStateException("writing error encountered for the field " + SETTINGS_STRING);
+        }
     });
 
     public static boolean shouldParse(String field) {
         return FieldParserFactory.fieldParserFor(field).isPresent();
     }
 
+    @SuppressWarnings("unchecked")
     public void parseField(XContentParser parser, String field) {
         FieldParserFactory.fieldParserFor(field).ifPresent(fieldParser -> {
             try {
                 Object value = fieldParser.parseField(parser);
-                if (field.equals(RESILIENCY_MODE_STRING)) {
-                    setResiliencyMode((ResiliencyMode) value);
-                } else if (field.equals(RESOURCE_LIMITS_STRING)) {
-                    setResourceLimits((Map<ResourceType, Double>) value);
+                switch (field) {
+                    case RESILIENCY_MODE_STRING -> setResiliencyMode((ResiliencyMode) value);
+                    case RESOURCE_LIMITS_STRING -> setResourceLimits((Map<ResourceType, Double>) value);
+                    case SETTINGS_STRING -> setSettings((Settings) value);
                 }
+            } catch (IllegalArgumentException e) {
+                throw e;
             } catch (IOException e) {
-                throw new IllegalArgumentException("parsing error encountered for the field " + field);
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "parsing error encountered for the field '%s'", field));
             }
         });
     }
@@ -145,6 +203,13 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
         }
         out.writeOptionalString(resiliencyMode == null ? null : resiliencyMode.getName());
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            Settings.writeOptionalSettingsToStream(settings, out);
+        } else if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            // Legacy 3.6 format: write empty map (experimental API, settings not preserved across versions)
+            out.writeBoolean(false);
+            out.writeMap(Map.of(), StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     public static void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {
@@ -167,12 +232,14 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MutableWorkloadGroupFragment that = (MutableWorkloadGroupFragment) o;
-        return Objects.equals(resiliencyMode, that.resiliencyMode) && Objects.equals(resourceLimits, that.resourceLimits);
+        return Objects.equals(resiliencyMode, that.resiliencyMode)
+            && Objects.equals(resourceLimits, that.resourceLimits)
+            && Objects.equals(settings, that.settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resiliencyMode, resourceLimits);
+        return Objects.hash(resiliencyMode, resourceLimits, settings);
     }
 
     public ResiliencyMode getResiliencyMode() {
@@ -181,6 +248,10 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     public Map<ResourceType, Double> getResourceLimits() {
         return resourceLimits;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     /**
@@ -214,12 +285,18 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
     }
 
-    public void setResiliencyMode(ResiliencyMode resiliencyMode) {
+    void setResiliencyMode(ResiliencyMode resiliencyMode) {
         this.resiliencyMode = resiliencyMode;
     }
 
-    public void setResourceLimits(Map<ResourceType, Double> resourceLimits) {
+    void setResourceLimits(Map<ResourceType, Double> resourceLimits) {
         validateResourceLimits(resourceLimits);
         this.resourceLimits = resourceLimits;
     }
+
+    void setSettings(Settings settings) {
+        WorkloadGroupSearchSettings.validate(settings);
+        this.settings = settings != null ? settings : Settings.EMPTY;
+    }
+
 }

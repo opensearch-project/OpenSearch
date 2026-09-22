@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.stacktrace` is not null | stats count() as exceptions_with_trace by service_name

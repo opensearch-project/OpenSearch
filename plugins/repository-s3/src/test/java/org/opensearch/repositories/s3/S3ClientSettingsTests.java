@@ -411,4 +411,26 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             .build();
         expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
     }
+
+    public void testRequestTimeoutAppliedToSyncClientOverrideConfiguration() {
+        S3Service.setDefaultAwsProfilePath();
+        // Default timeout (5 minutes)
+        final Map<String, S3ClientSettings> defaultSettings = S3ClientSettings.load(Settings.EMPTY, configPath());
+        ClientOverrideConfiguration defaultConfig = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(defaultSettings.get("default"), null)
+        );
+        assertTrue(defaultConfig.apiCallAttemptTimeout().isPresent());
+        assertThat(defaultConfig.apiCallAttemptTimeout().get().toMillis(), is((long) defaultSettings.get("default").requestTimeoutMillis));
+
+        // Custom timeout
+        final Map<String, S3ClientSettings> customSettings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.request_timeout", "2m").build(),
+            configPath()
+        );
+        ClientOverrideConfiguration customConfig = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(customSettings.get("default"), null)
+        );
+        assertTrue(customConfig.apiCallAttemptTimeout().isPresent());
+        assertThat(customConfig.apiCallAttemptTimeout().get().toMillis(), is(120_000L));
+    }
 }

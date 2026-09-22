@@ -148,7 +148,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             SB suggestionBuilder = randomTestBuilder();
             XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                xContentBuilder.prettyPrint();
+                xContentBuilder = xContentBuilder.prettyPrint();
             }
             xContentBuilder.startObject();
             suggestionBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);

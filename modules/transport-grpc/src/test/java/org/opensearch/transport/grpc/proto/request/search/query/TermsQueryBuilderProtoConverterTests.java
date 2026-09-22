@@ -8,8 +8,11 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.TermQuery;
 import org.opensearch.protobufs.TermsQuery;
 import org.opensearch.protobufs.TermsQueryField;
 import org.opensearch.test.OpenSearchTestCase;
@@ -30,6 +33,8 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         converter = new TermsQueryBuilderProtoConverter();
+        // Provide a registry so query-based terms lookups can convert their inner query
+        converter.setRegistry(new QueryBuilderProtoConverterRegistryImpl());
     }
 
     public void testGetHandledQueryCase() {
@@ -169,6 +174,55 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         assertEquals("ID should match", "test_id", termsQueryBuilder.termsLookup().id());
         assertEquals("Path should match", "test_path", termsQueryBuilder.termsLookup().path());
         assertEquals("Routing should match", "test_routing", termsQueryBuilder.termsLookup().routing());
+    }
+
+    public void testFromProtoWithTermsLookupById2() {
+        // protobufs 1.7.0: a lookup can identify the document via the id_2 field
+        org.opensearch.protobufs.TermsLookup lookup = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("test_index")
+            .setId2("lookup_id")
+            .setPath("test_path")
+            .build();
+
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setLookup(lookup).build();
+        TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("lookup_field", termsQueryField).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+        assertNotNull("TermsLookup should be set", termsQueryBuilder.termsLookup());
+        assertEquals("ID should come from id_2", "lookup_id", termsQueryBuilder.termsLookup().id());
+        assertEquals("Path should match", "test_path", termsQueryBuilder.termsLookup().path());
+        assertNull("Query should not be set", termsQueryBuilder.termsLookup().query());
+    }
+
+    public void testFromProtoWithTermsLookupByQuery() {
+        // protobufs 1.7.0: a lookup can identify documents via a nested query instead of an id
+        TermQuery termQuery = TermQuery.newBuilder().setField("color").setValue(FieldValue.newBuilder().setString("red").build()).build();
+        QueryContainer innerQuery = QueryContainer.newBuilder().setTerm(termQuery).build();
+
+        org.opensearch.protobufs.TermsLookup lookup = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("test_index")
+            .setPath("test_path")
+            .setQuery(innerQuery)
+            .build();
+
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setLookup(lookup).build();
+        TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("lookup_field", termsQueryField).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+        assertNotNull("TermsLookup should be set", termsQueryBuilder.termsLookup());
+        assertNull("ID should not be set for a query-based lookup", termsQueryBuilder.termsLookup().id());
+        assertEquals("Path should match", "test_path", termsQueryBuilder.termsLookup().path());
+        assertNotNull("Query should be set", termsQueryBuilder.termsLookup().query());
+        assertTrue("Query should be a TermQueryBuilder", termsQueryBuilder.termsLookup().query() instanceof TermQueryBuilder);
+        assertEquals("Query field should match", "color", ((TermQueryBuilder) termsQueryBuilder.termsLookup().query()).fieldName());
     }
 
     public void testFromProtoWithDefaultValues() {

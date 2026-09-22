@@ -24,7 +24,9 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.After;
 import org.junit.Assert;
@@ -161,7 +163,7 @@ public class IngestionEngineTests extends EngineTestCase {
         MapperService mapperService = createMapperService(mapping);
         engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null), clusterApplierService);
         try {
-            new IngestionEngine(engineConfig, consumerFactory);
+            new IngestionEngine(engineConfig, consumerFactory, mock(IngestService.class), XContentIngestionPayloadDecoder.Factory.INSTANCE);
             fail("Expected EngineException to be thrown");
         } catch (EngineException e) {
             assertEquals("failed to create engine", e.getMessage());
@@ -250,7 +252,12 @@ public class IngestionEngineTests extends EngineTestCase {
             );
             store.associateIndexWithNewTranslog(translogUuid);
         }
-        IngestionEngine ingestionEngine = new IngestionEngine(engineConfig, consumerFactory);
+        IngestionEngine ingestionEngine = new IngestionEngine(
+            engineConfig,
+            consumerFactory,
+            mock(IngestService.class),
+            XContentIngestionPayloadDecoder.Factory.INSTANCE
+        );
         ingestionEngine.start();
         return ingestionEngine;
     }
@@ -264,5 +271,38 @@ public class IngestionEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("index")) {
             return searcher.getIndexReader().numDocs() == numDocs;
         }
+    }
+
+    public void testConstructorWithNonNullIngestService() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Store testStore = createStore(indexSettings, newDirectory());
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+
+        EngineConfig config = config(indexSettings, testStore, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
+        MapperService mapperService = createMapperService(mapping);
+        config = config(config, () -> new DocumentMapperForType(mapperService.documentMapper(), null), clusterApplierService);
+
+        testStore.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+        final String translogUuid = Translog.createEmptyTranslog(
+            config.getTranslogConfig().getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+        testStore.associateIndexWithNewTranslog(translogUuid);
+
+        // non-null IngestService — engine should start with pipeline support available
+        IngestService ingestService = mock(IngestService.class);
+        IngestionEngine engine = new IngestionEngine(
+            config,
+            consumerFactory,
+            ingestService,
+            XContentIngestionPayloadDecoder.Factory.INSTANCE
+        );
+        engine.start();
+        waitForResults(engine, 2);
+        engine.close();
+        testStore.close();
     }
 }

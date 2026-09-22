@@ -1,0 +1,1 @@
+source=test_data | eval fmt = get_format(DATE, 'USA') | fields id, fmt | head 1

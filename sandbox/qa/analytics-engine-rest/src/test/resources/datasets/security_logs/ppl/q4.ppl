@@ -1,0 +1,1 @@
+source=security_logs | where message like "%Exception%" and severity="ERROR" | dedup session_id | stats count() as exception_count by event_type | sort - exception_count

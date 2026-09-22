@@ -196,7 +196,13 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
 
     @Override
     public int compareTo(ReplicationCheckpoint other) {
-        return this.isAheadOf(other) ? -1 : 1;
+        if (this.isAheadOf(other)) {
+            return -1;
+        }
+        if (other.isAheadOf(this)) {
+            return 1;
+        }
+        return 0;
     }
 
     @Override

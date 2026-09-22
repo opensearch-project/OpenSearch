@@ -1,0 +1,1 @@
+source=test_data | where match_bool_prefix(text, 'test') | fields text | head 3

@@ -1,0 +1,1 @@
+source=otel_logs | where `resource.k8s.namespace.name` = 'prod' | stats count() as c by serviceName | sort - c

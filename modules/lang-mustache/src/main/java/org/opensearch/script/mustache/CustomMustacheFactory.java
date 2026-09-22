@@ -32,8 +32,6 @@
 
 package org.opensearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -49,6 +47,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
@@ -63,6 +62,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
 
@@ -102,6 +103,12 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         } catch (IOException e) {
             throw new MustacheException("Unable to encode value", e);
         }
+    }
+
+    /** Partial templates ({{>name}}) are not supported. */
+    @Override
+    public Reader getReader(String resourceName) {
+        throw new MustacheException("Partial templates are not supported in OpenSearch Mustache scripts: [" + resourceName + "]");
     }
 
     static Encoder createEncoder(String mimeType) {
@@ -368,7 +375,9 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(JsonStringEncoder.getInstance().quoteAsString(s));
+            final StringBuilder sb = new StringBuilder();
+            JsonStringEncoder.getInstance().quoteAsString(s, sb);
+            writer.write(sb.toString());
         }
     }
 

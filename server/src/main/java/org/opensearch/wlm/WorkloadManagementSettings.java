@@ -14,6 +14,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 /**
  * Main class to declare Workload Management related settings
  */
@@ -93,6 +98,11 @@ public class WorkloadManagementSettings {
     public static final Setting<Double> NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = Setting.doubleSetting(
         NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
+        NodeLevelThresholdValidator.forRejectionThreshold(
+            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE,
+            () -> WorkloadManagementSettings.NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD
+        ),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -106,6 +116,11 @@ public class WorkloadManagementSettings {
     public static final Setting<Double> NODE_LEVEL_CPU_REJECTION_THRESHOLD = Setting.doubleSetting(
         NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+        NodeLevelThresholdValidator.forRejectionThreshold(
+            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE,
+            () -> WorkloadManagementSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD
+        ),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -119,6 +134,11 @@ public class WorkloadManagementSettings {
     public static final Setting<Double> NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+        NodeLevelThresholdValidator.forCancellationThreshold(
+            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME,
+            NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE,
+            () -> WorkloadManagementSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD
+        ),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -132,6 +152,11 @@ public class WorkloadManagementSettings {
     public static final Setting<Double> NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
+        NodeLevelThresholdValidator.forCancellationThreshold(
+            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME,
+            NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE,
+            () -> WorkloadManagementSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD
+        ),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -229,24 +254,12 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * Method to set the node level memory based cancellation threshold
+     * Method to set the node level memory based cancellation threshold. This runs as the settings-update consumer at
+     * apply time; the value has already been checked by {@link NodeLevelThresholdValidator} during settings-update
+     * validation, so the setter only assigns.
      * @param nodeLevelMemoryCancellationThreshold sets the new node level memory based cancellation threshold
-     * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
     public void setNodeLevelMemoryCancellationThreshold(Double nodeLevelMemoryCancellationThreshold) {
-        if (Double.compare(nodeLevelMemoryCancellationThreshold, NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
-            throw new IllegalArgumentException(
-                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.95 as it can result in a node drop"
-            );
-        }
-
-        ensureRejectionThresholdIsLessThanCancellation(
-            nodeLevelMemoryRejectionThreshold,
-            nodeLevelMemoryCancellationThreshold,
-            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
-            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
-        );
-
         this.nodeLevelMemoryCancellationThreshold = nodeLevelMemoryCancellationThreshold;
     }
 
@@ -259,24 +272,11 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * Method to set the node level cpu based cancellation threshold
+     * Method to set the node level cpu based cancellation threshold. The value is validated by
+     * {@link NodeLevelThresholdValidator} at settings-update validation time; the setter only assigns.
      * @param nodeLevelCpuCancellationThreshold sets the new node level cpu based cancellation threshold
-     * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
     public void setNodeLevelCpuCancellationThreshold(Double nodeLevelCpuCancellationThreshold) {
-        if (Double.compare(nodeLevelCpuCancellationThreshold, NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
-            throw new IllegalArgumentException(
-                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.95 as it can result in a node drop"
-            );
-        }
-
-        ensureRejectionThresholdIsLessThanCancellation(
-            nodeLevelCpuRejectionThreshold,
-            nodeLevelCpuCancellationThreshold,
-            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
-            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
-        );
-
         this.nodeLevelCpuCancellationThreshold = nodeLevelCpuCancellationThreshold;
     }
 
@@ -289,24 +289,11 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * Method to set the node level memory based rejection threshold
+     * Method to set the node level memory based rejection threshold. The value is validated by
+     * {@link NodeLevelThresholdValidator} at settings-update validation time; the setter only assigns.
      * @param nodeLevelMemoryRejectionThreshold sets the new memory based rejection threshold
-     * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
     public void setNodeLevelMemoryRejectionThreshold(Double nodeLevelMemoryRejectionThreshold) {
-        if (Double.compare(nodeLevelMemoryRejectionThreshold, NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
-            throw new IllegalArgumentException(
-                NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.90 as it can result in a node drop"
-            );
-        }
-
-        ensureRejectionThresholdIsLessThanCancellation(
-            nodeLevelMemoryRejectionThreshold,
-            nodeLevelMemoryCancellationThreshold,
-            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
-            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
-        );
-
         this.nodeLevelMemoryRejectionThreshold = nodeLevelMemoryRejectionThreshold;
     }
 
@@ -319,25 +306,39 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * Method to set the node level cpu based rejection threshold
+     * Method to set the node level cpu based rejection threshold. The value is validated by
+     * {@link NodeLevelThresholdValidator} at settings-update validation time; the setter only assigns.
      * @param nodeLevelCpuRejectionThreshold sets the new cpu based rejection threshold
-     * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
     public void setNodeLevelCpuRejectionThreshold(Double nodeLevelCpuRejectionThreshold) {
-        if (Double.compare(nodeLevelCpuRejectionThreshold, NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
+        this.nodeLevelCpuRejectionThreshold = nodeLevelCpuRejectionThreshold;
+    }
+
+    /**
+     * Method to validate that a threshold does not exceed its allowed maximum.
+     * @param thresholdValue the threshold value being set
+     * @param maxValue the maximum allowed value for this threshold
+     * @param thresholdSettingName name of the threshold setting
+     * @throws IllegalArgumentException if the value is greater than the allowed maximum
+     */
+    private static void ensureThresholdIsNotGreaterThanMax(Double thresholdValue, double maxValue, String thresholdSettingName) {
+        if (Double.compare(thresholdValue, maxValue) > 0) {
             throw new IllegalArgumentException(
-                NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME + " value cannot be greater than 0.90 as it can result in a node drop"
+                thresholdSettingName + " value cannot be greater than " + maxValue + " as it can result in a node drop"
             );
         }
+    }
 
-        ensureRejectionThresholdIsLessThanCancellation(
-            nodeLevelCpuRejectionThreshold,
-            nodeLevelCpuCancellationThreshold,
-            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
-            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
-        );
-
-        this.nodeLevelCpuRejectionThreshold = nodeLevelCpuRejectionThreshold;
+    /**
+     * Method to validate that a threshold is not negative.
+     * @param thresholdValue the threshold value being set
+     * @param thresholdSettingName name of the threshold setting
+     * @throws IllegalArgumentException if the value is less than 0
+     */
+    private static void ensureThresholdIsNotNegative(Double thresholdValue, String thresholdSettingName) {
+        if (Double.compare(thresholdValue, 0.0) < 0) {
+            throw new IllegalArgumentException(thresholdSettingName + " value cannot be negative");
+        }
     }
 
     /**
@@ -348,7 +349,7 @@ public class WorkloadManagementSettings {
      * @param cancellationThresholdSettingName name of the cancellation threshold setting
      * @throws IllegalArgumentException if cancellation threshold is less than rejection threshold
      */
-    private void ensureRejectionThresholdIsLessThanCancellation(
+    private static void ensureRejectionThresholdIsLessThanCancellation(
         Double nodeLevelRejectionThreshold,
         Double nodeLevelCancellationThreshold,
         String rejectionThresholdSettingName,
@@ -358,6 +359,86 @@ public class WorkloadManagementSettings {
             throw new IllegalArgumentException(
                 cancellationThresholdSettingName + " value should not be less than " + rejectionThresholdSettingName
             );
+        }
+    }
+
+    /**
+     * Validator shared by all four node-level threshold settings. Enforced at settings-update validation time so that an
+     * invalid value is rejected before the new cluster state is published, rather than throwing while the state is applied
+     * (which would destabilize the cluster-manager).
+     * <p>
+     * It enforces two invariants: the value is within {@code [0, max]} (single-setting), and the rejection threshold does
+     * not exceed the cancellation threshold (cross-setting). The paired setting is supplied lazily via a {@link Supplier}
+     * because the four settings reference each other and are initialized in sequence; resolving it inside the method
+     * bodies (which only run at validation time) avoids a forward-reference to a not-yet-initialized field.
+     */
+    static final class NodeLevelThresholdValidator implements Setting.Validator<Double> {
+        private final String settingName;
+        private final double maxValue;
+        private final Supplier<Setting<Double>> pairedSetting;
+        private final boolean isCancellation;
+
+        private NodeLevelThresholdValidator(
+            String settingName,
+            double maxValue,
+            Supplier<Setting<Double>> pairedSetting,
+            boolean isCancellation
+        ) {
+            this.settingName = settingName;
+            this.maxValue = maxValue;
+            this.pairedSetting = pairedSetting;
+            this.isCancellation = isCancellation;
+        }
+
+        /**
+         * Builds a validator for a cancellation threshold (the upper bound of the pair).
+         * @param settingName this cancellation setting's key
+         * @param maxValue the maximum allowed value for this cancellation threshold
+         * @param rejectionSetting supplier of the paired rejection setting
+         */
+        static NodeLevelThresholdValidator forCancellationThreshold(
+            String settingName,
+            double maxValue,
+            Supplier<Setting<Double>> rejectionSetting
+        ) {
+            return new NodeLevelThresholdValidator(settingName, maxValue, rejectionSetting, true);
+        }
+
+        /**
+         * Builds a validator for a rejection threshold (the lower bound of the pair).
+         * @param settingName this rejection setting's key
+         * @param maxValue the maximum allowed value for this rejection threshold
+         * @param cancellationSetting supplier of the paired cancellation setting
+         */
+        static NodeLevelThresholdValidator forRejectionThreshold(
+            String settingName,
+            double maxValue,
+            Supplier<Setting<Double>> cancellationSetting
+        ) {
+            return new NodeLevelThresholdValidator(settingName, maxValue, cancellationSetting, false);
+        }
+
+        @Override
+        public void validate(Double value) {
+            ensureThresholdIsNotNegative(value, settingName);
+            ensureThresholdIsNotGreaterThanMax(value, maxValue, settingName);
+        }
+
+        @Override
+        public void validate(Double value, Map<Setting<?>, Object> settings) {
+            final String pairedName = pairedSetting.get().getKey();
+            final Double pairedValue = (Double) settings.get(pairedSetting.get());
+            // Substitute this setting's incoming value for its own side of the rejection <= cancellation comparison.
+            if (isCancellation) {
+                ensureRejectionThresholdIsLessThanCancellation(pairedValue, value, pairedName, settingName);
+            } else {
+                ensureRejectionThresholdIsLessThanCancellation(value, pairedValue, settingName, pairedName);
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(pairedSetting.get()).iterator();
         }
     }
 }

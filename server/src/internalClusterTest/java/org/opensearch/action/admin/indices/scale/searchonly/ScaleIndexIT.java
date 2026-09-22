@@ -44,12 +44,20 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
     }
 
+    public void testFullLifecycleWithSearchReplica() throws Exception {
+        testFullLifecycle(1);
+    }
+
+    public void testFullLifecycleWithoutSearchReplicas() throws Exception {
+        testFullLifecycle(0);
+    }
+
     /**
      * Tests the full lifecycle of scaling an index down to search-only mode,
      * scaling search replicas while in search-only mode, verifying cluster health in
      * various states, and then scaling back up to normal mode.
      */
-    public void testFullSearchOnlyReplicasFullLifecycle() throws Exception {
+    private void testFullLifecycle(int searchOnlyReplica) throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         internalCluster().startSearchOnlyNodes(3);
@@ -58,7 +66,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, searchOnlyReplica)
             .build();
 
         createIndex(TEST_INDEX, specificSettings);
@@ -76,7 +84,15 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         assertBusy(() -> {
             SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
             assertHitCount(searchResponse, 10);
-            assertSearchNodeDocCounts(10, TEST_INDEX);
+            if (searchOnlyReplica > 0) {
+                assertSearchNodeDocCounts(10, TEST_INDEX);
+            } else {
+                try {
+                    client().prepareSearch(TEST_INDEX).setSize(0).get();
+                } catch (Exception e) {
+                    assertTrue(e.getMessage().contains("all shards failed"));
+                }
+            }
         }, 30, TimeUnit.SECONDS);
 
         ensureGreen(TEST_INDEX);
@@ -105,6 +121,16 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
                 );
             }
         }, 10, TimeUnit.SECONDS);
+
+        ensureGreen(TEST_INDEX);
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build())
+                .get()
+        );
 
         ensureGreen(TEST_INDEX);
 
@@ -177,34 +203,6 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             assertHitCount(finalResponse, 11);
             assertSearchNodeDocCounts(11, TEST_INDEX);
         });
-    }
-
-    /**
-     * Tests scaling down an index to search-only mode when there are no search replicas.
-     */
-    public void testScaleDownValidationWithoutSearchReplicas() {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
-        internalCluster().startSearchOnlyNode();
-
-        Settings specificSettings = Settings.builder()
-            .put(indexSettings())
-            .put(SETTING_NUMBER_OF_SHARDS, 2)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-
-        createIndex(TEST_INDEX, specificSettings);
-        ensureYellow(TEST_INDEX);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get()
-        );
-
-        assertTrue(
-            "Expected error about missing search replicas",
-            exception.getMessage().contains("Cannot scale to zero without search replicas for index:")
-        );
     }
 
     /**

@@ -1,0 +1,1 @@
+source=security_logs | stats count() as event_count by user | sort - event_count | head 5

@@ -211,6 +211,11 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
     }
