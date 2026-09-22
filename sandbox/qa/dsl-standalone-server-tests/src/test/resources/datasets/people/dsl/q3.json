@@ -1,0 +1,7 @@
+{
+  "query": {
+    "term": {
+      "city": "denver"
+    }
+  }
+}
