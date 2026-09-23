@@ -13,7 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.index.store.remote.file.AbstractBlockIndexInput;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -27,8 +29,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -263,6 +267,244 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
         }
     }
 
+    private SwitchableIndexInput newHotRemoteIndexInput() throws IOException {
+        return new SwitchableIndexInput(
+            "switchable",
+            FILE_NAME,
+            getFilePath(localDirectory, FILE_NAME),
+            getFilePathSwitchable(localDirectory, FILE_NAME),
+            fileCache,
+            localDirectory,
+            remoteSegmentStoreDirectory,
+            transferManager,
+            true,
+            true,
+            threadPool,
+            getPrefetchSettingsSupplier()
+        );
+    }
+
+    // replaces the local copy of FILE_NAME with `length` bytes all equal to `value`, so local reads are distinguishable from remote (zeros)
+    private void overwriteLocalFile(byte value, long length) throws IOException {
+        Files.deleteIfExists(getFilePath(localDirectory, FILE_NAME));
+        try (IndexOutput output = localDirectory.createOutput(FILE_NAME, IOContext.DEFAULT)) {
+            byte[] buffer = new byte[8192];
+            Arrays.fill(buffer, value);
+            long pos = 0;
+            while (pos < length) {
+                int size = (int) Math.min(buffer.length, length - pos);
+                output.writeBytes(buffer, 0, size);
+                pos += size;
+            }
+        }
+    }
+
+    public void testSwitchToLocal() throws IOException {
+        populateData();
+        long fileLength = remoteSegmentStoreDirectory.fileLength(FILE_NAME);
+        overwriteLocalFile((byte) 42, fileLength);
+
+        SwitchableIndexInput root = newHotRemoteIndexInput();
+        assertTrue(root.canSwitchToLocal());
+        assertNull(getFileCacheEntry(FILE_NAME_BLOCK));
+        // clone()/slice() seek the remote input, which already demands block 0
+        SwitchableIndexInput clone = root.clone();
+        SwitchableIndexInput slice = root.slice("slice", 1, fileLength - 1);
+        for (SwitchableIndexInput input : List.of(root, clone, slice)) {
+            assertTrue(input.hasSwitchedToRemote());
+            assertFalse(input.isStable());
+        }
+
+        // remote bytes are zeros
+        assertEquals(0, clone.readByte());
+        assertNotNull(getFileCacheEntry(FILE_NAME_BLOCK));
+        assertTrue(Files.exists(getFilePath(localDirectory, FILE_NAME_BLOCK)));
+        root.seek(3);
+        slice.seek(2);
+
+        root.switchToLocal();
+
+        for (SwitchableIndexInput input : List.of(root, clone, slice)) {
+            assertFalse(input.hasSwitchedToRemote());
+            assertTrue(input.isStable());
+            assertFalse(input.getUnderlyingIndexInput() instanceof OnDemandPrefetchBlockSnapshotIndexInput);
+        }
+        // file pointers survive the switch and reads now come from the local file
+        assertEquals(3, root.getFilePointer());
+        assertEquals(1, clone.getFilePointer());
+        assertEquals(2, slice.getFilePointer());
+        assertEquals(42, root.readByte());
+        assertEquals(42, clone.readByte());
+        assertEquals(42, slice.readByte());
+        assertEquals(fileLength, root.length());
+        assertEquals(fileLength, clone.length());
+        assertEquals(fileLength - 1, slice.length());
+        // block entry and block file are gone
+        assertNull(getFileCacheEntry(FILE_NAME_BLOCK));
+        assertFalse(Files.exists(getFilePath(localDirectory, FILE_NAME_BLOCK)));
+
+        // clones taken after promotion are local and stable from the start
+        SwitchableIndexInput lateClone = root.clone();
+        assertFalse(lateClone.hasSwitchedToRemote());
+        assertTrue(lateClone.isStable());
+        assertEquals(root.getFilePointer(), lateClone.getFilePointer());
+        assertEquals(42, lateClone.readByte());
+
+        // idempotent
+        root.switchToLocal();
+        assertEquals(4, root.getFilePointer());
+        assertEquals(42, root.readByte());
+
+        lateClone.close();
+        slice.close();
+        clone.close();
+        root.close();
+        root.switchToLocal(); // no-op on a closed input
+    }
+
+    public void testSwitchDirectionIsFixedAtConstruction() throws IOException {
+        populateData();
+        // warm-style input: remote is terminal, switchToLocal is refused
+        SwitchableIndexInput warm = new SwitchableIndexInput(
+            "switchable",
+            FILE_NAME,
+            getFilePath(localDirectory, FILE_NAME),
+            getFilePathSwitchable(localDirectory, FILE_NAME),
+            fileCache,
+            localDirectory,
+            remoteSegmentStoreDirectory,
+            transferManager,
+            true,
+            threadPool,
+            getPrefetchSettingsSupplier()
+        );
+        assertFalse(warm.canSwitchToLocal());
+        assertTrue(warm.isStable());
+        expectThrows(IllegalStateException.class, warm::switchToLocal);
+        assertTrue(warm.hasSwitchedToRemote());
+        warm.close();
+
+        // hot-style input: local is terminal, switchToRemote is refused, and switchToLocal is root-only
+        SwitchableIndexInput hot = newHotRemoteIndexInput();
+        SwitchableIndexInput hotClone = hot.clone();
+        expectThrows(IllegalStateException.class, hot::switchToRemote);
+        expectThrows(IllegalStateException.class, hotClone::switchToLocal);
+        assertTrue(hot.hasSwitchedToRemote());
+        assertTrue(hotClone.hasSwitchedToRemote());
+        hotClone.close();
+        hot.close();
+    }
+
+    public void testSwitchToLocalRequiresCompleteLocalFile() throws IOException {
+        populateData();
+        long fileLength = remoteSegmentStoreDirectory.fileLength(FILE_NAME);
+        SwitchableIndexInput root = newHotRemoteIndexInput();
+        SwitchableIndexInput clone = root.clone();
+        assertEquals(0, clone.readByte());
+
+        localDirectory.deleteFile(FILE_NAME);
+        IllegalStateException missing = expectThrows(IllegalStateException.class, root::switchToLocal);
+        assertTrue(missing.getMessage(), missing.getMessage().contains("not present locally"));
+
+        overwriteLocalFile((byte) 42, fileLength - 1);
+        IllegalStateException truncated = expectThrows(IllegalStateException.class, root::switchToLocal);
+        assertTrue(truncated.getMessage(), truncated.getMessage().contains("local length"));
+
+        // still remote, still readable, block entry untouched
+        assertTrue(root.hasSwitchedToRemote());
+        assertTrue(clone.hasSwitchedToRemote());
+        assertEquals(0, clone.readByte());
+        assertNotNull(getFileCacheEntry(FILE_NAME_BLOCK));
+
+        overwriteLocalFile((byte) 42, fileLength);
+        root.switchToLocal();
+        assertFalse(clone.hasSwitchedToRemote());
+        assertEquals(42, clone.readByte());
+        clone.close();
+        root.close();
+    }
+
+    public void testStableFollowsTerminalState() throws IOException {
+        // hot: a locally written file that can switch to local is already terminal
+        SwitchableIndexInput hotLocal = new SwitchableIndexInput(
+            "switchable",
+            FILE_NAME,
+            getFilePath(localDirectory, FILE_NAME),
+            getFilePathSwitchable(localDirectory, FILE_NAME),
+            fileCache,
+            localDirectory,
+            remoteSegmentStoreDirectory,
+            transferManager,
+            false,
+            true,
+            threadPool,
+            getPrefetchSettingsSupplier()
+        );
+        assertFalse(hotLocal.hasSwitchedToRemote());
+        assertTrue(hotLocal.isStable());
+        hotLocal.close();
+        uploadToRemote(FILE_NAME);
+
+        // warm: local start is not stable, remote (after switchToRemote) is
+        SwitchableIndexInput warm = new SwitchableIndexInput(
+            "switchable",
+            FILE_NAME,
+            getFilePath(localDirectory, FILE_NAME),
+            getFilePathSwitchable(localDirectory, FILE_NAME),
+            fileCache,
+            localDirectory,
+            remoteSegmentStoreDirectory,
+            transferManager,
+            false,
+            threadPool,
+            getPrefetchSettingsSupplier()
+        );
+        assertFalse(warm.isStable());
+        warm.switchToRemote();
+        assertTrue(warm.isStable());
+        warm.close();
+    }
+
+    public void testBlockCount() {
+        long blockSize = 1L << AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE_SHIFT;
+        assertEquals(0, SwitchableIndexInput.blockCount(0));
+        assertEquals(1, SwitchableIndexInput.blockCount(1));
+        assertEquals(1, SwitchableIndexInput.blockCount(blockSize));
+        assertEquals(2, SwitchableIndexInput.blockCount(blockSize + 1));
+        assertEquals(3, SwitchableIndexInput.blockCount(3 * blockSize));
+        assertEquals(4, SwitchableIndexInput.blockCount(3 * blockSize + 1));
+    }
+
+    public void testConcurrencySwitchToLocal() throws IOException, InterruptedException {
+        populateData();
+        MockSwitchableIndexInput root = getMockSwitchableIndexInput(true, true);
+        SwitchableIndexInput clone1 = root.clone();
+        SwitchableIndexInput clone2 = clone1.clone();
+        List<SwitchableIndexInput> indexInputs = List.of(clone1, clone2);
+        List<Consumer<SwitchableIndexInput>> operations = getOperationsToExecute(indexInput -> {
+            try {
+                root.switchToLocal();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        final ExecutorService testRunner = Executors.newFixedThreadPool(8);
+        try {
+            InjectableLock objectLock = root.getObjectLock();
+            runOperationsConcurrently(testRunner, operations, indexInputs, 10, true);
+            assertFalse(root.hasSwitchedToRemote());
+            assertFalse(clone1.hasSwitchedToRemote());
+            assertFalse(clone2.hasSwitchedToRemote());
+            assertNull(getFileCacheEntry(FILE_NAME_BLOCK));
+            // switchToLocal always takes the root's object lock even once local, so a delayed lock stalls the batch
+            objectLock.setDelayEnabled(true);
+            runOperationsConcurrently(testRunner, operations, indexInputs, 10, false);
+            objectLock.setDelayEnabled(false);
+        } finally {
+            assertTrue(terminate(testRunner));
+        }
+    }
+
     private void testCloneSliceRefCounting(SwitchableIndexInput switchableIndexInput, String fileName) throws IOException {
         IndexInput clonedIndexInput = switchableIndexInput.clone();
         IndexInput slicedIndexInput = switchableIndexInput.slice("slice", 0, switchableIndexInput.length());
@@ -311,6 +553,10 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
     }
 
     private MockSwitchableIndexInput getMockSwitchableIndexInput() throws IOException {
+        return getMockSwitchableIndexInput(false, false);
+    }
+
+    private MockSwitchableIndexInput getMockSwitchableIndexInput(boolean cacheFromRemote, boolean canSwitchToLocal) throws IOException {
         return new MockSwitchableIndexInput(
             "switchable",
             FILE_NAME,
@@ -318,7 +564,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             localDirectory,
             remoteSegmentStoreDirectory,
             transferManager,
-            false,
+            cacheFromRemote,
+            canSwitchToLocal,
             threadPool
         );
     }
@@ -342,17 +589,21 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
     }
 
     private List<Consumer<SwitchableIndexInput>> getOperationsToExecute() {
-        List<Consumer<SwitchableIndexInput>> operations = new ArrayList<>();
-        operations.add(SwitchableIndexInput::getFilePointer);
-        operations.add(SwitchableIndexInput::clone);
-        operations.add(SwitchableIndexInput::length);
-        operations.add(indexInput -> {
+        return getOperationsToExecute(indexInput -> {
             try {
                 indexInput.switchToRemote();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private List<Consumer<SwitchableIndexInput>> getOperationsToExecute(Consumer<SwitchableIndexInput> switchOperation) {
+        List<Consumer<SwitchableIndexInput>> operations = new ArrayList<>();
+        operations.add(SwitchableIndexInput::getFilePointer);
+        operations.add(SwitchableIndexInput::clone);
+        operations.add(SwitchableIndexInput::length);
+        operations.add(switchOperation);
         operations.add(indexInput -> {
             try {
                 indexInput.readByte();
@@ -393,6 +644,7 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             org.opensearch.index.store.RemoteSegmentStoreDirectory remoteDirectory,
             TransferManager transferManager,
             boolean cacheFromRemote,
+            boolean canSwitchToLocal,
             ThreadPool threadPool
         ) throws IOException {
             super(
@@ -405,6 +657,7 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
                 remoteDirectory,
                 transferManager,
                 cacheFromRemote,
+                canSwitchToLocal,
                 threadPool,
                 MOCK_PREFETCH_SETTINGS_SUPPLIER
             );

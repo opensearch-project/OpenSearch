@@ -123,6 +123,37 @@ public class NodeTests extends OpenSearchTestCase {
         return plugins;
     }
 
+    public void testRemoteStoreHydrationCacheEnabled() {
+        assertFalse(Node.isRemoteStoreHydrationCacheEnabled(Settings.EMPTY));
+        assertFalse(
+            Node.isRemoteStoreHydrationCacheEnabled(
+                Settings.builder().put(Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey(), "0%").build()
+            )
+        );
+        assertFalse(
+            Node.isRemoteStoreHydrationCacheEnabled(
+                Settings.builder().put(Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey(), "0b").build()
+            )
+        );
+        assertTrue(
+            Node.isRemoteStoreHydrationCacheEnabled(
+                Settings.builder().put(Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey(), "10%").build()
+            )
+        );
+        assertTrue(
+            Node.isRemoteStoreHydrationCacheEnabled(
+                Settings.builder().put(Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey(), "50gb").build()
+            )
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.get(
+                Settings.builder().put(Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING.getKey(), "lots").build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("node.remote_store.hydration_cache.size"));
+    }
+
     public void testLoadPluginBootstrapChecks() throws IOException {
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
         Settings.Builder settings = baseSettings();

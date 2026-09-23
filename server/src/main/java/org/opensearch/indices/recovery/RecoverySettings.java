@@ -153,6 +153,30 @@ public class RecoverySettings {
     );
 
     /**
+     * Maximum number of segment files a node hydrates concurrently (across all shards) during tiered remote-store
+     * recovery. Hydration shares the {@code remote_recovery} thread pool and the remote-store stream and byte-rate
+     * limits with regular recovery; this bound keeps background hydration from starving foreground block fetches.
+     */
+    public static final Setting<Integer> INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING = Setting.intSetting(
+        "indices.remote_store.hydration.max_concurrent_files",
+        2,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * When true, files that are inputs to a running or pending merge are moved to the front of the hydration queue,
+     * so merges stop reading through remote blocks as early as possible.
+     */
+    public static final Setting<Boolean> INDICES_REMOTE_STORE_HYDRATION_MERGE_INPUT_PRIORITY_SETTING = Setting.boolSetting(
+        "indices.remote_store.hydration.merge_input_priority",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * how long to wait before retrying after issues cause by cluster state syncing between nodes
      * i.e., local node is not yet known on remote node, remote shard not yet started etc.
      */
@@ -274,12 +298,16 @@ public class RecoverySettings {
 
     private volatile boolean isTranslogConcurrentRecoveryEnable;
     private volatile int translogConcurrentRecoveryBatchSize;
+    private volatile int hydrationMaxConcurrentFiles;
+    private volatile boolean hydrationMergeInputPriority;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
         this.maxConcurrentRemoteStoreStreams = INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING.get(settings);
+        this.hydrationMaxConcurrentFiles = INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING.get(settings);
+        this.hydrationMergeInputPriority = INDICES_REMOTE_STORE_HYDRATION_MERGE_INPUT_PRIORITY_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the cluster-manager time to remove a faulty node
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
@@ -335,6 +363,14 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
             this::setMaxConcurrentRemoteStoreStreams
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING,
+            this::setHydrationMaxConcurrentFiles
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_REMOTE_STORE_HYDRATION_MERGE_INPUT_PRIORITY_SETTING,
+            this::setHydrationMergeInputPriority
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
@@ -514,6 +550,22 @@ public class RecoverySettings {
 
     private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
+    public int getHydrationMaxConcurrentFiles() {
+        return this.hydrationMaxConcurrentFiles;
+    }
+
+    private void setHydrationMaxConcurrentFiles(int hydrationMaxConcurrentFiles) {
+        this.hydrationMaxConcurrentFiles = hydrationMaxConcurrentFiles;
+    }
+
+    public boolean isHydrationMergeInputPriority() {
+        return this.hydrationMergeInputPriority;
+    }
+
+    private void setHydrationMergeInputPriority(boolean hydrationMergeInputPriority) {
+        this.hydrationMergeInputPriority = hydrationMergeInputPriority;
     }
 
     public boolean isMergedSegmentReplicationWarmerEnabled() {

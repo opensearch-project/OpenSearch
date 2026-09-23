@@ -351,6 +351,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
+                RecoverySettings.INDICES_REMOTE_STORE_HYDRATION_MAX_CONCURRENT_FILES_SETTING,
+                RecoverySettings.INDICES_REMOTE_STORE_HYDRATION_MERGE_INPUT_PRIORITY_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
                 RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE,
@@ -784,6 +786,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
+                Node.NODE_REMOTE_STORE_HYDRATION_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Tiered Storage

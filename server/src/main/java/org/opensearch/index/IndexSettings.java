@@ -983,6 +983,8 @@ public final class IndexSettings {
     private final boolean isRemoteStoreFencingEnabled;
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
+    // Hot remote-store index that opens its engine over block-served reads and hydrates files in the background.
+    private final boolean isTieredRecoveryEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile ByteSizeValue flushOnUncommittedSegmentsThresholdSize;
     private volatile String remoteStoreTranslogRepository;
@@ -1213,6 +1215,7 @@ public final class IndexSettings {
         isRemoteStoreFencingEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
+        isTieredRecoveryEnabled = settings.getAsBoolean(IndexModule.INDEX_REMOTE_STORE_TIERED_RECOVERY_ENABLED_SETTING.getKey(), false);
 
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -1702,6 +1705,15 @@ public final class IndexSettings {
      */
     public boolean isWarmIndex() {
         return isWarmIndex;
+    }
+
+    /**
+     * Returns true if {@code index.remote_store.tiered_recovery.enabled} is set on this index. This is the raw
+     * opt-in; the cross-setting preconditions (remote store enabled, not a warm index, hydration cache present
+     * on the node) are validated at shard creation in {@link IndexService}.
+     */
+    public boolean isTieredRecoveryEnabled() {
+        return isTieredRecoveryEnabled;
     }
 
     /**
