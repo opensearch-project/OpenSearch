@@ -1607,7 +1607,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        private void canonicalizeMappingsInPlace() {
+        private void deduplicateMappingsInPlace() {
             final Map<MappingMetadata, MappingMetadata> pool = new HashMap<>();
 
             for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
@@ -1617,9 +1617,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     continue;
                 }
 
-                final MappingMetadata canonicalMapping = pool.putIfAbsent(mapping, mapping);
-                if (canonicalMapping != null && canonicalMapping != mapping) {
-                    entry.setValue(IndexMetadata.builder(indexMetadata).putMapping(canonicalMapping).build());
+                final MappingMetadata sharedMapping = pool.putIfAbsent(mapping, mapping);
+                if (sharedMapping != null && sharedMapping != mapping) {
+                    entry.setValue(IndexMetadata.builder(indexMetadata).putMapping(sharedMapping).build());
                 }
             }
         }
@@ -1632,7 +1632,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             buildSystemTemplatesLookup();
 
-            canonicalizeMappingsInPlace();
+            deduplicateMappingsInPlace();
 
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)

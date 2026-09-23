@@ -43,7 +43,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
             .build();
     }
 
-    public void testCanonicalizesIdenticalMappings() throws Exception {
+    public void testDeduplicatesIdenticalMappings() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
             .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
@@ -52,7 +52,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertSame(metadata.index("index-1").mapping(), metadata.index("index-2").mapping());
     }
 
-    public void testDoesNotCanonicalizeDifferentMappings() throws Exception {
+    public void testDoesNotDeduplicateDifferentMappings() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
             .put(newIndexWithMapping("index-2", "{\"properties\":{\"score\":{\"type\":\"float\"}}}"), false)
@@ -61,7 +61,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertNotSame(metadata.index("index-1").mapping(), metadata.index("index-2").mapping());
     }
 
-    public void testDoesNotRebuildCanonicalizedIndices() throws Exception {
+    public void testDoesNotRebuildDeduplicatedIndices() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
             .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
@@ -73,7 +73,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertSame(metadata.index("index-2"), rebuiltMetadata.index("index-2"));
     }
 
-    public void testCanonicalizationPreservesIndexMetadata() throws Exception {
+    public void testDeduplicationPreservesIndexMetadata() throws Exception {
         IndexMetadata index1 = newIndexWithMapping("index-1", MAPPING_JSON);
         IndexMetadata index2 = IndexMetadata.builder(newIndexWithMapping("index-2", MAPPING_JSON))
             .version(7)
@@ -92,7 +92,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertEquals(17, metadata.index("index-2").getAliasesVersion());
     }
 
-    public void testDeletingIndexRetainsCanonicalMapping() throws Exception {
+    public void testDeletingIndexRetainsSharedMapping() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
             .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
@@ -105,7 +105,7 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertNotNull(afterDeletion.index("index-2").mapping());
     }
 
-    public void testReadCanonicalizesMappings() throws Exception {
+    public void testReadDeduplicatesMappings() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
             .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
