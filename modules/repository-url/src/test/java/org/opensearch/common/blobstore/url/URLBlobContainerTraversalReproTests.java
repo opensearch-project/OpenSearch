@@ -14,17 +14,23 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
- * Exercises URL blob path resolution over a {@code file://} base.
+ * Exercises URL blob path resolution over {@code file:} and {@code jar:} bases.
  *
  * <p>A repository-derived blob name is handed to {@link URLBlobContainer#readBlob(String)}, which
- * resolves it against the repository base URL. The test logs the outcome for both in-root and
- * out-of-root paths so path validation behavior can be inspected directly.
+ * resolves it against the repository base URL.
  */
 @SuppressForbidden(reason = "uses file:// URLs and local files to exercise blob path resolution")
 public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
@@ -43,32 +49,57 @@ public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
         URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, repoBase.toUri().toURL());
         BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath());
 
-        logger.info("base URL = {}", blobStore.path());
-
-        // 1) Control: legitimate in-root read must keep working.
         try (InputStream in = container.readBlob("legit.dat")) {
-            String got = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            logger.info("in-root readBlob(legit.dat) -> RETURNED [{}]", got);
-        } catch (Exception e) {
-            logger.info("in-root readBlob(legit.dat) -> THREW {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            assertEquals("in-root-blob", new String(in.readAllBytes(), StandardCharsets.UTF_8));
         }
 
-        // 2) Out-of-root traversal: a ../ path resolves outside the repository root without validation.
-        String traversal = "../secret.dat";
-        try (InputStream in = container.readBlob(traversal)) {
-            String got = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            logger.info("out-of-root readBlob({}) -> RETURNED [{}]", traversal, got);
-        } catch (Exception e) {
-            logger.info("out-of-root readBlob({}) -> THREW {}: {}", traversal, e.getClass().getSimpleName(), e.getMessage());
+        for (String invalidBlobName : List.of("../secret.dat", "../does-not-exist.dat", "//localhost/secret.dat")) {
+            IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
+            assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
+        }
+    }
+
+    public void testFileUrlReadsSafePercentEncodedBlobNames() throws Exception {
+        Path repoBase = createTempDir();
+        Files.writeString(repoBase.resolve("name with space.dat"), "space", StandardCharsets.UTF_8);
+        Files.writeString(repoBase.resolve("caf\u00E9.dat"), "unicode", StandardCharsets.UTF_8);
+        Files.writeString(repoBase.resolve("plus+name.dat"), "plus", StandardCharsets.UTF_8);
+
+        URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, repoBase.toUri().toURL());
+        BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath());
+
+        assertBlobContents(container, "name%20with%20space.dat", "space");
+        assertBlobContents(container, "caf%C3%A9.dat", "unicode");
+        assertBlobContents(container, "caf%c3%a9.dat", "unicode");
+        assertBlobContents(container, "plus+name.dat", "plus");
+
+        for (String invalidBlobName : List.of("%2e%2e%2Fsecret.dat", "%252e%252e%252Fsecret.dat")) {
+            IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
+            assertThat(exception.getMessage(), containsString("invalid blob name"));
+        }
+    }
+
+    public void testJarUrlReadsBlobWithinRoot() throws Exception {
+        Path jarPath = createTempDir().resolve("repository.jar");
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(jarPath))) {
+            writeEntry(output, "repository/legit.dat", "root");
+            writeEntry(output, "repository/nested/legit.dat", "nested");
         }
 
-        // 3) Existing and missing out-of-root paths.
-        String missing = "../does-not-exist.dat";
-        try (InputStream in = container.readBlob(missing)) {
-            in.readAllBytes();
-            logger.info("oracle readBlob({}) -> RETURNED (unexpected)", missing);
-        } catch (Exception e) {
-            logger.info("oracle readBlob({}) -> THREW {}: {}", missing, e.getClass().getSimpleName(), e.getMessage());
+        URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, URI.create("jar:" + jarPath.toUri() + "!/repository").toURL());
+        assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath()), "legit.dat", "root");
+        assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath().add("nested")), "legit.dat", "nested");
+    }
+
+    private static void assertBlobContents(BlobContainer container, String blobName, String expected) throws IOException {
+        try (InputStream in = container.readBlob(blobName)) {
+            assertEquals(expected, new String(in.readAllBytes(), StandardCharsets.UTF_8));
         }
+    }
+
+    private static void writeEntry(ZipOutputStream output, String name, String contents) throws IOException {
+        output.putNextEntry(new ZipEntry(name));
+        output.write(contents.getBytes(StandardCharsets.UTF_8));
+        output.closeEntry();
     }
 }

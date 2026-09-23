@@ -10,6 +10,8 @@ package org.opensearch.repositories.url;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.repository.url.URLRepositoryModulePlugin;
 import org.opensearch.plugins.Plugin;
@@ -104,6 +106,23 @@ public class URLRepositoryPathValidationIT extends OpenSearchIntegTestCase {
                 }
             });
             assertThat(exception.getMessage(), containsString("invalid blob name"));
+        }
+
+        // Repository metadata contributes path elements such as index IDs. Those elements must not
+        // change the configured root path, scheme, or authority before the final blob is resolved.
+        final List<String> escapingPathElements = List.of(
+            "../../" + sentinelName,
+            "%2e%2e",
+            "//localhost/" + sentinelName,
+            "http://localhost/" + sentinelName
+        );
+        for (String escapingPathElement : escapingPathElements) {
+            final BlobPath blobPath = BlobPath.cleanPath().add("indices").add(escapingPathElement);
+            final BlobStoreException exception = expectThrows(
+                BlobStoreException.class,
+                () -> repository.blobStore().blobContainer(blobPath)
+            );
+            assertThat(exception.getCause().getMessage(), containsString("invalid URL path"));
         }
     }
 }
