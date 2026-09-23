@@ -615,20 +615,25 @@ final class DocumentParser {
             context = nestedContext(context, mapper);
         }
 
-        // if we are at the end of the previous object, advance
-        if (token == XContentParser.Token.END_OBJECT) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
-            token = parser.nextToken();
-        }
-
-        innerParseObject(context, mapper, parser, currentFieldName, token);
-
-        // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
+        try {
+            // if we are at the end of the previous object, advance
+            if (token == XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+                token = parser.nextToken();
+            }
+            innerParseObject(context, mapper, parser, currentFieldName, token);
+        } finally {
+            if (nested.isNested()) {
+                nested(context, nested);
+                if (context.indexSettings().isPluggableDataFormatEnabled()) {
+                    // Close the element opened by startNestedElement in nestedContext. Emitted from a
+                    // finally so the pairing holds even when parsing the element fails midway.
+                    context.documentInput().endNestedElement();
+                }
+            }
         }
     }
 
@@ -857,6 +862,11 @@ final class DocumentParser {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        } else if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Under a pluggable data format, IdFieldMapper.preParse routes _id into the
+            // DocumentInput (not context.doc()), so the classic Lucene _id field is legitimately
+            // absent on the parent Document here. The real nested signal is the startNestedElement
+            // boundary emitted below, not this vestigial vanilla Document tree.
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -865,6 +875,13 @@ final class DocumentParser {
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
         nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getIndexVersionCreated(), mapper.nestedTypePath()));
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Pluggable data format: signal the per-element boundary explicitly on the DocumentInput.
+            // The matching endNestedElement() is emitted by parseObjectOrNested's finally, so the pair
+            // brackets exactly the element's fields. fullPath() (not nestedTypePath(), "__"-prefixed
+            // on pre-2.0 indices) keeps the signalled path a clean dotted path.
+            context.documentInput().startNestedElement(mapper.fullPath());
+        }
         return context;
     }
 
@@ -872,7 +889,14 @@ final class DocumentParser {
      * Handles ObjectMapper parsing with disable_objects logic.
      */
     private static void parseObjectMapper(ParseContext context, ObjectMapper objectMapper) throws IOException {
-        if (objectMapper.disableObjects()) {
+        if (objectMapper.nested().isNested()) {
+            // A nested mapper must go through parseObjectOrNested even when disable_objects is set, so the
+            // per-element child document is still created. disable_objects only governs how the leaf names
+            // inside the element are resolved (literal dotted names), which innerParseObject already honors
+            // via resolvePathForParsing. Checking disableObjects first would silently drop the nested
+            // declaration and flatten the array into multi-valued root fields, losing element correlation.
+            parseObjectOrNested(context, objectMapper);
+        } else if (objectMapper.disableObjects()) {
             parseDisableObjectsFields(context, objectMapper);
         } else {
             parseObjectOrNested(context, objectMapper);
