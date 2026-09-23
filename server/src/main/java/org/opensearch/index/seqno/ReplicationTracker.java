@@ -1259,7 +1259,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     // only after the copy becomes active so that recovery finalization time is not reported as replication lag.
     private boolean shouldSkipReplicationLag(String allocationId) {
         final ShardRouting shardRouting = routingTable.getByAllocationId(allocationId);
-        return shardRouting == null || shardRouting.active() == false || shardRouting.primary() || shardRouting.isSearchOnly();
+        // Missing routing entries are filtered by getUnavailableInSyncShards() before this method is called.
+        return shardRouting != null && (shardRouting.active() == false || shardRouting.primary() || shardRouting.isSearchOnly());
     }
 
     private void createReplicationLagTimers() {
