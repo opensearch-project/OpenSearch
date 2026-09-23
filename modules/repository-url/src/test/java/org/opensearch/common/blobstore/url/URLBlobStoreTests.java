@@ -51,6 +51,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
 
 @SuppressForbidden(reason = "use http server")
 public class URLBlobStoreTests extends OpenSearchTestCase {
@@ -69,14 +70,20 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
 
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
 
-        httpServer.createContext("/indices/" + blobName, (s) -> {
-            s.sendResponseHeaders(200, message.length);
-            OutputStream responseBody = s.getResponseBody();
-            responseBody.write(message);
-            responseBody.close();
-        });
+        createContext("/indices/" + blobName);
+        createContext("/indices/nested/" + blobName);
+        createContext("/" + blobName);
 
         httpServer.start();
+    }
+
+    private static void createContext(String path) {
+        httpServer.createContext(path, (exchange) -> {
+            exchange.sendResponseHeaders(200, message.length);
+            try (OutputStream responseBody = exchange.getResponseBody()) {
+                responseBody.write(message);
+            }
+        });
     }
 
     @AfterClass
@@ -99,6 +106,33 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
             int read = stream.read(bytes);
             assertEquals(message.length, read);
             assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreCanReadNestedBlob() throws IOException {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        try (InputStream stream = container.readBlob("nested/" + blobName)) {
+            byte[] bytes = new byte[message.length];
+            int read = stream.read(bytes);
+            assertEquals(message.length, read);
+            assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreRejectsPathTraversal() {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        List<String> invalidBlobNames = List.of(
+            "../" + blobName,
+            "..%2F" + blobName,
+            "../" + blobName + "#ignored",
+            "/" + blobName,
+            "http://localhost:6001/" + blobName,
+            "..\\\\" + blobName
+        );
+
+        for (String invalidBlobName : invalidBlobNames) {
+            IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
+            assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
         }
     }
 
