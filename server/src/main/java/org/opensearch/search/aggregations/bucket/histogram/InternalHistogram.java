@@ -37,7 +37,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -376,21 +375,17 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     private double nextKey(double key) {
-        return round(key + emptyBucketInfo.interval + emptyBucketInfo.interval / 2);
-    }
-
-    private double round(double key) {
-        return Math.floor((key - emptyBucketInfo.offset) / emptyBucketInfo.interval) * emptyBucketInfo.interval + emptyBucketInfo.offset;
-    }
-
-    private double nextKeyForEmptyBucket(double key) {
-        double nextKey = nextKey(key);
+        double nextKey = round(key + emptyBucketInfo.interval + emptyBucketInfo.interval / 2);
         if (nextKey > key == false) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "Failed to advance histogram bucket key [" + key + "] with interval [" + emptyBucketInfo.interval + "]"
             );
         }
         return nextKey;
+    }
+
+    private double round(double key) {
+        return Math.floor((key - emptyBucketInfo.offset) / emptyBucketInfo.interval) * emptyBucketInfo.interval + emptyBucketInfo.offset;
     }
 
     private void addEmptyBucket(
@@ -420,7 +415,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 if (key == emptyBucketInfo.maxBound) {
                     break;
                 }
-                key = nextKeyForEmptyBucket(key);
+                key = nextKey(key);
             }
         } else {
             Bucket first = list.get(iter.nextIndex());
@@ -429,7 +424,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 double key = round(emptyBucketInfo.minBound);
                 while (key < first.key) {
                     addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
-                    key = nextKeyForEmptyBucket(key);
+                    key = nextKey(key);
                 }
             }
 
@@ -439,10 +434,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             do {
                 Bucket nextBucket = list.get(iter.nextIndex());
                 if (lastBucket != null) {
-                    double key = nextKeyForEmptyBucket(lastBucket.key);
+                    double key = nextKey(lastBucket.key);
                     while (key < nextBucket.key) {
                         addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
-                        key = nextKeyForEmptyBucket(key);
+                        key = nextKey(key);
                     }
                     assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
                 }
@@ -451,13 +446,13 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
             // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
             if (lastBucket.key < emptyBucketInfo.maxBound) {
-                double key = nextKeyForEmptyBucket(lastBucket.key);
+                double key = nextKey(lastBucket.key);
                 while (key <= emptyBucketInfo.maxBound) {
                     addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
                     if (key == emptyBucketInfo.maxBound) {
                         break;
                     }
-                    key = nextKeyForEmptyBucket(key);
+                    key = nextKey(key);
                 }
             }
         }

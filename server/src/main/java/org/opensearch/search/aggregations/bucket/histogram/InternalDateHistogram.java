@@ -38,7 +38,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -399,28 +398,25 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         try {
             return Math.addExact(key, offset);
         } catch (ArithmeticException e) {
-            throw new AggregationExecutionException(
-                "Date histogram bucket key overflow for key [" + key + "] and offset [" + offset + "]",
-                e
-            );
+            throw keyOverflow(key, e);
         }
     }
 
-    private long nextKeyForEmptyBucket(long key) {
+    private long nextKey(long key) {
         final long nextKey;
         try {
-            long keyWithoutOffset = Math.subtractExact(key, offset);
-            nextKey = Math.addExact(emptyBucketInfo.rounding.nextRoundingValue(keyWithoutOffset), offset);
+            nextKey = Math.addExact(emptyBucketInfo.rounding.nextRoundingValue(Math.subtractExact(key, offset)), offset);
         } catch (ArithmeticException e) {
-            throw new AggregationExecutionException(
-                "Date histogram bucket key overflow for key [" + key + "] and offset [" + offset + "]",
-                e
-            );
+            throw keyOverflow(key, e);
         }
         if (nextKey <= key) {
-            throw new AggregationExecutionException("Failed to advance date histogram bucket key [" + key + "]");
+            throw new IllegalArgumentException("Failed to advance date histogram bucket key [" + key + "]");
         }
         return nextKey;
+    }
+
+    private IllegalArgumentException keyOverflow(long key, ArithmeticException cause) {
+        return new IllegalArgumentException("Date histogram bucket key overflow for key [" + key + "] and offset [" + offset + "]", cause);
     }
 
     private void addEmptyBucket(
@@ -454,14 +450,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                         if (key == max) {
                             break;
                         }
-                        key = nextKeyForEmptyBucket(key);
+                        key = nextKey(key);
                     }
                 }
             } else if (bounds.getMin() != null) {
                 long key = addOffset(bounds.getMin());
                 while (key < firstBucket.key) {
                     addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
-                    key = nextKeyForEmptyBucket(key);
+                    key = nextKey(key);
                 }
             }
         }
@@ -471,10 +467,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         while (iter.hasNext()) {
             Bucket nextBucket = list.get(iter.nextIndex());
             if (lastBucket != null) {
-                long key = nextKeyForEmptyBucket(lastBucket.key);
+                long key = nextKey(lastBucket.key);
                 while (key < nextBucket.key) {
                     addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
-                    key = nextKeyForEmptyBucket(key);
+                    key = nextKey(key);
                 }
                 assert key == nextBucket.key : "key: " + key + ", nextBucket.key: " + nextBucket.key;
             }
@@ -485,13 +481,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         if (bounds != null && lastBucket != null && bounds.getMax() != null) {
             long max = addOffset(bounds.getMax());
             if (max > lastBucket.key) {
-                long key = nextKeyForEmptyBucket(lastBucket.key);
+                long key = nextKey(lastBucket.key);
                 while (key <= max) {
                     addEmptyBucket(iter, key, reducedEmptySubAggs, reduceContext);
                     if (key == max) {
                         break;
                     }
-                    key = nextKeyForEmptyBucket(key);
+                    key = nextKey(key);
                 }
             }
         }
@@ -557,7 +553,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public Number nextKey(Number key) {
-        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;
+        return nextKey(key.longValue());
     }
 
     @Override

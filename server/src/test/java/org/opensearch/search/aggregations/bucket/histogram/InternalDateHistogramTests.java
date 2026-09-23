@@ -37,7 +37,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -175,9 +174,11 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         InternalDateHistogram histogram = createHistogram(List.of(), rounding, new LongBounds(Long.MAX_VALUE - 2, Long.MAX_VALUE), 1);
 
         expectThrows(
-            AggregationExecutionException.class,
+            IllegalArgumentException.class,
             () -> histogram.reduce(List.of(histogram), createReduceContext(10, Mockito.mock(CircuitBreaker.class)))
         );
+        // HistogramFactory#nextKey is used by pipeline aggregations and must be guarded too
+        expectThrows(IllegalArgumentException.class, () -> histogram.nextKey(Long.MAX_VALUE));
     }
 
     public void testCircuitBreakerCheckedWhileAddingEmptyBuckets() {
