@@ -14,7 +14,8 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price", "brand", "rating"],
   "mockResultRows": [
@@ -32,7 +33,26 @@
         "relation": "eq"
       },
       "max_score": null,
-      "hits": []
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          }
+        },
+        {
+          "_score": null,
+          "_source": {
+            "name": "phone",
+            "price": 699,
+            "brand": "BrandB",
+            "rating": 4.2
+          }
+        }
+      ]
     }
   }
 }

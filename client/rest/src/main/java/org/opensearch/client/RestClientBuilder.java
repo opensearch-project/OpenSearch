@@ -64,8 +64,8 @@ import java.util.Optional;
  * creating the underlying {@link HttpAsyncClient}. Also allows to provide an externally created
  * {@link HttpAsyncClient} in case additional customization is needed.
  *
- * @deprecated the {@code RestClient} is deprecated is going to be removed in future releases, please consider using official
- * OpenSearch Java Client or {@code RestHighLevelClient}
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
 @Deprecated
 public final class RestClientBuilder {

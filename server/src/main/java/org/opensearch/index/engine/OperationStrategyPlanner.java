@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.IOException;
 
 /**
@@ -15,8 +17,9 @@ import java.io.IOException;
  * This interface defines how operations (indexing, deletion) should be processed
  * differently depending on whether the shard is acting as a primary or replica.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface OperationStrategyPlanner<T extends Engine.Operation, V extends OperationStrategy> {
 
     /**

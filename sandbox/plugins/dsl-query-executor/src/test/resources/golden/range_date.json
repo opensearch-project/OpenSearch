@@ -17,22 +17,37 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(>=($1, 2024-01-01 00:00:00), <=($1, 2024-12-31 23:59:59))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[AND(>=($1, 2024-01-01 00:00:00), <=($1, 2024-12-31 23:59:59))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "created_date"],
+  "mockResultFieldNames": [
+    "name",
+    "created_date"
+  ],
   "mockResultRows": [
-    ["event1", "2024-06-15"]
+    [
+      "event1",
+      "2024-06-15"
+    ]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 1,
         "relation": "eq"
       },
       "max_score": null,
-      "hits": []
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "event1",
+            "created_date": "2024-06-15"
+          }
+        }
+      ]
     }
   }
 }

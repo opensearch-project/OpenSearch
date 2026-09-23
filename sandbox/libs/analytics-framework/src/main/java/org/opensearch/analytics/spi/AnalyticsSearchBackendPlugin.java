@@ -11,6 +11,7 @@ package org.opensearch.analytics.spi;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
@@ -220,6 +221,8 @@ public interface AnalyticsSearchBackendPlugin {
      * @param rowIdVector Arrow BigIntVector containing global row IDs
      * @param columns column names to read
      * @param allocator Arrow buffer allocator for result import
+     * @param importStagingAllocator node-scoped allocator to stage Arrow C Data imports on; see
+     *        {@link org.opensearch.analytics.backend.ShardScanExecutionContext#getImportStagingAllocator()}
      * @return a result stream containing the requested rows
      */
     default EngineResultStream fetchByRowIds(
@@ -227,7 +230,8 @@ public interface AnalyticsSearchBackendPlugin {
         BigIntVector rowIdVector,
         String[] columns,
         BufferAllocator allocator,
-        long contextId
+        long contextId,
+        BufferAllocator importStagingAllocator
     ) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }
@@ -303,5 +307,16 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
+    }
+
+    /**
+     * Whether the shard has segments with deleted documents that need filtering at query time.
+     * Called at the data node before execution so instruction handlers can route deletion-bearing
+     * shards through the indexed deleted-doc filtering path (see
+     * {@link FilterDelegationHandle#LIVE_DOCS_MATCH_ALL_ANNOTATION_ID}). Default {@code false};
+     * backends with a native hasDeletions signal (e.g. Lucene) override.
+     */
+    default boolean hasDeletedDocs(ShardScanExecutionContext ctx) {
+        return false;
     }
 }

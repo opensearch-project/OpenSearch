@@ -3934,4 +3934,37 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(keywordSubField, instanceOf(KeywordFieldMapper.class));
         assertEquals("dynamic_text.keyword", keywordSubField.name());
     }
+
+    /**
+     * Dynamically inferred numeric, date and boolean fields on a pluggable-dataformat index must
+     * default to not-indexed, just like explicitly mapped ones — otherwise inferred fields would keep
+     * index:true and their range/term queries would match nothing. Guards the settings passed to the
+     * dynamic mapper builders in {@link DocumentParser}.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicallyMappedFieldsAreNotIndexedForPluggableDataFormat() throws Exception {
+        Settings pluggableSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {}));
+        DocumentInput<?> noopInput = new CapturingDocumentInput();
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.field("dyn_long", 42).field("dyn_double", 1.5).field("dyn_date", "2024-01-01").field("dyn_bool", true)),
+            noopInput
+        );
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        for (String field : new String[] { "dyn_long", "dyn_double", "dyn_date", "dyn_bool" }) {
+            Mapper m = doc.dynamicMappingsUpdate().root().getMapper(field);
+            assertNotNull("expected a dynamic mapping for [" + field + "]", m);
+            assertThat(m, instanceOf(FieldMapper.class));
+            assertFalse(
+                "dynamically mapped [" + field + "] should not be indexed on a pluggable data format index",
+                ((FieldMapper) m).fieldType().isSearchable()
+            );
+        }
+    }
 }

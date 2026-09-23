@@ -54,6 +54,7 @@ List projects = [
   'build-tools:reaper',
   'rest-api-spec',
   'docs',
+  'formal-models',
   'client:rest',
   'client:rest-http-client',
   'client:rest-high-level',

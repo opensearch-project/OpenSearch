@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.uid.Versions;
 
 import java.util.Objects;
@@ -15,8 +16,9 @@ import java.util.Objects;
 /**
  * The indexing strategy
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class IndexingStrategy extends OperationStrategy {
 
     public final boolean currentNotFoundOrDeleted;

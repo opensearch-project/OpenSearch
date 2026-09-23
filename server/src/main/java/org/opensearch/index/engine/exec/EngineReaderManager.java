@@ -19,6 +19,9 @@ import java.io.IOException;
  * <p>
  * For Lucene, wraps {@code ReferenceManager<OpenSearchDirectoryReader>}.
  * For pluggable engines, wraps the engine-specific reader lifecycle.
+ * <p>
+ * A manager whose format also knows which rows are still reachable implements
+ * {@link LiveDocsSource} alongside this interface.
  *
  * @param <T> the reader type managed by this instance
  * @opensearch.experimental
