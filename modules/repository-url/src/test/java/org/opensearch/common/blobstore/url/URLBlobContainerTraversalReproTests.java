@@ -86,7 +86,10 @@ public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
             writeEntry(output, "repository/nested/legit.dat", "nested");
         }
 
-        URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, URI.create("jar:" + jarPath.toUri() + "!/repository").toURL());
+        URLBlobStore blobStore = new URLBlobStore(
+            Settings.EMPTY,
+            URI.create("jar:" + jarPath.toUri() + "!/repository#fr\u00E1gment").toURL()
+        );
         assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath()), "legit.dat", "root");
         assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath().add("nested")), "legit.dat", "nested");
     }
