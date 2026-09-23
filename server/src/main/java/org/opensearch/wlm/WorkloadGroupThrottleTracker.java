@@ -42,7 +42,7 @@ public class WorkloadGroupThrottleTracker {
      * filling in a stack trace on the search hot path only to discard it in the observe-only case.
      *
      * @param bucketKey the throttle bucket identifier
-     * @param nodeLimit the maximum concurrent in-flight requests this node may admit for the bucket
+     * @param nodeLimit the positive maximum number of concurrent in-flight requests this node may admit for the bucket
      * @return a {@link Releasable} that decrements the bucket's in-flight count exactly once when closed, or
      *         {@code null} if the bucket is already at the limit
      */
@@ -62,10 +62,6 @@ public class WorkloadGroupThrottleTracker {
         final AtomicInteger[] admitted = new AtomicInteger[1];
         inFlightByBucket.compute(bucketKey, (k, existing) -> {
             if (existing == null) {
-                if (nodeLimit < 1) {
-                    // Refuse without materialising an entry, so a nonsensical limit cannot churn the map on the search path.
-                    return null;
-                }
                 admitted[0] = new AtomicInteger(1);
                 return admitted[0];
             }

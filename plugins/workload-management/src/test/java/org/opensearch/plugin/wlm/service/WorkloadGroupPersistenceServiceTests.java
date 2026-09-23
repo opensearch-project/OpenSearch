@@ -35,6 +35,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -592,5 +593,32 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         // A limit-only update carries no attribute. ATTRIBUTE.get returns "" rather than null for an absent key, so a
         // validator that only null-checks would wrongly reject this.
         WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9), clusterStateWithOldestNode(Version.V_3_9_0));
+    }
+
+    public void testUpdateValidationUsesMergedThrottlingConfig() {
+        WorkloadGroup existingGroup = builder().name(NAME_ONE)
+            ._id(_ID_ONE)
+            .mutableWorkloadGroupFragment(
+                new MutableWorkloadGroupFragment(
+                    ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.3),
+                    Settings.EMPTY,
+                    throttling("username", 5)
+                )
+            )
+            .updatedAt(1690934400000L)
+            .build();
+        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_9_0))
+            .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
+            .build();
+        UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(
+            NAME_ONE,
+            new MutableWorkloadGroupFragment(null, Map.of(), Settings.EMPTY, throttling(null, 9))
+        );
+
+        Settings effectiveThrottling = WorkloadGroupPersistenceService.getEffectiveThrottling(request, clusterState);
+
+        assertEquals("username", WorkloadGroupThrottleSettings.ATTRIBUTE.get(effectiveThrottling));
+        assertEquals(Integer.valueOf(9), WorkloadGroupThrottleSettings.NODE_LIMIT.get(effectiveThrottling));
     }
 }

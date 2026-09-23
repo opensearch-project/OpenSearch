@@ -14,10 +14,12 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
@@ -31,6 +33,7 @@ import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.stats.WorkloadGroupState;
 import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -502,6 +505,22 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         );
     }
 
+    private WorkloadGroup deserializedThrottledGroup(String id, Settings throttling) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeString(id + "-name");
+        out.writeString(id);
+        new MutableWorkloadGroupFragment(
+            MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
+            Map.of(ResourceType.MEMORY, 0.5),
+            Settings.EMPTY,
+            throttling
+        ).writeTo(out);
+        out.writeLong(1L);
+
+        StreamInput in = out.bytes().streamInput();
+        return new WorkloadGroup(in);
+    }
+
     public void testAcquireThrottleAdmitsNestedRequestWithoutASecondPermit() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
@@ -617,6 +636,19 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
         stubClusterStateWithGroup(throttledGroup("wg-1", Settings.EMPTY)); // throttling not configured
         assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
+    }
+
+    public void testAcquireThrottleReturnsNullWhenNodeLimitIsZero() throws IOException {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 0).build();
+        // Deserialization deliberately retains configs rejected by this node's merged-config validation. Admission must
+        // still treat zero as disabled and return before calling the tracker, whose contract requires a positive limit.
+        stubClusterStateWithGroup(deserializedThrottledGroup("wg-1", throttling));
+
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
     }
 
     public void testAcquireThrottleReturnsNullWhenWlmDisabled() {
