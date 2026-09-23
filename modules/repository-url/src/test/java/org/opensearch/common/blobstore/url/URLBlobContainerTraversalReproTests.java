@@ -43,32 +43,32 @@ public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
         URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, repoBase.toUri().toURL());
         BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath());
 
-        logger.info("REPRO base URL = {}", blobStore.path());
+        logger.info("base URL = {}", blobStore.path());
 
         // 1) Control: legitimate in-root read must keep working.
         try (InputStream in = container.readBlob("legit.dat")) {
             String got = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            logger.info("REPRO in-root readBlob(legit.dat) -> RETURNED [{}]", got);
+            logger.info("in-root readBlob(legit.dat) -> RETURNED [{}]", got);
         } catch (Exception e) {
-            logger.info("REPRO in-root readBlob(legit.dat) -> THREW {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.info("in-root readBlob(legit.dat) -> THREW {}: {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
         // 2) Out-of-root traversal: a ../ path resolves outside the repository root without validation.
         String traversal = "../secret.dat";
         try (InputStream in = container.readBlob(traversal)) {
             String got = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            logger.info("REPRO out-of-root readBlob({}) -> RETURNED [{}]", traversal, got);
+            logger.info("out-of-root readBlob({}) -> RETURNED [{}]", traversal, got);
         } catch (Exception e) {
-            logger.info("REPRO out-of-root readBlob({}) -> THREW {}: {}", traversal, e.getClass().getSimpleName(), e.getMessage());
+            logger.info("out-of-root readBlob({}) -> THREW {}: {}", traversal, e.getClass().getSimpleName(), e.getMessage());
         }
 
         // 3) Existing and missing out-of-root paths.
         String missing = "../does-not-exist.dat";
         try (InputStream in = container.readBlob(missing)) {
             in.readAllBytes();
-            logger.info("REPRO oracle readBlob({}) -> RETURNED (unexpected)", missing);
+            logger.info("oracle readBlob({}) -> RETURNED (unexpected)", missing);
         } catch (Exception e) {
-            logger.info("REPRO oracle readBlob({}) -> THREW {}: {}", missing, e.getClass().getSimpleName(), e.getMessage());
+            logger.info("oracle readBlob({}) -> THREW {}: {}", missing, e.getClass().getSimpleName(), e.getMessage());
         }
     }
 }
