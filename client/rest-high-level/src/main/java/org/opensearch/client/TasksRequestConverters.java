@@ -32,11 +32,13 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.client.RequestConverters.EndpointBuilder;
 import org.opensearch.client.tasks.CancelTasksRequest;
+import org.opensearch.client.tasks.DeleteTaskRequest;
 import org.opensearch.client.tasks.GetTaskRequest;
 
 final class TasksRequestConverters {
@@ -83,6 +85,13 @@ final class TasksRequestConverters {
         params.withTimeout(getTaskRequest.getTimeout()).withWaitForCompletion(getTaskRequest.getWaitForCompletion());
         request.addParameters(params.asMap());
         return request;
+    }
+
+    static Request deleteTask(DeleteTaskRequest deleteTaskRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_tasks")
+            .addPathPartAsIs(deleteTaskRequest.getNodeId() + ":" + Long.toString(deleteTaskRequest.getTaskId()))
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
 }

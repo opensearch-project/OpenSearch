@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
@@ -142,6 +144,52 @@ public class DataFormatRegistry {
         return plugin.indexingEngine(settings);
     }
 
+    /**
+     * Returns the plugin-contributed parameters applicable to the given content type, scoped to the data format the
+     * given index actually uses. Resolves the active data format from {@code indexSettings} via the
+     * {@code pluggable_dataformat} setting and delegates to that single plugin; composite plugins fan out to their
+     * primary and secondary formats. Returns an empty list when no pluggable data format is configured.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings used to determine the active data format
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(String contentType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+                    return params == null ? List.of() : List.copyOf(params);
+                }
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Returns the plugin-contributed parameters for a specific data format, bypassing the {@code pluggable_dataformat}
+     * index setting lookup. Used by composite plugins to resolve child-format parameters without recursion.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get parameters for
+     * @return the parameters contributed by the plugin for {@code dataFormat}, or an empty list if not registered
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormat dataFormat
+    ) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+        return params == null ? List.of() : params;
+    }
+
     public DataFormat format(String name) {
         DataFormat format = dataFormats.get(name);
         if (format == null) {
@@ -232,6 +280,21 @@ public class DataFormatRegistry {
      * @param indexSettings the index settings used to resolve the active plugin
      */
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        assignCapabilities(fieldType, indexSettings, FieldScope.ROOT);
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats,
+     * additionally indicating whether the field is declared directly inside a {@code nested} object's
+     * scope — passed through to the plugin so a composite plugin can restrict which of its sub-formats
+     * may claim capabilities there (see {@link DataFormatPlugin#assignCapabilities(MappedFieldType,
+     * IndexSettings, DataFormatRegistry, FieldScope)}).
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     * @param fieldScope the field's mapping scope
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName == null || dataformatName.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
@@ -247,7 +310,7 @@ public class DataFormatRegistry {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
-        plugin.assignCapabilities(fieldType, indexSettings, this);
+        plugin.assignCapabilities(fieldType, indexSettings, this, fieldScope);
     }
 
     /**
@@ -351,13 +414,9 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
-     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
-     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     * Returns the registered delete engine, or a no-op engine when none is provided.
      *
-     * @param committer the committer for durable delete tracking
-     * @return the delete execution engine
-     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     * @throws IllegalStateException if multiple plugins provide a delete engine
      */
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
         List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
@@ -373,7 +432,7 @@ public class DataFormatRegistry {
             );
         }
         if (engines.isEmpty()) {
-            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+            return NoOpDeleteExecutionEngine.INSTANCE;
         }
         return engines.getFirst();
     }

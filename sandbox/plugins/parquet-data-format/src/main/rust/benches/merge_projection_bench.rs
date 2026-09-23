@@ -127,7 +127,9 @@ fn run_merge_bench(label: &str, num_string_cols: usize) {
         &sort_columns,
         &reverse_sorts,
         &nulls_first,
+        &[],
         1, // output_writer_generation
+        &[],
     );
 
     let elapsed = start.elapsed();

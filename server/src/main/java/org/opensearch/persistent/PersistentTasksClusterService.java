@@ -65,6 +65,9 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Objects;
 
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_PERSISTENT_TASK;
+import static org.opensearch.cluster.service.ClusterManagerTask.FINISH_PERSISTENT_TASK;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_PERSISTENT_TASK;
 import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_TASK_STATE;
 
 /**
@@ -110,6 +113,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        clusterService.registerClusterManagerTask(CREATE_PERSISTENT_TASK, true);
+        clusterService.registerClusterManagerTask(FINISH_PERSISTENT_TASK, true);
+        clusterService.registerClusterManagerTask(REMOVE_PERSISTENT_TASK, true);
         updatePersistentTaskKey = clusterService.registerClusterManagerTask(UPDATE_TASK_STATE, true);
         this.updateTaskStateExecutor = new PersistentTaskUpdateExecutor();
     }

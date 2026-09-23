@@ -175,36 +175,34 @@ public class QueryExecution {
     }
 
     /**
-     * Determines the exception to report for a non-SUCCEEDED terminal.
+     * Resolves the exception handed to the completion listener on a non-success terminal.
      *
-     * <p>Live parent-task cancellation still wins — the user-facing "query cancelled" message stays
-     * accurate for genuine top-down cancels. Two exceptions ride past the cancel mask:
+     * <p>A captured stage failure is the <em>true</em> cause and wins, even when the parent
+     * task is also cancelled: a query self-cancels its remaining stages as a consequence of
+     * the first stage failure (e.g. a {@code ReduceSizeExceededException} or an Arrow OOM),
+     * so reporting only {@code TaskCancelledException} would mask the actionable reason —
+     * the user sees "query cancelled" instead of "raise the buffer limit / narrow the query".
+     * The root stage's failure is preferred; otherwise the first captured failure across the
+     * graph (the failing stage is often a child reduce/shard stage that cascaded up).
+     *
+     * <p>Two memory-pressure failures are re-typed to {@link CircuitBreakingException} (HTTP 429)
+     * before being returned, so back-pressure is reported as 429 and {@code FailAwareWeightedRouting}
+     * skips replica retry (preventing retry storms):
      * <ul>
-     *   <li><b>Breaker masquerading as a cancel</b> — a memory-gate trip ({@link CircuitBreakingException})
-     *       fails the (reduce) stage and then cancels the parent task via the sibling/child cancel sweep,
-     *       so {@code isCancelled()} is already true by the time we report. Surfacing it unwrapped gives
-     *       {@code status()} = 429 (Garov, PR #22275).
+     *   <li><b>Breaker buried in the cause chain</b> — a {@link CircuitBreakingException} wrapped by an
+     *       outer exception is unwrapped and surfaced directly so {@code status()} = 429 (PR #22275).
      *   <li><b>Arrow allocator exhaustion</b> — {@link OutOfMemoryException} from {@code BufferAllocator}
-     *       is also back-pressure (allocation rejected against {@code native.allocator.pool.query.max}),
-     *       NOT a JVM {@code OutOfMemoryError}. Translate to {@code CircuitBreakingException} so the same
-     *       budget-refusal convention applies: client sees 429 and {@code FailAwareWeightedRouting} skips
-     *       replica retry, preventing retry storms. Covers two propagation paths:
-     *       <ul>
-     *         <li><i>In-process</i> — Arrow's {@code OutOfMemoryException} reaches the coordinator with its
-     *             original class identity intact (e.g. coordinator-local materialization, or a same-JVM
-     *             reduce stage). Matched directly via {@link ExceptionsHelper#unwrap}.
-     *         <li><i>Across Flight RPC</i> — even on a single-node cluster, shard executor → reduce stage
-     *             rides the Flight transport. Flight's wire envelope strips the original class to
-     *             {@code StreamException[errorCode=INTERNAL]} carrying the Arrow message as a string. We
-     *             pattern-match the {@code "Unable to allocate buffer"} marker (the only producer is
-     *             {@code BaseAllocator.wrapForeignAllocation}) so the cross-RPC path also surfaces as 429.
-     *             A reactive shim until proactive {@code AllocationListener} circuit-breaking lands.
-     *       </ul>
+     *       is allocation back-pressure (rejected against {@code native.allocator.pool.query.max}), NOT a
+     *       JVM {@code OutOfMemoryError}; {@link #arrowOomAsBreaker} translates it to a 429, covering both
+     *       the in-process path (class identity intact) and the cross-Flight-RPC path, where the wire
+     *       envelope strips the class to a {@code StreamException} carrying Arrow's
+     *       {@code "Unable to allocate buffer"} marker.
      * </ul>
-     * A genuine cancel records no stage failure ({@code getFailure()} is {@code null}), so neither peek
-     * matches and behavior is unchanged. The non-cancel path is the original modulo the same Arrow OOM
-     * translation, so direct in-process Arrow OOMs (no cancel sweep, e.g. coordinator-local materialization)
-     * also surface as 429.
+     *
+     * <p>Only when NO stage captured a failure is the terminal a genuine external cancel
+     * (client disconnect, admin task cancel) — then {@code TaskCancelledException} is the
+     * honest answer. The final synthetic fallback covers a CANCELLED/FAILED terminal with no
+     * recorded cause at all.
      *
      * <p>TODO: replace this reactive translation with proactive circuit-breaking via Arrow's
      * {@code AllocationListener} — wired to register against the parent breaker, so the budget check
@@ -212,8 +210,8 @@ public class QueryExecution {
      * (no unwrap dance). Until then, this is the chokepoint.
      */
     private Exception terminalCause(State terminal) {
-        Exception failure = graph.rootExecution().getFailure();
-        if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
+        Exception failure = firstStageFailure();
+        if (failure != null) {
             Throwable breaker = ExceptionsHelper.unwrap(failure, CircuitBreakingException.class);
             if (breaker != null) {
                 return (CircuitBreakingException) breaker;
@@ -222,16 +220,27 @@ public class QueryExecution {
             if (arrowOom != null) {
                 return arrowOom;
             }
-            return new TaskCancelledException("query cancelled");
-        }
-        if (failure != null) {
-            CircuitBreakingException arrowOom = arrowOomAsBreaker(failure);
-            if (arrowOom != null) {
-                return arrowOom;
-            }
             return failure;
         }
+        if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
+            return new TaskCancelledException("query cancelled");
+        }
         return new RuntimeException("Stage " + graph.rootExecution().getStageId() + " " + terminal);
+    }
+
+    /** Root stage's captured failure if present, else the first captured failure across the graph. */
+    private Exception firstStageFailure() {
+        Exception rootFailure = graph.rootExecution().getFailure();
+        if (rootFailure != null) {
+            return rootFailure;
+        }
+        for (StageExecution exec : graph.allExecutions()) {
+            Exception failure = exec.getFailure();
+            if (failure != null) {
+                return failure;
+            }
+        }
+        return null;
     }
 
     /**

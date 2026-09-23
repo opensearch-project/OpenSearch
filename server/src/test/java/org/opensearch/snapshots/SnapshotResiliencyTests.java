@@ -2123,6 +2123,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     emptyMap(),
+                    null,
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
                     DefaultRemoteStoreSettings.INSTANCE

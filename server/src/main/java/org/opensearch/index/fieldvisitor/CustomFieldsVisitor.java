@@ -53,7 +53,11 @@ public class CustomFieldsVisitor extends FieldsVisitor {
     }
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource, String[] includes, String[] excludes) {
-        super(loadSource, includes, excludes);
+        this(fields, loadSource, includes, excludes, null);
+    }
+
+    public CustomFieldsVisitor(Set<String> fields, boolean loadSource, String[] includes, String[] excludes, String[] codecExcludes) {
+        super(loadSource, includes, excludes, codecExcludes);
         this.fields = fields;
     }
 

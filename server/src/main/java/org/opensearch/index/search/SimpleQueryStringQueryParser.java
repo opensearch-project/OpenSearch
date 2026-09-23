@@ -71,6 +71,19 @@ import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
  */
 public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
+    /**
+     * Maximum nesting depth of parenthesized (precedence) groups that will be parsed. Lucene's
+     * {@link SimpleQueryParser} parses precedence groups recursively, so a query string containing
+     * deeply nested unescaped parentheses drives one JVM stack frame per level and overflows the
+     * stack ({@code StackOverflowError}) before any query is built. Capping the depth and failing
+     * with a catchable exception keeps the recursion bounded. See CVE-2026-63144.
+     * <p>
+     * Configurable via the {@code opensearch.query.simple_query_string.max_depth} system property
+     * (default 1000, aligned with the recursion depth limits in {@code StreamInput} /
+     * {@code XContentConstraints}) so operators can tune it for unusual workloads without a code change.
+     */
+    static final int MAX_NESTING_DEPTH = Integer.parseInt(System.getProperty("opensearch.query.simple_query_string.max_depth", "1000"));
+
     private final Settings settings;
     private QueryShardContext context;
     private final MultiMatchQuery queryBuilder;
@@ -97,6 +110,58 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         this.queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
+        }
+    }
+
+    @Override
+    public Query parse(String queryText) {
+        checkNestingDepth(queryText);
+        return super.parse(queryText);
+    }
+
+    /**
+     * Rejects query strings whose parenthesized (precedence) groups nest deeper than
+     * {@link #MAX_NESTING_DEPTH}. This mirrors how Lucene's {@link SimpleQueryParser} tokenizes the
+     * input so the guard trips before the recursive parse can overflow the JVM stack: a parenthesis
+     * only opens/closes a group when the precedence flag is enabled and the character is neither
+     * escaped nor inside a quoted phrase. Fails with an {@link IllegalArgumentException} (translated
+     * to an HTTP 400) instead of an unrecoverable {@code StackOverflowError}. See CVE-2026-63144.
+     */
+    private void checkNestingDepth(String queryText) {
+        if (queryText == null || (flags & SimpleQueryParser.PRECEDENCE_OPERATORS) == 0) {
+            return;
+        }
+        final boolean escapeEnabled = (flags & SimpleQueryParser.ESCAPE_OPERATOR) != 0;
+        final boolean phraseEnabled = (flags & SimpleQueryParser.PHRASE_OPERATOR) != 0;
+        int depth = 0;
+        boolean inPhrase = false;
+        for (int i = 0; i < queryText.length(); i++) {
+            char c = queryText.charAt(i);
+            if (escapeEnabled && c == '\\') {
+                i++; // skip the escaped character
+                continue;
+            }
+            if (phraseEnabled && c == '"') {
+                inPhrase = !inPhrase;
+                continue;
+            }
+            if (inPhrase) {
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+                if (depth > MAX_NESTING_DEPTH) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + SimpleQueryStringBuilder.NAME
+                            + "] query text nests parentheses deeper than the limit of ["
+                            + MAX_NESTING_DEPTH
+                            + "]"
+                    );
+                }
+            } else if (c == ')' && depth > 0) {
+                depth--;
+            }
         }
     }
 

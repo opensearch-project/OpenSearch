@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
@@ -20,6 +21,7 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -197,6 +199,75 @@ public class ParquetWriterTests extends ParquetBaseTests {
             null
         );
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testMappingTypeChangeRetiresWriterForSchemaFence() throws Exception {
+        String filePath = createTempDir().resolve("schema-fence.parquet").toString();
+        ParquetField keyword = ArrowFieldRegistry.getParquetField(nameField.typeName());
+        List<Field> promotedFields = new ArrayList<>();
+        promotedFields.add(ArrowFieldRegistry.getParquetField(idField.typeName()).toArrowField(idField.name(), false));
+        promotedFields.add(keyword.toArrowField(nameField.name(), true));
+        promotedFields.add(ArrowFieldRegistry.getParquetField(scoreField.typeName()).toArrowField(scoreField.name(), false));
+        promotedFields.addAll(metadataFields());
+        Schema promotedSchema = new Schema(promotedFields);
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> promotedSchema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        writer.updateMappingVersion(2L);
+
+        assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
+        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testAddDocReturnsFailureOnOutOfMemory() throws Exception {
+        String filePath = createTempDir().resolve("oom.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        // Constrain the ingest pool so that allocating Arrow buffers while populating the
+        // VectorSchemaRoot inside VSRManager.addDocument throws an Arrow OutOfMemoryException.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, 1L);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(idField, 1);
+        doc.addField(nameField, "alice");
+        doc.addField(scoreField, 100L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+
+        // addDoc must translate the OOM into a Failure result rather than propagating the throw.
+        WriteResult result = writer.addDoc(doc);
+        assertTrue("expected a Failure result but was: " + result, result instanceof WriteResult.Failure);
+        WriteResult.Failure failure = (WriteResult.Failure) result;
+        assertTrue(
+            "expected an Arrow OutOfMemoryException cause but was: " + failure.cause(),
+            failure.cause() instanceof OutOfMemoryException
+        );
+
+        doc.close();
+        // Relieve the limit before teardown so writer/allocator cleanup can proceed cleanly.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, Long.MAX_VALUE);
+        writer.close();
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

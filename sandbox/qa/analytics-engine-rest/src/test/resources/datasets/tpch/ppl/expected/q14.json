@@ -1,0 +1,15 @@
+{
+  "schema" : [
+    {
+      "name" : "promo_revenue",
+      "type" : "double"
+    }
+  ],
+  "total" : 1,
+  "datarows" : [
+    [
+      15.23021261159725
+    ]
+  ],
+  "size" : 1
+}

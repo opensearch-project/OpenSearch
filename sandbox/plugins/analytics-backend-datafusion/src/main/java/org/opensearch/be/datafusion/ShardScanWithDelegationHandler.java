@@ -57,7 +57,10 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
-        String tableName = context.getTableName();
+        // The coordinator captured the logical table name (alias / index pattern / index the query
+        // referenced) from the plan's table-scan leaf. Register the shard's table under it so the
+        // Substrait plan's NamedTable binds. Fall back to the concrete shard index name when absent.
+        String tableName = node.getLogicalTableName() != null ? node.getLogicalTableName() : context.getTableName();
         FilterTreeShape treeShape = node.getTreeShape();
         int delegatedPredicateCount = node.getDelegatedPredicateCount();
 
@@ -73,6 +76,13 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
                 treeShape.ordinal(),
                 delegatedPredicateCount,
                 node.requestsRowIds(),
+                // Per-shard hasDeletions signal from AnalyticsSearchService (Lucene backend's
+                // directoryReader().hasDeletions()). When true, the native indexed executor ANDs a
+                // synthetic match-all Collector (reserved annotation id, resolved by the Lucene
+                // handle to the segment's liveDocs) into the decoded filter tree where needed;
+                // trees that already carry a correctness Collector are covered by the Lucene-side
+                // liveDocs application in collectDocs. When false, zero extra work.
+                context.hasDeletedDocs(),
                 context.hasPartialAggregate(),
                 segment.address(),
                 context.getFragmentBytes()

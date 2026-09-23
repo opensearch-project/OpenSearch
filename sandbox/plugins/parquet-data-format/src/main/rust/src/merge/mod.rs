@@ -11,6 +11,7 @@ mod cursor;
 pub mod error;
 pub mod heap;
 pub mod io_task;
+pub mod live_docs;
 pub mod metrics;
 pub mod schema;
 mod sorted;

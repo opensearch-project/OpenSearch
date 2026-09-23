@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
@@ -131,6 +132,7 @@ public final class ExceptionsHelper {
             case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
             case JsonParseException ignored -> RestStatus.BAD_REQUEST;
             case NotXContentException ignored -> RestStatus.BAD_REQUEST;
+            case IndexSearcher.TooManyClauses ignored -> RestStatus.BAD_REQUEST;
             case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
             case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
         };

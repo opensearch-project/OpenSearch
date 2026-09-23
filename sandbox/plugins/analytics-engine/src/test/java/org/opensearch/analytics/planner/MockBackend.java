@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
@@ -88,6 +89,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<DataTransferCapability> dataTransferCapabilities() {
+                return self.dataTransferCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -143,6 +149,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
         return Set.of();
     }
 
+    protected Set<DataTransferCapability> dataTransferCapabilities() {
+        return Set.of();
+    }
+
     protected Set<DelegationType> supportedDelegations() {
         return Set.of();
     }
@@ -168,8 +178,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         return new FragmentInstructionHandlerFactory() {
             @Override
-            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
-                return Optional.of(new ShardScanInstructionNode(requestsRowIds));
+            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName) {
+                return Optional.of(new ShardScanInstructionNode(requestsRowIds, logicalTableName));
             }
 
             @Override
@@ -185,9 +195,12 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             public Optional<InstructionNode> createShardScanWithDelegationNode(
                 FilterTreeShape treeShape,
                 int delegatedPredicateCount,
-                boolean requestsRowIds
+                boolean requestsRowIds,
+                String logicalTableName
             ) {
-                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
+                return Optional.of(
+                    new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, logicalTableName)
+                );
             }
 
             @Override

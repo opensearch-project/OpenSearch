@@ -23,10 +23,11 @@ import java.util.List;
  * <ul>
  *   <li>{@code queryId} / {@code stageId} — correlation ids for backend logs
  *       and metrics.</li>
- *   <li>{@code taskId} — the parent {@code AnalyticsQueryTask} id. Backends
- *       forward this to the native runtime as the query-tracking context id so
- *       one cancellation call from Java cascades to every native query scope
- *       (shard scans + coord reduce) registered under the same task.</li>
+ *   <li>{@code taskId} — the parent {@code AnalyticsQueryTask}'s {@code nativeTaskId}:
+ *       a JVM-unique id minted by {@link NativeTaskIdManager} (NOT {@code Task#getId()},
+ *       which is only unique per node). Backends forward this to the native runtime as
+ *       the query-tracking context id so one cancellation call from Java cascades to
+ *       every native query scope registered under the same id.</li>
  *   <li>{@code fragmentBytes} — backend-specific serialized plan (e.g.
  *       Substrait) the backend will execute over the fed batches.</li>
  *   <li>{@code allocator} — the parent buffer allocator the backend should
@@ -42,12 +43,37 @@ import java.util.List;
  *   <li>{@code downstream} — sink the backend drains its reduced output
  *       into. The backend owns {@code downstream}'s lifecycle: it must
  *       feed every produced batch and close it when draining is complete.</li>
+ *   <li>{@code importStagingAllocator} — node-scoped allocator the backend stages
+ *       Arrow C Data Interface imports on. Unbounded and parented at the root so an
+ *       import cannot fail part-way through an array (which strands the whole native
+ *       batch — see {@link org.opensearch.analytics.backend.ShardScanExecutionContext#getImportStagingAllocator()}),
+ *       and long-lived because the Flight transport keeps charging it after the
+ *       importing stream closes. Caller-owned: the backend must never close it, and
+ *       must never derive a per-stream child to import onto — an un-closed child stays
+ *       registered in the root's {@code childAllocators} map until node restart.</li>
  * </ul>
  *
  * @opensearch.internal
  */
 public record ExchangeSinkContext(String queryId, int stageId, long taskId, byte[] fragmentBytes, BufferAllocator allocator, List<
-    ChildInput> childInputs, ExchangeSink downstream) implements CommonExecutionContext {
+    ChildInput> childInputs, ExchangeSink downstream, BufferAllocator importStagingAllocator) implements CommonExecutionContext {
+
+    /**
+     * Stages imports on {@code allocator} itself. For callers whose allocator is already an unbounded
+     * root — chiefly tests: that is the pre-staging behaviour, correct but without the mid-import-OOM
+     * mitigation described above. Production paths pass a dedicated staging allocator.
+     */
+    public ExchangeSinkContext(
+        String queryId,
+        int stageId,
+        long taskId,
+        byte[] fragmentBytes,
+        BufferAllocator allocator,
+        List<ChildInput> childInputs,
+        ExchangeSink downstream
+    ) {
+        this(queryId, stageId, taskId, fragmentBytes, allocator, childInputs, downstream, allocator);
+    }
 
     /**
      * Per-child input descriptor: the child stage id and the producer-side plan bytes the

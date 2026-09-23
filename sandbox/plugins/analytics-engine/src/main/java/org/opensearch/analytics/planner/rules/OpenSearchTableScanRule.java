@@ -162,7 +162,8 @@ public class OpenSearchTableScanRule extends RelOptRule {
             throw new IllegalStateException("No backend can scan all requested fields on table [" + tableName + "]");
         }
 
-        RelOptTable indexNameTable = new IndexNameTable(scan.getTable(), tableName);
+        long rowCount = context.getTableRowCounts().applyAsLong(tableName);
+        RelOptTable indexNameTable = new IndexNameTable(scan.getTable(), tableName, rowCount);
 
         call.transformTo(
             OpenSearchTableScan.create(
@@ -181,12 +182,29 @@ public class OpenSearchTableScanRule extends RelOptRule {
      * Isthmus reads {@code getQualifiedName()} when creating {@code NamedScan} — this ensures
      * the Substrait plan contains only the index name, not the Calcite catalog prefix.
      *
+     * <p>Carries an optional row count: when the planner context was wired with a real
+     * statistics source (e.g. IndicesStats), the count overrides Calcite's default 100.0,
+     * which lets cost-aware exchange operators distinguish small-input from large-input
+     * plans during CBO. {@link PlannerContext#UNKNOWN_ROW_COUNT} (-1) means "no stats" and
+     * we let the abstract base return its default.
+     *
      * <p>TODO: Move table name stripping to the SQL/PPL plugin before dispatching the RelNode
      * to the analytics engine, so the scan rule always receives bare index names.
      */
     private static class IndexNameTable extends RelOptAbstractTable {
-        IndexNameTable(RelOptTable delegate, String indexName) {
+        private final long rowCount;
+
+        IndexNameTable(RelOptTable delegate, String indexName, long rowCount) {
             super(delegate.getRelOptSchema(), indexName, delegate.getRowType());
+            this.rowCount = rowCount;
+        }
+
+        @Override
+        public double getRowCount() {
+            if (rowCount == PlannerContext.UNKNOWN_ROW_COUNT) {
+                return super.getRowCount();
+            }
+            return rowCount;
         }
     }
 }

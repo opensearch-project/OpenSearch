@@ -1,0 +1,21 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'Adaptive per-action concurrency limiting using the Netflix concurrency-limits library'
+  classname = 'org.opensearch.concurrency.ActionConcurrencyLimitPlugin'
+}
+
+dependencies {
+  implementation "com.netflix.concurrency-limits:concurrency-limits-core:${versions.netflix_concurrency_limits}"
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  testImplementation(project(":test:framework"))
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+}

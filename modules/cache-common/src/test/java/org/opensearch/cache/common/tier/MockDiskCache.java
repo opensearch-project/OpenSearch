@@ -89,7 +89,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public void invalidate(ICacheKey<K> key) {
         V value = this.cache.remove(key);
         if (value != null) {
-            removalListener.onRemoval(new RemovalNotification<>(key, cache.get(key), RemovalReason.INVALIDATED));
+            removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.INVALIDATED));
         }
     }
 

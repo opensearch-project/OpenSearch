@@ -1229,6 +1229,24 @@ public class MetadataCreateIndexService {
             // (multi-partition consumer factory). The check will be wired here once available.
         }
 
+        // Decoder settings validation. Both decoder_type and decoder_settings.* were introduced in V_3_8_0.
+        // Reject any explicit value (including the default "xcontent") on mixed clusters where some nodes
+        // do not recognise the setting key at all — they would fail to load the index metadata.
+        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)
+            || IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_8_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.decoder_type and index.ingestion_source.decoder_settings require all nodes "
+                        + "in the cluster to be on version ["
+                        + Version.V_3_8_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }
@@ -1345,6 +1363,32 @@ public class MetadataCreateIndexService {
                     throw new IndexCreationException(indexName, validationException);
                 }
             }
+        }
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+    }
+
+    /**
+     * Stamps the dynamic cluster-level fencing default ({@code cluster.remote_store.fencing.enabled}) into the final
+     * per-index setting at creation time, for remote-store-backed indices that do not set it explicitly. The index
+     * setting is final because the fence is the primary's write witness: toggling it on a live index would leave a
+     * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
+     * in here means flipping the cluster setting only affects indices created afterwards.
+     */
+    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+        final Settings current = settingsBuilder.build();
+        // Read the raw value rather than going through INDEX_REMOTE_STORE_ENABLED_SETTING.get(). That setting carries a
+        // validator which cross-checks index.replication.type, and this helper also runs from snapshot restore's
+        // override-settings step - where restoring a remote-store snapshot onto a document-replication index is a
+        // combination the restore path itself must reject, with a SnapshotRestoreException. Validating it here instead
+        // would pre-empt that with an IllegalArgumentException from a read that only ever wanted a boolean. Deciding
+        // whether to stamp a default is not this method's place to validate the settings it is handed.
+        final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
+        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        if (remoteStoreEnabled
+            && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
+            && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
         }
     }
 
