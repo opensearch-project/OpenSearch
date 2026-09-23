@@ -172,9 +172,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
         }
 
         final URI resolvedPath = basePath.resolve(blobName).normalize();
+        final String baseRawPath = basePath.getRawPath();
+        final String basePathPrefix = baseRawPath.endsWith("/") ? baseRawPath : baseRawPath + "/";
         if (Objects.equals(basePath.getScheme(), resolvedPath.getScheme()) == false
             || Objects.equals(basePath.getRawAuthority(), resolvedPath.getRawAuthority()) == false
-            || resolvedPath.getRawPath().startsWith(basePath.getRawPath()) == false) {
+            || (resolvedPath.getRawPath().equals(baseRawPath) == false && resolvedPath.getRawPath().startsWith(basePathPrefix) == false)) {
             throw invalidBlobName(name, null);
         }
         return resolvedPath.toURL();

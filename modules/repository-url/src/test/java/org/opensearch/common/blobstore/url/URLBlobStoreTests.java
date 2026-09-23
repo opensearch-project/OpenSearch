@@ -72,6 +72,7 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
 
         createContext("/indices/" + blobName);
         createContext("/indices/nested/" + blobName);
+        createContext("/indices-sibling/" + blobName);
         createContext("/" + blobName);
 
         httpServer.start();
@@ -134,6 +135,15 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
             IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
             assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
         }
+    }
+
+    public void testURLBlobStoreRejectsSiblingPathPrefix() throws IOException {
+        URLBlobStore slashlessUrlBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices"));
+        BlobContainer container = slashlessUrlBlobStore.blobContainer(BlobPath.cleanPath());
+        String siblingBlobName = "indices-sibling/" + blobName;
+
+        IOException exception = expectThrows(IOException.class, () -> container.readBlob(siblingBlobName));
+        assertEquals("invalid blob name [" + siblingBlobName + "]", exception.getMessage());
     }
 
     public void testNoBlobFound() throws IOException {
