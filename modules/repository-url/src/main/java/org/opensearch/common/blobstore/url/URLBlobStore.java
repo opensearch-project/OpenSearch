@@ -261,8 +261,8 @@ public class URLBlobStore implements BlobStore {
     }
 
     private static URL appendToPath(URI basePath, String suffix) throws MalformedURLException {
-        final String externalForm = basePath.toString();
-        final int pathEnd = basePath.getRawFragment() == null ? externalForm.length() : externalForm.lastIndexOf('#');
+        final String externalForm = basePath.toASCIIString();
+        final int pathEnd = basePath.getRawFragment() == null ? externalForm.length() : externalForm.indexOf('#');
         try {
             return new URI(externalForm.substring(0, pathEnd) + suffix + externalForm.substring(pathEnd)).toURL();
         } catch (URISyntaxException e) {
@@ -295,6 +295,11 @@ public class URLBlobStore implements BlobStore {
         final StringBuilder normalized = new StringBuilder(value);
         for (int i = 0; i < normalized.length(); i++) {
             if (normalized.charAt(i) == '%') {
+                if (i + 2 >= normalized.length()
+                    || Character.digit(normalized.charAt(i + 1), 16) == -1
+                    || Character.digit(normalized.charAt(i + 2), 16) == -1) {
+                    return value;
+                }
                 normalized.setCharAt(i + 1, Character.toUpperCase(normalized.charAt(i + 1)));
                 normalized.setCharAt(i + 2, Character.toUpperCase(normalized.charAt(i + 2)));
                 i += 2;
