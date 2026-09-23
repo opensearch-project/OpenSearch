@@ -44,11 +44,13 @@ import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * URL blob implementation of {@link BlobContainer}
@@ -135,12 +137,51 @@ public class URLBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String name) throws IOException {
         try {
-            return new BufferedInputStream(getInputStream(this.path.toURI().resolve(name).toURL()), blobStore.bufferSizeInBytes());
+            return new BufferedInputStream(getInputStream(resolveBlobName(name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
-        } catch (URISyntaxException e) {
-            throw new IOException(e);
         }
+    }
+
+    private URL resolveBlobName(String name) throws IOException {
+        final URI blobName;
+        final URI basePath;
+        try {
+            blobName = new URI(name);
+            basePath = path.toURI().normalize();
+        } catch (URISyntaxException e) {
+            throw invalidBlobName(name, e);
+        }
+
+        final String rawPath = blobName.getRawPath();
+        if (blobName.isAbsolute()
+            || blobName.getRawAuthority() != null
+            || blobName.getRawQuery() != null
+            || blobName.getRawFragment() != null
+            || rawPath == null
+            || rawPath.startsWith("/")
+            || rawPath.indexOf('%') >= 0
+            || rawPath.indexOf('\\') >= 0) {
+            throw invalidBlobName(name, null);
+        }
+
+        for (String pathElement : rawPath.split("/", -1)) {
+            if (pathElement.equals(".") || pathElement.equals("..")) {
+                throw invalidBlobName(name, null);
+            }
+        }
+
+        final URI resolvedPath = basePath.resolve(blobName).normalize();
+        if (Objects.equals(basePath.getScheme(), resolvedPath.getScheme()) == false
+            || Objects.equals(basePath.getRawAuthority(), resolvedPath.getRawAuthority()) == false
+            || resolvedPath.getRawPath().startsWith(basePath.getRawPath()) == false) {
+            throw invalidBlobName(name, null);
+        }
+        return resolvedPath.toURL();
+    }
+
+    private static IOException invalidBlobName(String name, Exception cause) {
+        return new IOException("invalid blob name [" + name + "]", cause);
     }
 
     @Override
