@@ -35,6 +35,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ServiceAttributes;
 
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
@@ -77,7 +78,7 @@ public final class OTelResourceProvider {
         ContextPropagators contextPropagators,
         Sampler sampler
     ) {
-        Resource resource = Resource.create(Attributes.of(ServiceAttributes.SERVICE_NAME, "OpenSearch"));
+        Resource resource = createResource(settings);
         SdkTracerProvider sdkTracerProvider = createSdkTracerProvider(settings, spanExporter, sampler, resource);
         SdkMeterProvider sdkMeterProvider = createSdkMetricProvider(settings, resource);
         return OpenTelemetrySdk.builder()
@@ -85,6 +86,10 @@ public final class OTelResourceProvider {
             .setMeterProvider(sdkMeterProvider)
             .setPropagators(contextPropagators)
             .buildAndRegisterGlobal();
+    }
+
+    private static Resource createResource(Settings settings) {
+        return Resource.create(Attributes.of(ServiceAttributes.SERVICE_NAME, OTEL_SERVICE_NAME_SETTING.get(settings)));
     }
 
     private static SdkMeterProvider createSdkMetricProvider(Settings settings, Resource resource) {

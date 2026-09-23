@@ -270,7 +270,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
         assertEquals(2, rows.size());
         assertTrue(rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
-        assertTrue(rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+        assertTrue(rows.stream().anyMatch(row -> List.of("prod", "error", "prod").equals(row.get("tags"))));
     }
 
     /**
@@ -302,7 +302,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertTrue("the buffered scalar row must survive writer retirement", rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
         assertTrue(
             "the retried array document must use LIST storage",
-            rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags")))
+            rows.stream().anyMatch(row -> List.of("prod", "error", "prod").equals(row.get("tags")))
         );
     }
 
@@ -368,7 +368,10 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             assertBusy(() -> assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value")));
             List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
             assertEquals("every successful request must be persisted", expectedDocumentsPerIndex, rows.size());
-            assertTrue("each index must contain LIST-backed rows", rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+            assertTrue(
+                "each index must contain LIST-backed rows",
+                rows.stream().anyMatch(row -> row.get("tags") instanceof List<?> tags && tags.contains("shared"))
+            );
         }
     }
 
@@ -424,16 +427,19 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
 
         List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
         assertEquals(2, rows.size());
-        assertTrue(rows.stream().allMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+        assertTrue("every document must persist as a LIST", rows.stream().allMatch(row -> isListColumn(row.get("tags"))));
+        assertTrue("scalar input persists as a singleton list", rows.stream().anyMatch(row -> List.of("solo").equals(row.get("tags"))));
+        assertTrue("array input persists in source order", rows.stream().anyMatch(row -> List.of("one", "two", "one").equals(row.get("tags"))));
     }
 
     /**
-     * RustBridge's test-only JSON renderer decodes primitive columns and emits this marker for
-     * nested columns. Matching it verifies that the physical Parquet column is LIST; element-value
-     * preservation is covered by the lower-level VSR and ParquetDocumentInput tests.
+     * Parses a {@code tags} cell decoded by RustBridge's test-only JSON renderer. LIST columns are
+     * serialized as JSON arrays, so a nested (LIST) column reads back as a {@link List} while a
+     * scalar column reads back as its primitive value. Matching a {@link List} therefore verifies
+     * the physical Parquet column is LIST, and the element values are asserted directly by callers.
      */
-    private boolean isListColumnPlaceholder(Object value) {
-        return value instanceof String text && text.startsWith("<unsupported:List(");
+    private boolean isListColumn(Object value) {
+        return value instanceof List;
     }
 
     @SuppressWarnings("unchecked")

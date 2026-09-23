@@ -1767,7 +1767,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (context.searchAfter() != null) {
                 SortField[] sort = context.sort().sort.getSort();
-                if (sort.length != 1 || !sort[0].getField().equals(source.collapse().getField())) {
+                // SCORE/DOC sorts have a null field name; compare null-safely so this is a SearchException, not an NPE
+                if (sort.length != 1 || Objects.equals(sort[0].getField(), source.collapse().getField()) == false) {
                     throw new SearchException(
                         shardTarget,
                         "collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`"
