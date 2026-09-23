@@ -432,7 +432,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 return null;
             }
             int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
-            if (nodeLimit == WorkloadGroupThrottleSettings.UNSET_LIMIT) {
+            if (nodeLimit < 1) {
                 return null;
             }
             String attribute = WorkloadGroupThrottleSettings.ATTRIBUTE.get(throttling);

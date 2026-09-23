@@ -374,6 +374,36 @@ public class WorkloadGroupPersistenceService {
     }
 
     /**
+     * Validates the effective throttling configuration for an update. Throttling updates are partial, so a fragment that
+     * only changes {@code node_limit} must inherit the existing {@code attribute} before enforceability is checked.
+     *
+     * @param request the update request
+     * @param clusterState state containing the currently stored workload group
+     * @throws IllegalArgumentException if the effective config cannot be enforced
+     */
+    public static void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState), clusterState);
+    }
+
+    static Settings getEffectiveThrottling(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        Settings incomingThrottling = request.getmMutableWorkloadGroupFragment().getThrottling();
+        if (incomingThrottling == null || incomingThrottling.isEmpty()) {
+            return incomingThrottling;
+        }
+        return clusterState.metadata()
+            .workloadGroups()
+            .values()
+            .stream()
+            .filter(group -> group.getName().equals(request.getName()))
+            .findFirst()
+            .map(
+                group -> updateExistingWorkloadGroup(group, request.getmMutableWorkloadGroupFragment()).getMutableWorkloadGroupFragment()
+                    .getThrottling()
+            )
+            .orElse(incomingThrottling);
+    }
+
+    /**
      * Rejects a throttling config the cluster cannot actually honour. Both cases below would otherwise return a 200 for
      * a config that silently never takes effect:
      * <ul>

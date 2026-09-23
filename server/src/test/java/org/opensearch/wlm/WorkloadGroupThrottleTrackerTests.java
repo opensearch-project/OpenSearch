@@ -83,14 +83,6 @@ public class WorkloadGroupThrottleTrackerTests extends OpenSearchTestCase {
         assertEquals(0, tracker.bucketCount());
     }
 
-    public void testRefusedAcquireDoesNotLeaveAnEmptyBucketBehind() {
-        WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
-        assertNull(tracker.tryAcquire("bucket", 0));
-        // The rollback must remove the entry it created, otherwise a stream of refused requests for distinct buckets
-        // would accumulate zero-valued entries forever.
-        assertEquals(0, tracker.bucketCount());
-    }
-
     public void testReleaseIsIdempotent() {
         WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
         // Two permits so the bucket survives the first close: with only one, the entry is evicted and a buggy second

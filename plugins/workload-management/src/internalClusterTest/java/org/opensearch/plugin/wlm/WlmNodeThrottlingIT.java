@@ -151,44 +151,46 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        // First search: blocks in the query phase, holding the single permit.
-        ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch = blockingSearch(indexName).execute();
-        awaitForBlock(plugins);
+        ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch;
+        try {
+            // First search: blocks in the query phase, holding the single permit.
+            blockedSearch = blockingSearch(indexName).execute();
+            awaitForBlock(plugins);
 
-        int throttledBefore = getThrottled(workloadGroupId);
-        long inFlightBefore = currentInFlightSearches();
+            int throttledBefore = getThrottled(workloadGroupId);
+            long inFlightBefore = currentInFlightSearches();
 
-        // Second search while the first is still in-flight: must be rejected (429).
-        Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
-        assertTrue(
-            "Expected an OpenSearchRejectedExecutionException in the cause chain but was: " + rejection,
-            hasRejectedExecutionCause(rejection)
-        );
+            // Second search while the first is still in-flight: must be rejected (429).
+            Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
+            assertTrue(
+                "Expected an OpenSearchRejectedExecutionException in the cause chain but was: " + rejection,
+                hasRejectedExecutionCause(rejection)
+            );
 
-        // The rejection must be counted in total_throttled.
-        assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
+            // The rejection must be counted in total_throttled.
+            assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-        // The rejected request must NOT have entered the request-operations start path. This guards against the gauge
-        // leak where a throttle rejection increments 'current' via onRequestStart but never reaches
-        // onRequestEnd/onRequestFailure.
-        //
-        // Poll for the gauge to settle rather than comparing two instantaneous samples: the gauge is node-global and
-        // the WLM rule-sync job issues its own search every few seconds, so any single pair of samples can differ by
-        // that traffic in either direction. The steady state is well defined here -- the first search is still blocked
-        // and nothing else in this test is running -- so the gauge must come back to inFlightBefore. A real leak is a
-        // permanent +1 and never settles, so the poll still fails on the regression it is guarding.
-        assertBusy(
-            () -> assertEquals(
-                "in-flight search gauge must exclude the throttle-rejected request",
-                inFlightBefore,
-                currentInFlightSearches()
-            ),
-            30,
-            TimeUnit.SECONDS
-        );
-
-        // Release the block; the first search should complete successfully.
-        disableBlocks(plugins);
+            // The rejected request must NOT have entered the request-operations start path. This guards against the gauge
+            // leak where a throttle rejection increments 'current' via onRequestStart but never reaches
+            // onRequestEnd/onRequestFailure.
+            //
+            // Poll for the gauge to settle rather than comparing two instantaneous samples: the gauge is node-global and
+            // the WLM rule-sync job issues its own search every few seconds, so any single pair of samples can differ by
+            // that traffic in either direction. The steady state is well defined here -- the first search is still blocked
+            // and nothing else in this test is running -- so the gauge must come back to inFlightBefore. A real leak is a
+            // permanent +1 and never settles, so the poll still fails on the regression it is guarding.
+            assertBusy(
+                () -> assertEquals(
+                    "in-flight search gauge must exclude the throttle-rejected request",
+                    inFlightBefore,
+                    currentInFlightSearches()
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
+        } finally {
+            disableBlocks(plugins);
+        }
         assertNotNull(blockedSearch.actionGet(TIMEOUT));
 
         // Once the blocked search finishes, the gauge must drain back to zero (no leaked in-flight count).
@@ -225,22 +227,25 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             .getScrollId();
         try {
             List<ScriptedBlockPlugin> plugins = initBlockFactory();
-            ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch = blockingSearch(indexName).execute();
-            awaitForBlock(plugins);
-
-            int throttledBefore = getThrottled(workloadGroupId);
-
-            // The group's only permit is held. A scroll continuation must be rejected like any other search -- if it is
-            // admitted, node_limit is evadable simply by adding ?scroll= to a query.
+            ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch;
             final String sid = scrollId;
-            Throwable rejection = expectThrows(
-                Throwable.class,
-                () -> client().prepareSearchScroll(sid).setScroll(TIMEOUT).execute().actionGet(TIMEOUT)
-            );
-            assertTrue("Expected a scroll continuation to be throttled but was: " + rejection, hasRejectedExecutionCause(rejection));
-            assertEquals("a throttled scroll must be counted", throttledBefore + 1, getThrottled(workloadGroupId));
+            try {
+                blockedSearch = blockingSearch(indexName).execute();
+                awaitForBlock(plugins);
 
-            disableBlocks(plugins);
+                int throttledBefore = getThrottled(workloadGroupId);
+
+                // The group's only permit is held. A scroll continuation must be rejected like any other search -- if it is
+                // admitted, node_limit is evadable simply by adding ?scroll= to a query.
+                Throwable rejection = expectThrows(
+                    Throwable.class,
+                    () -> client().prepareSearchScroll(sid).setScroll(TIMEOUT).execute().actionGet(TIMEOUT)
+                );
+                assertTrue("Expected a scroll continuation to be throttled but was: " + rejection, hasRejectedExecutionCause(rejection));
+                assertEquals("a throttled scroll must be counted", throttledBefore + 1, getThrottled(workloadGroupId));
+            } finally {
+                disableBlocks(plugins);
+            }
             assertNotNull(blockedSearch.actionGet(TIMEOUT));
 
             // With the permit released the same scroll continues normally, proving the rejection was the throttle and
@@ -291,35 +296,38 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        // alice's first search blocks in the query phase, holding her single per-user permit.
-        ActionFuture<org.opensearch.action.search.SearchResponse> aliceBlocked = blockingSearchAs("alice", indexName).execute();
-        awaitForBlock(plugins);
+        ActionFuture<org.opensearch.action.search.SearchResponse> aliceBlocked;
+        ActionFuture<org.opensearch.action.search.SearchResponse> bobBlocked;
+        try {
+            // alice's first search blocks in the query phase, holding her single per-user permit.
+            aliceBlocked = blockingSearchAs("alice", indexName).execute();
+            awaitForBlock(plugins);
 
-        int throttledBefore = getThrottled(workloadGroupId);
+            int throttledBefore = getThrottled(workloadGroupId);
 
-        // alice's second concurrent search hits her per-user node_limit -> 429.
-        Throwable rejection = expectThrows(Throwable.class, () -> blockingSearchAs("alice", indexName).execute().actionGet(TIMEOUT));
-        assertTrue(
-            "Expected an OpenSearchRejectedExecutionException in the cause chain but was: " + rejection,
-            hasRejectedExecutionCause(rejection)
-        );
-        assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
+            // alice's second concurrent search hits her per-user node_limit -> 429.
+            Throwable rejection = expectThrows(Throwable.class, () -> blockingSearchAs("alice", indexName).execute().actionGet(TIMEOUT));
+            assertTrue(
+                "Expected an OpenSearchRejectedExecutionException in the cause chain but was: " + rejection,
+                hasRejectedExecutionCause(rejection)
+            );
+            assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-        // bob is a different principal -> a different bucket -> admitted even while alice is at her limit.
-        // (bob's search also blocks; we just need it to get past admission, so run it async and then release.)
-        ActionFuture<org.opensearch.action.search.SearchResponse> bobBlocked = blockingSearchAs("bob", indexName).execute();
-        assertBusy(() -> {
-            int blocked = 0;
-            for (ScriptedBlockPlugin plugin : plugins) {
-                blocked += plugin.hits.get();
-            }
-            assertThat("bob's search should have been admitted and reached the blocking script", blocked, greaterThan(1));
-        }, 30, TimeUnit.SECONDS);
-        // bob was admitted, so no additional throttle beyond alice's one rejection.
-        assertEquals("bob must not be throttled by alice's bucket", throttledBefore + 1, getThrottled(workloadGroupId));
-
-        // Release the blocks; both alice's and bob's blocked searches complete successfully.
-        disableBlocks(plugins);
+            // bob is a different principal -> a different bucket -> admitted even while alice is at her limit.
+            // (bob's search also blocks; we just need it to get past admission, so run it async and then release.)
+            bobBlocked = blockingSearchAs("bob", indexName).execute();
+            assertBusy(() -> {
+                int blocked = 0;
+                for (ScriptedBlockPlugin plugin : plugins) {
+                    blocked += plugin.hits.get();
+                }
+                assertThat("bob's search should have been admitted and reached the blocking script", blocked, greaterThan(1));
+            }, 30, TimeUnit.SECONDS);
+            // bob was admitted, so no additional throttle beyond alice's one rejection.
+            assertEquals("bob must not be throttled by alice's bucket", throttledBefore + 1, getThrottled(workloadGroupId));
+        } finally {
+            disableBlocks(plugins);
+        }
         assertNotNull(aliceBlocked.actionGet(TIMEOUT));
         assertNotNull(bobBlocked.actionGet(TIMEOUT));
     }
@@ -484,9 +492,10 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         // The exemption must be scoped to nesting only -- a genuinely concurrent second request still gets a 429,
         // otherwise the fix would have silently disabled throttling for this group.
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
-        ActionFuture<SearchResponse> blocked = blockingSearch(indexName).execute();
-        awaitForBlock(plugins);
+        ActionFuture<SearchResponse> blocked;
         try {
+            blocked = blockingSearch(indexName).execute();
+            awaitForBlock(plugins);
             Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
             assertTrue(
                 "an independent concurrent request must still be throttled but was: " + rejection,
@@ -494,8 +503,8 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             );
         } finally {
             disableBlocks(plugins);
-            assertNotNull(blocked.actionGet(TIMEOUT));
         }
+        assertNotNull(blocked.actionGet(TIMEOUT));
     }
 
     private SearchRequestBuilder blockingSearch(String indexName) {

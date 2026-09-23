@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
-import java.math.BigInteger;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,14 +29,29 @@ public class WorkloadGroupThrottleSettings {
     /** Sentinel for an unset limit, matching the {@code -1 = not set} convention of {@code WLM_SEARCH_TIMEOUT}. */
     public static final int UNSET_LIMIT = -1;
 
-    /** Upper bound for a limit. Limits are stored in an int-backed setting, so a larger value would overflow the {@code int}. */
-    public static final int MAX_LIMIT = Integer.MAX_VALUE;
-
     /** Dimension the limit is keyed by: {@code group} (whole group) or per {@code username} / {@code role}. No default: unset when absent. */
     public static final Setting<String> ATTRIBUTE = Setting.simpleString("attribute");
 
-    /** Per-node in-flight allowance admitted locally with no coordination. {@code -1} means unset. */
-    public static final Setting<Integer> NODE_LIMIT = Setting.intSetting("node_limit", UNSET_LIMIT, UNSET_LIMIT);
+    /**
+     * Per-node in-flight allowance admitted locally with no coordination. An absent value resolves to {@link #UNSET_LIMIT},
+     * while an explicitly supplied value must be non-negative.
+     */
+    public static final Setting<Integer> NODE_LIMIT = Setting.intSetting(
+        "node_limit",
+        UNSET_LIMIT,
+        Integer.MIN_VALUE,
+        new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer value) {}
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && value < 0) {
+                    throw new IllegalArgumentException("throttling.node_limit must be non-negative but was " + value);
+                }
+            }
+        }
+    );
 
     /** {@link #ATTRIBUTE} value keying the limit to the group as a whole: one bucket per node for every request tagged to it. */
     public static final String ATTRIBUTE_GROUP = "group";
@@ -75,8 +89,8 @@ public class WorkloadGroupThrottleSettings {
 
     /**
      * Per-key validation: every key must be registered, {@code attribute} must be an allowed value, and each limit
-     * must be a non-negative integer no greater than {@link #MAX_LIMIT} ({@code -1} is the internal "unset" sentinel and
-     * is not user-settable). Safe to run on a partial fragment from an update request; the cross-field checks live in
+     * must be a non-negative 32-bit integer ({@code -1} is the internal "unset" sentinel and is not explicitly
+     * configurable). Safe to run on a partial fragment from an update request; the cross-field checks live in
      * {@link #validateMergedConfig(Settings)}.
      *
      * @param throttling the throttling settings to validate
@@ -88,16 +102,18 @@ public class WorkloadGroupThrottleSettings {
         }
         for (String key : throttling.keySet()) {
             String value = throttling.get(key);
-            if (REGISTERED_SETTINGS.containsKey(key) == false) {
+            Setting<?> setting = REGISTERED_SETTINGS.get(key);
+            if (setting == null) {
                 throw new IllegalArgumentException("Unknown throttle setting: " + key);
             }
             // null value means "clear this key" — skip value validation
             if (value == null) {
                 continue;
             }
-            // Limits are stored with -1 as the internal "unset" sentinel, but a user may only send a non-negative integer.
-            if (NODE_LIMIT.getKey().equals(key)) {
-                validateUserLimit(key, value);
+            try {
+                setting.get(Settings.builder().put(key, value).build());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid value '" + value + "' for throttling." + key + ": " + e.getMessage(), e);
             }
         }
         String attribute = throttling.get(ATTRIBUTE.getKey());
@@ -105,24 +121,6 @@ public class WorkloadGroupThrottleSettings {
             throw new IllegalArgumentException(
                 "throttling.attribute must be one of " + ALLOWED_ATTRIBUTES + " but was '" + attribute + "'"
             );
-        }
-    }
-
-    // Rejects a user-supplied limit that is not a non-negative integer in [0, MAX_LIMIT]; -1 is reserved as the internal
-    // "unset" sentinel. Parsed as a BigInteger so a value that is a well-formed integer but too large for the int-backed
-    // setting (e.g. Integer.MAX_VALUE + 1) reports an overflow instead of being mislabelled as "not an integer".
-    private static void validateUserLimit(String key, String value) {
-        final BigInteger parsed;
-        try {
-            parsed = new BigInteger(value);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("throttling." + key + " must be an integer but was '" + value + "'");
-        }
-        if (parsed.signum() < 0) {
-            throw new IllegalArgumentException("throttling." + key + " must be non-negative but was " + parsed);
-        }
-        if (parsed.compareTo(BigInteger.valueOf(MAX_LIMIT)) > 0) {
-            throw new IllegalArgumentException("throttling." + key + " must not exceed " + MAX_LIMIT + " but was " + parsed);
         }
     }
 

@@ -447,8 +447,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testThrottleLimitExceedingMaxRejected() {
-        // Integer.MAX_VALUE + 1: a well-formed non-negative integer, but too large for the int-backed setting. The error
-        // must call out the overflow rather than falsely claiming it is "not an integer".
+        // Integer.MAX_VALUE + 1 is outside the range accepted by the int-backed Setting parser.
         String tooLarge = Long.toString((long) Integer.MAX_VALUE + 1);
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -459,8 +458,18 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
                 Settings.builder().put("attribute", "username").put("node_limit", tooLarge).build()
             )
         );
-        assertTrue(exception.getMessage().contains("node_limit must not exceed " + Integer.MAX_VALUE));
-        assertTrue(exception.getMessage().contains(tooLarge));
+        assertTrue(exception.getMessage(), exception.getMessage().contains("Invalid value '" + tooLarge + "' for throttling.node_limit"));
+        assertTrue(
+            exception.getMessage(),
+            exception.getMessage().contains("Failed to parse value [" + tooLarge + "] for setting [node_limit]")
+        );
+    }
+
+    public void testAbsentThrottleLimitUsesInternalUnsetDefault() {
+        assertEquals(
+            Integer.valueOf(WorkloadGroupThrottleSettings.UNSET_LIMIT),
+            WorkloadGroupThrottleSettings.NODE_LIMIT.get(Settings.EMPTY)
+        );
     }
 
     public void testThrottleLimitAtMaxAccepted() {
@@ -481,16 +490,24 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testNonNumericThrottleLimitRejected() {
+        String invalidValue = "not_a_number";
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new MutableWorkloadGroupFragment(
                 ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.MEMORY, 0.5),
                 Settings.EMPTY,
-                Settings.builder().put("attribute", "username").put("node_limit", "not_a_number").build()
+                Settings.builder().put("attribute", "username").put("node_limit", invalidValue).build()
             )
         );
-        assertTrue(exception.getMessage().contains("node_limit must be an integer"));
+        assertTrue(
+            exception.getMessage(),
+            exception.getMessage().contains("Invalid value '" + invalidValue + "' for throttling.node_limit")
+        );
+        assertTrue(
+            exception.getMessage(),
+            exception.getMessage().contains("Failed to parse value [" + invalidValue + "] for setting [node_limit]")
+        );
     }
 
     public void testInvalidThrottleAttributeRejected() {
