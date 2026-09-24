@@ -41,6 +41,7 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
@@ -401,7 +402,12 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * passed to the next format.
      */
     @Override
-    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        FieldScope fieldScope
+    ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
