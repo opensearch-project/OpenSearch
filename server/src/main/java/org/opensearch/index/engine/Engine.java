@@ -1233,6 +1233,30 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
+     * Publishes the total size of segment bytes not yet referenced by the last commit point, computed from the
+     * post-refresh local segment file sizes. Engine-generic: the notion of "bytes since the last commit" is not
+     * remote-specific -- only the publisher (the remote segment upload path) is. The default is a no-op so that
+     * engines which never publish (e.g. {@link NRTReplicationEngine}, read-only engines) are correct by
+     * construction; {@link InternalEngine} overrides it to drive its uncommitted-segment-bytes flush condition.
+     *
+     * The threshold to flush at is supplied by the publisher rather than read from settings here, because resolving it
+     * is the publisher's concern: it owns both the index setting and the cluster setting it falls back to.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     * @param flushThresholdBytes  the uncommitted segment bytes at or above which the engine should flush, as resolved
+     *                             by the publisher at the time of this publication
+     */
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap, long flushThresholdBytes) {}
+
+    /**
+     * Discards any previously published uncommitted segment bytes accounting, so that it can no longer trigger a flush.
+     * Invoked by the publisher when the condition is turned off, since a value published while it was on would
+     * otherwise stay armed until the next commit invalidates it. The default is a no-op, mirroring
+     * {@link #updateUncommittedSegmentBytes(Map, long)}.
+     */
+    public void clearUncommittedSegmentBytes() {}
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
@@ -1596,8 +1620,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Base operation class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Operation {
 
         /**

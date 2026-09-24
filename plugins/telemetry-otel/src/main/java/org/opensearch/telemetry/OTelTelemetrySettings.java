@@ -11,15 +11,14 @@ package org.opensearch.telemetry;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.OTelSamplerFactory;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticTransportActionSampler;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.List;
 
@@ -72,7 +71,7 @@ public final class OTelTelemetrySettings {
     /**
      * Span Exporter type setting.
      */
-    @SuppressWarnings({ "unchecked", "removal" })
+    @SuppressWarnings("unchecked")
     public static final Setting<Class<SpanExporter>> OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.tracer.span.exporter.class",
         LoggingSpanExporter.class.getName(),
@@ -81,12 +80,12 @@ public final class OTelTelemetrySettings {
             SpecialPermission.check();
 
             try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<Class<SpanExporter>>) () -> {
+                return AccessController.doPrivilegedChecked(() -> {
                     final ClassLoader loader = OTelSpanExporterFactory.class.getClassLoader();
                     return (Class<SpanExporter>) loader.loadClass(className);
                 });
-            } catch (PrivilegedActionException ex) {
-                throw new IllegalStateException("Unable to load span exporter class:" + className, ex.getCause());
+            } catch (ClassNotFoundException ex) {
+                throw new IllegalStateException("Unable to load span exporter class:" + className, ex);
             }
         },
         Setting.Property.NodeScope,
@@ -96,7 +95,7 @@ public final class OTelTelemetrySettings {
     /**
      * Metrics Exporter type setting.
      */
-    @SuppressWarnings({ "unchecked", "removal" })
+    @SuppressWarnings("unchecked")
     public static final Setting<Class<MetricExporter>> OTEL_METRICS_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.metrics.exporter.class",
         LoggingMetricExporter.class.getName(),
@@ -105,12 +104,12 @@ public final class OTelTelemetrySettings {
             SpecialPermission.check();
 
             try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<Class<MetricExporter>>) () -> {
+                return AccessController.doPrivilegedChecked(() -> {
                     final ClassLoader loader = OTelMetricsExporterFactory.class.getClassLoader();
                     return (Class<MetricExporter>) loader.loadClass(className);
                 });
-            } catch (PrivilegedActionException ex) {
-                throw new IllegalStateException("Unable to load span exporter class:" + className, ex.getCause());
+            } catch (ClassNotFoundException ex) {
+                throw new IllegalStateException("Unable to load span exporter class:" + className, ex);
             }
         },
         Setting.Property.NodeScope,
@@ -120,7 +119,7 @@ public final class OTelTelemetrySettings {
     /**
      * Samplers orders setting.
      */
-    @SuppressWarnings({ "unchecked", "removal" })
+    @SuppressWarnings("unchecked")
     public static final Setting<List<Class<Sampler>>> OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS = Setting.listSetting(
         "telemetry.otel.tracer.span.sampler.classes",
         Arrays.asList(ProbabilisticTransportActionSampler.class.getName(), ProbabilisticSampler.class.getName()),
@@ -128,12 +127,27 @@ public final class OTelTelemetrySettings {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
             try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<Class<Sampler>>) () -> {
+                return AccessController.doPrivilegedChecked(() -> {
                     final ClassLoader loader = OTelSamplerFactory.class.getClassLoader();
                     return (Class<Sampler>) loader.loadClass(sampler);
                 });
-            } catch (PrivilegedActionException ex) {
-                throw new IllegalStateException("Unable to load sampler class: " + sampler, ex.getCause());
+            } catch (ClassNotFoundException ex) {
+                throw new IllegalStateException("Unable to load sampler class: " + sampler, ex);
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * OTel resource service.name
+     */
+    public static final Setting<String> OTEL_SERVICE_NAME_SETTING = Setting.simpleString(
+        "telemetry.otel.service.name",
+        "OpenSearch",
+        value -> {
+            if (Strings.hasText(value) == false) {
+                throw new IllegalArgumentException("telemetry.otel.service.name must be a non-empty string");
             }
         },
         Setting.Property.NodeScope,
