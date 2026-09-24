@@ -946,28 +946,35 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 .stream()
                 .map(metadata -> metadata.uploadedFilename)
                 .collect(Collectors.toSet());
-            AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
-            staleSegmentRemoteFilenames.stream()
+
+            // Collect all files to delete for this metadata file
+            List<String> filesToDelete = staleSegmentRemoteFilenames.stream()
                 .filter(file -> activeSegmentRemoteFilenames.contains(file) == false)
                 .filter(file -> deletedSegmentFiles.contains(file) == false)
-                .forEach(file -> {
-                    try {
-                        remoteDataDirectory.deleteFile(file);
-                        deletedSegmentFiles.add(file);
-                        if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
-                            segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
-                        }
-                    } catch (NoSuchFileException e) {
-                        logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
-                    } catch (IOException e) {
-                        deletionSuccessful.set(false);
-                        logger.warn(
-                            "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
-                            file,
-                            metadataFile
-                        );
+                .collect(Collectors.toList());
+
+            AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
+            try {
+                // Batch delete all stale segment files
+                remoteDataDirectory.deleteFiles(filesToDelete);
+                deletedSegmentFiles.addAll(filesToDelete);
+
+                // Update cache after successful batch deletion
+                for (String file : filesToDelete) {
+                    if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
+                        segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
-                });
+                }
+            } catch (IOException e) {
+                deletionSuccessful.set(false);
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Exception while deleting segment files corresponding to metadata file {}. Deletion will be re-tried",
+                        metadataFile
+                    ),
+                    e
+                );
+            }
             if (deletionSuccessful.get()) {
                 logger.debug("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
