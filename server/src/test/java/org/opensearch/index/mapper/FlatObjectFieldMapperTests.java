@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -472,5 +473,16 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(json));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
+    }
+
+    public void testDerivedSourceRejectedOnVanillaIndex() {
+        // Pluggable-side acceptance: PluggableFormatNestedSeamsTests#testFlatObjectAcceptedUnderPluggableDerivedSource.
+        Settings settings = Settings.builder().put("index.derived_source.enabled", true).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, fieldMapping(this::minimalMapping))
+        );
+        MatcherAssert.assertThat(e.getMessage(), containsString("flat_object"));
+        MatcherAssert.assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 }

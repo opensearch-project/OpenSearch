@@ -129,7 +129,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             FlatObjectFieldType fft = new FlatObjectFieldType(buildFullName(context), null, valueFieldType, valueAndPathFieldType);
 
-            return new FlatObjectFieldMapper(name, this.fieldType, fft);
+            return new FlatObjectFieldMapper(name, this.fieldType, fft, isPluggableDataFormatEnabled(context.indexSettings()));
         }
     }
 
@@ -555,12 +555,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     private final KeywordFieldType valueFieldType;
     private final KeywordFieldType valueAndPathFieldType;
+    // Captured at build time because canDeriveSourceInternal() takes no arguments; see that method.
+    private final boolean pluggableDataFormatEnabled;
 
-    FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType) {
+    FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType, boolean pluggableDataFormatEnabled) {
         super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         valueFieldType = mappedFieldType.valueFieldType;
         valueAndPathFieldType = mappedFieldType.valueAndPathFieldType;
+        this.pluggableDataFormatEnabled = pluggableDataFormatEnabled;
     }
 
     @Override
@@ -573,15 +576,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     }
 
-    // Pluggable-dataformat indices force derived source on (IndexSettings: derivedSourceEnabled ||
-    // pluggableDataFormatEnabled), so every field must satisfy the derive-source create-time contract or
-    // the index cannot be created. flat_object is keyword-like (UTF-8 term storage), so it derives like
-    // keyword. NOTE: correct reconstruction of the object from a format's native representation is a
-    // read-path concern; this satisfies the create-time contract. The translog derived-source setting
-    // defaults off, so this generator does not run during ingest.
+    // Pluggable formats force derived source on and reconstruct flat_object natively. Vanilla cannot:
+    // doc values under name() hold only path markers, so the generic generator would derive corrupt _source.
     @Override
     protected void canDeriveSourceInternal() {
-        // flat_object has no ignore_above/normalizer restrictions that would block derivation.
+        if (pluggableDataFormatEnabled == false) {
+            throw new UnsupportedOperationException(
+                "Derive source is not supported for field [" + name() + "] with field type [" + fieldType().typeName() + "]"
+            );
+        }
     }
 
     @Override
