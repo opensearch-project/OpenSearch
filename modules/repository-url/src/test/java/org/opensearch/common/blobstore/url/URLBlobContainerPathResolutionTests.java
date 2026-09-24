@@ -33,9 +33,9 @@ import static org.hamcrest.Matchers.containsString;
  * resolves it against the repository base URL.
  */
 @SuppressForbidden(reason = "uses file:// URLs and local files to exercise blob path resolution")
-public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
+public class URLBlobContainerPathResolutionTests extends OpenSearchTestCase {
 
-    public void testFileUrlOutOfRootTraversalRepro() throws Exception {
+    public void testFileUrlRejectsBlobNamesOutsideRoot() throws Exception {
         Path parent = createTempDir();
         Path repoBase = Files.createDirectories(parent.resolve("repo-base"));
 
@@ -84,14 +84,19 @@ public class URLBlobContainerTraversalReproTests extends OpenSearchTestCase {
         try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(jarPath))) {
             writeEntry(output, "repository/legit.dat", "root");
             writeEntry(output, "repository/nested/legit.dat", "nested");
+            writeEntry(output, "repository-sibling/secret.dat", "secret");
         }
 
-        URLBlobStore blobStore = new URLBlobStore(
-            Settings.EMPTY,
-            URI.create("jar:" + jarPath.toUri() + "!/repository#fr\u00E1gment").toURL()
-        );
-        assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath()), "legit.dat", "root");
-        assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath().add("nested")), "legit.dat", "nested");
+        for (String entryPath : List.of("!/repository", "!/repository/", "!/repository#fr\u00E1gment")) {
+            URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, URI.create("jar:" + jarPath.toUri() + entryPath).toURL());
+            BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath());
+            assertBlobContents(container, "legit.dat", "root");
+            assertBlobContents(blobStore.blobContainer(BlobPath.cleanPath().add("nested")), "legit.dat", "nested");
+
+            String invalidBlobName = "../repository-sibling/secret.dat";
+            IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
+            assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
+        }
     }
 
     private static void assertBlobContents(BlobContainer container, String blobName, String expected) throws IOException {

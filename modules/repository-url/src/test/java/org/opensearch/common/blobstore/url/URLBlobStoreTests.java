@@ -159,6 +159,14 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
             blobName + "%A",
             blobName + "%GG",
             "../" + blobName + "#ignored",
+            blobName + "#ignored",
+            blobName + "?query=value",
+            "./" + blobName,
+            "nested/./" + blobName,
+            "%00" + blobName,
+            blobName + "%0A",
+            "1%3A" + blobName,
+            "a%3A" + blobName,
             "/" + blobName,
             "//localhost:6001/" + blobName,
             "http://localhost:6001/" + blobName,
@@ -188,6 +196,51 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
             BlobStoreException exception = expectThrows(BlobStoreException.class, () -> slashlessUrlBlobStore.blobContainer(blobPath));
             assertEquals("malformed URL " + blobPath, exception.getMessage());
             assertThat(exception.getCause().getMessage(), containsString("invalid URL path"));
+        }
+    }
+
+    public void testRootURLIsNormalized() throws IOException {
+        assertNormalizedRoot("http://localhost:6001", "http://localhost:6001/");
+        assertNormalizedRoot("http://localhost:6001/indices", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/indices/", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/other/../indices", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/indices?query=value", "http://localhost:6001/indices/?query=value");
+        assertNormalizedRoot("http://localhost:6001/indices#fragment", "http://localhost:6001/indices/#fragment");
+    }
+
+    public void testMalformedRootURLIsRejected() throws MalformedURLException {
+        URL malformedURL = new URL("http://localhost:6001/in dices/");
+        BlobStoreException exception = expectThrows(BlobStoreException.class, () -> new URLBlobStore(Settings.EMPTY, malformedURL));
+        assertEquals("malformed URL " + malformedURL, exception.getMessage());
+    }
+
+    public void testResolveRejectsResultsOutsideRootOrContainer() throws IOException {
+        URLBlobStore indicesBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices/"));
+        List<URL> invalidBasePaths = List.of(
+            // different scheme, authority, or path than the repository root
+            new URL("https://localhost:6001/indices/"),
+            new URL("http://localhost:6002/indices/"),
+            new URL("http://localhost:6001/other/"),
+            // inside the repository root, but the resolved blob is a sibling of the container
+            new URL("http://localhost:6001/indices/nested"),
+            // not a valid URI
+            new URL("http://localhost:6001/in dices/")
+        );
+        for (URL basePath : invalidBasePaths) {
+            IOException exception = expectThrows(IOException.class, () -> indicesBlobStore.resolve(basePath, blobName));
+            assertEquals("invalid URL path [" + blobName + "]", exception.getMessage());
+        }
+
+        // an opaque file: URL cannot be resolved against a hierarchical file: root
+        URLBlobStore fileBlobStore = new URLBlobStore(Settings.EMPTY, new URL("file:/indices/"));
+        IOException exception = expectThrows(IOException.class, () -> fileBlobStore.resolve(new URL("file:indices/"), blobName));
+        assertEquals("invalid URL path [" + blobName + "]", exception.getMessage());
+    }
+
+    private static void assertNormalizedRoot(String rootURL, String expectedRootURL) throws IOException {
+        try (URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, new URL(rootURL))) {
+            assertEquals(expectedRootURL, blobStore.path().toString());
+            assertEquals(expectedRootURL, blobStore.toString());
         }
     }
 
