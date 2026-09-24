@@ -102,7 +102,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             );
         }
 
-        // Cross-field checks on the merged throttling config (attribute required with a limit; ceiling must be >= 1).
+        // Cross-field checks on the merged throttling config (node limit required; ceiling must be >= 1).
         // On the deserialization path these are advisory: a newer node may legitimately relax them (e.g. by adding a
         // second limit key), and throwing while applying published cluster state would wedge this node out of the
         // cluster rather than reject one API call. Enforcement fails open on config it cannot interpret.

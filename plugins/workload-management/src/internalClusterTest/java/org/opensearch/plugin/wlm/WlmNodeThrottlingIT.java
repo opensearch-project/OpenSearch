@@ -72,7 +72,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * End-to-end integration test for per-node WLM request throttling ({@code node_limit}, {@code attribute=group}).
+ * End-to-end integration test for per-node WLM request throttling ({@code node_limit}, with group scope by default).
  * <p>
  * The scripted-block plugin holds a search in-flight (occupying a throttle permit) so that a second concurrent
  * search deterministically exceeds the node limit and must be rejected with a 429
@@ -263,7 +263,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         setWlmMode("enabled");
 
-        // Group throttled per-username to a single in-flight request per node (attribute = username).
+        // Group throttled per-username to a single in-flight request per node (by = username).
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("user_throttle_test_group", workloadGroupId, 1, "username");
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
@@ -577,14 +577,14 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     }
 
     private WorkloadGroup createThrottledWorkloadGroup(String name, String id, int nodeLimit) {
-        return createThrottledWorkloadGroup(name, id, nodeLimit, "group");
+        return createThrottledWorkloadGroup(name, id, nodeLimit, null);
     }
 
-    private WorkloadGroup createThrottledWorkloadGroup(String name, String id, int nodeLimit, String attribute) {
-        Settings throttling = Settings.builder()
-            .put(WorkloadGroupThrottleSettings.ATTRIBUTE.getKey(), attribute)
-            .put(WorkloadGroupThrottleSettings.NODE_LIMIT.getKey(), nodeLimit)
-            .build();
+    private WorkloadGroup createThrottledWorkloadGroup(String name, String id, int nodeLimit, String by) {
+        Settings.Builder throttling = Settings.builder().put(WorkloadGroupThrottleSettings.NODE_LIMIT.getKey(), nodeLimit);
+        if (by != null) {
+            throttling.put(WorkloadGroupThrottleSettings.BY.getKey(), by);
+        }
         return new WorkloadGroup(
             name,
             id,
@@ -592,7 +592,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
                 MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
                 Map.of(ResourceType.CPU, 0.9, ResourceType.MEMORY, 0.9),
                 Settings.EMPTY,
-                throttling
+                throttling.build()
             ),
             Instant.now().getMillis()
         );

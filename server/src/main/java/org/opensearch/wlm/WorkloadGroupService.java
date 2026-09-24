@@ -57,9 +57,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Separator between the segments of a throttle bucket key,
-     * {@code <workload_group_id><delimiter><attribute><delimiter><attribute_value>}. Safe as a separator because no
-     * segment can contain it: the id is a base64 UUID, the attribute is one of
-     * {@link WorkloadGroupThrottleSettings#ALLOWED_ATTRIBUTES}, and only the trailing segment is caller-supplied.
+     * {@code <workload_group_id><delimiter><dimension><delimiter><dimension_value>}. Safe as a separator because no
+     * segment can contain it: the id is a base64 UUID, the dimension is the internal group scope or one of
+     * {@link WorkloadGroupThrottleSettings#ALLOWED_BY_VALUES}, and only the trailing segment is caller-supplied.
      */
     static final String BUCKET_KEY_DELIMITER = ":";
 
@@ -345,8 +345,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     /**
      * Acquires one node-level throttle permit for the request, or returns {@code null} (nothing to release) when the
      * request is not throttled: WLM disabled, default/unknown group, no {@code node_limit}, no resolvable bucket (see
-     * {@link #resolveThrottleAttributeValue}), or a parent task whose work is already counted. The bucket depends on the
-     * group's throttle {@code attribute}.
+     * {@link #resolveThrottleByValue}), or a parent task whose work is already counted. The bucket is group-scoped when
+     * {@code throttling.by} is absent, or subdivided by its explicit {@code username}/{@code role} value.
      *
      * @param task                 the request's task; marked as counted in both the acquired and the exempted case, so the
      *                             accounting propagates to its own nested searches
@@ -435,13 +435,13 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             if (nodeLimit < 1) {
                 return null;
             }
-            String attribute = WorkloadGroupThrottleSettings.ATTRIBUTE.get(throttling);
-            // A null value means the request can't be attributed (e.g. username/role with no principal) -> fail open.
-            String attributeValue = resolveThrottleAttributeValue(attribute, principal);
-            if (attributeValue == null) {
+            String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+            // A null value means the request can't be bucketed (e.g. username/role with no principal) -> fail open.
+            String byValue = resolveThrottleByValue(by, principal);
+            if (byValue == null) {
                 return null;
             }
-            String bucketKey = workloadGroupId + BUCKET_KEY_DELIMITER + attribute + BUCKET_KEY_DELIMITER + attributeValue;
+            String bucketKey = workloadGroupId + BUCKET_KEY_DELIMITER + by + BUCKET_KEY_DELIMITER + byValue;
 
             Releasable permit = throttleTracker.tryAcquire(bucketKey, nodeLimit);
             if (permit != null) {
@@ -452,8 +452,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             // Over the limit. Name the group and the throttle dimension so both the log line and the 429 identify who
             // was throttled -- the bucket key alone is opaque to an operator.
             String target = "workload group [" + workloadGroup.getName() + "]";
-            if (WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP.equals(attribute) == false) {
-                target += " for " + attribute + " [" + attributeValue + "]";
+            if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by) == false) {
+                target += " for " + by + " [" + byValue + "]";
             }
             if (workloadGroup.getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
                 // MONITOR observes only: log that the request WOULD have been rejected, then admit it without touching
@@ -491,7 +491,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Resolves the value the throttle bucket is keyed by:
-     * {@link WorkloadGroupThrottleSettings#ATTRIBUTE_GROUP} itself for whole-group throttling, or the principal's
+     * {@link WorkloadGroupThrottleSettings#GROUP_SCOPE} itself for whole-group throttling, or the principal's
      * {@code username} / {@code role} subfield value.
      * <p>
      * A principal may carry several values for one subfield (a user in many roles). The request is charged to exactly
@@ -499,18 +499,18 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * extractor happened to emit first would let the same user land in different buckets on different requests, and so
      * draw more than one allowance.
      *
-     * @return the attribute value, or {@code null} to fail open (not throttled) when the principal is absent or has no
-     *         usable value for the subfield
+     * @return the bucket dimension value, or {@code null} to fail open (not throttled) when the principal is absent or has
+     *         no usable value for the subfield
      */
-    private String resolveThrottleAttributeValue(String attribute, String principal) {
-        if (WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP.equals(attribute)) {
-            return WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP;
+    private String resolveThrottleByValue(String by, String principal) {
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {
+            return WorkloadGroupThrottleSettings.GROUP_SCOPE;
         }
         if (principal == null || principal.isEmpty()) {
             return null;
         }
         // Trim the token, not the value: trimming past the delimiter would fold "username|alice " into alice's bucket.
-        String subfieldPrefix = attribute + WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_SUBFIELD_DELIMITER;
+        String subfieldPrefix = by + WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_SUBFIELD_DELIMITER;
         String selected = null;
         for (String token : principal.split(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER)) {
             String trimmed = token.trim();

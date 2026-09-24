@@ -487,9 +487,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     private void stubClusterStateWithGroup(WorkloadGroup wg) {
         ClusterState clusterState = Mockito.mock(ClusterState.class);
         Metadata metadata = Mockito.mock(Metadata.class);
+        String workloadGroupId = wg.get_id();
         when(mockClusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.workloadGroups()).thenReturn(Map.of(wg.get_id(), wg));
+        when(metadata.workloadGroups()).thenReturn(Map.of(workloadGroupId, wg));
     }
 
     private WorkloadGroup throttledGroup(String id, Settings throttling) {
@@ -524,7 +525,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleAdmitsNestedRequestWithoutASecondPermit() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // The outer request takes the group's only permit and is marked as counted.
@@ -560,7 +561,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleChargesASearchWhoseParentWasNotCounted() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // An _msearch sub-search has a parent task, but that parent is the multi-search task -- a plain CancellableTask
@@ -589,7 +590,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleExemptionIsTransitiveAcrossTwoLevelsOfNesting() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // A terms lookup whose subquery is itself a terms lookup issues two levels of nested coordinator search. Each level
@@ -641,7 +642,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleReturnsNullWhenNodeLimitIsZero() throws IOException {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 0).build();
+        Settings throttling = Settings.builder().put("node_limit", 0).build();
         // Deserialization deliberately retains configs rejected by this node's merged-config validation. Admission must
         // still treat zero as disabled and return before calling the tracker, whose contract requires a positive limit.
         stubClusterStateWithGroup(deserializedThrottledGroup("wg-1", throttling));
@@ -649,6 +650,28 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
         assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
         assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+    }
+
+    public void testAcquireThrottleFailsOpenForUnsupportedThrottlingSchema() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        Map<String, Settings> unsupportedConfigs = Map.of(
+            "explicit-group",
+            Settings.builder().put("by", "group").put("node_limit", 1).build(),
+            "legacy-attribute",
+            Settings.builder().put("attribute", "username").put("node_limit", 1).build()
+        );
+
+        for (Map.Entry<String, Settings> entry : unsupportedConfigs.entrySet()) {
+            WorkloadGroup workloadGroup = Mockito.mock(WorkloadGroup.class);
+            MutableWorkloadGroupFragment fragment = Mockito.mock(MutableWorkloadGroupFragment.class);
+            when(workloadGroup.get_id()).thenReturn(entry.getKey());
+            when(workloadGroup.getMutableWorkloadGroupFragment()).thenReturn(fragment);
+            when(fragment.getThrottling()).thenReturn(entry.getValue());
+            stubClusterStateWithGroup(workloadGroup);
+
+            assertNull(workloadGroupService.acquireThrottleOrReject(entry.getKey(), "username|alice"));
+            assertNull(workloadGroupService.acquireThrottleOrReject(entry.getKey(), "username|alice"));
+        }
     }
 
     public void testAcquireThrottleReturnsNullWhenWlmDisabled() {
@@ -659,7 +682,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleRejectsAtLimitAndIncrementsStat() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         Releasable permit = workloadGroupService.acquireThrottleOrReject("wg-1", null); // first admit succeeds
@@ -676,7 +699,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleMonitorModeObservesWithoutRejecting() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling, MutableWorkloadGroupFragment.ResiliencyMode.MONITOR));
 
         assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", null)); // first admit takes the only slot
@@ -689,7 +712,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleSoftModeStillRejects() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling, MutableWorkloadGroupFragment.ResiliencyMode.SOFT));
 
         assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
@@ -701,7 +724,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleUsernameKeepsPerUserBuckets() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "username").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "username").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // alice takes her single slot; a second alice request is rejected.
@@ -725,7 +748,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleUsernameWithCommaDoesNotCollide() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "username").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "username").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         String delim = WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER;
@@ -745,7 +768,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleRolePicksMatchingSubfieldFromMultiTokenPrincipal() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "role").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "role").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // A principal header may carry both subfields; the role bucket must key off the role token only.
@@ -761,7 +784,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleRoleBucketIsStableAcrossTokenOrder() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "role").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "role").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // A user in several roles must land in one deterministic bucket. If the resolver took whichever role token came
@@ -775,10 +798,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
     }
 
-    public void testThrottleRejectionNamesGroupAndAttribute() {
+    public void testThrottleRejectionNamesGroupAndByValue() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "username").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "username").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "username|alice"));
@@ -792,10 +815,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("per-node limit of 1"));
     }
 
-    public void testThrottleRejectionForWholeGroupOmitsAttributeClause() {
+    public void testThrottleRejectionForWholeGroupOmitsByClause() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
@@ -820,7 +843,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testAcquireThrottleFailsOpenWhenPrincipalMissingForUsername() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        Settings throttling = Settings.builder().put("attribute", "username").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("by", "username").put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // No principal (e.g. security plugin not installed) or no matching subfield -> not throttled (fail open).
@@ -837,7 +860,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
      */
     public void testAcquireThrottleStillRejectsWhenStatUpdateFails() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // state map with no entry for wg-1 (as during the state-registration lag) -> raw get(id) returns null
@@ -882,7 +905,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
      */
     public void testAcquireThrottleDoesNotMisattributeToDefaultDuringRegistrationLag() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        Settings throttling = Settings.builder().put("attribute", "group").put("node_limit", 1).build();
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
         stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
 
         // DEFAULT group state exists, but wg-1 is NOT yet registered (registration lag).

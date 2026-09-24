@@ -375,7 +375,7 @@ public class WorkloadGroupPersistenceService {
 
     /**
      * Validates the effective throttling configuration for an update. Throttling updates are partial, so a fragment that
-     * only changes {@code node_limit} must inherit the existing {@code attribute} before enforceability is checked.
+     * only changes {@code node_limit} must inherit the existing {@code by} value before enforceability is checked.
      *
      * @param request the update request
      * @param clusterState state containing the currently stored workload group
@@ -410,7 +410,7 @@ public class WorkloadGroupPersistenceService {
      *   <li>a node older than {@link Version#V_3_9_0} is still in the cluster. {@code throttling} is gated on the wire,
      *       so the config is dropped when the request or the resulting cluster state crosses that node, and the group
      *       reads back without it.</li>
-     *   <li>the attribute keys on a principal ({@code username}/{@code role}) but no principal attribute is registered,
+     *   <li>{@code by} keys on a principal ({@code username}/{@code role}) but no principal attribute is registered,
      *       so no bucket can ever be resolved and the limit always fails open.</li>
      * </ul>
      * Called from the cluster-manager transport actions rather than from a cluster-state applier or settings update
@@ -434,23 +434,18 @@ public class WorkloadGroupPersistenceService {
                     + ". The throttling config would be silently dropped; complete the upgrade first."
             );
         }
-        // ATTRIBUTE.get returns "" (its default), not null, when the key is absent -- which is the normal shape of a
-        // partial update that only changes the limit. Only an explicitly principal-keyed attribute is checked here; the
-        // merged config is validated separately.
-        String attribute = WorkloadGroupThrottleSettings.ATTRIBUTE.get(throttling);
-        if (attribute == null || attribute.isEmpty() || WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP.equals(attribute)) {
+        String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {
             return;
         }
         try {
             FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
             if (featureType.getAllowedAttributesRegistry().containsKey(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME) == false) {
                 throw new IllegalArgumentException(
-                    "throttling attribute ["
-                        + attribute
+                    "throttling.by ["
+                        + by
                         + "] needs a principal attribute provider (the security plugin) to be installed, otherwise the "
-                        + "limit can never be enforced. Use attribute ["
-                        + WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP
-                        + "] instead."
+                        + "limit can never be enforced. Omit [by] to use whole-group throttling instead."
                 );
             }
         } catch (ResourceNotFoundException e) {
