@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.FieldData;
@@ -257,6 +258,12 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
+        /** Still searchable from doc values when the index uses a pluggable data format. */
+        @Override
+        public boolean isSearchableForFieldCaps(IndexSettings indexSettings) {
+            return isSearchableViaDocValues(indexSettings);
         }
 
         @Override

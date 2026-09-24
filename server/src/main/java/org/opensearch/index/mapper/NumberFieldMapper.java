@@ -60,6 +60,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
@@ -1977,6 +1978,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
+        /** Still searchable from doc values when the index uses a pluggable data format. */
+        @Override
+        public boolean isSearchableForFieldCaps(IndexSettings indexSettings) {
+            return isSearchableViaDocValues(indexSettings);
         }
 
         public NumberType numberType() {

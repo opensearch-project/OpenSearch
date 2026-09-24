@@ -59,6 +59,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -481,6 +482,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
+        /** Still searchable from doc values when the index uses a pluggable data format. */
+        @Override
+        public boolean isSearchableForFieldCaps(IndexSettings indexSettings) {
+            return isSearchableViaDocValues(indexSettings);
         }
 
         public DateFormatter dateTimeFormatter() {

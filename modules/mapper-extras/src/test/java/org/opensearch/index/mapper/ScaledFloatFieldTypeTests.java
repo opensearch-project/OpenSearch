@@ -47,11 +47,14 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,6 +72,43 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
         Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("scaled_float", scaledValue), dvQuery);
         assertEquals(query, ft.termQuery(value, null));
+    }
+
+    /** Still searchable from doc values when the index uses a pluggable data format. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIsSearchableForFieldCapsOnPluggableIndex() {
+        IndexSettings normal = IndexSettingsModule.newIndexSettings("normal", Settings.EMPTY);
+        IndexSettings pluggable = IndexSettingsModule.newIndexSettings(
+            "pluggable",
+            Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true).build()
+        );
+        assertTrue(pluggable.isPluggableDataFormatEnabled());
+
+        ScaledFloatFieldMapper.ScaledFloatFieldType unindexedWithDocValues = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "scaled_float",
+            false,
+            false,
+            true,
+            false,
+            Collections.emptyMap(),
+            100,
+            null
+        );
+        assertFalse(unindexedWithDocValues.isSearchableForFieldCaps(normal));
+        assertTrue(unindexedWithDocValues.isSearchableForFieldCaps(pluggable));
+        assertFalse(unindexedWithDocValues.isSearchable());
+
+        ScaledFloatFieldMapper.ScaledFloatFieldType unindexedNoDocValues = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "scaled_float",
+            false,
+            false,
+            false,
+            false,
+            Collections.emptyMap(),
+            100,
+            null
+        );
+        assertFalse(unindexedNoDocValues.isSearchableForFieldCaps(pluggable));
     }
 
     public void testTermsQuery() {
