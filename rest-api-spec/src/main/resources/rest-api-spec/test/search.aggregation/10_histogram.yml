@@ -686,8 +686,8 @@ setup:
 ---
 "histogram creating empty buckets":
   - skip:
-      version: " - 3.8.99"
-      reason: fix currently only in 3.9
+      version: " - 3.9.99"
+      reason: fix added in 3.10.0
 
   - do:
       indices.create:
@@ -738,8 +738,8 @@ setup:
 ---
 "histogram without extended bounds":
   - skip:
-      version: " - 3.8.99"
-      reason: fix currently only in 3.9
+      version: " - 3.9.99"
+      reason: fix added in 3.10.0
 
   - do:
       indices.create:
@@ -784,8 +784,8 @@ setup:
 ---
 "histogram with empty index":
   - skip:
-      version: " - 3.8.99"
-      reason: fix currently only in 3.9
+      version: " - 3.9.99"
+      reason: fix added in 3.10.0
 
   - do:
       indices.create:
@@ -821,8 +821,8 @@ setup:
 ---
 "histogram with one-sided extended bounds":
   - skip:
-      version: " - 3.8.99"
-      reason: fix currently only in 3.9
+      version: " - 3.9.99"
+      reason: fix added in 3.10.0
 
   - do:
       indices.create:
