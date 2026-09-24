@@ -22,6 +22,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.hamcrest.MatcherAssert;
@@ -34,6 +35,7 @@ import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -146,6 +148,47 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertEquals(2, fieldValues.length);
         assertEquals(IndexOptions.DOCS, fieldValues[0].fieldType().indexOptions());
         assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
+    }
+
+    public void testIndexFalse() throws Exception {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "flat_object").field("index", false));
+        MapperService mapperService = createMapperService(mapping);
+        MappedFieldType ft = mapperService.fieldType("field");
+        assertFalse(ft.isSearchable());
+        assertTrue(ft.hasDocValues());
+
+        // Serialization round-trips: "index": false must survive toXContent -> reparse.
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertThat(mapper.mappingSource().toString(), containsString("\"index\":false"));
+        XContentBuilder orig = JsonXContent.contentBuilder().startObject();
+        mapper.mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        orig.endObject();
+        XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
+        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        parsedFromOrig.endObject();
+        assertEquals(orig.toString(), parsedFromOrig.toString());
+
+        // Parsing writes doc-values only: no indexed terms for the root, value, or valueAndPath fields.
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("foo", "bar").endObject()));
+        for (String fieldName : new String[] { "field", "field" + VALUE_SUFFIX, "field" + VALUE_AND_PATH_SUFFIX }) {
+            for (IndexableField field : doc.rootDoc().getFields(fieldName)) {
+                assertEquals(fieldName + " must not be indexed", IndexOptions.NONE, field.fieldType().indexOptions());
+                assertEquals(fieldName + " must keep doc values", DocValuesType.SORTED_SET, field.fieldType().docValuesType());
+            }
+            assertTrue(fieldName + " must still write doc values", doc.rootDoc().getFields(fieldName).length > 0);
+        }
+    }
+
+    public void testRequestedCapabilitiesFollowIndexSetting() throws Exception {
+        MappedFieldType searchable = createMapperService(fieldMapping(this::minimalMapping)).fieldType("field");
+        assertEquals(
+            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE),
+            searchable.requestedCapabilities()
+        );
+
+        MappedFieldType unsearchable = createMapperService(fieldMapping(b -> b.field("type", "flat_object").field("index", false)))
+            .fieldType("field");
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE), unsearchable.requestedCapabilities());
     }
 
     public void testNullValue() throws IOException {
