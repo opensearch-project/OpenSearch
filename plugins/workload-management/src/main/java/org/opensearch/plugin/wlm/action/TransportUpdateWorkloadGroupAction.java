@@ -70,6 +70,10 @@ public class TransportUpdateWorkloadGroupAction extends TransportClusterManagerN
      * Validates the throttling config on the node that accepted the request, before it is forwarded. See
      * {@link TransportCreateWorkloadGroupAction#doExecute} for why the manager-side check alone misses the pre-3.9-manager
      * topology; the manager-side call stays authoritative.
+     *
+     * @param task task associated with the request
+     * @param request update workload group request
+     * @param listener listener notified with the response or failure
      */
     @Override
     protected void doExecute(Task task, UpdateWorkloadGroupRequest request, ActionListener<UpdateWorkloadGroupResponse> listener) {

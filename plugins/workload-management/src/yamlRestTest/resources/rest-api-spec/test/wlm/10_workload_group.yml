@@ -186,20 +186,19 @@
               "cpu": 0.1
             },
             "throttling": {
-              "attribute": "group",
               "node_limit": 5
             }
           }
 
   - match: { name: "throttled" }
-  - match: { throttling.attribute: "group" }
+  - is_false: throttling.by
   - match: { throttling.node_limit: 5 }
 
   - do:
       get_workload_group_context:
         name: "throttled"
 
-  - match: { workload_groups.0.throttling.attribute: "group" }
+  - is_false: workload_groups.0.throttling.by
   - match: { workload_groups.0.throttling.node_limit: 5 }
 
   # a partial update keeps the key it does not mention
@@ -213,7 +212,7 @@
             }
           }
 
-  - match: { throttling.attribute: "group" }
+  - is_false: throttling.by
   - match: { throttling.node_limit: 9 }
 
   # an unknown throttle key is rejected
@@ -228,15 +227,38 @@
             }
           }
 
-  # an invalid attribute is rejected
+  # an invalid by value is rejected; group scope is represented only by omitting by
   - do:
-      catch: /throttling.attribute must be one of/
+      catch: /throttling.by must be one of/
       update_workload_group_context:
         name: "throttled"
         body:
           {
             "throttling": {
-              "attribute": "index"
+              "by": "group"
+            }
+          }
+
+  - do:
+      catch: /throttling.by must be one of/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": "index"
+            }
+          }
+
+  # the replaced attribute key must not be silently interpreted as group scope
+  - do:
+      catch: /Unknown throttle setting/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "attribute": "username"
             }
           }
 
@@ -249,9 +271,23 @@
         body:
           {
             "throttling": {
-              "attribute": "username"
+              "by": "username"
             }
           }
+
+  # clearing by keeps the limit and returns to the default group scope
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": null
+            }
+          }
+
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 9 }
 
   # a negative limit is rejected
   - do:
@@ -265,7 +301,38 @@
             }
           }
 
-  # "throttling": null disables throttling entirely, and the field is then omitted
+  # with group scope there is no other throttle key, so clearing node_limit disables throttling
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": null
+            }
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - is_false: workload_groups.0.throttling
+
+  # a limit with no by re-enables throttling in group scope
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 7
+            }
+          }
+
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 7 }
+
+  # "throttling": null also disables throttling entirely, and the field is then omitted
   - do:
       update_workload_group_context:
         name: "throttled"

@@ -29,8 +29,44 @@ public class WorkloadGroupThrottleSettings {
     /** Sentinel for an unset limit, matching the {@code -1 = not set} convention of {@code WLM_SEARCH_TIMEOUT}. */
     public static final int UNSET_LIMIT = -1;
 
-    /** Dimension the limit is keyed by: {@code group} (whole group) or per {@code username} / {@code role}. No default: unset when absent. */
-    public static final Setting<String> ATTRIBUTE = Setting.simpleString("attribute");
+    /** Internal dimension used when {@link #BY} is omitted: one bucket for the workload group as a whole. */
+    public static final String GROUP_SCOPE = "group";
+
+    /** {@link #BY} value giving each username its own bucket per node. */
+    public static final String BY_USERNAME = "username";
+
+    /** {@link #BY} value giving each role its own bucket per node. */
+    public static final String BY_ROLE = "role";
+
+    /**
+     * Legal explicit {@link #BY} values. Group scope is deliberately absent: omitting {@code by} selects it, while a
+     * per-key {@code null} on update clears a username/role override back to that default.
+     */
+    public static final Set<String> ALLOWED_BY_VALUES = Collections.unmodifiableSet(new LinkedHashSet<>(List.of(BY_USERNAME, BY_ROLE)));
+
+    /**
+     * Optional dimension used to subdivide the workload group's allowance. An omitted key resolves to
+     * {@link #GROUP_SCOPE}; only {@code username} and {@code role} may be supplied explicitly.
+     */
+    public static final Setting<String> BY = Setting.simpleString("by", GROUP_SCOPE, new Setting.Validator<String>() {
+        @Override
+        public void validate(String value) {
+            if (GROUP_SCOPE.equals(value) == false && ALLOWED_BY_VALUES.contains(value) == false) {
+                throw new IllegalArgumentException(
+                    "throttling.by must be one of " + ALLOWED_BY_VALUES + " when set but was '" + value + "'"
+                );
+            }
+        }
+
+        @Override
+        public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && GROUP_SCOPE.equals(value)) {
+                throw new IllegalArgumentException(
+                    "throttling.by must be one of " + ALLOWED_BY_VALUES + " when set but was '" + value + "'"
+                );
+            }
+        }
+    });
 
     /**
      * Per-node in-flight allowance admitted locally with no coordination. An absent value resolves to {@link #UNSET_LIMIT},
@@ -53,30 +89,7 @@ public class WorkloadGroupThrottleSettings {
         }
     );
 
-    /** {@link #ATTRIBUTE} value keying the limit to the group as a whole: one bucket per node for every request tagged to it. */
-    public static final String ATTRIBUTE_GROUP = "group";
-
-    /** {@link #ATTRIBUTE} value keying the limit to the caller's username, giving each principal its own bucket per node. */
-    public static final String ATTRIBUTE_USERNAME = "username";
-
-    /** {@link #ATTRIBUTE} value keying the limit to the caller's role, giving each role its own bucket per node. */
-    public static final String ATTRIBUTE_ROLE = "role";
-
-    /**
-     * Allowed attribute values; {@link #ATTRIBUTE_USERNAME} / {@link #ATTRIBUTE_ROLE} map to the security
-     * {@code principal.*} attributes at enforcement. Ordered so validation errors enumerate them the same way every time
-     * ({@code Set.of} iteration order varies between JVM runs).
-     */
-    public static final Set<String> ALLOWED_ATTRIBUTES = Collections.unmodifiableSet(
-        new LinkedHashSet<>(List.of(ATTRIBUTE_GROUP, ATTRIBUTE_USERNAME, ATTRIBUTE_ROLE))
-    );
-
-    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(
-        ATTRIBUTE.getKey(),
-        ATTRIBUTE,
-        NODE_LIMIT.getKey(),
-        NODE_LIMIT
-    );
+    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(BY.getKey(), BY, NODE_LIMIT.getKey(), NODE_LIMIT);
 
     private WorkloadGroupThrottleSettings() {
         throw new UnsupportedOperationException("Utility class");
@@ -88,9 +101,29 @@ public class WorkloadGroupThrottleSettings {
     }
 
     /**
-     * Per-key validation: every key must be registered, {@code attribute} must be an allowed value, and each limit
-     * must be a non-negative 32-bit integer ({@code -1} is the internal "unset" sentinel and is not explicitly
-     * configurable). Safe to run on a partial fragment from an update request; the cross-field checks live in
+     * Returns the effective bucket dimension, including the implicit group default. Unknown keys are rejected here too
+     * so a node reading configuration from a newer peer fails open instead of accidentally applying group throttling to
+     * a schema it does not understand.
+     */
+    public static String getEffectiveBy(Settings throttling) {
+        if (throttling == null) {
+            return GROUP_SCOPE;
+        }
+        for (String key : throttling.keySet()) {
+            if (REGISTERED_SETTINGS.containsKey(key) == false) {
+                throw new IllegalArgumentException("Unknown throttle setting: " + key);
+            }
+        }
+        if (throttling.hasValue(BY.getKey()) == false) {
+            return GROUP_SCOPE;
+        }
+        return BY.get(throttling);
+    }
+
+    /**
+     * Per-key validation: every key must be registered, {@code by} must be an allowed explicit value, and each limit must
+     * be a non-negative 32-bit integer ({@code -1} is the internal "unset" sentinel and is not explicitly configurable).
+     * Safe to run on a partial fragment from an update request; the cross-field checks live in
      * {@link #validateMergedConfig(Settings)}.
      *
      * @param throttling the throttling settings to validate
@@ -116,41 +149,31 @@ public class WorkloadGroupThrottleSettings {
                 throw new IllegalArgumentException("Invalid value '" + value + "' for throttling." + key + ": " + e.getMessage(), e);
             }
         }
-        String attribute = throttling.get(ATTRIBUTE.getKey());
-        if (attribute != null && ALLOWED_ATTRIBUTES.contains(attribute) == false) {
-            throw new IllegalArgumentException(
-                "throttling.attribute must be one of " + ALLOWED_ATTRIBUTES + " but was '" + attribute + "'"
-            );
-        }
     }
 
     /**
-     * Cross-field validation on a fully-merged throttling config. A limit may only be set alongside an attribute
-     * (a limit with no attribute is meaningless), and when throttling is configured the effective ceiling
-     * {@code max(0, node_limit)} must be at least 1, since a ceiling of 0 rejects every request. Must be called on
-     * the merged result, not a partial update fragment.
+     * Cross-field validation on a fully-merged throttling config. When throttling is configured, {@code node_limit} is
+     * required and its effective ceiling must be at least 1, since a ceiling of 0 rejects every request. The optional
+     * {@code by} key defaults to group scope. Must be called on the merged result, not a partial update fragment.
      *
      * @param throttling the merged throttling settings
-     * @throws IllegalArgumentException if a limit is set without an attribute, or the effective ceiling is 0
+     * @throws IllegalArgumentException if a {@code by} value has no limit, or the effective ceiling is 0
      */
     public static void validateMergedConfig(Settings throttling) {
         if (throttling == null || throttling.isEmpty()) {
             return;
         }
-        boolean hasAttribute = throttling.hasValue(ATTRIBUTE.getKey());
+        validate(throttling);
         boolean hasNode = throttling.hasValue(NODE_LIMIT.getKey());
 
-        if (hasNode && hasAttribute == false) {
-            throw new IllegalArgumentException("throttling.attribute is required when a throttle limit is set");
-        }
-
-        // An attribute on its own configures nothing, so say that rather than reporting a zero ceiling: no limit was
-        // ever set, so nothing "would reject all requests".
         if (hasNode == false) {
-            throw new IllegalArgumentException(
-                "throttling.node_limit is required when throttling.attribute is set; "
-                    + "set throttling as null to disable throttling instead"
-            );
+            // A null-valued key is an update clear marker and configures nothing after merging.
+            if (throttling.hasValue(BY.getKey())) {
+                throw new IllegalArgumentException(
+                    "throttling.node_limit is required when throttling.by is set; " + "set throttling as null to disable throttling instead"
+                );
+            }
+            return;
         }
         int node = NODE_LIMIT.get(throttling);
         if (node < 1) {

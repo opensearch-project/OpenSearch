@@ -76,6 +76,10 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
      * without the throttling the caller asked for, in exactly the topology the guard was written to reject (managers are
      * commonly upgraded last). Checking here closes that: any node able to parse a {@code throttling} body is already 3.9+,
      * so its own cluster state sees the pre-3.9 node and the check fires. The manager-side call stays authoritative.
+     *
+     * @param task task associated with the request
+     * @param request create workload group request
+     * @param listener listener notified with the response or failure
      */
     @Override
     protected void doExecute(Task task, CreateWorkloadGroupRequest request, ActionListener<CreateWorkloadGroupResponse> listener) {
