@@ -31,9 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -71,6 +68,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import picocli.CommandLine.Option;
+
 /**
  * Main set of node commands
  *
@@ -78,14 +77,17 @@ import java.util.Objects;
  */
 public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(OpenSearchNodeCommand.class);
+
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
     static final String STOP_WARNING_MSG = DELIMITER + "\n" + "    WARNING: OpenSearch MUST be stopped before running this tool." + "\n";
     protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is OpenSearch still running?";
     protected static final String ABORTED_BY_USER_MSG = "aborted by user";
-    final OptionSpec<Integer> nodeOrdinalOption;
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_NODE_METADATA_FOUND_MSG = "no node meta data is found, node has not been started yet?";
     protected static final String CS_MISSING_MSG = "cluster state is empty, cluster has never been bootstrapped?";
+
+    @Option(names = "--ordinal", description = "Optional node ordinal, 0 if not specified")
+    private Integer nodeOrdinal;
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
     public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
@@ -98,10 +100,8 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
                 if (DataStreamMetadata.TYPE.equals(name) || ComponentTemplateMetadata.TYPE.equals(name)) {
                     // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
                     // ComponentTemplateMetadata is used inside Metadata class for building the systemTemplatesLookup,
-                    // therefor even OpenSearch node commands need to be able to parse it.
+                    // therefore even OpenSearch node commands need to be able to parse it.
                     return super.parseNamedObject(categoryClass, name, parser, context);
-                    // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
-                    // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
                 } else {
                     return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
                 }
@@ -127,7 +127,6 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
 
     public OpenSearchNodeCommand(String description) {
         super(description);
-        nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified").withRequiredArg().ofType(Integer.class);
     }
 
     public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
@@ -162,18 +161,18 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));
     }
 
-    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
+    /**
+     * Acquire the node lock and dispatch to {@link #processNodePaths(Terminal, Path[], int, Environment)}.
+     */
+    protected void processNodePaths(Terminal terminal, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
-        Integer nodeOrdinal = nodeOrdinalOption.value(options);
-        if (nodeOrdinal == null) {
-            nodeOrdinal = 0;
-        }
-        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(nodeOrdinal, logger, env, Files::exists)) {
+        Integer ordinal = (nodeOrdinal == null) ? 0 : nodeOrdinal;
+        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(ordinal, logger, env, Files::exists)) {
             final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
                 throw new OpenSearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths, nodeOrdinal, options, env);
+            processNodePaths(terminal, dataPaths, ordinal, env);
         } catch (LockObtainFailedException e) {
             throw new OpenSearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
@@ -188,10 +187,10 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    public final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public final void execute(Terminal terminal, Environment env) throws Exception {
         terminal.println(STOP_WARNING_MSG);
         if (validateBeforeLock(terminal, env)) {
-            processNodePaths(terminal, options, env);
+            processNodePaths(terminal, env);
         }
     }
 
@@ -209,11 +208,11 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
      * Process the paths. Locks for the paths is held during this method invocation.
      * @param terminal the terminal to use for messages
      * @param dataPaths the paths of the node to process
-     * @param options the command line options
+     * @param nodeLockId the node lock id (ordinal)
      * @param env the env of the node to process
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
-        throws IOException, UserException;
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, Environment env) throws IOException,
+        UserException;
 
     protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
         return Arrays.stream(dataPaths).map(OpenSearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
@@ -225,11 +224,6 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         } catch (IOException e) {
             throw new OpenSearchException("Unable to investigate path [" + path + "]", e);
         }
-    }
-
-    // package-private for testing
-    OptionParser getParser() {
-        return parser;
     }
 
     /**
