@@ -206,4 +206,21 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
         );
         assertTrue(ex.getMessage().contains("not yet supported"));
     }
+
+    public void testBoostParameterRejectedWithConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("name", "laptop").boost(1.5f), ctx)
+        );
+        assertTrue("Must mention 'boost', got: " + ex.getMessage(), ex.getMessage().contains("boost"));
+        assertTrue("Must mention 'not supported', got: " + ex.getMessage(), ex.getMessage().contains("not supported"));
+    }
+
+    public void testNameParameterRejectedWithConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("name", "laptop").queryName("my_term"), ctx)
+        );
+        assertEquals("Term query parameter '_name' is not supported", ex.getMessage());
+    }
 }
