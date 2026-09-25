@@ -138,6 +138,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
                     return;
                 }
             } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
                 exceptionList.forEach(exception::addSuppressed);
                 RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames),

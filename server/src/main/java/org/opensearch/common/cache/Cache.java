@@ -261,6 +261,7 @@ public class Cache<K, V> {
                     segmentStats.miss();
                     return null;
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new IllegalStateException(e);
                 }
                 if (isExpired.test(entry)) {
@@ -302,6 +303,9 @@ public class Cache<K, V> {
                         }).get();
                     }
                 } catch (ExecutionException | InterruptedException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     throw new IllegalStateException(e);
                 }
             }
@@ -348,6 +352,9 @@ public class Cache<K, V> {
                         }
                     }
                 } catch (ExecutionException | InterruptedException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     throw new IllegalStateException(e);
                 }
             }
@@ -517,6 +524,7 @@ public class Cache<K, V> {
                 throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
         return value;
@@ -566,6 +574,7 @@ public class Cache<K, V> {
         } catch (ExecutionException e) {
             // ok
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
     };
@@ -579,6 +588,7 @@ public class Cache<K, V> {
         } catch (ExecutionException e) {
             // ok
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
     };

@@ -212,6 +212,9 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
                 throw new TimeoutException("Timeout while acquiring all permits");
             }
         } catch (InterruptedException | TimeoutException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw new RuntimeException("Failed to acquire all permits", e);
         }
     }

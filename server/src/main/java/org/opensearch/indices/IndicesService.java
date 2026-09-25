@@ -870,7 +870,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
             }
         } catch (InterruptedException e) {
-            // ignore
+            Thread.currentThread().interrupt();
         } finally {
             indicesStopExecutor.shutdown();
         }

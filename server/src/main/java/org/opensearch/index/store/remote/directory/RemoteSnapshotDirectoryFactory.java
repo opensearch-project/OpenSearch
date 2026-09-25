@@ -72,6 +72,9 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         try {
             return createRemoteSnapshotDirectoryFromSnapshot(indexSettings, localShardPath, blobStoreRepository).get();
         } catch (InterruptedException | ExecutionException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw new IllegalStateException(e);
         }
     }

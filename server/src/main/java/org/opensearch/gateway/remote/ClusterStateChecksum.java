@@ -138,6 +138,7 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         try {
             latch.await();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
         }
         createClusterStateChecksum();
