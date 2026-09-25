@@ -44,7 +44,6 @@ import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
@@ -135,12 +134,22 @@ public class URLBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String name) throws IOException {
         try {
-            return new BufferedInputStream(getInputStream(this.path.toURI().resolve(name).toURL()), blobStore.bufferSizeInBytes());
+            return new BufferedInputStream(getInputStream(resolveBlobName(name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
-        } catch (URISyntaxException e) {
-            throw new IOException(e);
         }
+    }
+
+    private URL resolveBlobName(String name) throws IOException {
+        try {
+            return blobStore.resolve(path, name);
+        } catch (IOException e) {
+            throw invalidBlobName(name, e);
+        }
+    }
+
+    private static IOException invalidBlobName(String name, Exception cause) {
+        return new IOException("invalid blob name [" + name + "]", cause);
     }
 
     @Override
