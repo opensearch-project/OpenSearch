@@ -43,10 +43,13 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -227,14 +230,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (method == null) {
             method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
-        return new RegexpQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            syntaxFlags,
-            matchFlags,
-            RegexpQuery.DEFAULT_PROVIDER,
-            maxDeterminizedStates,
-            method
-        );
+        CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
+            .getCompiledAutomaton(value, syntaxFlags, matchFlags, maxDeterminizedStates, RegexpQuery.DEFAULT_PROVIDER);
+        return new PrecompiledAutomatonQuery(new Term(name(), indexedValueForSearch(value)), compiled, value, method);
     }
 
     @Override
