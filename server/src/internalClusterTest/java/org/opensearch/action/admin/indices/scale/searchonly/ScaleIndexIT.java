@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.indices.scale.searchonly;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
@@ -20,10 +21,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +47,13 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     public Settings indexSettings() {
         return Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> plugins = new HashSet<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     public void testFullLifecycleWithSearchReplica() throws Exception {
@@ -203,6 +215,53 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             assertHitCount(finalResponse, 11);
             assertSearchNodeDocCounts(11, TEST_INDEX);
         });
+    }
+
+    public void testScaleDownShardSyncFailureAllowsWrites() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startSearchOnlyNode();
+
+        Settings specificSettings = Settings.builder()
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        createIndex(TEST_INDEX, specificSettings);
+        ensureGreen(TEST_INDEX);
+
+        IndexResponse firstIndexResponse = client().prepareIndex(TEST_INDEX)
+            .setId("before-scale-down")
+            .setSource("field1", "value-before")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, firstIndexResponse.status());
+
+        MockTransportService dataNodeTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            dataNode
+        );
+        dataNodeTransportService.addRequestHandlingBehavior(TransportScaleIndexAction.NAME, (handler, request, channel, task) -> {
+            throw new OpenSearchException("simulated shard sync failure");
+        });
+
+        try {
+            expectThrows(OpenSearchException.class, () -> client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
+        } finally {
+            dataNodeTransportService.clearAllRules();
+        }
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey())));
+
+        IndexResponse indexResponse = client().prepareIndex(TEST_INDEX)
+            .setId("after-failed-scale-down")
+            .setSource("field1", "value-after")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 
     /**
