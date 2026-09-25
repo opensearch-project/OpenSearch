@@ -1448,10 +1448,10 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * With only the default mock format (named {@code composite}, exposing no Lucene
-     * DirectoryReader), {@code acquireSearcherSupplier} must fail loudly instead of returning an
-     * unsearchable supplier: the shared support cannot resolve the {@code lucene} data format and
-     * wraps the failure in an {@link EngineException}. The failure path must also release the
+     * With only the default mock format, whose reader does not implement
+     * {@link SearchableDirectoryReaderProvider}, {@code acquireSearcherSupplier} must fail loudly instead
+     * of returning an unsearchable supplier: no format reader exposes a searchable DirectoryReader, and
+     * the failure is wrapped in an {@link EngineException}. The failure path must also release the
      * acquired reader/snapshot reference — verified implicitly by the leak checks in tear-down.
      */
     public void testAcquireSearcherSupplierFailsWithoutSearchableLuceneReader() throws IOException {
@@ -1474,7 +1474,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * close is rejected.
      */
     public void testAcquireSearcherSupplierProvidesPointInTimeSearchers() throws Exception {
-        renameMockFormatToLucene();
         SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
         mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
             @Override
@@ -1514,7 +1513,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * reference (leak-checked in tear-down).
      */
     public void testAcquireSearcherOneShotReleasesSupplierOnClose() throws Exception {
-        renameMockFormatToLucene();
         SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
         mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
             @Override
@@ -1539,7 +1537,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * snapshot becomes deletable.
      */
     public void testOpenSearcherSupplierPinsCatalogSnapshotAgainstDeletion() throws Exception {
-        renameMockFormatToLucene();
         SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
         mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
             @Override
@@ -1580,17 +1577,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * Re-registers the mock format under the name {@code lucene}: the shared
-     * {@code DataFormatAwareSearcherSupport} resolves the searchable format by that literal name,
-     * so tests that wire a searchable stub reader must expose it through a format so named.
-     * Must run before {@code createDFAEngine}, which snapshots these fields into the registry.
-     */
-    private void renameMockFormatToLucene() {
-        mockDataFormat = new MockDataFormat("lucene", 100L, Set.of());
-        mockPlugin = MockDataFormatPlugin.of(mockDataFormat);
-    }
-
-    /**
      * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
      * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.Indexer}
      * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
@@ -1605,8 +1591,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             }
             engine.refresh("test");
 
-            // At server scope no real Lucene data format is registered, so the pinned contract is the
-            // failure shape: a live engine surfaces the missing format as EngineException (never a raw
+            // The default mock format's reader is not searchable, so the pinned contract is the failure
+            // shape: a live engine surfaces the missing searchable reader as EngineException (never a raw
             // NPE or a silent null). The happy path is covered by the composite-engine cluster ITs.
             EngineException e = expectThrows(
                 EngineException.class,

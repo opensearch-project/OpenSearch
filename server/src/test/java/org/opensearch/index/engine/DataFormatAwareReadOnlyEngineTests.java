@@ -992,9 +992,9 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     public void testAcquireSearcherSupplierContract() throws IOException {
         DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine();
         try {
-            // At server scope no real Lucene data format is registered, so the pinned contract is the
-            // failure shape: a live engine surfaces the missing format as EngineException (never a raw
-            // NPE or a silent null). The happy warm path is covered by CompositeParquetWarmDocValuesIT.
+            // The mock format's reader is not searchable, so the pinned contract is the failure shape: a
+            // live engine surfaces the missing searchable reader as EngineException (never a raw NPE or a
+            // silent null).
             EngineException e = expectThrows(
                 EngineException.class,
                 () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
