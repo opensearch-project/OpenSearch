@@ -131,6 +131,71 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         return false;
     }
 
+    /**
+     * A predicate delegated to another backend is serialized by that backend, so the driving
+     * backend's adapters must not rewrite it (e.g. DataFusion's SEARCH expansion made Lucene fail
+     * with "Delegated expression must be a SqlFunction call: OR(=, =)").
+     */
+    public void testAdapterSkipsPredicateDelegatedToAnotherBackend() {
+        SqlFunction matchPhrase = new SqlFunction(
+            "MATCH_PHRASE",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<org.opensearch.analytics.spi.DelegationType> supportedDelegations() {
+                return Set.of(org.opensearch.analytics.spi.DelegationType.FILTER);
+            }
+
+            @Override
+            protected Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                return Map.of(ScalarFunction.MATCH_PHRASE, (call, fieldStorage, cluster) -> cluster.getRexBuilder().makeLiteral(true));
+            }
+        };
+        org.opensearch.analytics.planner.MockLuceneBackend lucene = new org.opensearch.analytics.planner.MockLuceneBackend() {
+            @Override
+            protected Set<org.opensearch.analytics.spi.DelegationType> acceptedDelegations() {
+                return Set.of(org.opensearch.analytics.spi.DelegationType.FILTER);
+            }
+        };
+        PlannerContext context = buildContext(
+            "parquet",
+            1,
+            Map.of("message", Map.of("type", "keyword", "index", true), "status", Map.of("type", "integer")),
+            List.of(df, lucene)
+        );
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.AND,
+            rexBuilder.makeCall(
+                matchPhrase,
+                rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+                rexBuilder.makeLiteral("x")
+            ),
+            makeEquals(1, SqlTypeName.INTEGER, 200)
+        );
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "message", "status" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        RelNode marked = runPlanner(LogicalFilter.create(stubScan(table), condition), context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchFilter.class);
+        assertEquals(MockDataFusionBackend.NAME, plan.backendId());
+        OpenSearchFilter adapted = (OpenSearchFilter) plan.resolvedFragment();
+        assertNotNull(
+            "Lucene-delegated MATCH_PHRASE must reach the Lucene serializer unadapted",
+            findCallByName(adapted.getCondition(), "MATCH_PHRASE")
+        );
+    }
+
     /** SIN(integer_column) should be adapted to SIN(CAST(integer_column AS DOUBLE)). */
     public void testSinAdapterInsertsCastForIntegerField() {
         RexCall sinCall = adaptSinFilter(SqlTypeName.INTEGER, intFields());

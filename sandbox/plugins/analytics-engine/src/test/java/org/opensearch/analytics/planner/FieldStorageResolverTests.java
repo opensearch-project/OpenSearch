@@ -128,6 +128,25 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertFalse(resolver.resolve(List.of("tag")).get(0).isNormalized());
     }
 
+    public void testExactMatchSubfieldNormalized_true() {
+        FieldStorageResolver resolver = newResolver(
+            "parquet",
+            Map.of("msg", Map.of("type", "text", "fields", Map.of("keyword", Map.of("type", "keyword", "normalizer", "lowercase"))))
+        );
+        FieldStorageInfo info = resolver.resolve(List.of("msg")).get(0);
+        assertEquals("keyword", info.getExactMatchSubfield());
+        assertTrue(info.isExactMatchSubfieldNormalized());
+        assertFalse("the parent text field itself has no normalizer", info.isNormalized());
+    }
+
+    public void testExactMatchSubfieldNormalized_false() {
+        FieldStorageResolver resolver = newResolver(
+            "parquet",
+            Map.of("msg", Map.of("type", "text", "fields", Map.of("keyword", Map.of("type", "keyword"))))
+        );
+        assertFalse(resolver.resolve(List.of("msg")).get(0).isExactMatchSubfieldNormalized());
+    }
+
     public void testNormalized_defaultingConstructor_false() {
         FieldStorageInfo info = new FieldStorageInfo(
             "k",

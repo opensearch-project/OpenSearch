@@ -52,9 +52,9 @@ public class ComparisonSerializer extends AbstractQuerySerializer {
         }
 
         FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
-        String fieldName = field.getExactMatchSubfield() != null
-            ? field.getFieldName() + "." + field.getExactMatchSubfield()
-            : field.getFieldName();
+        // Vanilla OpenSearch ranges over the field itself — for text, its analyzed tokens — never
+        // over the keyword multifield.
+        String fieldName = field.getFieldName();
         Object value = CalciteToOSMapperConversionUtils.literalToOpenSearchValue(valueLit);
 
         RangeQueryBuilder range = new RangeQueryBuilder(fieldName);

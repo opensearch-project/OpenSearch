@@ -322,21 +322,21 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
     // ── dynamic mapping — new field in second segment ─────────────────────────
 
     /**
-     * Schema-drift scenario: a new field ({@code region}) is added in a second batch after the
+     * Schema-drift scenario: a new field ({@code region_id}) is added in a second batch after the
      * first segment already exists. Verifies that:
      * <ol>
      *   <li>The first batch's field ({@code age}) can still be queried correctly after the schema
      *       expands.</li>
-     *   <li>The new field ({@code region}) fills the CI from the segment that carries it, even
+     *   <li>The new field ({@code region_id}) fills the CI from the segment that carries it, even
      *       though the first segment has no such column.</li>
      * </ol>
      * Uses a dedicated index ({@value #DYNAMIC_INDEX_NAME}) with dynamic mapping so no explicit
      * schema is defined — the mapping is inferred from each batch.
      */
     public void testDynamicMappingNewFieldInSecondSegmentFillsCI() throws Exception {
-        // region/city are keyword fields; block EQUALS so the keyword-equality predicate
-        // (region = 'west') scans parquet and fills the ColumnIndex instead of being
-        // delegated to Lucene.
+        // Block Lucene EQUALS so the equality on the new field scans parquet and fills the
+        // ColumnIndex instead of being delegated. The new field is numeric: dynamically mapped
+        // strings here are text-only, and text equality is index-backed (token semantics).
         setLuceneBlockedPredicates("EQUALS");
 
         // Clean up any leftovers from a prior run.
@@ -387,16 +387,15 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         assertPositive("dynamic batch1: CI fills for age", ciMisses(afterBatch1));
         assertPositive("dynamic batch1: metadata populated", metaMemoryBytes(afterBatch1));
 
-        // Batch 2: adds NEW field region to every doc → creates segment 2 with schema drift.
+        // Batch 2: adds NEW field region_id to every doc → creates segment 2 with schema drift.
         StringBuilder batch2 = new StringBuilder();
-        String[] regions = {"west", "east", "central"};
         for (int i = 500; i < 1000; i++) {
             batch2.append("{\"index\":{}}\n")
                 .append("{\"name\":\"user").append(i)
                 .append("\",\"age\":").append(i % 100)
                 .append(",\"city\":\"").append(cities[i % cities.length])
-                .append("\",\"region\":\"").append(regions[i % regions.length])
-                .append("\"}\n");
+                .append("\",\"region_id\":").append(i % 3 + 1)
+                .append("}\n");
         }
         Request bulk2 = new Request("POST", "/" + DYNAMIC_INDEX_NAME + "/_bulk");
         bulk2.setJsonEntity(batch2.toString());
@@ -409,11 +408,11 @@ public class ScopedPageIndexCacheIT extends AnalyticsRestTestCase {
         clearAllCaches();
         assertCacheEmpty();
 
-        // Query on new field region — only segment 2 carries it; CI must fill from that segment.
-        String regionPpl = "source=" + DYNAMIC_INDEX_NAME + " | where region = 'west' | stats count()";
+        // Query on new field region_id — only segment 2 carries it; CI must fill from that segment.
+        String regionPpl = "source=" + DYNAMIC_INDEX_NAME + " | where region_id = 1 | stats count()";
         executePpl(regionPpl);
         JsonNode afterRegion = stats();
-        assertPositive("dynamic: CI fills for new field region", ciMisses(afterRegion));
+        assertPositive("dynamic: CI fills for new field region_id", ciMisses(afterRegion));
         assertPositive("dynamic: metadata populated after region query", metaMemoryBytes(afterRegion));
 
         // The old-field age query must still work correctly after schema drift.

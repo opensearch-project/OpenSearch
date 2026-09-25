@@ -10,12 +10,15 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.util.Sarg;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -34,8 +37,10 @@ import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -249,12 +254,24 @@ public class OpenSearchFilterRule extends RelOptRule {
         }
 
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
+        // Full-text functions pass their field through MAP parameter scaffolding, not a computed value.
+        Map<Integer, FieldType> computedFieldTypes = function.getCategory() == ScalarFunction.Category.FULL_TEXT
+            ? Map.of()
+            : computedOperandTypes(predicate);
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
 
             Set<String> fieldViable;
-            if (storageInfo.isDerived()) {
+            FieldType computedType = computedFieldTypes.get(fieldIndex);
+            if (storageInfo.isDerived() == false && computedType != null) {
+                // The field only feeds a computed operand (e.g. GROK(raw_message)['user'] != ''):
+                // the predicate compares that expression's value, not the stored field, so the
+                // capability is looked up by the expression's type on a backend that reads the
+                // field's doc values. Nested functions are checked below.
+                fieldViable = new HashSet<>(registry.scanBackendsForField(storageInfo));
+                fieldViable.retainAll(registry.filterBackendsAnyFormat(function, computedType));
+            } else if (storageInfo.isDerived()) {
                 // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
                 // computed in memory by the producer. The filter can only run on a backend
                 // the producer is also viable for (its child's viableBackends), and further
@@ -270,7 +287,7 @@ public class OpenSearchFilterRule extends RelOptRule {
                 // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
                 // field only when the field has indexFormats=[lucene] set in the mapping).
                 // TODO: for FULL_TEXT operators, extract required params from RexCall
-                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
+                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo, textComparison(predicate, function)));
             }
 
             viableSet.retainAll(fieldViable);
@@ -363,6 +380,57 @@ public class OpenSearchFilterRule extends RelOptRule {
      * as possible.
      */
     private record PredicateContents(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
+    }
+
+    /**
+     * The text comparison kind of {@code predicate}. A {@code SEARCH} over discrete points is an
+     * {@code IN} / {@code NOT IN} (exact); any other Sarg is range-shaped.
+     */
+    private static CapabilityRegistry.TextComparison textComparison(RexCall predicate, ScalarFunction function) {
+        if (function == ScalarFunction.SARG_PREDICATE) {
+            for (RexNode operand : predicate.getOperands()) {
+                if (operand instanceof RexLiteral literal && literal.getValue() instanceof Sarg<?> sarg) {
+                    return sarg.isPoints() || sarg.isComplementedPoints()
+                        ? CapabilityRegistry.TextComparison.EXACT
+                        : CapabilityRegistry.TextComparison.RANGE;
+                }
+            }
+        }
+        return CapabilityRegistry.TextComparison.of(function);
+    }
+
+    /**
+     * For each field referenced by the predicate only inside a computed operand — a function call
+     * other than a {@code CAST} — the type of that operand. Fields that are a direct operand (bare or
+     * cast) are absent, so their mapping type still decides capability.
+     */
+    private static Map<Integer, FieldType> computedOperandTypes(RexCall predicate) {
+        Set<Integer> direct = new HashSet<>();
+        Map<Integer, FieldType> computed = new HashMap<>();
+        for (RexNode operand : predicate.getOperands()) {
+            RexNode unwrapped = operand;
+            while (unwrapped.getKind() == SqlKind.CAST && unwrapped instanceof RexCall cast) {
+                unwrapped = cast.getOperands().getFirst();
+            }
+            if (unwrapped instanceof RexInputRef ref) {
+                direct.add(ref.getIndex());
+            } else if (unwrapped instanceof RexCall call) {
+                SqlKind kind = call.getKind();
+                if (kind == SqlKind.MAP_VALUE_CONSTRUCTOR || kind == SqlKind.ARRAY_VALUE_CONSTRUCTOR || kind == SqlKind.ROW) {
+                    // Parameter scaffolding (named-argument MAP/ARRAY/ROW), not a computed value.
+                    continue;
+                }
+                FieldType type = FieldType.fromSqlTypeName(call.getType().getSqlTypeName());
+                if (type == null) {
+                    continue;
+                }
+                for (int index : RelOptUtil.InputFinder.bits(call)) {
+                    computed.putIfAbsent(index, type);
+                }
+            }
+        }
+        computed.keySet().removeAll(direct);
+        return computed;
     }
 
     /** Recurses the operand subtree, populating {@code contents} in-place. */

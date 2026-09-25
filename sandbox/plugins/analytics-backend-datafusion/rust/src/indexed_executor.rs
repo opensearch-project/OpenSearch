@@ -399,15 +399,22 @@ fn single_collector_id(tree: &BoolNode) -> Option<i32> {
     }
 }
 
-/// For a tree classified as `SingleCollector`, return the residual
-/// (all non-Collector parts of the AND tree, re-assembled into a
-/// single BoolNode). Recursively strips Collector leaves from nested
-/// ANDs. Returns `None` if the tree is a bare Collector or the entire
-/// tree is collectors-only (no residual predicates).
-fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
+/// For a tree classified as `SingleCollector`, return the DataFusion-native
+/// residual: the `Predicate` parts of the AND tree, re-assembled into a single
+/// BoolNode. Recursively strips `Collector` and `DelegationPossible` leaves from
+/// nested ANDs. Returns `None` if nothing native remains.
+///
+/// `DelegationPossible` leaves are stripped because they are owned per row group
+/// by exactly one backend (see `SingleCollectorEvaluator::performance_leaves`):
+/// the evaluator applies a DataFusion-owned leaf itself, and a Lucene-owned leaf
+/// must not be decoded or evaluated at all. Leaving them here would make DataFusion
+/// evaluate every leaf on every row group regardless of the election. They only
+/// ever sit on the AND spine: `expr_to_bool_tree` demotes them to `Predicate` when
+/// they appear under OR/NOT, so the OR/NOT arm below never contains one.
+pub(crate) fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
     fn strip_collectors(node: &BoolNode) -> Option<BoolNode> {
         match node {
-            BoolNode::Collector { .. } => None,
+            BoolNode::Collector { .. } | BoolNode::DelegationPossible { .. } => None,
             BoolNode::Predicate(_) => Some(node.clone()),
             BoolNode::And(children) => {
                 let residuals: Vec<BoolNode> =
@@ -424,6 +431,84 @@ fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
         }
     }
     strip_collectors(tree)
+}
+
+/// Resolve the filter class from the Java-side tree shape, falling back to the tree itself.
+///
+/// The single-collector evaluator only handles AND-shaped trees. If Java labels a tree
+/// CONJUNCTIVE but it has a collector under OR/NOT, running it as `SingleCollector` returns
+/// wrong rows (the OR root is kept whole as the residual and no collector is found on the AND
+/// spine, so every row passes). Correctness wins: such a tree runs on the tree evaluator, which
+/// handles any shape, and the mismatch is logged as a planner bug.
+pub(crate) fn resolve_classification(
+    java_override: Option<FilterClass>,
+    tree: Option<&BoolNode>,
+) -> FilterClass {
+    let derived = tree.map(classify_filter).unwrap_or(FilterClass::None);
+    match java_override {
+        None => derived,
+        Some(FilterClass::SingleCollector) if derived == FilterClass::Tree => {
+            native_bridge_common::log_error!(
+                "filter tree shape mismatch: planner sent CONJUNCTIVE for a tree with a collector \
+                 under OR/NOT; evaluating it with the tree evaluator instead"
+            );
+            FilterClass::Tree
+        }
+        Some(c) => c,
+    }
+}
+
+/// Filter components the `SingleCollectorEvaluator` is built from.
+pub(crate) struct SingleCollectorFilterPlan {
+    /// DataFusion-native residual only; performance leaves are excluded (see
+    /// [`extract_single_collector_residual`]). Evaluated post-decode on every RG.
+    pub residual_expr: Option<Arc<dyn PhysicalExpr>>,
+    /// Page-stats / bloom pruning over the native residual AND every performance
+    /// leaf. Including the leaves is sound whichever backend owns them: each leaf is
+    /// a conjunct, so rows its stats exclude fail the filter either way.
+    pub pruning_predicate: Option<Arc<PruningPredicate>>,
+    pub performance_leaves: Vec<PerformanceLeaf>,
+}
+
+/// Split a `SingleCollector` tree into the native residual, the pruning predicate
+/// and the per-RG-owned performance leaves.
+pub(crate) fn plan_single_collector_filter(
+    tree: &BoolNode,
+    schema: &SchemaRef,
+) -> SingleCollectorFilterPlan {
+    let residual_expr = extract_single_collector_residual(tree)
+        .as_ref()
+        .and_then(residual_bool_to_physical_expr);
+
+    let performance_leaves: Vec<PerformanceLeaf> = tree
+        .delegation_possible_leaves()
+        .into_iter()
+        .map(|(annotation_id, expr)| PerformanceLeaf {
+            annotation_id,
+            pruning_predicate: build_pruning_predicate(&expr, Arc::clone(schema)),
+            expr,
+        })
+        .collect();
+
+    let pruning_conjuncts: Vec<Arc<dyn PhysicalExpr>> = residual_expr
+        .iter()
+        .cloned()
+        .chain(performance_leaves.iter().map(|l| Arc::clone(&l.expr)))
+        .collect();
+    let pruning_predicate = if pruning_conjuncts.is_empty() {
+        None
+    } else {
+        build_pruning_predicate(
+            &datafusion::physical_expr::utils::conjunction(pruning_conjuncts),
+            Arc::clone(schema),
+        )
+    };
+
+    SingleCollectorFilterPlan {
+        residual_expr,
+        pruning_predicate,
+        performance_leaves,
+    }
 }
 
 // ── Placeholder provider used only for substrait consume pass ─────────
@@ -560,6 +645,135 @@ mod tests {
             BoolNode::And(vec![collector(2), collector(3)]),
         ]);
         assert!(extract_single_collector_residual(&tree).is_none());
+    }
+
+    // ── resolve_classification ─────────────────────────────────────────
+
+    #[test]
+    fn classification_overrides_conjunctive_for_or_with_collector() {
+        // OR(Collector, Predicate) labelled CONJUNCTIVE by the planner must still run as Tree.
+        let tree = BoolNode::Or(vec![collector(0), pred()]);
+        assert_eq!(
+            resolve_classification(Some(FilterClass::SingleCollector), Some(&tree)),
+            FilterClass::Tree
+        );
+    }
+
+    #[test]
+    fn classification_keeps_conjunctive_for_and_tree() {
+        let tree = BoolNode::And(vec![collector(0), pred()]);
+        assert_eq!(
+            resolve_classification(Some(FilterClass::SingleCollector), Some(&tree)),
+            FilterClass::SingleCollector
+        );
+    }
+
+    #[test]
+    fn classification_keeps_java_label_otherwise() {
+        let tree = BoolNode::And(vec![collector(0), pred()]);
+        assert_eq!(
+            resolve_classification(Some(FilterClass::Tree), Some(&tree)),
+            FilterClass::Tree
+        );
+        assert_eq!(
+            resolve_classification(None, Some(&BoolNode::Or(vec![collector(0), pred()]))),
+            FilterClass::Tree
+        );
+        assert_eq!(resolve_classification(None, None), FilterClass::None);
+    }
+
+    // ── performance leaves are not part of the residual ───────────────
+
+    fn delegation(id: i32, col: &str, idx: usize, v: i32) -> BoolNode {
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new(col, idx));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(v))));
+        BoolNode::DelegationPossible {
+            annotation_id: id,
+            original_expr: Arc::new(BinaryExpr::new(left, Operator::Lt, right)),
+        }
+    }
+
+    fn column_indices(expr: &Arc<dyn PhysicalExpr>) -> Vec<usize> {
+        let mut cols: Vec<usize> = datafusion::physical_expr::utils::collect_columns(expr)
+            .iter()
+            .map(|c| c.index())
+            .collect();
+        cols.sort_unstable();
+        cols
+    }
+
+    fn two_col_schema() -> SchemaRef {
+        Arc::new(Schema::new(vec![
+            Field::new("price", DataType::Int32, false),
+            Field::new("qty", DataType::Int32, false),
+        ]))
+    }
+
+    #[test]
+    fn residual_strips_delegation_possible() {
+        // AND(C, P(price), DP(qty)) → P
+        let tree = BoolNode::And(vec![collector(0), pred(), delegation(1, "qty", 1, 5)]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(
+            is_predicate(&r),
+            "expected the native predicate only, got {:?}",
+            r
+        );
+    }
+
+    #[test]
+    fn residual_delegation_only_is_none() {
+        let tree = BoolNode::And(vec![
+            delegation(1, "price", 0, 5),
+            delegation(2, "qty", 1, 5),
+        ]);
+        assert!(extract_single_collector_residual(&tree).is_none());
+    }
+
+    #[test]
+    fn residual_nested_and_strips_delegation_possible() {
+        // AND(DP, AND(C, P)) → P
+        let tree = BoolNode::And(vec![
+            delegation(1, "qty", 1, 5),
+            BoolNode::And(vec![collector(0), pred()]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(is_predicate(&r));
+    }
+
+    #[test]
+    fn plan_residual_excludes_performance_leaf_columns() {
+        // AND(C, P(price = 0), DP(qty < 5)): residual reads only price; qty is a leaf.
+        let tree = BoolNode::And(vec![collector(0), pred(), delegation(7, "qty", 1, 5)]);
+        let plan = plan_single_collector_filter(&tree, &two_col_schema());
+        assert_eq!(
+            column_indices(plan.residual_expr.as_ref().unwrap()),
+            vec![0]
+        );
+        assert_eq!(plan.performance_leaves.len(), 1);
+        assert_eq!(plan.performance_leaves[0].annotation_id, 7);
+        assert_eq!(column_indices(&plan.performance_leaves[0].expr), vec![1]);
+        assert!(plan.performance_leaves[0].pruning_predicate.is_some());
+    }
+
+    #[test]
+    fn plan_pruning_predicate_covers_performance_leaves() {
+        // No native residual, but page stats must still prune on the leaf.
+        let tree = BoolNode::And(vec![delegation(1, "qty", 1, 5)]);
+        let plan = plan_single_collector_filter(&tree, &two_col_schema());
+        assert!(plan.residual_expr.is_none());
+        let pp = plan
+            .pruning_predicate
+            .expect("leaf must contribute to pruning");
+        assert_eq!(column_indices(pp.orig_expr()), vec![1]);
+    }
+
+    #[test]
+    fn plan_pruning_predicate_combines_residual_and_leaves() {
+        let tree = BoolNode::And(vec![collector(0), pred(), delegation(1, "qty", 1, 5)]);
+        let plan = plan_single_collector_filter(&tree, &two_col_schema());
+        let pp = plan.pruning_predicate.expect("pruning predicate");
+        assert_eq!(column_indices(pp.orig_expr()), vec![0, 1]);
     }
 
     // ── analyze_top_sort / should_reverse_segments ────────────────────
@@ -998,21 +1212,17 @@ async unsafe fn execute_indexed_with_context_inner(
         ),
     };
 
-    // Resolve classification: from Java config if available, otherwise derive from tree
-    let classification = match classification_override {
-        Some(c) => c,
-        None => match &extraction {
-            None => FilterClass::None,
-            Some(e) => classify_filter(&e.tree),
-        },
-    };
+    let classification = resolve_classification(
+        classification_override,
+        extraction.as_ref().map(|e| e.tree.as_ref()),
+    );
     // Derive the parquet pushdown predicate from the BoolNode tree.
     // `scan()` ignores DataFusion's filters argument (which contains
     // the `delegated_predicate` UDF marker whose body panics) and uses this
     // field instead.
     //
-    // SingleCollector: residual (non-Collector top-AND children) →
-    //   PhysicalExpr for `ParquetSource::with_predicate`. In
+    // SingleCollector: native residual (non-Collector, non-DelegationPossible
+    //   top-AND children) → PhysicalExpr for `ParquetSource::with_predicate`. In
     //   row-granular mode parquet narrows Collector-matching rows via
     //   RowSelection and drops residual-failing rows via pushdown.
     //   In block-granular mode the evaluator's `on_batch_mask` applies
@@ -1146,6 +1356,16 @@ async unsafe fn execute_indexed_with_context_inner(
                     None => None,
                 };
 
+            // Native residual, pruning predicate and per-RG-owned performance leaves.
+            // See `plan_single_collector_filter`: the residual excludes performance
+            // leaves so a Lucene-owned leaf is neither decoded nor evaluated by
+            // DataFusion; the pruning predicate keeps them for page-stats and bloom.
+            let SingleCollectorFilterPlan {
+                residual_expr,
+                pruning_predicate: residual_pruning_predicate,
+                performance_leaves,
+            } = plan_single_collector_filter(&extraction.tree, &schema_for_pruner);
+
             // Performance-delegated provider locks (lazy). Built ONCE per query,
             // shared across all per-(segment×chunk) closures via Arc::clone — so
             // multiple DataFusion threads racing to populate the same Lucene
@@ -1154,50 +1374,13 @@ async unsafe fn execute_indexed_with_context_inner(
             let performance_provider_locks: Arc<
                 std::collections::HashMap<i32, Arc<std::sync::OnceLock<ProviderHandle>>>,
             > = {
-                let leaves = extraction.tree.delegation_possible_leaves();
-                let mut map = std::collections::HashMap::with_capacity(leaves.len());
-                for (annotation_id, _expr) in &leaves {
-                    map.entry(*annotation_id)
+                let mut map = std::collections::HashMap::with_capacity(performance_leaves.len());
+                for leaf in &performance_leaves {
+                    map.entry(leaf.annotation_id)
                         .or_insert_with(|| Arc::new(std::sync::OnceLock::new()));
                 }
                 Arc::new(map)
             };
-
-            // Extract the residual (non-Collector children of top-level
-            // AND) as a BoolNode and convert to PhysicalExpr. Used for:
-            //   - Page-stats pruning in candidate stage (via PruningPredicate).
-            //   - Parquet `with_predicate` pushdown in row-granular mode.
-            //   - `on_batch_mask` refinement in block-granular mode.
-            //
-            // SingleCollector is AND(Collector?, DelegationPossible*, residual*) so
-            // the residual has zero Collectors — no Literal(true) substitution
-            // needed (unlike bool_tree_to_pruning_expr which handles arbitrary
-            // trees). DelegationPossible leaves contribute their original_expr
-            // to the residual so DF gets to evaluate them natively.
-            let residual_bool = extract_single_collector_residual(&extraction.tree);
-            let residual_expr = residual_bool
-                .as_ref()
-                .and_then(residual_bool_to_physical_expr);
-            let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
-                .as_ref()
-                .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
-
-            // Dual-viable leaves: DataFusion and Lucene can each evaluate them; the evaluator
-            // picks one owner per row group using the leaf's own `PruningPredicate`.
-            let performance_leaves: Vec<PerformanceLeaf> = extraction
-                .tree
-                .delegation_possible_leaves()
-                .into_iter()
-                .map(|(annotation_id, expr)| {
-                    let pruning_predicate =
-                        build_pruning_predicate(&expr, Arc::clone(&schema_for_pruner));
-                    PerformanceLeaf {
-                        annotation_id,
-                        expr,
-                        pruning_predicate,
-                    }
-                })
-                .collect();
 
             let call_strategy = CollectorCallStrategy::PageRangeSplit;
             let bloom_store = Arc::clone(&store);

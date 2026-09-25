@@ -15,35 +15,36 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUnknownAs;
 import org.apache.calcite.util.Sarg;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.be.lucene.CalciteToOSMapperConversionUtils;
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Serializer for {@code SEARCH(col, Sarg[...])} — Calcite's fold of {@code IN}, {@code BETWEEN}, and
- * same-field range unions. Delegated as a <em>performance</em> pre-filter, so the Lucene query need
- * only be a <b>superset</b> of matches (DataFusion re-verifies the exact predicate).
+ * Serializer for {@code SEARCH(col, Sarg[...])} — Calcite's fold of {@code IN}, {@code NOT IN},
+ * {@code BETWEEN} and same-field range unions. The query must be exact: when Lucene owns the
+ * predicate its result is authoritative. Field targets follow vanilla OpenSearch's pushdown:
  *
  * <ul>
- *   <li><b>Points</b> ({@code col IN (a, b, c)}) → {@link TermsQueryBuilder} — exact set match.</li>
- *   <li><b>Intervals</b> ({@code col BETWEEN x AND y}, range unions) → a {@link RangeQueryBuilder} per
- *       range (multiple ranges wrapped in a {@code should} bool), open/closed bounds preserved.</li>
+ *   <li><b>Points</b> ({@code col IN (a, b)}) → {@link TermsQueryBuilder} on the exact-match field
+ *       (a text field's keyword multifield).</li>
+ *   <li><b>Complemented points</b> ({@code col NOT IN (a, b)}) → {@code exists(col)} plus
+ *       {@code must_not terms}, the same shape as {@code !=}.</li>
+ *   <li><b>Intervals</b> ({@code BETWEEN}, range unions) → a {@link RangeQueryBuilder} per range on
+ *       the field itself (several ranges wrapped in a {@code should} bool).</li>
  * </ul>
  *
- * <p>Numeric/date fields can't reach here — the Lucene secondary only indexes keyword/text, so the
- * capability check never marks Lucene viable for a Sarg on a numeric field.
- *
- * <p>Refuses (throws → falls back to native DataFusion) the cases that aren't a safe standalone
- * superset: {@code NOT IN} ({@link Sarg#isComplementedPoints()}), {@link Sarg#isAll()},
- * {@link Sarg#isNone()}. The performance-delegation path tolerates a throwing serializer by leaving
- * the predicate on the driving engine.
+ * <p>When the Sarg treats NULL as a match ({@code nullAs = TRUE}), documents without the field are
+ * OR-ed in. {@link Sarg#isAll()} / {@link Sarg#isNone()} are refused; Calcite folds them away.
  */
 public class SargSerializer extends AbstractQuerySerializer {
 
@@ -59,31 +60,43 @@ public class SargSerializer extends AbstractQuerySerializer {
         if (!(sargLit.getValue() instanceof Sarg sarg)) {
             throw new IllegalArgumentException("SEARCH second operand is not a Sarg literal: " + sargLit);
         }
-        if (sarg.isComplementedPoints() || sarg.isAll() || sarg.isNone()) {
-            // NOT IN / all / none aren't a safe standalone superset — leave on DataFusion.
-            throw new IllegalArgumentException("Sarg shape not delegatable as a superset pre-filter: " + sarg);
+        if (sarg.isAll() || sarg.isNone()) {
+            throw new IllegalArgumentException("Sarg shape not delegatable: " + sarg);
         }
-
-        String fieldName = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex()).getFieldName();
+        FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
         RelDataType type = sargLit.getType();
-        List<Range> ranges = new ArrayList<>(sarg.rangeSet.asRanges());
-
+        QueryBuilder query;
         if (sarg.isPoints()) {
-            List<Object> values = new ArrayList<>(ranges.size());
-            for (Range r : ranges) {
-                values.add(convert(r.lowerEndpoint(), type));
+            query = new TermsQueryBuilder(resolveFieldName(field), pointValues(sarg.rangeSet.asRanges(), type));
+        } else if (sarg.isComplementedPoints()) {
+            query = new BoolQueryBuilder().filter(new ExistsQueryBuilder(field.getFieldName()))
+                .mustNot(new TermsQueryBuilder(resolveFieldName(field), pointValues(sarg.rangeSet.complement().asRanges(), type)));
+        } else {
+            List<Range> ranges = new ArrayList<>(sarg.rangeSet.asRanges());
+            if (ranges.size() == 1) {
+                query = rangeQuery(field.getFieldName(), ranges.get(0), type);
+            } else {
+                BoolQueryBuilder bool = new BoolQueryBuilder();
+                for (Range r : ranges) {
+                    bool.should(rangeQuery(field.getFieldName(), r, type));
+                }
+                query = bool;
             }
-            return new TermsQueryBuilder(fieldName, values);
         }
+        if (sarg.nullAs == RexUnknownAs.TRUE) {
+            return new BoolQueryBuilder().should(query)
+                .should(new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(field.getFieldName())));
+        }
+        return query;
+    }
 
-        if (ranges.size() == 1) {
-            return rangeQuery(fieldName, ranges.get(0), type);
+    @SuppressWarnings("rawtypes")
+    private static List<Object> pointValues(Set<Range> points, RelDataType type) {
+        List<Object> values = new ArrayList<>(points.size());
+        for (Range r : points) {
+            values.add(convert(r.lowerEndpoint(), type));
         }
-        BoolQueryBuilder bool = new BoolQueryBuilder();
-        for (Range r : ranges) {
-            bool.should(rangeQuery(fieldName, r, type));
-        }
-        return bool;
+        return values;
     }
 
     @SuppressWarnings("rawtypes")

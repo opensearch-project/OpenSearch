@@ -39,7 +39,9 @@ public class IsNullSerializer extends AbstractQuerySerializer {
         }
 
         FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
-        String fieldName = resolveFieldName(field);
+        // Existence is checked on the field itself, as vanilla does: a keyword multifield skips values
+        // over its ignore_above, which would make those documents look null.
+        String fieldName = field.getFieldName();
 
         if (negated) {
             return new ExistsQueryBuilder(fieldName);

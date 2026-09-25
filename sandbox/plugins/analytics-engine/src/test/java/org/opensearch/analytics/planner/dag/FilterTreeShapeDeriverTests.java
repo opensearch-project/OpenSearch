@@ -137,6 +137,38 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
+    // Delegated OR Dual where the peer cannot serialize the dual leaf (e.g. SEARCH already expanded
+    // to OR(=, =) by the driving backend's adapter): the resolver keeps the leaf native, so the
+    // combiner emits OR(native, delegated) — that needs the tree evaluator, not CONJUNCTIVE.
+    public void testOrWithCorrectnessAndUnserializablePerfIsInterleaved() {
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
+        OpenSearchFilter filter = buildFilter(orNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, ap -> false);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+    }
+
+    // Same leaf under AND: it stays native beside the correctness shipment → CONJUNCTIVE.
+    public void testAndWithCorrectnessAndUnserializablePerfIsConjunctive() {
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, correctness, perf);
+        OpenSearchFilter filter = buildFilter(andNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, ap -> false);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    // An unserializable perf leaf alone is plain native — no delegation at all.
+    public void testUnserializablePerfAloneIsNoDelegation() {
+        OpenSearchFilter filter = buildFilter(perfDelegated());
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, ap -> false);
+        assertEquals(FilterTreeShape.NO_DELEGATION, shape);
+    }
+
     public void testAndWithCorrectnessAndPerfDelegated() {
         // AND(correctness-delegated, perf-delegated) — perf combines under AND → CONJUNCTIVE
         RexNode correctness = annotated(ACCEPTING);

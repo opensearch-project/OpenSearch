@@ -250,23 +250,81 @@ public class CapabilityRegistry {
     // ---- Field-level lookups (iterates all formats a field has) ----
 
     /**
-     * All backends that can filter on this field across its storage formats. A normalized field's
-     * doc values hold a transformed value, so only its index formats qualify; if no backend is
-     * viable through them the doc-value backends are kept rather than failing the query.
+     * How a predicate compares a text field. Vanilla OpenSearch (the SQL plugin's pushdown) answers
+     * text predicates in two different ways, and the analytics engine must return the same rows:
+     * <ul>
+     *   <li>{@link #EXACT} ({@code =, !=, IN, NOT IN, LIKE}): the whole source value — a query on the
+     *       keyword multifield (normalizer applied) when the field has one, otherwise an in-memory
+     *       comparison of the source string.</li>
+     *   <li>{@link #RANGE} ({@code >, >=, <, <=}, range-shaped {@code SEARCH}): a range query on the
+     *       analyzed text field itself, i.e. a document matches when any of its tokens is in range.</li>
+     *   <li>{@link #OTHER}: everything else (e.g. {@code IS NULL}); no text-specific routing.</li>
+     * </ul>
      */
+    public enum TextComparison {
+        EXACT,
+        RANGE,
+        OTHER;
+
+        /** Kind for a function; {@code SARG_PREDICATE} depends on its Sarg, so callers resolve it. */
+        public static TextComparison of(ScalarFunction function) {
+            return switch (function) {
+                case EQUALS, NOT_EQUALS, IN, LIKE -> EXACT;
+                case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, SARG_PREDICATE -> RANGE;
+                default -> OTHER;
+            };
+        }
+    }
+
+    /** {@link #filterBackendsForField(ScalarFunction, FieldStorageInfo, TextComparison)} with the function's default kind. */
     public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field) {
+        return filterBackendsForField(function, field, TextComparison.of(function));
+    }
+
+    /**
+     * All backends that can filter on this field across its storage formats.
+     *
+     * <p>A normalized keyword's doc values hold the raw value while the index holds the normalized
+     * one, so only its index formats qualify.
+     *
+     * <p>Text fields follow vanilla semantics (see {@link TextComparison}); doc values of a text field
+     * hold the whole source string:
+     * <ul>
+     *   <li>EXACT, no keyword multifield: whole-value comparison, which only a doc-value backend can
+     *       do (looked up as keyword) — the index would match tokens.</li>
+     *   <li>EXACT, plain keyword multifield: both — the index answers through the multifield.</li>
+     *   <li>EXACT, normalized keyword multifield: index only (normalized comparison).</li>
+     *   <li>RANGE: index only — vanilla ranges over the analyzed field's tokens.</li>
+     * </ul>
+     * When the preferred side has no viable backend the other side is kept rather than failing the
+     * query. Keyword values longer than a multifield's {@code ignore_above} are not modelled (see
+     * {@link FieldStorageResolver}).
+     */
+    public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field, TextComparison comparison) {
         FieldType fieldType = field.getFieldType();
+        boolean text = FieldType.text().contains(fieldType);
+        FieldType docValueType = text && comparison == TextComparison.EXACT ? FieldType.KEYWORD : fieldType;
+
         List<String> indexBacked = new ArrayList<>();
         for (String format : field.getIndexFormats()) {
             indexBacked.addAll(filterBackends(function, fieldType, format));
         }
-        if (field.isNormalized() && indexBacked.isEmpty() == false) {
+        List<String> docValueBacked = new ArrayList<>();
+        for (String format : field.getDocValueFormats()) {
+            docValueBacked.addAll(filterBackends(function, docValueType, format));
+        }
+
+        boolean indexOnly = field.isNormalized()
+            || (text && comparison == TextComparison.RANGE)
+            || (text && comparison == TextComparison.EXACT && field.isExactMatchSubfieldNormalized());
+        boolean docValueOnly = text && comparison == TextComparison.EXACT && field.getExactMatchSubfield() == null;
+        if (indexOnly && indexBacked.isEmpty() == false) {
             return indexBacked;
         }
-        List<String> result = new ArrayList<>();
-        for (String format : field.getDocValueFormats()) {
-            result.addAll(filterBackends(function, fieldType, format));
+        if (docValueOnly && docValueBacked.isEmpty() == false) {
+            return docValueBacked;
         }
+        List<String> result = new ArrayList<>(docValueBacked);
         result.addAll(indexBacked);
         return result;
     }

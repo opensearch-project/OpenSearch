@@ -926,6 +926,41 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     // ---- AND conditions ----
 
+    /**
+     * OR(MATCH_PHRASE [Lucene correctness], status > 100 [dual-viable]) where the Lucene peer has no
+     * serializer for GREATER_THAN. The resolver keeps the comparison native, so the combiner emits
+     * OR(native, delegated) — the data node must get INTERLEAVED, not CONJUNCTIVE (CONJUNCTIVE runs
+     * the single-collector path on an OR tree and returns every row). Production hit this with
+     * {@code SEARCH}, which DataFusion's SargAdapter expands to {@code OR(=, =)} before serialization.
+     */
+    public void testOrWithUnserializableDualLeafIsInterleaved() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode greaterThan = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeLiteral(100, intType, true)
+        );
+        QueryDAG dag = buildTwoFieldDelegationDag(
+            rexBuilder.makeCall(SqlStdOperatorTable.OR, makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error"), greaterThan),
+            dfConvertor,
+            serializer
+        );
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(
+            plan,
+            dfConvertor,
+            serializer,
+            1,
+            true,
+            false,
+            List.of("MATCH_PHRASE"),
+            FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION
+        );
+        assertTrue("comparison must stay native", RelOptUtil.toString(dfConvertor.shardScanFragment).contains(">("));
+    }
+
     /** AND(native, delegated) — equals on non-indexed amount stays native; MATCH_PHRASE replaced. */
     public void testAndNativeAndDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();

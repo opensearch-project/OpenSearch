@@ -26,6 +26,7 @@ import org.apache.calcite.util.Sarg;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
@@ -126,8 +127,9 @@ public class SargSerializerTests extends OpenSearchTestCase {
         assertTrue(bool.should().get(1) instanceof RangeQueryBuilder);
     }
 
-    public void testNotInRefused() {
-        // (-inf, 1) ∪ (1, +inf) over INTEGER == NOT IN (1) → isComplementedPoints → refuse.
+    /** NOT IN → exists(field) + must_not terms, the same shape vanilla uses for !=. */
+    public void testNotInBuildsExistsAndMustNotTerms() {
+        // (-inf, 1) ∪ (1, +inf) over INTEGER == NOT IN (1) → isComplementedPoints.
         RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
         RangeSet<BigDecimal> r = TreeRangeSet.create();
         r.add(Range.lessThan(BigDecimal.ONE));
@@ -137,7 +139,56 @@ public class SargSerializerTests extends OpenSearchTestCase {
         RexNode sargLit = rexBuilder.makeSearchArgumentLiteral(sarg, intType);
         RexCall call = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.SEARCH, List.of(ref, sargLit));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, FIELD_STORAGE));
-        assertTrue(e.getMessage().contains("not delegatable"));
+        BoolQueryBuilder bool = (BoolQueryBuilder) serializer.buildQueryBuilder(call, FIELD_STORAGE);
+        assertEquals("str0", ((ExistsQueryBuilder) bool.filter().get(0)).fieldName());
+        TermsQueryBuilder terms = (TermsQueryBuilder) bool.mustNot().get(0);
+        assertEquals("str0", terms.fieldName());
+        assertEquals(1, terms.values().size());
+    }
+
+    private static final List<FieldStorageInfo> TEXT_WITH_SUBFIELD = List.of(
+        new FieldStorageInfo("msg", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false, "keyword")
+    );
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private QueryBuilder buildOnText(RangeSet rangeSet) {
+        Sarg sarg = Sarg.of(RexUnknownAs.UNKNOWN, ImmutableRangeSet.copyOf(rangeSet));
+        RexNode ref = rexBuilder.makeInputRef(keywordType, 0);
+        RexNode sargLit = rexBuilder.makeSearchArgumentLiteral(sarg, keywordType);
+        RexCall call = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.SEARCH, List.of(ref, sargLit));
+        return serializer.buildQueryBuilder(call, TEXT_WITH_SUBFIELD);
+    }
+
+    /** Vanilla: IN on a text field with a keyword multifield is a terms query on the multifield. */
+    public void testInOnTextTargetsKeywordSubfield() {
+        RangeSet<NlsString> points = TreeRangeSet.create();
+        points.add(Range.singleton(str("Apple pie")));
+        points.add(Range.singleton(str("Mango")));
+        assertEquals("msg.keyword", ((TermsQueryBuilder) buildOnText(points)).fieldName());
+    }
+
+    /** Vanilla: a range on a text field runs on the analyzed field itself, not the multifield. */
+    public void testRangeOnTextTargetsFieldItself() {
+        RangeSet<NlsString> r = TreeRangeSet.create();
+        r.add(Range.closedOpen(str("apple"), str("b")));
+        assertEquals("msg", ((RangeQueryBuilder) buildOnText(r)).fieldName());
+    }
+
+    /** nullAs = TRUE (e.g. {@code x IN (...) OR x IS NULL}) OR-s in documents without the field. */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public void testNullAsTrueIncludesMissing() {
+        RangeSet<NlsString> points = TreeRangeSet.create();
+        points.add(Range.singleton(str("apple")));
+        Sarg sarg = Sarg.of(RexUnknownAs.TRUE, ImmutableRangeSet.copyOf(points));
+        RexNode ref = rexBuilder.makeInputRef(keywordType, 0);
+        RexCall call = (RexCall) rexBuilder.makeCall(
+            SqlStdOperatorTable.SEARCH,
+            List.of(ref, rexBuilder.makeSearchArgumentLiteral(sarg, keywordType))
+        );
+        BoolQueryBuilder bool = (BoolQueryBuilder) serializer.buildQueryBuilder(call, FIELD_STORAGE);
+        assertEquals(2, bool.should().size());
+        assertTrue(bool.should().get(0) instanceof TermsQueryBuilder);
+        BoolQueryBuilder missing = (BoolQueryBuilder) bool.should().get(1);
+        assertEquals("str0", ((ExistsQueryBuilder) missing.mustNot().get(0)).fieldName());
     }
 }

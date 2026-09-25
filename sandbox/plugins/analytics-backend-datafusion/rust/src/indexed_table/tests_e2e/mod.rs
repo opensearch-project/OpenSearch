@@ -47,6 +47,7 @@ mod metrics;
 mod multi_segment;
 mod null_columns;
 mod page_pruning;
+mod performance_leaves;
 mod qtf_fetch_phase;
 mod row_id_emission;
 mod row_id_strategies;

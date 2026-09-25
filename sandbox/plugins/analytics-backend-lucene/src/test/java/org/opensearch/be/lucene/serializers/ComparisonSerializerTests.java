@@ -103,4 +103,18 @@ public class ComparisonSerializerTests extends OpenSearchTestCase {
         assertEquals(100, range.from());
         assertFalse(range.includeLower());
     }
+
+    /** Vanilla ranges over a text field's own tokens, never its keyword multifield. */
+    public void testRangeOnTextTargetsFieldItselfNotSubfield() {
+        List<FieldStorageInfo> text = List.of(
+            new FieldStorageInfo("msg", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false, "keyword")
+        );
+        RexNode call = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(integer, 0),
+            rexBuilder.makeLiteral(100, integer, false)
+        );
+        RangeQueryBuilder range = (RangeQueryBuilder) serializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) call, text);
+        assertEquals("msg", range.fieldName());
+    }
 }

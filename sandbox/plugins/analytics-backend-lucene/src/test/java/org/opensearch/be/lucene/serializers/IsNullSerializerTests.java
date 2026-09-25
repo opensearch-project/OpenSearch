@@ -62,13 +62,14 @@ public class IsNullSerializerTests extends OpenSearchTestCase {
         assertEquals("status", ((ExistsQueryBuilder) qb).fieldName());
     }
 
-    public void testRoutesToExactMatchSubfield() {
+    /** Existence is checked on the field itself (as vanilla does), not on the keyword multifield. */
+    public void testChecksParentFieldNotExactMatchSubfield() {
         List<FieldStorageInfo> withSubfield = List.of(
             new FieldStorageInfo("msg", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false, "keyword")
         );
         RexNode call = rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_NULL, rexBuilder.makeInputRef(varchar, 0));
         QueryBuilder qb = isNotNullSerializer.buildQueryBuilder((RexCall) call, withSubfield);
         assertTrue(qb instanceof ExistsQueryBuilder);
-        assertEquals("msg.keyword", ((ExistsQueryBuilder) qb).fieldName());
+        assertEquals("msg", ((ExistsQueryBuilder) qb).fieldName());
     }
 }

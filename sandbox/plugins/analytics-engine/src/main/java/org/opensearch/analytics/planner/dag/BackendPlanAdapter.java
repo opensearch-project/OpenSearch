@@ -73,7 +73,11 @@ public class BackendPlanAdapter {
         List<StagePlan> adapted = new ArrayList<>(stage.getPlanAlternatives().size());
         for (StagePlan plan : stage.getPlanAlternatives()) {
             var capabilityProvider = registry.getBackend(plan.backendId()).getCapabilityProvider();
-            Adapters adapters = new Adapters(capabilityProvider.scalarFunctionAdapters(), capabilityProvider.windowFunctionAdapters());
+            Adapters adapters = new Adapters(
+                capabilityProvider.scalarFunctionAdapters(),
+                capabilityProvider.windowFunctionAdapters(),
+                plan.backendId()
+            );
             LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
             RelNode fragment = adaptNode(plan.resolvedFragment(), adapters);
             LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(fragment));
@@ -87,7 +91,8 @@ public class BackendPlanAdapter {
     }
 
     /** Backend-provided adapter maps, bundled so helper signatures stay narrow. */
-    private record Adapters(Map<ScalarFunction, ScalarFunctionAdapter> scalar, Map<WindowFunction, WindowFunctionAdapter> window) {
+    private record Adapters(Map<ScalarFunction, ScalarFunctionAdapter> scalar, Map<WindowFunction, WindowFunctionAdapter> window,
+        String drivingBackend) {
     }
 
     private static RelNode adaptNode(RelNode node, Adapters adapters) {
@@ -217,6 +222,12 @@ public class BackendPlanAdapter {
         // Annotation wrappers: adapt the inner expression and re-wrap with same metadata.
         // Plain RexCall.clone() would drop the annotation subclass, breaking later stripping.
         if (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
+            // A predicate delegated to another backend is serialized by that backend's own serializers;
+            // the driving backend's rewrites (e.g. DataFusion's SEARCH expansion) would hand it a shape
+            // it cannot serialize.
+            if (annotation.getViableBackends().contains(adapters.drivingBackend()) == false) {
+                return node;
+            }
             RexNode adaptedInner = adaptRex(annotation.unwrap(), adapters, fieldStorage, cluster);
             return adaptedInner == annotation.unwrap() ? node : annotation.withAdaptedOriginal(adaptedInner);
         }

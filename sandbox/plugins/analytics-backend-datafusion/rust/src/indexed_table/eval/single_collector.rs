@@ -146,12 +146,13 @@ pub struct SingleCollectorEvaluator {
     /// upfront — see `performance_provider_locks`).
     collector: Option<Arc<dyn RowGroupDocsCollector>>,
     page_pruner: Arc<PagePruner>,
-    /// Residual pruning predicate: the non-Collector portion of the
-    /// top-level AND, translated to a `PruningPredicate`. `None` means
-    /// no residual predicate applies (nothing to prune with).
+    /// Pruning predicate over the native residual AND every performance leaf
+    /// (page-stats + bloom). `None` means nothing to prune with.
     pruning_predicate: Option<Arc<PruningPredicate>>,
-    /// Raw residual expression (non-Collector children of the top-level
-    /// AND, converted to a single `PhysicalExpr`).
+    /// Raw DataFusion-native residual (the `Predicate` children of the top-level
+    /// AND, converted to a single `PhysicalExpr`). Excludes performance leaves,
+    /// which are applied per RG via `SingleCollectorState::perf_residual` only
+    /// when DataFusion owns them.
     ///
     /// Used in two modes:
     ///
@@ -206,9 +207,10 @@ pub struct SingleCollectorEvaluator {
     /// Next matching docId from the last collectDocs call. When next_doc >= rg.max_doc,
     /// the RG can be skipped without an FFM call. Initialized to i32::MIN (no skip info).
     last_next_doc: std::sync::atomic::AtomicI32,
-    /// Dual-viable leaves, owned per RG by either DataFusion or Lucene. Kept out of
-    /// `residual_expr` / `pruning_predicate` and never pushed to parquet, since a Lucene
-    /// election makes the leaf authoritative without DataFusion evaluating it.
+    /// Dual-viable leaves, owned per RG by either DataFusion or Lucene. Must not appear in
+    /// `residual_expr` (built by `plan_single_collector_filter`) and are never pushed to
+    /// parquet, since a Lucene election makes the leaf authoritative without DataFusion
+    /// decoding or evaluating it. They do contribute to `pruning_predicate`.
     performance_leaves: Vec<PerformanceLeaf>,
 }
 

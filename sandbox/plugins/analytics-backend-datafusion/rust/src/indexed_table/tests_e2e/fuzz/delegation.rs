@@ -8,23 +8,18 @@
 
 //! Fuzz coverage for performance-delegated leaves (`BoolNode::DelegationPossible`).
 //!
-//! Production behavior under test: when a SingleCollector tree has
-//! `DelegationPossible` leaves and DF page-pruning isn't selective enough, the
-//! evaluator consults a delegated-backend (Lucene) collector and AND-intersects its
-//! bitset into the candidate set. Regardless of how the delegated backend responds,
-//! the residual `original_expr` is re-applied by DataFusion's `FilterExec` — so the
-//! final result must equal `Predicate(original_expr)` evaluated row-by-row.
+//! Production behavior under test: the filter is split by
+//! `plan_single_collector_filter`, and per row group the evaluator elects exactly one
+//! owner for each `DelegationPossible` leaf — DataFusion (evaluates `original_expr`
+//! post-decode) or the delegated backend (Lucene bitset AND-intersected into the
+//! candidates, `original_expr` not evaluated). Random predicates make the election
+//! land on both sides across row groups and segments.
 //!
-//! Two test scenarios:
-//!
-//! - **Passthrough**: the mock delegated-backend collector returns *exactly* the
-//!   rows where `original_expr` is TRUE. AND-intersection is a no-op for
-//!   correctness; result must match the oracle.
-//! - **Sloppy delegated backend**: the mock returns a *superset* — TRUE rows plus
-//!   random extras. The extras are filtered out by `FilterExec`'s residual on
-//!   `original_expr`. Final result still matches the oracle. This proves the
-//!   delegated-backend bitset isn't trusted for correctness; it's a candidate
-//!   narrowing hint.
+//! The mock delegated backend returns *exactly* the rows where `original_expr` is
+//! TRUE (the dual-viable contract), so whichever backend owns a leaf, the final
+//! result must equal `Predicate(original_expr)` evaluated row-by-row. A lying backend
+//! is not a valid input any more: a Lucene-owned leaf is authoritative (see
+//! `tests_e2e::performance_leaves::lucene_owned_leaf_is_authoritative`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -39,7 +34,6 @@ use futures::StreamExt;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use rand::SeedableRng;
 
 use super::corpus::{CellValue, Corpus};
 use super::harness::LoadedSegment;
@@ -61,24 +55,12 @@ use crate::indexed_table::table_provider::{
 /// `tree` is the full BoolNode; `original_exprs` lets the harness compute peer
 /// match-sets per annotation_id without re-walking the tree.
 pub(in crate::indexed_table::tests_e2e) struct DelegationTree {
-    /// Kept for diagnostics / panic messages even though execution drives off
-    /// `original_exprs` and `collector_match_set` directly.
-    #[allow(dead_code)]
+    /// Split by `plan_single_collector_filter` exactly as production does.
     pub tree: BoolNode,
     /// Doc-id set the always-call correctness collector returns.
     pub collector_match_set: Vec<i32>,
     /// `[(annotation_id, original_expr)]` for every DelegationPossible leaf in DFS order.
     pub original_exprs: Vec<(i32, Arc<dyn PhysicalExpr>)>,
-}
-
-/// Decides the bitset shape returned by the mock delegated-backend collector.
-#[derive(Clone, Copy)]
-pub(in crate::indexed_table::tests_e2e) enum DelegatedBackendBehavior {
-    /// Collector returns exactly the rows where `original_expr` is TRUE.
-    Passthrough,
-    /// Collector returns the TRUE rows plus a random ~30% extra rows. Residual
-    /// FilterExec must filter those out.
-    Sloppy,
 }
 
 /// Generate a SingleCollector-shape tree with `num_delegation` delegation leaves.
@@ -344,30 +326,16 @@ fn compare_cell_lit_true(cell: &CellValue, op: Operator, lit: &ScalarValue) -> b
     }
 }
 
-/// Build per-(annotation_id) match-sets for the mock delegated backend.
-/// - Passthrough: TRUE-rows of `original_expr`.
-/// - Sloppy: TRUE-rows + ~30% additional random doc-ids (still in [0, num_rows)).
+/// Per-(annotation_id) match-sets for the mock delegated backend: exactly the
+/// TRUE-rows of `original_expr` (the dual-viable contract).
 fn build_match_sets(
     corpus: &Corpus,
-    rng: &mut StdRng,
     original_exprs: &[(i32, Arc<dyn PhysicalExpr>)],
-    behavior: DelegatedBackendBehavior,
 ) -> HashMap<i32, Vec<i32>> {
-    let mut out = HashMap::with_capacity(original_exprs.len());
-    for (annotation_id, expr) in original_exprs {
-        let mut rows = rows_matching_predicate(corpus, expr);
-        if matches!(behavior, DelegatedBackendBehavior::Sloppy) {
-            let extras = corpus.num_rows() / 3; // ~33%
-            for _ in 0..extras {
-                let r = rng.gen_range(0..corpus.num_rows() as i32);
-                rows.push(r);
-            }
-            rows.sort_unstable();
-            rows.dedup();
-        }
-        out.insert(*annotation_id, rows);
-    }
-    out
+    original_exprs
+        .iter()
+        .map(|(annotation_id, expr)| (*annotation_id, rows_matching_predicate(corpus, expr)))
+        .collect()
 }
 
 /// End-to-end execution of a delegation tree.
@@ -375,18 +343,16 @@ fn build_match_sets(
 /// 1. Pre-seed `performance_provider_locks` with `OnceLock`s that hold a
 ///    `ProviderHandle::new_for_test(annotation_id)` — `provider_key == annotation_id`.
 /// 2. Build `MockDelegatedBackendCollectorFactory` from `match_sets`.
-/// 3. Wire those into `SingleCollectorEvaluator` via the new factory parameter.
-/// 4. Stash the residual (AND of all `original_expr`s) as `pushdown_predicate` so
-///    DataFusion's FilterExec re-applies it on decoded batches.
+/// 3. Split the tree with the production `plan_single_collector_filter` and wire
+///    the result into `SingleCollectorEvaluator` exactly as `execute_indexed_query`
+///    does, so each leaf gets a per-RG owner.
 pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
     corpus: &Corpus,
     loaded: &LoadedSegment,
     dt: &DelegationTree,
-    behavior: DelegatedBackendBehavior,
 ) -> Vec<i32> {
     // ── Mock delegated-backend factory + provider locks ──
-    let mut rng = StdRng::seed_from_u64(corpus.config.seed.wrapping_add(0xD3EE));
-    let match_sets = build_match_sets(corpus, &mut rng, &dt.original_exprs, behavior);
+    let match_sets = build_match_sets(corpus, &dt.original_exprs);
     let factory = Arc::new(MockDelegatedBackendCollectorFactory { match_sets })
         as Arc<dyn DelegatedBackendCollectorFactory>;
 
@@ -405,14 +371,15 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         matching: dt.collector_match_set.clone(),
     });
 
-    // ── Residual: AND of all original_exprs. DataFusion's FilterExec re-applies
-    //    it on decoded rows — that's what enforces correctness regardless of how
-    //    the delegated backend responded.
-    let residual_physical: Arc<dyn PhysicalExpr> = and_all(&dt.original_exprs);
+    // ── Production filter split: native residual (none here), pruning predicate over the
+    //    leaves, and the per-RG-owned performance leaves.
+    let plan = crate::indexed_executor::plan_single_collector_filter(&dt.tree, &loaded.schema);
 
     let eval_factory: EvaluatorFactory = {
         let correctness = Arc::clone(&correctness);
-        let residual_physical = Arc::clone(&residual_physical);
+        let residual_expr = plan.residual_expr.clone();
+        let pruning_predicate = plan.pruning_predicate.clone();
+        let performance_leaves = plan.performance_leaves.clone();
         let factory = Arc::clone(&factory);
         let provider_locks = Arc::clone(&provider_locks);
         let schema = loaded.schema.clone();
@@ -425,11 +392,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&correctness)),
                 pruner,
-                None,
-                Some(Arc::clone(&residual_physical)),
+                pruning_predicate.clone(),
+                residual_expr.clone(),
                 None,
                 stream_metrics.ffm_collector_calls.clone(),
-                CollectorCallStrategy::FullRange,
+                CollectorCallStrategy::PageRangeSplit,
                 Arc::clone(&provider_locks),
                 segment.writer_generation,
                 Arc::clone(&factory),
@@ -437,7 +404,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 None,
                 None,
                 HashMap::new(),
-                Vec::new(),
+                performance_leaves.clone(),
             ));
             Ok(eval)
         })
@@ -463,15 +430,12 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         .build();
 
     let pred_cols: Vec<usize> = {
-        use datafusion::common::tree_node::TreeNode;
         let mut indices = std::collections::BTreeSet::new();
-        let _ = residual_physical.apply(|node| {
-            if let Some(col) = node.downcast_ref::<datafusion::physical_expr::expressions::Column>()
-            {
-                indices.insert(col.index());
+        for (_, expr) in &dt.original_exprs {
+            for c in datafusion::physical_expr::utils::collect_columns(expr) {
+                indices.insert(c.index());
             }
-            Ok(datafusion::common::tree_node::TreeNodeRecursion::Continue)
-        });
+        }
         indices.into_iter().collect()
     };
 
@@ -481,7 +445,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         store,
         store_url,
         evaluator_factory: eval_factory,
-        pushdown_predicate: Some(Arc::clone(&residual_physical)),
+        pushdown_predicate: plan.residual_expr.clone(),
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
         emit_row_ids: false,
@@ -517,17 +481,6 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
     doc_ids
 }
 
-/// Build `expr0 AND expr1 AND ... AND exprN` as a single PhysicalExpr.
-fn and_all(original_exprs: &[(i32, Arc<dyn PhysicalExpr>)]) -> Arc<dyn PhysicalExpr> {
-    assert!(!original_exprs.is_empty(), "and_all: empty exprs");
-    let mut iter = original_exprs.iter();
-    let mut acc = Arc::clone(&iter.next().unwrap().1);
-    for (_, e) in iter {
-        acc = Arc::new(BinaryExpr::new(acc, Operator::And, Arc::clone(e))) as Arc<dyn PhysicalExpr>;
-    }
-    acc
-}
-
 /// Compute the expected result by intersecting:
 ///   correctness collector match-set ∩ {rows where every original_expr is TRUE}
 fn expected_doc_ids(corpus: &Corpus, dt: &DelegationTree) -> Vec<i32> {
@@ -540,24 +493,18 @@ fn expected_doc_ids(corpus: &Corpus, dt: &DelegationTree) -> Vec<i32> {
     acc.into_iter().collect()
 }
 
-/// One iteration. `behavior` decides whether the delegated backend lies (sloppy)
-/// or replays exactly (passthrough). Either way, the residual FilterExec must
-/// produce the canonical (correctness ∩ predicates) result.
+/// One iteration: whichever backend owns each leaf per RG, the result must be the
+/// canonical (correctness ∩ predicates) set.
 pub(in crate::indexed_table::tests_e2e) async fn run_delegation_iteration(
     corpus: &Corpus,
     loaded: &LoadedSegment,
     dt: &DelegationTree,
-    behavior: DelegatedBackendBehavior,
 ) -> Result<(), String> {
     let expected = expected_doc_ids(corpus, dt);
-    let actual = execute_delegation_tree(corpus, loaded, dt, behavior).await;
+    let actual = execute_delegation_tree(corpus, loaded, dt).await;
     if expected != actual {
         return Err(format!(
-            "delegation mismatch (behavior={:?}):\n  expected.len={} actual.len={}\n  first_mismatch_at_idx={}\n",
-            match behavior {
-                DelegatedBackendBehavior::Passthrough => "passthrough",
-                DelegatedBackendBehavior::Sloppy => "sloppy",
-            },
+            "delegation mismatch:\n  expected.len={} actual.len={}\n  first_mismatch_at_idx={}\n",
             expected.len(),
             actual.len(),
             expected

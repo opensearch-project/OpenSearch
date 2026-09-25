@@ -22,9 +22,7 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use super::delegation::{
-    generate_delegation_tree, run_delegation_iteration, DelegatedBackendBehavior,
-};
+use super::delegation::{generate_delegation_tree, run_delegation_iteration};
 use super::{
     build_corpus, derive_seed, generate_tree, load_segment, master_seed, run_iteration,
     run_iteration_twice, FixtureConfig,
@@ -229,7 +227,6 @@ async fn run_delegation_fuzz(
     test_name: &str,
     iters: u64,
     cfg_builder: fn(u64) -> FixtureConfig,
-    behavior: DelegatedBackendBehavior,
     num_delegation: usize,
 ) {
     let master = master_seed();
@@ -241,7 +238,7 @@ async fn run_delegation_fuzz(
         let iter_seed = derive_seed(master, test_name, iter);
         let mut rng = StdRng::seed_from_u64(iter_seed);
         let dt = generate_delegation_tree(&mut rng, &corpus, num_delegation);
-        if let Err(e) = run_delegation_iteration(&corpus, &loaded, &dt, behavior).await {
+        if let Err(e) = run_delegation_iteration(&corpus, &loaded, &dt).await {
             panic!(
                 "delegation fuzz {} iter={} seed={:016x} master={:016x}: {}\n\
                  reproduce: INDEXED_E2E_SEED={:016x} cargo test {}",
@@ -252,8 +249,8 @@ async fn run_delegation_fuzz(
 }
 
 /// Delegation-passthrough: the mock delegated-backend returns *exactly* the rows
-/// where `original_expr` is TRUE. The AND-intersection is a no-op for correctness;
-/// proves the gate + intersection don't lose rows on the happy path.
+/// where `original_expr` is TRUE. Random predicates drive the per-RG owner election
+/// to both DataFusion and Lucene; either owner must produce the same rows.
 ///
 /// Uses `concurrency` (4 segments × 8 partitions) so segments after the first have
 /// `rg.first_row != 0` — this is the regime where the peer-bitmap offset math
@@ -265,23 +262,6 @@ async fn fuzz_delegation_passthrough() {
         "fuzz_delegation_passthrough",
         25,
         FixtureConfig::concurrency,
-        DelegatedBackendBehavior::Passthrough,
-        2,
-    )
-    .await;
-}
-
-/// Sloppy delegated backend: returns TRUE-rows + ~30% extras. Residual FilterExec
-/// must filter out the extras. Proves the delegated-backend bitset is *advisory*
-/// — DataFusion's native predicate evaluation is the authoritative correctness
-/// backstop. Same multi-segment fixture as the passthrough variant.
-#[tokio::test(flavor = "multi_thread")]
-async fn fuzz_delegation_sloppy() {
-    run_delegation_fuzz(
-        "fuzz_delegation_sloppy",
-        25,
-        FixtureConfig::concurrency,
-        DelegatedBackendBehavior::Sloppy,
         2,
     )
     .await;

@@ -42,6 +42,12 @@ public class FieldStorageInfo {
      */
     private final boolean normalized;
 
+    /**
+     * True when {@link #exactMatchSubfield} declares a {@code normalizer}: the index answers
+     * exact-match predicates on a transformed value, unlike the parent field's raw doc values.
+     */
+    private final boolean exactMatchSubfieldNormalized;
+
     public FieldStorageInfo(
         String fieldName,
         String mappingType,
@@ -130,6 +136,34 @@ public class FieldStorageInfo {
         String exactMatchSubfield,
         boolean normalized
     ) {
+        this(
+            fieldName,
+            mappingType,
+            fieldType,
+            docValueFormats,
+            indexFormats,
+            storedFieldFormats,
+            derived,
+            dependsOnPhysicalCols,
+            exactMatchSubfield,
+            normalized,
+            false
+        );
+    }
+
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        LinkedHashSet<String> dependsOnPhysicalCols,
+        String exactMatchSubfield,
+        boolean normalized,
+        boolean exactMatchSubfieldNormalized
+    ) {
         this.fieldName = fieldName;
         this.mappingType = mappingType;
         this.fieldType = fieldType;
@@ -140,6 +174,7 @@ public class FieldStorageInfo {
         this.dependsOnPhysicalCols = dependsOnPhysicalCols;
         this.exactMatchSubfield = exactMatchSubfield;
         this.normalized = normalized;
+        this.exactMatchSubfieldNormalized = exactMatchSubfieldNormalized;
     }
 
     /** Creates a derived column (agg result, expression) with no physical storage and no deps.
@@ -179,6 +214,11 @@ public class FieldStorageInfo {
     /** True when the mapping declares a {@code normalizer}; see {@link #normalized}. */
     public boolean isNormalized() {
         return normalized;
+    }
+
+    /** True when the exact-match subfield declares a {@code normalizer}; see {@link #exactMatchSubfieldNormalized}. */
+    public boolean isExactMatchSubfieldNormalized() {
+        return exactMatchSubfieldNormalized;
     }
 
     public String getMappingType() {

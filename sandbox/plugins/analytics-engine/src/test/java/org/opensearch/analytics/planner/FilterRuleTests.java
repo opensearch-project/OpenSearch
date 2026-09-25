@@ -36,10 +36,14 @@ import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldReferences;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ScanCapability;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -146,6 +150,204 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
         AnnotatedPredicate narrowed = (AnnotatedPredicate) annotated.narrowTo(MockDataFusionBackend.NAME);
         assertEquals(List.of(MockLuceneBackend.NAME), narrowed.getPerformanceDelegationBackends());
+    }
+
+    // ---- Text fields follow vanilla OpenSearch semantics (DataFusion mock mirrors production: no EQUALS / NOT_EQUALS / IN on text) ----
+
+    /**
+     * Text without a keyword multifield: vanilla compares the whole source value (a script), which
+     * only DataFusion can do — Lucene's term query on the analyzed field would match a token.
+     */
+    public void testTextEqualsWithoutKeywordSubfieldIsDataFusionOnly() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("msg", Map.of("type", "text", "index", true)),
+            new String[] { "msg" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "hello"),
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertEquals(List.of(MockDataFusionBackend.NAME), ((AnnotatedPredicate) result.getCondition()).getViableBackends());
+    }
+
+    /** Vanilla ranges over a text field's tokens (even with a keyword multifield): index-backed only. */
+    public void testTextRangeIsLuceneOnly() {
+        for (Map<String, Object> mapping : List.<Map<String, Object>>of(
+            Map.of("type", "text", "index", true),
+            Map.of("type", "text", "index", true, "fields", Map.of("keyword", Map.of("type", "keyword")))
+        )) {
+            RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+            RexNode gt = rexBuilder.makeCall(
+                SqlStdOperatorTable.GREATER_THAN,
+                rexBuilder.makeInputRef(varchar, 0),
+                rexBuilder.makeLiteral("b")
+            );
+            OpenSearchFilter result = runFilter(
+                "parquet",
+                Map.of("msg", mapping),
+                new String[] { "msg" },
+                new SqlTypeName[] { SqlTypeName.VARCHAR },
+                gt,
+                textAwareBackends(),
+                Set.of(MockDataFusionBackend.NAME)
+            );
+            assertEquals(
+                mapping.toString(),
+                List.of(MockLuceneBackend.NAME),
+                ((AnnotatedPredicate) result.getCondition()).getViableBackends()
+            );
+        }
+    }
+
+    /** Keyword ranges compare whole values in both backends: unchanged, dual-viable. */
+    public void testKeywordRangeStaysDualViable() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode gt = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(varchar, 0),
+            rexBuilder.makeLiteral("b")
+        );
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("k", Map.of("type", "keyword", "index", true)),
+            new String[] { "k" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            gt,
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        List<String> viable = ((AnnotatedPredicate) result.getCondition()).getViableBackends();
+        assertTrue(viable.toString(), viable.containsAll(List.of(MockDataFusionBackend.NAME, MockLuceneBackend.NAME)));
+    }
+
+    /**
+     * Text with a keyword multifield: the doc value is the whole source string and Lucene answers
+     * via the keyword subfield, so both backends compare the whole value — DataFusion stays viable.
+     */
+    public void testTextEqualsWithKeywordSubfieldIsDualViable() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("msg", Map.of("type", "text", "index", true, "fields", Map.of("keyword", Map.of("type", "keyword")))),
+            new String[] { "msg" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "hello"),
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        List<String> viable = ((AnnotatedPredicate) result.getCondition()).getViableBackends();
+        assertTrue(viable.toString(), viable.contains(MockDataFusionBackend.NAME));
+        assertTrue(viable.toString(), viable.contains(MockLuceneBackend.NAME));
+    }
+
+    /**
+     * Text whose keyword subfield has a normalizer: Lucene compares the normalized value (e.g.
+     * case-insensitively), DataFusion the raw doc value, so equality stays index-backed.
+     */
+    public void testTextEqualsWithNormalizedKeywordSubfieldIsLuceneOnly() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of(
+                "msg",
+                Map.of("type", "text", "index", true, "fields", Map.of("keyword", Map.of("type", "keyword", "normalizer", "lowercase")))
+            ),
+            new String[] { "msg" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "ERROR"),
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertEquals(List.of(MockLuceneBackend.NAME), ((AnnotatedPredicate) result.getCondition()).getViableBackends());
+    }
+
+    /**
+     * A comparison on a value computed from a text field (e.g. {@code GROK(raw)['user'] != ''}) compares
+     * that computed string, not the field: capability is by the expression's type, so DataFusion
+     * evaluates it. Previously this failed with "No backend can evaluate filter predicate".
+     */
+    public void testNotEqualsOnComputedValueOfTextFieldRunsOnDataFusion() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode computed = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 0));
+        RexNode notEquals = rexBuilder.makeCall(SqlStdOperatorTable.NOT_EQUALS, computed, rexBuilder.makeLiteral(""));
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("raw", Map.of("type", "text", "index", true)),
+            new String[] { "raw" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            notEquals,
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertEquals(List.of(MockDataFusionBackend.NAME), ((AnnotatedPredicate) result.getCondition()).getViableBackends());
+    }
+
+    /**
+     * {@code match(MAP('field', $0), MAP('query', 'x'))} — the shape the SQL plugin emits. The field
+     * sits inside MAP parameter scaffolding; that is not a computed value, so the text field's own
+     * full-text capability decides (Lucene), not the MAP's type.
+     */
+    public void testMatchWithMapScaffoldingStaysOnLucene() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varchar, 0)
+        );
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+        RexNode match = rexBuilder.makeCall(fullTextSqlFunction("MATCH"), fieldMap, queryMap);
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("msg", Map.of("type", "text", "index", true)),
+            new String[] { "msg" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            match,
+            textAwareBackends(),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertEquals(List.of(MockLuceneBackend.NAME), ((AnnotatedPredicate) result.getCondition()).getViableBackends());
+    }
+
+    /**
+     * DataFusion mock with production's text-family capabilities: scans text doc values and runs
+     * non-whole-value operators on text, but declares no EQUALS / NOT_EQUALS / IN for text.
+     */
+    private List<AnalyticsSearchBackendPlugin> textAwareBackends() {
+        Set<ScalarFunction> wholeValueOps = Set.of(ScalarFunction.EQUALS, ScalarFunction.NOT_EQUALS, ScalarFunction.IN);
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            protected Set<ScanCapability> scanCapabilities() {
+                Set<ScanCapability> caps = new HashSet<>(super.scanCapabilities());
+                caps.add(new ScanCapability.DocValues(Set.of(PARQUET_DATA_FORMAT), FieldType.text()));
+                return caps;
+            }
+
+            @Override
+            protected Set<FilterCapability> filterCapabilities() {
+                Set<FilterCapability> caps = new HashSet<>(super.filterCapabilities());
+                for (FilterCapability cap : super.filterCapabilities()) {
+                    if (cap instanceof FilterCapability.Standard standard && wholeValueOps.contains(standard.function()) == false) {
+                        caps.add(new FilterCapability.Standard(standard.function(), FieldType.text(), Set.of(PARQUET_DATA_FORMAT)));
+                    }
+                }
+                return caps;
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+        };
+        return List.of(df, lucene);
     }
 
     /**

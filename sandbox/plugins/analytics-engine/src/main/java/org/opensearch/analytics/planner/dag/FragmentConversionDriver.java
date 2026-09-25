@@ -122,7 +122,7 @@ public class FragmentConversionDriver {
             List<OpenSearchFilter> filters = RelNodeUtils.findAllNodes(plan.resolvedFragment(), OpenSearchFilter.class);
             OpenSearchFilter filter = filters.isEmpty() ? null : filters.getLast();
             FilterTreeShape treeShape = filter != null
-                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), ap -> peerSerializerFor(registry, ap) != null)
                 : FilterTreeShape.NO_DELEGATION;
 
             IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
@@ -293,6 +293,24 @@ public class FragmentConversionDriver {
     }
 
     /**
+     * Serializer the performance-delegation peer would use for {@code ap}, or {@code null} when the
+     * peer cannot serialize it — in which case the predicate stays native on the driving backend.
+     * Shared by the annotation resolver and {@link FilterTreeShapeDeriver} so the shape label always
+     * describes the tree the resolver actually emits. The wrapped call may already have been rewritten
+     * by the driving backend's adapters (e.g. {@code SEARCH} expanded to {@code OR(=, =)}).
+     */
+    static DelegatedPredicateSerializer peerSerializerFor(CapabilityRegistry registry, AnnotatedPredicate ap) {
+        if (ap.getPerformanceDelegationBackends().isEmpty() || !(ap.unwrap() instanceof RexCall call)) {
+            return null;
+        }
+        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
+        if (function == null) {
+            return null;
+        }
+        return registry.getBackend(ap.getPerformanceDelegationBackends().getFirst()).delegatedPredicateSerializers().get(function);
+    }
+
+    /**
      * Accumulates serialized delegated query bytes during fragment conversion.
      *
      * <p>The resolver performs a single bottom-up traversal of the filter condition tree,
@@ -348,9 +366,7 @@ public class FragmentConversionDriver {
                                 throw new IllegalStateException("Performance-delegation candidate must wrap a RexCall: " + original);
                             }
                             ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(originalCall.getOperator());
-                            DelegatedPredicateSerializer serializer = registry.getBackend(peerBackend)
-                                .delegatedPredicateSerializers()
-                                .get(function);
+                            DelegatedPredicateSerializer serializer = peerSerializerFor(registry, ap);
                             if (serializer == null) {
                                 LOGGER.debug(
                                     "Performance-delegation skipped: no serializer for [{}] on delegated backend [{}]; falling back to native on operator [{}]",

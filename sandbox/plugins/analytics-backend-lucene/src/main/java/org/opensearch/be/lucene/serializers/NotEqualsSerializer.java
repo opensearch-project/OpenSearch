@@ -15,6 +15,7 @@ import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.be.lucene.CalciteToOSMapperConversionUtils;
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 
@@ -22,7 +23,12 @@ import java.util.List;
 
 /**
  * Serializer for NOT_EQUALS ({@code col != value}). Produces
- * {@code bool{ mustNot: [term(field, value)] }}.
+ * {@code bool{ filter: [exists(field)], mustNot: [term(field, value)] }}.
+ *
+ * <p>SQL {@code col != value} is UNKNOWN (not a match) when {@code col} is NULL. A bare
+ * {@code mustNot(term)} also matches documents without the field, which diverges from
+ * DataFusion's evaluation of the same predicate; the {@code exists} filter keeps both
+ * backends identical, which a performance-delegated leaf requires.
  */
 public class NotEqualsSerializer extends AbstractQuerySerializer {
 
@@ -51,6 +57,7 @@ public class NotEqualsSerializer extends AbstractQuerySerializer {
         FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
         String fieldName = resolveFieldName(field);
         Object value = CalciteToOSMapperConversionUtils.literalToOpenSearchValue(valueLit);
-        return new BoolQueryBuilder().mustNot(new TermQueryBuilder(fieldName, value));
+        // Same shape as vanilla: exists on the field itself, must_not term on the exact-match field.
+        return new BoolQueryBuilder().filter(new ExistsQueryBuilder(field.getFieldName())).mustNot(new TermQueryBuilder(fieldName, value));
     }
 }

@@ -15,6 +15,8 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.spi.FilterTreeShape;
 
+import java.util.function.Predicate;
+
 /**
  * Derives {@link FilterTreeShape} from a filter condition while annotations are intact.
  * Must be called before stripping removes the annotations.
@@ -61,7 +63,16 @@ final class FilterTreeShapeDeriver {
      * @return the tree shape, or {@code null} if no delegated annotations exist
      */
     static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId) {
-        Result result = walk(filter.getCondition(), drivingBackendId);
+        return derive(filter, drivingBackendId, ap -> true);
+    }
+
+    /**
+     * Like {@link #derive(OpenSearchFilter, String)}, but a performance candidate for which
+     * {@code peerCanSerialize} is false counts as a driving-backend (native) predicate — the
+     * annotation resolver keeps such a leaf native, and the label must match that tree.
+     */
+    static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId, Predicate<AnnotatedPredicate> peerCanSerialize) {
+        Result result = walk(filter.getCondition(), drivingBackendId, peerCanSerialize);
         if (!result.hasCorrectness && !result.hasPerf) {
             // Nothing delegated post-combine (all native, or a perf leaf under NOT that stays native).
             return FilterTreeShape.NO_DELEGATION;
@@ -80,10 +91,12 @@ final class FilterTreeShapeDeriver {
      * (NOT(=) folds to != with no serializer). The shape label must match what the combiner emits,
      * or the data node mis-routes (the historical "all-docs" disjunction bug).
      */
-    private static Result walk(RexNode node, String drivingBackendId) {
+    private static Result walk(RexNode node, String drivingBackendId, Predicate<AnnotatedPredicate> peerCanSerialize) {
         if (node instanceof AnnotatedPredicate predicate) {
             boolean isCorrectness = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
-            boolean isPerformance = !predicate.getPerformanceDelegationBackends().isEmpty();
+            boolean isPerformance = !isCorrectness
+                && !predicate.getPerformanceDelegationBackends().isEmpty()
+                && peerCanSerialize.test(predicate);
             boolean isDrivingBackend = !isCorrectness && !isPerformance;
             return new Result(isCorrectness, isPerformance, isDrivingBackend, false);
         }
@@ -96,7 +109,7 @@ final class FilterTreeShapeDeriver {
             boolean hasDrivingBackend = false;
             boolean interleaved = false;
             for (RexNode operand : call.getOperands()) {
-                Result child = walk(operand, drivingBackendId);
+                Result child = walk(operand, drivingBackendId, peerCanSerialize);
                 hasCorrectness |= child.hasCorrectness;
                 hasPerf |= child.hasPerf;
                 hasDrivingBackend |= child.hasDrivingBackend;

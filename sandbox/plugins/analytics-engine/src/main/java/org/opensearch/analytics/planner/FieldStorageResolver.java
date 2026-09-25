@@ -165,7 +165,8 @@ public class FieldStorageResolver {
             false,
             new LinkedHashSet<>(),
             exactMatchSubfieldOf(fieldType, fieldProps),
-            fieldProps.get("normalizer") != null
+            fieldProps.get("normalizer") != null,
+            exactMatchSubfieldNormalized(fieldType, fieldProps)
         );
     }
 
@@ -173,7 +174,21 @@ public class FieldStorageResolver {
      * For a {@code text} field with a {@code fields} multifield block, returns the name of the
      * first {@code keyword} subfield (e.g. {@code "keyword"}), or {@code null} if there is none.
      * Exact-equality predicates route to this subfield (see {@link FieldStorageInfo#getExactMatchSubfield()}).
+     *
+     * <p>Known limitation: {@code ignore_above} is not modelled. Values longer than it (256 under
+     * dynamic mapping; explicit mappings may set less) are not indexed, so a predicate Lucene
+     * evaluates on this subfield or on a keyword field never matches them, while DataFusion reading
+     * the parquet value can. Results for such values can therefore depend on which backend
+     * evaluates the predicate. Accepted: queries are only guaranteed for values within the limit.
      */
+    /** True when the subfield {@link #exactMatchSubfieldOf} picks declares a {@code normalizer}. */
+    private static boolean exactMatchSubfieldNormalized(String fieldType, Map<String, Object> fieldProps) {
+        String subfield = exactMatchSubfieldOf(fieldType, fieldProps);
+        return subfield != null
+            && ((Map<?, ?>) fieldProps.get("fields")).get(subfield) instanceof Map<?, ?> subProps
+            && subProps.get("normalizer") != null;
+    }
+
     @SuppressWarnings("unchecked")
     private static String exactMatchSubfieldOf(String fieldType, Map<String, Object> fieldProps) {
         if (!"text".equals(fieldType)) {
