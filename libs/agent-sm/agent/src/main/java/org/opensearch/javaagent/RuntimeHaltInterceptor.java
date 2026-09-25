@@ -35,7 +35,7 @@ public class RuntimeHaltInterceptor {
     @SuppressWarnings("removal")
     public static void intercept(int code) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
-        if (policy == null) {
+        if (policy == null || AgentPolicy.isEnforcementEnabled() == false) {
             return; /* noop */
         }
 

@@ -64,6 +64,14 @@ public final class BootstrapSettings {
 
     public static final Setting<Boolean> SERIAL_FILTER_SETTING = Setting.boolSetting("bootstrap.serial_filter", false, Property.NodeScope);
 
+    /** Controls whether the Java agent enforces its installed security policy. */
+    public static final Setting<Boolean> JAVA_AGENT_ENFORCEMENT_ENABLED = Setting.boolSetting(
+        "cluster.java_agent.enforcement.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     static final ObjectInputFilter REJECT_ALL_FILTER = filterInfo -> filterInfo.serialClass() == null
         ? ObjectInputFilter.Status.UNDECIDED
         : ObjectInputFilter.Status.REJECTED;

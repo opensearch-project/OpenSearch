@@ -208,6 +208,7 @@ import org.opensearch.indices.replication.checkpoint.RemoteStorePublishMergedSeg
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.NodeRuntimeMetrics;
 import org.opensearch.monitor.fs.FsHealthService;
@@ -364,6 +365,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -508,8 +510,36 @@ public class Node implements Closeable {
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
+    private void updateJavaAgentEnforcement(AgentPolicy.EnforcementController controller, boolean enabled) {
+        if (controller.setEnforcementEnabled(enabled)) {
+            if (enabled) {
+                logger.info("Java agent security policy enforcement is enabled");
+            } else {
+                logger.warn("Java agent security policy enforcement is disabled; defense-in-depth protections are not being applied");
+            }
+        }
+    }
+
+    static void registerJavaAgentEnforcementSettings(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        Consumer<Boolean> enforcementConsumer
+    ) {
+        enforcementConsumer.accept(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED, enforcementConsumer);
+    }
+
     public Node(Environment environment) {
-        this(environment, Collections.emptyList(), true);
+        this(environment, Collections.emptyList(), true, null);
+    }
+
+    /**
+     * Constructs a node with the capability to update Java agent enforcement.
+     * @param environment the node environment
+     * @param javaAgentEnforcementController capability obtained while installing the agent policy
+     */
+    protected Node(Environment environment, AgentPolicy.EnforcementController javaAgentEnforcementController) {
+        this(environment, Collections.emptyList(), true, javaAgentEnforcementController);
     }
 
     /**
@@ -521,6 +551,15 @@ public class Node implements Closeable {
      *                                   test framework for tests that rely on being able to set private settings
      */
     protected Node(final Environment initialEnvironment, Collection<PluginInfo> classpathPlugins, boolean forbidPrivateIndexSettings) {
+        this(initialEnvironment, classpathPlugins, forbidPrivateIndexSettings, null);
+    }
+
+    private Node(
+        final Environment initialEnvironment,
+        Collection<PluginInfo> classpathPlugins,
+        boolean forbidPrivateIndexSettings,
+        @Nullable AgentPolicy.EnforcementController javaAgentEnforcementController
+    ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
@@ -704,6 +743,13 @@ public class Node implements Closeable {
                 additionalSettingsFilter,
                 settingsUpgraders
             );
+            if (javaAgentEnforcementController != null) {
+                registerJavaAgentEnforcementSettings(
+                    settings,
+                    settingsModule.getClusterSettings(),
+                    enabled -> updateJavaAgentEnforcement(javaAgentEnforcementController, enabled)
+                );
+            }
             threadPool.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             scriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
