@@ -69,7 +69,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
      */
     public enum ExecutionMode {
         DIRECT,
-        ORDINALS;
+        ORDINALS,
+        DEFERRED_ORDINALS;
 
         ExecutionMode() {}
 
@@ -77,7 +78,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             try {
                 return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Unknown execution_hint: [" + value + "], expected any of [direct, ordinals]");
+                throw new IllegalArgumentException(
+                    "Unknown execution_hint: [" + value + "], expected any of [direct, ordinals, deferred_ordinals]"
+                );
             }
         }
 
@@ -113,9 +116,27 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
-            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+            return new StreamCardinalityAggregator(
+                name,
+                config,
+                precision(),
+                searchContext,
+                parent,
+                metadata,
+                executionMode,
+                CardinalityUpperBound.ONE
+            );
         }
-        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+        return new CardinalityAggregator(
+            name,
+            config,
+            precision(),
+            searchContext,
+            parent,
+            metadata,
+            executionMode,
+            CardinalityUpperBound.ONE
+        );
     }
 
     @Override
@@ -137,11 +158,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
         }
 
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
-            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode, cardinality);
         }
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), searchContext, parent, metadata, executionMode);
+            .build(name, config, precision(), searchContext, parent, metadata, executionMode, cardinality);
     }
 
     @Override
