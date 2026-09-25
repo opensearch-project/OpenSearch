@@ -39,6 +39,7 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.ExponentiallyWeightedMovingAverage;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
@@ -517,7 +518,12 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
                     final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
                     final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
                     final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
-                    final long updatedService = (long) (minStats.serviceTime + stats.serviceTime) / 2;
+                    final ExponentiallyWeightedMovingAverage serviceTimeEWMA = new ExponentiallyWeightedMovingAverage(
+                        ResponseCollectorService.ALPHA,
+                        stats.serviceTime
+                    );
+                    serviceTimeEWMA.addValue((minStats.serviceTime + stats.serviceTime) / 2.0);
+                    final long updatedService = (long) serviceTimeEWMA.getAverage();
                     collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);
                 }
             }
