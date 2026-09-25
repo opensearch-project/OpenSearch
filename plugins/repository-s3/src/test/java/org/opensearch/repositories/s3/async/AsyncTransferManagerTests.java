@@ -235,6 +235,45 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         verify(s3AsyncClient, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
     }
 
+    public void testMultipartUploadWithoutResponseChecksums() throws Exception {
+        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = new CompletableFuture<>();
+        createMultipartUploadFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
+        when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadFuture);
+
+        CompletableFuture<UploadPartResponse> uploadPartFuture = new CompletableFuture<>();
+        uploadPartFuture.complete(UploadPartResponse.builder().build());
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(uploadPartFuture);
+
+        CompletableFuture<CompleteMultipartUploadResponse> completeMultipartUploadFuture = new CompletableFuture<>();
+        completeMultipartUploadFuture.complete(CompleteMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            completeMultipartUploadFuture
+        );
+
+        CompletableFuture<AbortMultipartUploadResponse> abortMultipartUploadFuture = new CompletableFuture<>();
+        abortMultipartUploadFuture.complete(AbortMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(abortMultipartUploadFuture);
+
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
+            s3AsyncClient,
+            buildUploadRequest(true, 3376132981L),
+            new StreamContext(
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
+                ByteSizeUnit.MB.toBytes(1),
+                ByteSizeUnit.MB.toBytes(1),
+                5
+            ),
+            new StatsMetricPublisher()
+        );
+
+        resultFuture.get(5, TimeUnit.SECONDS);
+
+        verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
+        verify(s3AsyncClient, times(1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+    }
+
     public void testMultipartUploadCorruption() {
         CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadRequestCompletableFuture = new CompletableFuture<>();
         createMultipartUploadRequestCompletableFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
