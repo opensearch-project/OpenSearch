@@ -737,6 +737,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new ParsingException(parser.getTokenLocation(), "No text specified for multi_match query");
         }
 
+        // Allow fuzziness for BOOL_PREFIX but not for CROSS_FIELDS, PHRASE, or PHRASE_PREFIX
         if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
             throw new ParsingException(
                 parser.getTokenLocation(),

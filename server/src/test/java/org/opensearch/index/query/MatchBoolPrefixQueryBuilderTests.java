@@ -43,6 +43,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -144,9 +145,13 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                 assertThat(fuzzyQuery.getTranspositions(), equalTo(queryBuilder.fuzzyTranspositions()));
             });
 
-            // the last query should be PrefixQuery
-            final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).query();
-            assertThat(shouldBePrefixQuery, instanceOf(PrefixQuery.class));
+            // the last query should be PrefixQuery or FuzzyQuery
+            final Query lastQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).query();
+            if (queryBuilder.fuzziness() != null) {
+                assertThat(lastQuery, instanceOf(FuzzyQuery.class));
+            } else {
+                assertThat(lastQuery, instanceOf(PrefixQuery.class));
+            }
 
             if (queryBuilder.minimumShouldMatch() != null) {
                 final int optionalClauses = (int) booleanQuery.clauses()
@@ -293,6 +298,28 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo");
         final Query query = builder.toQuery(createShardContext());
         assertThat(query, equalTo(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foo"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE)));
+    }
+
+    public void testWithFuzziness() throws Exception {
+        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo bar baz");
+        builder.fuzziness(Fuzziness.ONE);
+        final Query query = builder.toQuery(createShardContext());
+
+        assertBooleanQuery(
+            query,
+            asList(
+                new FuzzyQuery(new Term(TEXT_FIELD_NAME, "foo"), 1, 0, 50, true),
+                new FuzzyQuery(new Term(TEXT_FIELD_NAME, "bar"), 1, 0, 50, true),
+                new FuzzyQuery(new Term(TEXT_FIELD_NAME, "baz"), 1, 0, 50, true)
+            )
+        );
+    }
+
+    public void testWithFuzzinessSingleTerm() throws Exception {
+        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo");
+        builder.fuzziness(Fuzziness.ONE);
+        final Query query = builder.toQuery(createShardContext());
+        assertThat(query, equalTo(new FuzzyQuery(new Term(TEXT_FIELD_NAME, "foo"), 1, 0, 50, true)));
     }
 
     private static void assertBooleanQuery(Query actual, List<Query> expectedClauseQueries) {
