@@ -1607,6 +1607,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        private void deduplicateMappingsInPlace() {
+            final Map<MappingMetadata, MappingMetadata> pool = new HashMap<>();
+
+            for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
+                final IndexMetadata indexMetadata = entry.getValue();
+                final MappingMetadata mapping = indexMetadata.mapping();
+                if (mapping == null) {
+                    continue;
+                }
+
+                final MappingMetadata sharedMapping = pool.putIfAbsent(mapping, mapping);
+                if (sharedMapping != null && sharedMapping != mapping) {
+                    entry.setValue(IndexMetadata.builder(indexMetadata).putMapping(sharedMapping).build());
+                }
+            }
+        }
+
         public Metadata build() {
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             DataStreamMetadata previousDataStreamMetadata = (previousMetadata != null)
@@ -1614,6 +1631,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 : null;
 
             buildSystemTemplatesLookup();
+
+            deduplicateMappingsInPlace();
 
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
