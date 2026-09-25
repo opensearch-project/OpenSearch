@@ -60,6 +60,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -146,7 +148,9 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
         }
         ShardId shardId = request.shardId();
-        MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        MapperService mapperService = indexService.mapperService();
+        IndexSettings indexSettings = indexService.getIndexSettings();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToFullName(field));
@@ -160,7 +164,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),
-                        ft.isSearchable(),
+                        ft.isSearchableForFieldCaps(indexSettings),
                         ft.isAggregatable(),
                         ft.meta()
                     );

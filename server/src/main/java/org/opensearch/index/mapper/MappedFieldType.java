@@ -57,6 +57,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -201,6 +202,25 @@ public abstract class MappedFieldType {
      */
     public boolean isSearchable() {
         return isIndexed;
+    }
+
+    /**
+     * Whether the field capabilities API should report this field as searchable on the given index.
+     * Defaults to {@link #isSearchable()}. Reporting only - never use this for query planning.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public boolean isSearchableForFieldCaps(IndexSettings indexSettings) {
+        return isSearchable();
+    }
+
+    /** Searchable if indexed, or if the index uses a pluggable data format and the field has doc values. */
+    protected final boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+        if (isSearchable()) {
+            return true;
+        }
+        return indexSettings != null && indexSettings.isPluggableDataFormatEnabled() && hasDocValues();
     }
 
     /**

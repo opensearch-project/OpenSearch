@@ -48,6 +48,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -194,6 +195,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        /** Still searchable from doc values when the index uses a pluggable data format. */
+        @Override
+        public boolean isSearchableForFieldCaps(IndexSettings indexSettings) {
+            return isSearchableViaDocValues(indexSettings);
         }
 
         @Override
