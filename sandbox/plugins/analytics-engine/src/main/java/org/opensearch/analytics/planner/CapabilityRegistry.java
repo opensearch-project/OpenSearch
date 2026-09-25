@@ -249,16 +249,25 @@ public class CapabilityRegistry {
 
     // ---- Field-level lookups (iterates all formats a field has) ----
 
-    /** All backends that can filter on this field across all its storage formats. */
+    /**
+     * All backends that can filter on this field across its storage formats. A normalized field's
+     * doc values hold a transformed value, so only its index formats qualify; if no backend is
+     * viable through them the doc-value backends are kept rather than failing the query.
+     */
     public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field) {
         FieldType fieldType = field.getFieldType();
+        List<String> indexBacked = new ArrayList<>();
+        for (String format : field.getIndexFormats()) {
+            indexBacked.addAll(filterBackends(function, fieldType, format));
+        }
+        if (field.isNormalized() && indexBacked.isEmpty() == false) {
+            return indexBacked;
+        }
         List<String> result = new ArrayList<>();
         for (String format : field.getDocValueFormats()) {
             result.addAll(filterBackends(function, fieldType, format));
         }
-        for (String format : field.getIndexFormats()) {
-            result.addAll(filterBackends(function, fieldType, format));
-        }
+        result.addAll(indexBacked);
         return result;
     }
 

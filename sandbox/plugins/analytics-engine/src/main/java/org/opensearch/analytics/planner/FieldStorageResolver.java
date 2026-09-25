@@ -15,6 +15,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -162,7 +163,9 @@ public class FieldStorageResolver {
             indexFormats,
             storedFieldFormats,
             false,
-            exactMatchSubfieldOf(fieldType, fieldProps)
+            new LinkedHashSet<>(),
+            exactMatchSubfieldOf(fieldType, fieldProps),
+            fieldProps.get("normalizer") != null
         );
     }
 

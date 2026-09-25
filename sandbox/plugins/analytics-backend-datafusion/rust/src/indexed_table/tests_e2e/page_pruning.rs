@@ -381,6 +381,7 @@ async fn run_single_collector(
                 None,
                     None,
                     std::collections::HashMap::new(),
+                    Vec::new(),
             ));
             Ok(eval)
         })

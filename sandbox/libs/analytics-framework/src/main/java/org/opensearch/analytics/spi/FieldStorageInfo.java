@@ -36,6 +36,12 @@ public class FieldStorageInfo {
      */
     private final String exactMatchSubfield;
 
+    /**
+     * True when the mapping declares a {@code normalizer}: the stored value is transformed, so the
+     * doc values do not hold the value a query literal would be compared against.
+     */
+    private final boolean normalized;
+
     public FieldStorageInfo(
         String fieldName,
         String mappingType,
@@ -98,6 +104,32 @@ public class FieldStorageInfo {
         LinkedHashSet<String> dependsOnPhysicalCols,
         String exactMatchSubfield
     ) {
+        this(
+            fieldName,
+            mappingType,
+            fieldType,
+            docValueFormats,
+            indexFormats,
+            storedFieldFormats,
+            derived,
+            dependsOnPhysicalCols,
+            exactMatchSubfield,
+            false
+        );
+    }
+
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        LinkedHashSet<String> dependsOnPhysicalCols,
+        String exactMatchSubfield,
+        boolean normalized
+    ) {
         this.fieldName = fieldName;
         this.mappingType = mappingType;
         this.fieldType = fieldType;
@@ -107,6 +139,7 @@ public class FieldStorageInfo {
         this.derived = derived;
         this.dependsOnPhysicalCols = dependsOnPhysicalCols;
         this.exactMatchSubfield = exactMatchSubfield;
+        this.normalized = normalized;
     }
 
     /** Creates a derived column (agg result, expression) with no physical storage and no deps.
@@ -141,6 +174,11 @@ public class FieldStorageInfo {
      *  multifield — or {@code null} when the field is queried directly. */
     public String getExactMatchSubfield() {
         return exactMatchSubfield;
+    }
+
+    /** True when the mapping declares a {@code normalizer}; see {@link #normalized}. */
+    public boolean isNormalized() {
+        return normalized;
     }
 
     public String getMappingType() {
