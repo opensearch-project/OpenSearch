@@ -334,10 +334,13 @@ public class AsyncPartsHandler {
     ) {
         CompletedPart.Builder completedPartBuilder = CompletedPart.builder().eTag(partResponse.eTag()).partNumber(partNumber);
         if (isRemoteDataIntegrityCheckEnabled) {
-            completedPartBuilder.checksumCRC32(partResponse.checksumCRC32());
-            CheckedContainer inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
-            inputStreamCRC32Container.setChecksum(partResponse.checksumCRC32());
-            inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
+            String checksumCRC32 = partResponse.checksumCRC32();
+            if (checksumCRC32 != null) {
+                completedPartBuilder.checksumCRC32(checksumCRC32);
+                CheckedContainer inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
+                inputStreamCRC32Container.setChecksum(checksumCRC32);
+                inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
+            }
         }
         CompletedPart completedPart = completedPartBuilder.build();
         completedParts.set(partNumber - 1, completedPart);
