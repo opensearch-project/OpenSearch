@@ -338,10 +338,47 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
+     * Represents the role for a replica-only node, which hosts replica shards from auto-expand indices
+     * without participating in primary shard hosting. Replica-only nodes:
+     * - Never host primary shards or promote replicas to primaries
+     * - Only accept replica shards from indices with {@code index.auto_expand_replicas: 0-all}
+     * - Do not trigger rebalancing on regular data nodes when joining/leaving the cluster
+     * - Must be a dedicated role (cannot coexist with any other role)
+     */
+    public static final DiscoveryNodeRole REPLICA_ONLY_ROLE = new DiscoveryNodeRole("replica_only", "ro", true) {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // replica_only role is added in 3.5 so doesn't need to configure legacy setting
+            return null;
+        }
+
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            // replica_only role must be the only role on a node (dedicated)
+            for (DiscoveryNodeRole role : roles) {
+                if (role.equals(DiscoveryNodeRole.REPLICA_ONLY_ROLE) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "%s role must be the only role on a node. Cannot be combined with: %s",
+                            DiscoveryNodeRole.REPLICA_ONLY_ROLE.roleName(),
+                            role.roleName()
+                        )
+                    );
+                }
+            }
+        }
+
+    };
+
+    /**
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE, WARM_ROLE))
+        new TreeSet<>(
+            Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE, WARM_ROLE, REPLICA_ONLY_ROLE)
+        )
     );
 
     /**

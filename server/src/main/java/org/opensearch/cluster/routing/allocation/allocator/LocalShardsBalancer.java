@@ -765,6 +765,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private Map<String, BalancedShardsAllocator.ModelNode> buildModelFromAssigned() {
         Map<String, BalancedShardsAllocator.ModelNode> nodes = new HashMap<>();
         for (RoutingNode rn : routingNodes) {
+            // EXCLUDE replica-only nodes from rebalancing calculations
+            // These nodes are managed solely by auto-expand replica logic
+            if (rn.node().isReplicaOnlyNode()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Excluding replica-only node [{}] from rebalancing model", rn.nodeId());
+                }
+                continue;
+            }
+
             BalancedShardsAllocator.ModelNode node = new BalancedShardsAllocator.ModelNode(rn);
             nodes.put(rn.nodeId(), node);
             for (ShardRouting shard : rn) {

@@ -159,4 +159,41 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
         assertEquals(roleName.toLowerCase(Locale.ROOT), dynamicRole.roleName());
         assertEquals(roleNameAbbreviation.toLowerCase(Locale.ROOT), dynamicRole.roleNameAbbreviation());
     }
+
+    public void testReplicaOnlyRoleIsDedicated() {
+        // replica_only role cannot coexist with any other role
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DiscoveryNodeRole.REPLICA_ONLY_ROLE.validateRole(Arrays.asList(DiscoveryNodeRole.REPLICA_ONLY_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        assertThat(e1, hasToString(containsString("replica_only role must be the only role")));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DiscoveryNodeRole.REPLICA_ONLY_ROLE.validateRole(
+                Arrays.asList(DiscoveryNodeRole.REPLICA_ONLY_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)
+            )
+        );
+        assertThat(e2, hasToString(containsString("replica_only role must be the only role")));
+
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DiscoveryNodeRole.REPLICA_ONLY_ROLE.validateRole(Arrays.asList(DiscoveryNodeRole.REPLICA_ONLY_ROLE, DiscoveryNodeRole.INGEST_ROLE))
+        );
+        assertThat(e3, hasToString(containsString("replica_only role must be the only role")));
+
+        // replica_only role by itself should not throw
+        DiscoveryNodeRole.REPLICA_ONLY_ROLE.validateRole(Arrays.asList(DiscoveryNodeRole.REPLICA_ONLY_ROLE));
+    }
+
+    public void testReplicaOnlyRoleProperties() {
+        assertEquals("replica_only", DiscoveryNodeRole.REPLICA_ONLY_ROLE.roleName());
+        assertEquals("ro", DiscoveryNodeRole.REPLICA_ONLY_ROLE.roleNameAbbreviation());
+        assertTrue(DiscoveryNodeRole.REPLICA_ONLY_ROLE.canContainData());
+        assertNull(DiscoveryNodeRole.REPLICA_ONLY_ROLE.legacySetting());
+    }
+
+    public void testReplicaOnlyRoleInBuiltInRoles() {
+        assertTrue(DiscoveryNodeRole.BUILT_IN_ROLES.contains(DiscoveryNodeRole.REPLICA_ONLY_ROLE));
+    }
 }
