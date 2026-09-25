@@ -42,8 +42,10 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.core.common.Strings;
@@ -157,7 +159,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private final QueryCancellation queryCancellation;
 
-        private ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
+        ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
             super(terms);
             this.queryCancellation = queryCancellation;
         }
@@ -214,8 +216,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-            // Don't reuse when wrapping, since the wrapper type differs from the delegate type
-            final PostingsEnum postings = in.postings(null, flags);
+            // Let the codec reuse its postings implementation beneath our cancellation wrapper.
+            if (reuse instanceof ExitablePostingsEnum exitable) {
+                reuse = exitable.unwrap();
+            }
+            final PostingsEnum postings = in.postings(reuse, flags);
             return new ExitablePostingsEnum(postings, queryCancellation);
         }
     }
@@ -231,7 +236,10 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
      */
     static class ExitablePostingsEnum extends FilterLeafReader.FilterPostingsEnum {
 
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
+        private static final int CANCELLATION_CHECK_INTERVAL = 1 << 13;
+        // Bulk bitset filling is substantially cheaper per document than scalar iteration. Use the
+        // same maximum doc-ID interval as CancellableBulkScorer, without fragmenting sparse lists.
+        private static final int MAX_DOCS_PER_BITSET_CHECK = 1 << 20;
 
         private final QueryCancellation queryCancellation;
         private int calls;
@@ -242,7 +250,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         private void checkAndThrowWithSampling() {
-            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+            if ((calls++ & (CANCELLATION_CHECK_INTERVAL - 1)) == 0) {
                 queryCancellation.checkCancelled();
             }
         }
@@ -257,6 +265,36 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public int advance(int target) throws IOException {
             checkAndThrowWithSampling();
             return super.advance(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return in.docIDRunEnd();
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            // Delegate to the codec's bulk implementation, but bound each call since it bypasses
+            // the cancellation checks in nextDoc() and advance().
+            for (int doc = in.docID(); doc < upTo; doc = in.docID()) {
+                queryCancellation.checkCancelled();
+                final int limit = (int) Math.min((long) doc + MAX_DOCS_PER_BITSET_CHECK, upTo);
+                in.intoBitSet(limit, bitSet, offset);
+            }
+        }
+
+        @Override
+        public void nextPostings(int upTo, DocAndFloatFeatureBuffer buffer) throws IOException {
+            final int remaining = CANCELLATION_CHECK_INTERVAL - (calls & (CANCELLATION_CHECK_INTERVAL - 1));
+            if (remaining == CANCELLATION_CHECK_INTERVAL) {
+                queryCancellation.checkCancelled();
+            }
+            // Preserve native batches even for sparse postings, whose doc-ID span may be large.
+            in.nextPostings(upTo, buffer);
+            final int size = Math.max(1, buffer.size);
+            // Charge the returned postings to the scalar sampling budget. If the batch exhausts it,
+            // make the next scalar or batch call check cancellation, even if it overshot the boundary.
+            calls = size >= remaining ? 0 : calls + size;
         }
     }
 
