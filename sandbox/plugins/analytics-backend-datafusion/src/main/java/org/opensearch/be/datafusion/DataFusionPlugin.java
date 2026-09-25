@@ -22,6 +22,8 @@ import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.docvalues.ParquetDocValuesDirectoryReader;
+import org.opensearch.be.datafusion.docvalues.ParquetSegmentResourceCache;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -42,6 +44,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.engine.Engine;
@@ -780,6 +783,35 @@ public class DataFusionPlugin extends Plugin
         List<Setting<?>> settings = new ArrayList<>(DatafusionSettings.NODE_SCOPED_SETTINGS);
         settings.addAll(DatafusionSettings.INDEX_SCOPED_SETTINGS);
         return List.copyOf(settings);
+    }
+
+    /**
+     * Installs the doc-values reader wrapper for pluggable-data-format indices; the reader reads
+     * through this plugin's native cursors and DataFusion runtime. The wrapper is a no-op per leaf when
+     * a segment has no Parquet-resident fields, so the per-request overhead is negligible.
+     *
+     * <p>An index module holds a single reader-wrapper slot ({@code SetOnce}), so a second plugin calling
+     * {@link IndexModule#setReaderWrapper} on the same index fails index creation. This claims the slot
+     * only for indices that opted into a pluggable data format, leaving every other index free for other
+     * plugins. {@code isPluggableDataFormatEnabled()} (the authoritative check, which also requires the
+     * experimental feature flag) is not reachable from {@link IndexModule}, so it stays inside the
+     * factory and can still decline by returning {@code null}.
+     *
+     * <p>Segment-core resources are cached per index in {@link ParquetSegmentResourceCache}; the
+     * per-acquire wrapper carries only the request's cursor registry.
+     */
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(indexModule.getSettings()) == false) {
+            return;
+        }
+        indexModule.setReaderWrapper(indexService -> {
+            if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
+                return null;
+            }
+            ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(indexService.mapperService());
+            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, cache);
+        });
     }
 
     @Override
