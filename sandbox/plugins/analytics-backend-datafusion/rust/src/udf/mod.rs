@@ -150,6 +150,10 @@ pub mod minspan_bucket;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
+// TODO(native-array_any_match): remove once we drop the nested_any_match placeholder.
+pub mod nested_any_match;
+// TODO(native-array_transform): remove once we drop the nested_project placeholder.
+pub mod nested_project;
 pub(crate) mod os_strftime;
 pub mod os_week;
 pub mod parse;
@@ -203,6 +207,10 @@ pub fn register_all(ctx: &SessionContext) {
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    // TODO(native-array_any_match): remove once we drop the nested_any_match placeholder.
+    nested_any_match::register_all(ctx);
+    // TODO(native-array_transform): remove once we drop the nested_project placeholder.
+    nested_project::register_all(ctx);
     os_week::register_all(ctx);
     parse::register_all(ctx);
     pattern_parser::register_all(ctx);

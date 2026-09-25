@@ -48,6 +48,8 @@ public enum ScalarFunction {
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    // TODO(native-array_any_match): drop this placeholder op once we emit a real array_any_match lambda.
+    NESTED_ANY_MATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),
@@ -388,6 +390,8 @@ public enum ScalarFunction {
      * name-mapping adapter (see {@code MakeArrayAdapter} in the DataFusion backend).
      */
     ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    // TODO(native-array_transform): drop this placeholder op once we emit a real array_transform lambda.
+    NESTED_PROJECT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),

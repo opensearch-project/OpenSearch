@@ -192,8 +192,12 @@ fn convert_expr(
         // analyzer and would produce mismatched-type kernels (e.g. parquet's
         // `Utf8View` column compared against an `Utf8` literal — Arrow's
         // comparison kernel rejects mixed types).
+        //
+        // `create_physical_expr` does not run `AnalyzerRule`s, so a `nested_any_match` placeholder
+        // left in a delegated residual would reach execution and fail. Rewrite it to
+        // `array_any_match` here first (same as the plan-path analyzer rule) before lowering.
         other => {
-            let unqualified = strip_column_qualifiers(other);
+            let unqualified = rewrite_nested_any_match(strip_column_qualifiers(other), df_schema)?;
             let phys = state
                 .create_physical_expr(unqualified.clone(), df_schema)
                 .map_err(|e| format!("create_physical_expr for {:?}: {}", unqualified, e))?;
@@ -240,7 +244,7 @@ fn convert_delegation_possible_function(
             args.len()
         ));
     }
-    let unqualified = strip_column_qualifiers(&args[0]);
+    let unqualified = rewrite_nested_any_match(strip_column_qualifiers(&args[0]), df_schema)?;
     let original_expr = state
         .create_physical_expr(unqualified, df_schema)
         .map_err(|e| {
@@ -266,6 +270,16 @@ fn convert_delegation_possible_function(
         annotation_id,
         original_expr,
     })
+}
+
+/// Rewrites any `nested_any_match` placeholder in `expr` to a native `array_any_match` HOF before
+/// it is lowered to a `PhysicalExpr`. Residual-predicate counterpart to the plan-level
+/// `NestedAnyMatchRewriteRule`, which `create_physical_expr` doesn't run.
+// TODO(native-array_any_match): drop this residual rewrite and its two call sites once we emit a
+// real array_any_match lambda -- it round-trips and needs no rewrite.
+fn rewrite_nested_any_match(expr: Expr, df_schema: &DFSchema) -> Result<Expr, String> {
+    crate::nested_any_match_rewrite_analyzer::rewrite_nested_any_match_in_expr(expr, df_schema)
+        .map_err(|e| format!("nested_any_match rewrite: {}", e))
 }
 
 /// Strip table qualifiers from `Column` references in an `Expr` tree.
