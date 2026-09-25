@@ -138,7 +138,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored);
+            return withMultiValueParameter(Arrays.asList(meta, boost, docValues, indexed, nullValue, stored));
         }
 
         @Override
@@ -152,6 +152,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                 meta.getValue()
             );
             ft.setBoost(boost.getValue());
+            applyMultiValueParameter(ft);
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -409,7 +410,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         if (value == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), value);
+        addFieldForPluggableFormat(context, value);
     }
 
     private Boolean parseBooleanValue(ParseContext context) throws IOException {

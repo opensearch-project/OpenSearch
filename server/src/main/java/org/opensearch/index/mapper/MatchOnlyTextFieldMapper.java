@@ -61,7 +61,11 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         FIELD_TYPE.freeze();
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        Builder builder = new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers());
+        builder.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(c.getSettings());
+        return builder;
+    });
 
     protected MatchOnlyTextFieldMapper(
         String simpleName,
@@ -140,6 +144,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         public MatchOnlyTextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             MatchOnlyTextFieldType tft = buildFieldType(fieldType, context);
+            applyMultiValueParameter(tft);
             return new MatchOnlyTextFieldMapper(
                 name,
                 fieldType,
@@ -190,24 +195,26 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
-                index,
-                store,
-                indexOptions,
-                norms,
-                termVectors,
-                analyzers.indexAnalyzer,
-                analyzers.searchAnalyzer,
-                analyzers.searchQuoteAnalyzer,
-                similarity,
-                positionIncrementGap,
-                fieldData,
-                freqFilter,
-                eagerGlobalOrdinals,
-                indexPhrases,
-                indexPrefixes,
-                boost,
-                meta
+            return withMultiValueParameter(
+                Arrays.asList(
+                    index,
+                    store,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    boost,
+                    meta
+                )
             );
         }
     }

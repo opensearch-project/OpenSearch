@@ -402,7 +402,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 )
             );
             parameters.addAll(pluginMappingParameters());
-            return List.copyOf(parameters);
+            return withMultiValueParameter(parameters);
         }
 
         protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
@@ -483,6 +483,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             applyPluginParameterEffects();
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
+            applyMultiValueParameter(tft);
             if (context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
                 || (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
                     && context.isMultiField() == false)) {
@@ -505,7 +506,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null
             ? List.of()
             : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
-        return new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), pluginParameters);
+        Builder builder = new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), pluginParameters);
+        builder.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(c.getSettings());
+        return builder;
     });
 
     /**
@@ -1040,7 +1043,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -1104,7 +1107,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         if (value == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), value);
+        addFieldForPluggableFormat(context, value);
     }
 
     @Override
@@ -1287,6 +1290,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         // Plugin-contributed parameters are not part of the fixed backwards-compatibility list above and are serialized explicitly.
         for (Parameter<?> pluginMappingParameter : mapperBuilder.pluginMappingParameters()) {
             pluginMappingParameter.toXContent(builder, includeDefaults);
+        }
+        // multi_value is Parquet-only and likewise outside the fixed BWC list; it must round-trip through cluster
+        // state or every node re-parses the field as AUTO and requests a no-op promotion update.
+        if (mapperBuilder.isPluggableDataFormat()) {
+            mapperBuilder.multiValue.toXContent(builder, includeDefaults);
         }
     }
 
