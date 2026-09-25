@@ -208,7 +208,14 @@ fn compute_segment_sort_bounds(
     file_schema: &arrow::datatypes::SchemaRef,
     pq_meta: &ParquetMetaData,
 ) -> (Option<ScalarValue>, Option<ScalarValue>) {
-    if file_schema.index_of(lead_field).is_err() {
+    let Ok(field) = file_schema.field_with_name(lead_field) else {
+        return (None, None);
+    };
+    // Parquet stats for a LIST column cover the leaf elements of every row, not the
+    // per-row MIN/MAX reduction the writer sorted by, so they cannot be read as row-order
+    // bounds. Writer-side reduced-key bounds are tracked in
+    // https://github.com/opensearch-project/OpenSearch/issues/23095.
+    if matches!(field.data_type(), arrow::datatypes::DataType::List(_)) {
         return (None, None);
     }
 

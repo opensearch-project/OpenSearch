@@ -51,6 +51,7 @@ mod qtf_fetch_phase;
 mod row_id_emission;
 mod row_id_strategies;
 mod schema_drift;
+mod sort_chain_list_tiebreaker;
 mod sort_reverse_row_id;
 mod streaming_at_scale;
 

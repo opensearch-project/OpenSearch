@@ -14,6 +14,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.CorrelationId;
@@ -59,6 +60,7 @@ import io.substrait.proto.PlanRel;
 import io.substrait.proto.ReadRel;
 import io.substrait.proto.Rel;
 import io.substrait.proto.SimpleExtensionDeclaration;
+import io.substrait.proto.SortField;
 import io.substrait.proto.SortRel;
 
 /**
@@ -344,6 +346,193 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             0,
             arg.getCast().getInput().getSelection().getDirectReference().getStructField().getField()
         );
+    }
+
+    /**
+     * DESC sort on a LIST column must sort by DataFusion's built-in {@code array_max} (Calcite
+     * {@code SqlLibraryOperators.ARRAY_MAX}), emitted directly as the Substrait {@code SortField}
+     * expression. Mirrors the writer-side default: {@code ParquetSortConfig.deriveMaxSortModes}
+     * defaults to MAX for a descending field when no explicit {@code index.sort.mode} override
+     * applies — there is no separate query-level mode setting, so collation direction is the
+     * only signal.
+     */
+    public void testListSortDescSortsByArrayMax() throws Exception {
+        assertListSortReducesKey(RelFieldCollation.Direction.DESCENDING, "array_max");
+    }
+
+    /**
+     * ASC sort on a LIST column must sort by DataFusion's built-in {@code array_min} (Calcite
+     * {@code SqlLibraryOperators.ARRAY_MIN}), mirroring the writer-side default (MIN for an
+     * ascending field).
+     */
+    public void testListSortAscSortsByArrayMin() throws Exception {
+        assertListSortReducesKey(RelFieldCollation.Direction.ASCENDING, "array_min");
+    }
+
+    private void assertListSortReducesKey(RelFieldCollation.Direction direction, String expectedReductionFn) throws Exception {
+        RelDataType rowType = typeFactory.builder().add("tags", listOfVarchar()).build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
+        RelFieldCollation collation = new RelFieldCollation(0, direction, RelFieldCollation.NullDirection.LAST);
+        RelNode sort = LogicalSort.create(scan, RelCollations.of(collation), null, null);
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
+        Rel root = rootRel(plan);
+        // No hidden-key Project sandwich: the reduction rides the SortField expression itself.
+        assertTrue("root must be the SortRel", root.hasSort());
+        assertTrue("Sort input must be the ReadRel", root.getSort().getInput().hasRead());
+        assertEquals(1, root.getSort().getSortsCount());
+        SortField sortField = root.getSort().getSorts(0);
+        assertEquals(expectedReductionFn, scalarFunctionName(plan, sortField.getExpr()));
+        assertEquals(
+            "reduction must be applied to the LIST column",
+            0,
+            sortField.getExpr()
+                .getScalarFunction()
+                .getArguments(0)
+                .getValue()
+                .getSelection()
+                .getDirectReference()
+                .getStructField()
+                .getField()
+        );
+        assertTrue(
+            direction == RelFieldCollation.Direction.DESCENDING
+                ? sortField.getDirection().name().contains("DESC")
+                : sortField.getDirection().name().contains("ASC")
+        );
+    }
+
+    /** Scalar sort keys must be left alone: a plain field reference, no reduction. */
+    public void testScalarSortKeyIsNotReduced() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        RelNode sort = LogicalSort.create(scan, RelCollations.of(0), null, null);
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(sort)));
+        assertTrue(root.hasSort());
+        assertTrue("scalar key must stay a field reference", root.getSort().getSorts(0).getExpr().hasSelection());
+    }
+
+    /**
+     * Multi-key sort with a scalar lead and a LIST tiebreaker ({@code sort ts, tags}): only the
+     * LIST key is reduced, the scalar lead stays a field reference, and key order is preserved.
+     * This is the query-side half of the {@code index.sort.field=[ts, tags]} case — the scan
+     * advertises {@code [ts ASC, array_min(tags) ASC]} and the Sort must ask for the same keys
+     * for DataFusion to eliminate it.
+     */
+    public void testScalarLeadWithListTiebreaker_reducesOnlyTheListKey() throws Exception {
+        RelDataType rowType = typeFactory.builder()
+            .add("ts", typeFactory.createSqlType(SqlTypeName.BIGINT))
+            .add("tags", listOfVarchar())
+            .build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", rowType);
+        RelNode sort = LogicalSort.create(
+            scan,
+            RelCollations.of(
+                new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST),
+                new RelFieldCollation(1, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST)
+            ),
+            null,
+            null
+        );
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(sort));
+        Rel root = rootRel(plan);
+        assertTrue(root.hasSort());
+        assertEquals(2, root.getSort().getSortsCount());
+
+        SortField lead = root.getSort().getSorts(0);
+        assertTrue("scalar lead must stay a field reference", lead.getExpr().hasSelection());
+        assertEquals(0, lead.getExpr().getSelection().getDirectReference().getStructField().getField());
+
+        SortField tie = root.getSort().getSorts(1);
+        assertEquals("array_min", scalarFunctionName(plan, tie.getExpr()));
+        assertEquals(
+            "reduction must be applied to the LIST tiebreaker column",
+            1,
+            tie.getExpr().getScalarFunction().getArguments(0).getValue().getSelection().getDirectReference().getStructField().getField()
+        );
+    }
+
+    /**
+     * Regression for the multi-shard {@code sort <list_field> | head N} shape (QTF places the
+     * anchor Sort above a coordinator Project, so {@code FragmentConversionDriver} attaches it
+     * on top of the reduce stage rather than converting it inside a fragment).
+     *
+     * <p>The former Calcite-level rewrite expanded the lone Sort into
+     * {@code Project(strip) -> Sort -> Project(hidden array_min key) -> placeholder}; the
+     * reduce-stage stitch then spliced only the outer Project onto the inner plan and silently
+     * dropped Fetch, Sort and the hidden key — every gathered row came back unsorted and
+     * unlimited. With the reduction on the {@code SortField} expression, the wrapper stays
+     * {@code Fetch(Sort(placeholder))} and must rewire to {@code Fetch(Sort(array_min(tags)) (inner))}.
+     */
+    public void testAttachFragmentOnTop_ListSortWithFetch_PreservesFetchSortAndReduction() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: reduce-stage Project(tags, id) over stage-input, the QTF anchor's boundary node.
+        RelDataType stageRowType = typeFactory.builder()
+            .add("tags", listOfVarchar())
+            .add("id", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true))
+            .build();
+        int childStageId = 0;
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
+        RelNode innerProject = LogicalProject.create(
+            stageInput,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(stageInput, 0), rexBuilder.makeInputRef(stageInput, 1)),
+            List.of("tags", "id")
+        );
+        byte[] innerBytes = convertor.convertFragment(innerProject);
+
+        // Wrapper: ONE LogicalSort with a LIST collation key AND a fetch (sort tags | head 10).
+        RelNode placeholderInput = new DataFusionFragmentConvertor.StageInputTableScan(
+            cluster,
+            cluster.traitSet(),
+            "__placeholder__",
+            stageRowType
+        );
+        RexNode fetchN = rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelFieldCollation collation = new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST);
+        LogicalSort sortLimit = LogicalSort.create(placeholderInput, RelCollations.of(collation), null, fetchN);
+
+        Plan plan = decodeSubstrait(convertor.attachFragmentOnTop(sortLimit, innerBytes));
+        Rel root = rootRel(plan);
+        assertTrue("root must be the FetchRel (the limit)", root.hasFetch());
+        assertEquals(10, root.getFetch().getCount());
+        Rel underFetch = root.getFetch().getInput();
+        assertTrue("Sort must be preserved under the Fetch", underFetch.hasSort());
+        assertEquals(1, underFetch.getSort().getSortsCount());
+        assertEquals("array_min", scalarFunctionName(plan, underFetch.getSort().getSorts(0).getExpr()));
+        Rel underSort = underFetch.getSort().getInput();
+        assertTrue("Sort input must be the rewired inner ProjectRel", underSort.hasProject());
+        Rel projectInput = underSort.getProject().getInput();
+        assertTrue("Project input must be the inner ReadRel", projectInput.hasRead());
+        assertEquals(List.of("input-" + childStageId), projectInput.getRead().getNamedTable().getNamesList());
+    }
+
+    private RelDataType listOfVarchar() {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        return typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+    }
+
+    /** Resolves a scalar-function expression's name (sans signature) through the plan's extension declarations. */
+    private static String scalarFunctionName(Plan plan, Expression expr) {
+        assertTrue("expected a scalar function expression", expr.hasScalarFunction());
+        int anchor = expr.getScalarFunction().getFunctionReference();
+        return plan.getExtensionsList()
+            .stream()
+            .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+            .map(SimpleExtensionDeclaration::getExtensionFunction)
+            .filter(fn -> fn.getFunctionAnchor() == anchor)
+            .map(fn -> fn.getName().contains(":") ? fn.getName().substring(0, fn.getName().indexOf(':')) : fn.getName())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no extension declaration for anchor " + anchor));
     }
 
     /**
