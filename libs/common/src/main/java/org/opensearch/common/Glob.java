@@ -54,14 +54,16 @@ public class Glob {
         }
         int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
         while (sIdx < str.length()) {
-            // both chars matching, incrementing both pointers
-            if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
-                sIdx++;
-                pIdx++;
-            } else if (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
-                // wildcard found, only incrementing pattern pointer
+            // wildcard found, only incrementing pattern pointer. This is checked before the
+            // literal comparison below so that a '*' in the string cannot consume a '*' in the
+            // pattern as an ordinary character, which would lose the position to backtrack to.
+            if (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
                 wildcardIdx = pIdx;
                 match = sIdx;
+                pIdx++;
+            } else if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
+                // both chars matching, incrementing both pointers
+                sIdx++;
                 pIdx++;
             } else if (wildcardIdx != -1) {
                 // last pattern pointer was a wildcard, incrementing string pointer
