@@ -36,6 +36,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -62,6 +64,14 @@ public class DateRangeIncludingNowQuery extends Query {
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         return in;
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        // The wrapper is transparent for everything but rewriting, which unwraps it, so a weight can be created
+        // directly. This keeps the wrapper usable for the consumers that reach it as the query resolved for a
+        // search context, for example ApproximateScoreQuery while a concurrent slice rewrites the same query.
+        return in.createWeight(searcher, scoreMode, boost);
     }
 
     @Override

@@ -55,7 +55,7 @@ import java.util.Map;
  */
 public class FilterAggregatorFactory extends AggregatorFactory {
 
-    private Weight weight;
+    private volatile Weight weight;
     private final Query filter;
 
     public FilterAggregatorFactory(
@@ -76,16 +76,26 @@ public class FilterAggregatorFactory extends AggregatorFactory {
      * if the aggregation collects documents reducing the overhead of the
      * aggregation in the case where no documents are collected.
      * <p>
-     * Note that as aggregations are initialsed and executed in a serial manner,
-     * no concurrency considerations are necessary here.
+     * Note: With concurrent segment search use case, all the slices of a shard request share this
+     * factory and ask for the weight of the segments they collect. Creating the weight rewrites the
+     * filter query, which publishes the query resolved for the search context, so it has to happen
+     * once and be published before another slice creates or observes a weight, as otherwise a slice
+     * can create the weight of a query another slice resolved but did not rewrite yet. The
+     * synchronization block below guarantees both.
      */
     public Weight getWeight() {
-        if (weight == null) {
-            IndexSearcher contextSearcher = queryShardContext.searcher();
-            try {
-                weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialise filter", e);
+        if (weight != null) {
+            return weight;
+        }
+
+        synchronized (this) {
+            if (weight == null) {
+                IndexSearcher contextSearcher = queryShardContext.searcher();
+                try {
+                    weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                } catch (IOException e) {
+                    throw new AggregationInitializationException("Failed to initialise filter", e);
+                }
             }
         }
         return weight;
