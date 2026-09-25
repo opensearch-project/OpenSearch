@@ -566,6 +566,7 @@ public class TaskManager implements ClusterStateApplier {
             try {
                 Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new OpenSearchException("Interrupted waiting for completion of [{}]", e, task);
             }
         }

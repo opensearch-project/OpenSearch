@@ -759,6 +759,9 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 throw new TimeoutException("Timeout while acquiring all permits");
             }
         } catch (TimeoutException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw new RuntimeException("Failed to acquire all permits", e);
         }
     }

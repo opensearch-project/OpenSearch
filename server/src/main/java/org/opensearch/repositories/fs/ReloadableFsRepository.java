@@ -217,6 +217,7 @@ public class ReloadableFsRepository extends FsRepository {
                 try {
                     Thread.sleep(slowDown.getSleepSeconds() * 1000L);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
                 }
             }

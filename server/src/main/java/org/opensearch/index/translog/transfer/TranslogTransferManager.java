@@ -532,6 +532,7 @@ public class TranslogTransferManager {
                 throw new RuntimeException("Timed out reading metadata file");
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IOException("Exception while reading/downloading metadata file", e);
         }
 

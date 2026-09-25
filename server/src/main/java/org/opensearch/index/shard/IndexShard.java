@@ -2925,6 +2925,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     try {
                         Thread.sleep(TimeValue.timeValueSeconds(30).millis());
                     } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }
                 }

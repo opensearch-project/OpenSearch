@@ -764,6 +764,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         );
                     }
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),
                         e

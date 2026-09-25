@@ -410,6 +410,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         } catch (ShardLockObtainFailedException exc) {
                             logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
                         } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
                     }
