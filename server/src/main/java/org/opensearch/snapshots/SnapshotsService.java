@@ -866,6 +866,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             latch.await();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
