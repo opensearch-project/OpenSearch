@@ -62,16 +62,29 @@ public class ProfileShardResult implements Writeable {
 
     private NetworkTime networkTime;
 
+    private final long queueWaitNanos;
+
     public ProfileShardResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
         FetchProfileShardResult fetchProfileResult,
         NetworkTime networkTime
     ) {
+        this(queryProfileResults, aggProfileShardResult, fetchProfileResult, networkTime, -1L);
+    }
+
+    public ProfileShardResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        FetchProfileShardResult fetchProfileResult,
+        NetworkTime networkTime,
+        long queueWaitNanos
+    ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.fetchProfileResult = fetchProfileResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.networkTime = networkTime;
+        this.queueWaitNanos = queueWaitNanos;
     }
 
     /**
@@ -102,6 +115,7 @@ public class ProfileShardResult implements Writeable {
             this.fetchProfileResult = new FetchProfileShardResult(Collections.emptyList());
         }
         this.networkTime = new NetworkTime(in);
+        this.queueWaitNanos = in.getVersion().onOrAfter(Version.V_3_9_0) ? in.readZLong() : -1L;
     }
 
     @Override
@@ -115,6 +129,9 @@ public class ProfileShardResult implements Writeable {
             fetchProfileResult.writeTo(out);
         }
         networkTime.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+            out.writeZLong(queueWaitNanos);
+        }
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
@@ -127,6 +144,14 @@ public class ProfileShardResult implements Writeable {
 
     public FetchProfileShardResult getFetchProfileResult() {
         return fetchProfileResult;
+    }
+
+    /**
+     * Time this shard's search task spent queued on the search thread pool before execution began, or -1 when
+     * the task never went through a queueing executor or the result came from a node older than 3.9.
+     */
+    public long getQueueWaitNanos() {
+        return queueWaitNanos;
     }
 
     public NetworkTime getNetworkTime() {

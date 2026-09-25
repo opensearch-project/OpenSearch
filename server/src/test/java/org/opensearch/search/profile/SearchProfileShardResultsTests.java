@@ -32,10 +32,13 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -80,9 +83,10 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
             }
             FetchProfileShardResult fetchProfileShardResult = new FetchProfileShardResult(fetchResults);
             NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
+            long queueWaitNanos = randomBoolean() ? -1L : randomNonNegativeLong();
             searchProfileResults.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime, queueWaitNanos)
             );
         }
         return new SearchProfileShardResults(searchProfileResults);
@@ -164,6 +168,56 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
         ProfileShardResult shardResult = parsed.getShardResults().get("shard1");
         assertNotNull(shardResult);
         assertTrue(shardResult.getFetchProfileResult().getFetchProfileResults().isEmpty());
+        // a response from a node that does not report queue wait parses as unknown rather than zero
+        assertEquals(-1L, shardResult.getQueueWaitNanos());
+    }
+
+    public void testQueueWaitSurvivesXContentRoundTrip() throws IOException {
+        SearchProfileShardResults results = new SearchProfileShardResults(Map.of("shard1", profileShardResult(123456789L)));
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference bytes = toShuffledXContent(results, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+
+        SearchProfileShardResults parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            parsed = SearchProfileShardResults.fromXContent(parser);
+        }
+
+        assertEquals(123456789L, parsed.getShardResults().get("shard1").getQueueWaitNanos());
+    }
+
+    public void testQueueWaitSurvivesWireRoundTrip() throws IOException {
+        long queueWaitNanos = randomBoolean() ? -1L : randomNonNegativeLong();
+        assertEquals(queueWaitNanos, copyWithVersion(profileShardResult(queueWaitNanos), Version.CURRENT).getQueueWaitNanos());
+    }
+
+    public void testQueueWaitIsOmittedForPreviousVersions() throws IOException {
+        // a 3.9 node talking to an older node must not write the field, and the older shape reads back as unknown
+        assertEquals(-1L, copyWithVersion(profileShardResult(500L), Version.V_3_8_0).getQueueWaitNanos());
+    }
+
+    private static ProfileShardResult profileShardResult(long queueWaitNanos) {
+        return new ProfileShardResult(
+            new ArrayList<>(),
+            new AggregationProfileShardResult(new ArrayList<>()),
+            new FetchProfileShardResult(new ArrayList<>()),
+            new NetworkTime(0, 0),
+            queueWaitNanos
+        );
+    }
+
+    private static ProfileShardResult copyWithVersion(ProfileShardResult original, Version version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(version);
+                return new ProfileShardResult(in);
+            }
+        }
     }
 
 }
