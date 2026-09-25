@@ -68,4 +68,89 @@ public class RestForceMergeActionTests extends RestActionTestCase {
             "setting only_expunge_deletes and max_num_segments at the same time is deprecated " + "and will be rejected in a future version"
         );
     }
+
+    public void testUpgradeWithMaxNumSegmentsIsAccepted() {
+        // "upgrade" now composes with "max_num_segments" (upgrade segments, then consolidate),
+        // so this combination must be accepted rather than rejected.
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
+
+    public void testUpgradeWithOnlyExpungeDeletesNotRejectedAtRestLayer() {
+        // The upgrade + only_expunge_deletes conflict is now validated in ForceMergeRequest#validate()
+        // (covered by ForceMergeRequestTests), not in the REST handler, so that transport/plugin callers
+        // are also subject to it. The REST layer must therefore build the request without throwing.
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("only_expunge_deletes", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
+
+    public void testUpgradeAloneIsAccepted() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
+
+    public void testDeprecationWithOnlyExpungeDeletesAndMaxNumSegmentsWhenUpgradeSet() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+        params.put("only_expunge_deletes", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        // The REST layer no longer rejects upgrade + only_expunge_deletes (moved to ForceMergeRequest#validate());
+        // it still emits the only_expunge_deletes + max_num_segments deprecation warning.
+        dispatchRequest(request);
+        assertWarnings(
+            "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
+        );
+    }
+
+    public void testUpgradeFalseWithOtherParamsIsAccepted() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.FALSE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
 }
