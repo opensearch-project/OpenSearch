@@ -86,8 +86,9 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         QueryPlans plans = converter.convert(new SearchSourceBuilder(), "test-index");
 
         QueryPlans.QueryPlan plan = plans.get(QueryPlans.Type.HITS).get(0);
-        assertEquals(4, plan.relNode().getRowType().getFieldCount());
-        assertEquals(List.of("name", "price", "brand", "rating"), plan.relNode().getRowType().getFieldNames());
+        // mapped fields plus the _id metadata column appended by IdColumnSchema
+        assertEquals(5, plan.relNode().getRowType().getFieldCount());
+        assertEquals(List.of("name", "price", "brand", "rating", "_id"), plan.relNode().getRowType().getFieldNames());
     }
 
     public void testConvertThrowsForMissingIndex() {

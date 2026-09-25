@@ -20,10 +20,10 @@
     "  LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'l*pt?p'))])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price"],
+  "mockResultFieldNames": ["name", "price", "_id"],
   "mockResultRows": [
-    ["laptop", 999],
-    ["leptop", 599]
+    ["laptop", 999, "id-1"],
+    ["leptop", 599, "id-2"]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -39,14 +39,16 @@
             "name": "laptop",
             "price": 999
           },
-          "_score": null
+          "_score": null,
+          "_id": "id-1"
         },
         {
           "_source": {
             "name": "leptop",
             "price": 599
           },
-          "_score": null
+          "_score": null,
+          "_id": "id-2"
         }
       ]
     }
