@@ -690,7 +690,7 @@ final class DocumentParser {
                                         + "] as object, but got EOF, has a concrete value been provided to it?"
                                 );
                             } else if (token.isValue()) {
-                                parseValue(context, mapper, currentFieldName, token, paths);
+                                parseValue(context, mapper, currentFieldName, token, paths, false);
                             }
                     }
                 }
@@ -817,7 +817,7 @@ final class DocumentParser {
         if (token == XContentParser.Token.VALUE_NULL) {
             processNullValueForDisableObjects(context, mapper, fieldName);
         } else if (token.isValue()) {
-            parseDynamicValue(context, mapper, fieldName, token);
+            parseDynamicValue(context, mapper, fieldName, token, false);
         }
     }
 
@@ -941,7 +941,7 @@ final class DocumentParser {
         if (token != null && token.isValue()) {
             // This means the ObjectMapper is receiving a concrete value instead of an object
             // In disable_objects mode, we should treat this as a field with the mapper's full name
-            parseDynamicValue(context, mapper, mapper.fullPath(), token);
+            parseDynamicValue(context, mapper, mapper.fullPath(), token, false);
             return;
         }
 
@@ -1022,7 +1022,7 @@ final class DocumentParser {
                 break;
             default:
                 // Handle primitive values with dynamic mapping - reuse existing parseDynamicValue
-                parseDynamicValue(context, parentMapper, fieldName, token);
+                parseDynamicValue(context, parentMapper, fieldName, token, false);
                 break;
         }
     }
@@ -1513,7 +1513,7 @@ final class DocumentParser {
                     break;
                 default:
                     if (replayToken != null && replayToken.isValue()) {
-                        parseValue(replayContext, parentMapper, fieldName, replayToken, replayPaths);
+                        parseValue(replayContext, parentMapper, fieldName, replayToken, replayPaths, false);
                     }
             }
         }
@@ -1565,7 +1565,7 @@ final class DocumentParser {
                 );
             } else {
                 assert token.isValue();
-                parseValue(context, mapper, lastFieldName, token, paths);
+                parseValue(context, mapper, lastFieldName, token, paths, true);
             }
         }
         if (sawElement == false) {
@@ -1582,7 +1582,10 @@ final class DocumentParser {
      * writer emit a zero-length, non-null list instead.
      *
      * <p>Strictly gated: no-op unless the pluggable data format is enabled and the resolved leaf is
-     * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected.
+     * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected. For a field that is
+     * not (yet) LIST, {@code []} promotes it when {@link MappedFieldType#canPromoteToMultiValue()}
+     * allows and is otherwise a silent no-op, exactly as on a Lucene index: an empty array carries no
+     * value, so neither an omitted nor an explicit {@code multi_value: false} rejects it.
      *
      * <p>Reached from every scalar-leaf array route — top-level, nested, and disable_objects arrays
      * all funnel through {@link #parseNonDynamicArray}. The only array route that bypasses it is a
@@ -1597,6 +1600,9 @@ final class DocumentParser {
         Mapper leaf = getMapper(context, mapper, lastFieldName, paths);
         if (leaf instanceof ParametrizedFieldMapper fieldMapper && fieldMapper.fieldType().isMultiValueSupported()) {
             if (fieldMapper.fieldType().isMultiValued() == false) {
+                if (fieldMapper.fieldType().canPromoteToMultiValue() == false) {
+                    return;
+                }
                 fieldMapper.addMultiValueMappingUpdate(context);
             }
             context.documentInput().addField(fieldMapper.fieldType(), List.of());
@@ -1605,12 +1611,18 @@ final class DocumentParser {
         }
     }
 
+    /**
+     * Parses one scalar value. {@code arrayElement} is true when the value is a direct element of a
+     * JSON array for {@code currentFieldName}; it only influences dynamic mapping of a not-yet-mapped
+     * field (see {@link #parseDynamicValue}).
+     */
     private static void parseValue(
         final ParseContext context,
         ObjectMapper parentMapper,
         String currentFieldName,
         XContentParser.Token token,
-        String[] paths
+        String[] paths,
+        boolean arrayElement
     ) throws IOException {
         if (currentFieldName == null) {
             throw new MapperParsingException(
@@ -1629,7 +1641,7 @@ final class DocumentParser {
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
             parentMapper = parentMapperTuple.v2();
-            parseDynamicValue(context, parentMapper, currentFieldName, token);
+            parseDynamicValue(context, parentMapper, currentFieldName, token, arrayElement);
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
                 context.path().remove();
             }
@@ -1806,7 +1818,8 @@ final class DocumentParser {
         final ParseContext context,
         ObjectMapper parentMapper,
         String currentFieldName,
-        XContentParser.Token token
+        XContentParser.Token token,
+        boolean arrayElement
     ) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
@@ -1835,11 +1848,42 @@ final class DocumentParser {
             }
             return;
         }
+        if (arrayElement) {
+            inferMultiValueFromArray(context, builder);
+        }
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);
+    }
+
+    /**
+     * Marks a dynamically inferred leaf {@code multi_value: true} when its first value arrived inside
+     * a JSON array on a pluggable-data-format index. Columnar formats fix the column shape per file,
+     * so the shape has to be decided when the field is first mapped; Lucene indices are inherently
+     * multi-valued and are left untouched even though they accept the parameter.
+     *
+     * <p>Cold path: this is reached only from {@link #parseDynamicValue}, i.e. when
+     * {@link #getMapper} found no mapper for the field and a new one is being created. Fields that
+     * already exist in the mapping, multi-valued or not, take the {@code mapper != null} branch in
+     * {@link #parseValue} and never get here, so steady-state indexing pays nothing for it.
+     *
+     * <p>Only applies to builders that expose {@code multi_value} and have not had it pinned by a
+     * matching dynamic template: an explicit {@code multi_value: false} in a template is honoured and
+     * the array is rejected downstream with the usual actionable error. Builders without the
+     * parameter are left as-is and likewise rejected downstream if a second value arrives.
+     *
+     * <p>A one-element array still infers LIST: the shape of the value is the signal, not its
+     * length, and a LIST field accepts later scalar values.
+     */
+    private static void inferMultiValueFromArray(ParseContext context, Mapper.Builder<?> builder) {
+        if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
+            return;
+        }
+        if (builder instanceof ParametrizedFieldMapper.Builder parametrizedBuilder && parametrizedBuilder.multiValueConfigured() == false) {
+            parametrizedBuilder.setParameterValue(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER, MappedFieldType.MultiValueState.LIST);
+        }
     }
 
     /**
@@ -2005,7 +2049,7 @@ final class DocumentParser {
             final String fieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
             ObjectMapper objectMapper = parentMapperTuple.v2();
-            parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken());
+            parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken(), false);
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
                 context.path().remove();
             }
