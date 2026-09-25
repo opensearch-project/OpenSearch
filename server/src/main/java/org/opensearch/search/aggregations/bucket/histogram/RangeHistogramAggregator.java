@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.mapper.RangeFieldMapper;
@@ -158,9 +157,12 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    collect(docs[i], owningBucketOrd);
+                }
             }
+
         };
     }
 }
