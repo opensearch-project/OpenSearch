@@ -92,7 +92,9 @@ import org.opensearch.search.aggregations.bucket.range.ParsedDateRange;
 import org.opensearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.opensearch.search.aggregations.bucket.range.ParsedRange;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.sampler.InternalRandomSampler;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
+import org.opensearch.search.aggregations.bucket.sampler.ParsedRandomSampler;
 import org.opensearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
@@ -270,6 +272,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(GlobalAggregationBuilder.NAME, (p, c) -> ParsedGlobal.fromXContent(p, (String) c));
         map.put(FilterAggregationBuilder.NAME, (p, c) -> ParsedFilter.fromXContent(p, (String) c));
         map.put(InternalSampler.PARSER_NAME, (p, c) -> ParsedSampler.fromXContent(p, (String) c));
+        map.put(InternalRandomSampler.PARSER_NAME, (p, c) -> ParsedRandomSampler.fromXContent(p, (String) c));
         map.put(RangeAggregationBuilder.NAME, (p, c) -> ParsedRange.fromXContent(p, (String) c));
         map.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
         map.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));

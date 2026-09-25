@@ -1,0 +1,150 @@
+setup:
+  - skip:
+      version: " - 3.9.99"
+      reason: random_sampler aggregation was added in 3.10.0, so a mixed cluster with older nodes rejects it
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              price:
+                type: long
+              category:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+          - price: 10
+            category: a
+          - index:
+              _index: test
+          - price: 20
+            category: a
+          - index:
+              _index: test
+          - price: 30
+            category: b
+          - index:
+              _index: test
+          - price: 40
+            category: b
+
+---
+"probability of one samples nothing away":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            sampled:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                avg_price:
+                  avg:
+                    field: price
+                total_price:
+                  sum:
+                    field: price
+
+  - match: { aggregations.sampled.doc_count: 4 }
+  - match: { aggregations.sampled.avg_price.value: 25.0 }
+  - match: { aggregations.sampled.total_price.value: 100.0 }
+
+---
+"sub aggregations run inside the bucket":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            sampled:
+              random_sampler:
+                probability: 1.0
+                seed: 42
+              aggs:
+                by_category:
+                  terms:
+                    field: category
+
+  - match: { aggregations.sampled.doc_count: 4 }
+  - length: { aggregations.sampled.by_category.buckets: 2 }
+  - match: { aggregations.sampled.by_category.buckets.0.doc_count: 2 }
+
+---
+"the query restricts what is sampled":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            term:
+              category: a
+          aggs:
+            sampled:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                total_price:
+                  sum:
+                    field: price
+
+  - match: { aggregations.sampled.doc_count: 2 }
+  - match: { aggregations.sampled.total_price.value: 30.0 }
+
+---
+"probability is required":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            sampled:
+              random_sampler:
+                seed: 42
+
+---
+"probability must be below one half or exactly one":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            sampled:
+              random_sampler:
+                probability: 0.7
+
+---
+"a sampled request returns a bucket":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            sampled:
+              random_sampler:
+                probability: 0.25
+                seed: 7
+              aggs:
+                avg_price:
+                  avg:
+                    field: price
+
+  - is_true: aggregations.sampled
+  - gte: { aggregations.sampled.doc_count: 0 }

@@ -37,6 +37,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
@@ -125,6 +126,17 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
+    }
+
+    /**
+     * Scales this bucket's {@code doc_count} and everything under it. Correct for every subclass whose
+     * {@code doc_count} counts the documents that reached the bucket, which is all of them except
+     * {@link org.opensearch.search.aggregations.bucket.sampler.InternalSampler}, where it is the number of
+     * top-scoring documents kept; that class overrides this back to a no-op.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return newAggregation(getName(), samplingContext.scaleUp(docCount), aggregations.finalizeSampling(samplingContext));
     }
 
     /**

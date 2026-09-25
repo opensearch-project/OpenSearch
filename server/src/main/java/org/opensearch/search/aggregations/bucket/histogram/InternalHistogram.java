@@ -44,6 +44,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.KeyComparable;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
@@ -297,6 +298,23 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        List<Bucket> scaled = new ArrayList<>(buckets.size());
+        for (Bucket bucket : buckets) {
+            scaled.add(
+                new Bucket(
+                    bucket.key,
+                    samplingContext.scaleUp(bucket.docCount),
+                    bucket.keyed,
+                    bucket.format,
+                    bucket.aggregations.finalizeSampling(samplingContext)
+                )
+            );
+        }
+        return create(scaled);
     }
 
     @Override
