@@ -196,16 +196,21 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testNestedFieldUnsupported() {
         startCluster();
+        // Rejection happens per leaf declared inside the nested scope: the composite plugin
+        // refuses to assign capabilities at FieldScope.NESTED until its formats implement
+        // nested storage. (The former server-side blanket rejection of the nested type on
+        // pluggable indices was removed by the pluggable-format seams change.)
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
             () -> client().admin()
                 .indices()
                 .prepareCreate("test-nested")
                 .setSettings(dfaSettings())
-                .setMapping("field", "type=nested")
+                .setMapping("{\"properties\": {\"field\": {\"type\": \"nested\", \"properties\": {\"name\": {\"type\": \"keyword\"}}}}}")
                 .get()
         );
-        assertTrue(ex.getMessage().contains("nested type is not supported with pluggable data format"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("inside a nested object"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("not supported by the [composite] data format"));
     }
 
     public void testFlatObjectFieldUnsupported() {
