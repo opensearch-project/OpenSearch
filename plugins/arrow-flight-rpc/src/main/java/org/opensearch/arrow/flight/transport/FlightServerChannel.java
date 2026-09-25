@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
@@ -115,6 +116,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     /** Leaf mutex guarding {@link #closeListeners} and {@link #closeListenersFired}; its critical section only mutates them. */
     private final Object closeListenerMutex = new Object();
     private final List<ActionListener<Void>> closeListeners = new ArrayList<>();
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners = new ArrayList<>();
     private boolean closeListenersFired = false;
 
     public FlightServerChannel(
@@ -541,6 +543,28 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     }
 
     @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // Registered against notifyCloseListeners exactly like addCloseListener(ActionListener), see there.
+        boolean alreadyFired;
+        synchronized (closeListenerMutex) {
+            alreadyFired = closeListenersFired;
+            if (alreadyFired == false) {
+                removableCloseListeners.add(listener);
+            }
+        }
+        if (alreadyFired) {
+            listener.accept(null, null);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        synchronized (closeListenerMutex) {
+            removableCloseListeners.remove(listener);
+        }
+    }
+
+    @Override
     public boolean isOpen() {
         return open.get();
     }
@@ -551,14 +575,24 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         // it. Isolate each listener so one failure cannot strand the rest (e.g. the TaskManager untrack
         // listener).
         final List<ActionListener<Void>> toFire;
+        final List<BiConsumer<Void, ? super Exception>> removableToFire;
         synchronized (closeListenerMutex) {
             toFire = new ArrayList<>(closeListeners);
             closeListeners.clear();
+            removableToFire = new ArrayList<>(removableCloseListeners);
+            removableCloseListeners.clear();
             closeListenersFired = true;
         }
         for (ActionListener<Void> listener : toFire) {
             try {
                 listener.onResponse(null);
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
+            }
+        }
+        for (BiConsumer<Void, ? super Exception> listener : removableToFire) {
+            try {
+                listener.accept(null, null);
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
             }

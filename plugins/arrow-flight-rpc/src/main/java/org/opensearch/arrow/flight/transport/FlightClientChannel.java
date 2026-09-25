@@ -44,6 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * TcpChannel implementation for Flight client with async response handling.
@@ -62,6 +63,7 @@ class FlightClientChannel implements TcpChannel {
     private final CompletableFuture<Void> closeFuture;
     private final List<ActionListener<Void>> connectListeners;
     private final List<ActionListener<Void>> closeListeners;
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners;
     private final ChannelStats stats;
     private final Transport.ResponseHandlers responseHandlers;
     private final ThreadPool threadPool;
@@ -128,6 +130,7 @@ class FlightClientChannel implements TcpChannel {
         this.closeFuture = new CompletableFuture<>();
         this.connectListeners = new CopyOnWriteArrayList<>();
         this.closeListeners = new CopyOnWriteArrayList<>();
+        this.removableCloseListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
         // Initialize with timestamp + global counter to ensure uniqueness with multiple channels
@@ -184,6 +187,9 @@ class FlightClientChannel implements TcpChannel {
 
         closeFuture.complete(null);
         notifyListeners(closeListeners, closeFuture);
+        for (BiConsumer<Void, ? super Exception> listener : removableCloseListeners) {
+            notifyRemovableListener(listener);
+        }
         try {
             client.close();
         } catch (Exception e) {
@@ -269,6 +275,19 @@ class FlightClientChannel implements TcpChannel {
         if (closeFuture.isDone()) {
             notifyListener(listener, closeFuture);
         }
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        removableCloseListeners.add(listener);
+        if (closeFuture.isDone()) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        removableCloseListeners.remove(listener);
     }
 
     @Override
@@ -512,6 +531,22 @@ class FlightClientChannel implements TcpChannel {
     private void notifyListeners(List<ActionListener<Void>> listeners, CompletableFuture<Void> future) {
         for (ActionListener<Void> listener : listeners) {
             notifyListener(listener, future);
+        }
+    }
+
+    private void notifyRemovableListener(BiConsumer<Void, ? super Exception> listener) {
+        // taking the listener out of the list claims it, so a listener that is removed while the channel is
+        // closing is notified exactly once, or not at all once removeCloseListener has taken it
+        if (removableCloseListeners.remove(listener) == false) {
+            return;
+        }
+        if (closeFuture.isCompletedExceptionally()) {
+            closeFuture.handle((result, ex) -> {
+                listener.accept(null, ex instanceof Exception exception ? exception : new Exception(ex));
+                return null;
+            });
+        } else {
+            listener.accept(null, null);
         }
     }
 

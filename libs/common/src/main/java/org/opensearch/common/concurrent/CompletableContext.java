@@ -32,7 +32,9 @@
 
 package org.opensearch.common.concurrent;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 /**
@@ -47,6 +49,20 @@ import java.util.function.BiConsumer;
 public class CompletableContext<T> {
 
     private final CompletableFuture<T> completableFuture = new CompletableFuture<>();
+    private final Set<BiConsumer<T, ? super Exception>> removableListeners = ConcurrentHashMap.newKeySet();
+
+    private volatile T result;
+    private volatile Exception failure;
+    private volatile boolean completed;
+
+    public CompletableContext() {
+        completableFuture.whenComplete((v, t) -> {
+            result = v;
+            failure = (Exception) t;
+            completed = true;
+            notifyRemovableListeners();
+        });
+    }
 
     public void addListener(BiConsumer<T, ? super Exception> listener) {
         BiConsumer<T, Throwable> castThrowable = (v, t) -> {
@@ -74,5 +90,50 @@ public class CompletableContext<T> {
 
     public boolean complete(T value) {
         return completableFuture.complete(value);
+    }
+
+    /**
+     * Adds a listener that can be removed again with {@link #removeRemovableListener(BiConsumer)} while this context
+     * is not completed yet. Unlike {@link #addListener(BiConsumer)}, the listener is held as it is given instead of
+     * being attached to the underlying {@link CompletableFuture}, whose callbacks cannot be detached. A listener
+     * added after this context has completed is notified by the calling thread, as {@link #addListener(BiConsumer)}
+     * does. The listeners are held in a set, so adding the same listener instance more than once holds it once.
+     *
+     * @param listener listener to add
+     */
+    public void addRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        removableListeners.add(listener);
+        if (completed) {
+            notifyRemovableListeners();
+        }
+    }
+
+    /**
+     * Removes a listener added with {@link #addRemovableListener(BiConsumer)} that has not been notified yet.
+     * Removing a listener that was never added, or that has already been notified, does nothing.
+     *
+     * @param listener listener to remove
+     */
+    public void removeRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        removableListeners.remove(listener);
+    }
+
+    /**
+     * Number of removable listeners that are waiting to be notified.
+     *
+     * @return number of listeners
+     */
+    public int removableListeners() {
+        return removableListeners.size();
+    }
+
+    private void notifyRemovableListeners() {
+        for (BiConsumer<T, ? super Exception> listener : removableListeners) {
+            // whoever takes the listener out of the set owns notifying it, so a listener that is added or removed
+            // while this context is completing is notified exactly once, or not at all once it has been removed
+            if (removableListeners.remove(listener)) {
+                listener.accept(result, failure);
+            }
+        }
     }
 }
