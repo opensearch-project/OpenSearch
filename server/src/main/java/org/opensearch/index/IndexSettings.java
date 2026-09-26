@@ -187,7 +187,7 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER = Setting.timeSetting(
         "index.search.idle.after",
         TimeValue.timeValueSeconds(30),
-        TimeValue.timeValueMinutes(0),
+        TimeValue.MINUS_ONE,
         Property.IndexScope,
         Property.Dynamic
     );
