@@ -145,6 +145,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
+        /**
+         * Creates a builder that also carries the mapping parameters contributed by the index's data-format plugin,
+         * so they are parsed, serialized and merged alongside the core parameters.
+         */
+        public Builder(String name, NumberType type, Settings settings, List<Parameter<?>> pluginParameters) {
+            this(name, type, settings);
+            setPluginMappingParameters(pluginParameters);
+        }
+
         public static Builder docValuesOnly(String name, NumberType type) {
             Builder builder = new Builder(name, type, false, false);
             builder.indexed.setValue(false);
@@ -152,8 +161,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder(String name, NumberType type, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+            this(name, type, ignoreMalformedByDefault, coerceByDefault, List.of());
+        }
+
+        public Builder(
+            String name,
+            NumberType type,
+            boolean ignoreMalformedByDefault,
+            boolean coerceByDefault,
+            List<Parameter<?>> pluginParameters
+        ) {
             super(name);
             this.type = type;
+            setPluginMappingParameters(pluginParameters);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -182,11 +202,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta);
+            List<Parameter<?>> parameters = new ArrayList<>(
+                Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta)
+            );
+            parameters.addAll(pluginMappingParameters());
+            return parameters;
         }
 
         @Override
         public NumberFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -1641,7 +1666,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
+            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings(), pluginMappingParameters(c, name)));
+        }
+
+        /**
+         * Resolves the mapping parameters the index's data-format plugin contributes to this numeric type. Empty when
+         * no registry is available or the index does not use a pluggable data format.
+         */
+        private static List<Parameter<?>> pluginMappingParameters(TypeParser.ParserContext c, String typeName) {
+            if (c.dataFormatRegistry() == null || c.mapperService() == null) {
+                return List.of();
+            }
+            return c.dataFormatRegistry().getPluginMappingParameters(typeName, c.mapperService().getIndexSettings());
         }
 
         /**
@@ -2128,6 +2164,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
@@ -2141,6 +2179,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     boolean coerce() {
@@ -2222,6 +2267,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault, mappingPluginParameters).init(this);
     }
 }

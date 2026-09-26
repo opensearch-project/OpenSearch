@@ -449,58 +449,93 @@ public final class ParquetSettings {
         return validTypes.contains(arrowType.getClass());
     }
 
-    // Field-level encoding configuration (parallel arrays)
+    /**
+     * Legacy per-field encoding configuration as parallel arrays ({@code index.parquet.encoding.field} /
+     * {@code index.parquet.encoding.value}).
+     *
+     * @deprecated Declare the encoding on the field mapping instead via the {@code codec} parameter
+     *             (see {@link org.opensearch.index.engine.dataformat.FieldStorageParameters#CODEC}). Still honoured,
+     *             but a mapping-level codec on the same field takes precedence.
+     */
+    @Deprecated
     public static final Setting<List<String>> ENCODING_FIELD_SETTING = Setting.listSetting(
         "index.parquet.encoding.field",
         Collections.emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
+    /** @deprecated see {@link #ENCODING_FIELD_SETTING}. */
+    @Deprecated
     public static final Setting<List<String>> ENCODING_VALUE_SETTING = Setting.listSetting(
         "index.parquet.encoding.value",
         Collections.emptyList(),
         ParquetSettings::validateEncoding,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
-    // Field-level compression configuration (parallel arrays)
+    /**
+     * Legacy per-field compression configuration as parallel arrays ({@code index.parquet.compression.field} /
+     * {@code index.parquet.compression.value}).
+     *
+     * @deprecated Declare the compression on the field mapping instead via the {@code codec} parameter. Still
+     *             honoured, but a mapping-level codec on the same field takes precedence.
+     */
+    @Deprecated
     public static final Setting<List<String>> COMPRESSION_FIELD_SETTING = Setting.listSetting(
         "index.parquet.compression.field",
         Collections.emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
+    /** @deprecated see {@link #COMPRESSION_FIELD_SETTING}. */
+    @Deprecated
     public static final Setting<List<String>> COMPRESSION_VALUE_SETTING = Setting.listSetting(
         "index.parquet.compression.value",
         Collections.emptyList(),
         ParquetSettings::validateCompression,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
     /** Name of the {@code low_cardinality} mapping parameter, which suppresses Lucene indexing and enables a Parquet column bloom filter. */
     public static final String LOW_CARDINALITY_PARAM = "low_cardinality";
 
-    // Field-level bloom filter enabled configuration (parallel arrays)
+    /**
+     * Legacy per-field bloom filter configuration as parallel arrays ({@code index.parquet.bloom_filter_enabled.field}
+     * / {@code index.parquet.bloom_filter_enabled.value}).
+     *
+     * @deprecated Declare the bloom filter on the field mapping instead via the {@code bloom_filter} parameter
+     *             (see {@link org.opensearch.index.engine.dataformat.FieldStorageParameters#BLOOM_FILTER}). Still
+     *             honoured, but a mapping-level value on the same field takes precedence.
+     */
+    @Deprecated
     public static final Setting<List<String>> BLOOM_FILTER_ENABLED_FIELD_SETTING = Setting.listSetting(
         "index.parquet.bloom_filter_enabled.field",
         Collections.emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
+    /** @deprecated see {@link #BLOOM_FILTER_ENABLED_FIELD_SETTING}. */
+    @Deprecated
     public static final Setting<List<Boolean>> BLOOM_FILTER_ENABLED_VALUE_SETTING = Setting.listSetting(
         "index.parquet.bloom_filter_enabled.value",
         Collections.emptyList(),
         ParquetSettings::validateBoolean,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.Deprecated
     );
 
     /**
