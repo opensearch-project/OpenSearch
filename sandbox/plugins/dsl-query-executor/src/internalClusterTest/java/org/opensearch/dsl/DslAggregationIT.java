@@ -123,4 +123,19 @@ public class DslAggregationIT extends DslIntegTestBase {
             )
         );
     }
+
+    public void testFilterAggDocCount() {
+        createTestIndex();
+        assertOk(
+            search(
+                new SearchSourceBuilder().size(0)
+                    .aggregation(
+                        new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                            "active_only",
+                            new org.opensearch.index.query.TermQueryBuilder("status", "active")
+                        )
+                    )
+            )
+        );
+    }
 }
