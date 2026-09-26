@@ -557,11 +557,16 @@ public class RestoreService implements ClusterStateApplier {
                                     IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
                                         .state(IndexMetadata.State.OPEN)
                                         .index(renamedIndexName);
-                                    indexMdBuilder.settings(
-                                        Settings.builder()
-                                            .put(snapshotIndexMetadata.getSettings())
-                                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                                    );
+                                    final Settings.Builder restoredIndexSettings = Settings.builder()
+                                        .put(snapshotIndexMetadata.getSettings())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                                    // The restored index is a new index with a new UUID, so a resize source inherited from
+                                    // the snapshot can never be resolved again (Metadata#index matches on name and UUID).
+                                    // Left in place it makes IndexRoutingTable treat the index as a resize target on cluster
+                                    // recovery, and ResizeAllocationDecider then rejects every node.
+                                    restoredIndexSettings.remove(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY);
+                                    restoredIndexSettings.remove(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY);
+                                    indexMdBuilder.settings(restoredIndexSettings);
                                     createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false, currentState);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
