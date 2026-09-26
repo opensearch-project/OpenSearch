@@ -266,14 +266,18 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             return;
         }
 
-        // rejections will not happen for SOFT mode WorkloadGroups unless node is in duress
+        // Rejections do not happen for MONITOR mode and only happen for SOFT mode when the node is in duress.
         Optional<WorkloadGroup> optionalWorkloadGroup = activeWorkloadGroups.stream()
             .filter(x -> x.get_id().equals(workloadGroupId))
             .findFirst();
 
-        if (optionalWorkloadGroup.isPresent()
-            && (optionalWorkloadGroup.get().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.SOFT
-                && !nodeDuressTrackers.isNodeInDuress())) return;
+        if (optionalWorkloadGroup.isPresent()) {
+            MutableWorkloadGroupFragment.ResiliencyMode resiliencyMode = optionalWorkloadGroup.get().getResiliencyMode();
+            if (resiliencyMode == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR
+                || (resiliencyMode == MutableWorkloadGroupFragment.ResiliencyMode.SOFT && !nodeDuressTrackers.isNodeInDuress())) {
+                return;
+            }
+        }
 
         optionalWorkloadGroup.ifPresent(workloadGroup -> {
             boolean reject = false;
