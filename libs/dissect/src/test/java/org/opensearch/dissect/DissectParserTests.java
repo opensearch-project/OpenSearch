@@ -350,6 +350,20 @@ public class DissectParserTests extends OpenSearchTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testLeadingDelimiterMultiByte() {
+        // A non-ASCII leading delimiter has to be measured in bytes, not chars, when seeding the value
+        // cursor. Otherwise the first value starts partway into the delimiter's bytes and comes back
+        // corrupted. Exercises 2-byte, 3-byte and 4-byte (surrogate pair) leading delimiters, single and
+        // multiple keys, a repeated delimiter, and a multi-byte value.
+        assertMatch("»%{a}", "»foo", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("»%{a} %{b}", "»foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+        assertMatch("€%{a},%{b}", "€foo,bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+        assertMatch("子%{a}", "子foo", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("😀%{a}", "😀foo", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("»%{a}", "»子", Arrays.asList("a"), Arrays.asList("子"));
+        assertMatch("»»%{a} %{b}", "»»foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+    }
+
     /**
      * Runtime errors
      */
