@@ -39,9 +39,12 @@ import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.monitor.jvm.HotThreads;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -59,8 +62,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
 
+    private volatile int maxSnapshots;
+
     @Inject
     public TransportNodesHotThreadsAction(
+        Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -77,6 +83,36 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             ThreadPool.Names.GENERIC,
             NodeHotThreads.class
         );
+        this.maxSnapshots = HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING, this::setMaxSnapshots);
+    }
+
+    private void setMaxSnapshots(int maxSnapshots) {
+        this.maxSnapshots = maxSnapshots;
+    }
+
+    @Override
+    protected void doExecute(Task task, NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener) {
+        // Reject an out-of-range "snapshots" value up front, before the request fans out and the
+        // ThreadInfo[snapshots][] arrays are allocated on each node (see HotThreads#innerDetect). This bounds
+        // the amount of memory a single hot_threads request can allocate.
+        validateRequestParams(request, maxSnapshots);
+        super.doExecute(task, request, listener);
+    }
+
+    // visible for testing
+    static void validateRequestParams(NodesHotThreadsRequest request, int maxSnapshots) {
+        if (request.snapshots() < 1 || request.snapshots() > maxSnapshots) {
+            throw new IllegalArgumentException(
+                "["
+                    + request.snapshots()
+                    + "] is not a valid value for [snapshots], it must be between 1 and ["
+                    + maxSnapshots
+                    + "] (configurable via ["
+                    + HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING.getKey()
+                    + "])"
+            );
+        }
     }
 
     @Override

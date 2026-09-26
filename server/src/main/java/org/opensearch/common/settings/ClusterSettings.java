@@ -139,6 +139,7 @@ import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsService;
+import org.opensearch.monitor.jvm.HotThreads;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.os.OsService;
@@ -588,6 +589,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
                 JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
                 JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
+                HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING,
                 PageCacheRecycler.LIMIT_HEAP_SETTING,
                 PageCacheRecycler.WEIGHT_BYTES_SETTING,
                 PageCacheRecycler.WEIGHT_INT_SETTING,
