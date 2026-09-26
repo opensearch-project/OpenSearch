@@ -1,0 +1,65 @@
+{
+  "testName": "multi_terms_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "status": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "brand" },
+            { "field": "status" }
+          ]
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC], dir1=[ASC], dir2=[ASC])",
+    "  LogicalAggregate(group=[{2, 3}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[AND(IS NOT NULL($2), IS NOT NULL($3))])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "status", "_count"],
+  "mockResultRows": [
+    ["BrandA", "active", 3],
+    ["BrandB", "inactive", 2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "combo": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": ["BrandA", "active"],
+            "key_as_string": "BrandA|active",
+            "doc_count": 3
+          },
+          {
+            "key": ["BrandB", "inactive"],
+            "key_as_string": "BrandB|inactive",
+            "doc_count": 2
+          }
+        ]
+      }
+    }
+  }
+}
