@@ -117,14 +117,45 @@ public class AutoTaggingActionFilter implements ActionFilter {
             }
         }
 
+        List<String> principalValues = null;
         if (featureType.getAllowedAttributesRegistry().containsKey(PRINCIPAL_ATTRIBUTE_NAME)) {
             Attribute attribute = featureType.getAllowedAttributesRegistry().get(PRINCIPAL_ATTRIBUTE_NAME);
             assert attributeExtensions.containsKey(attribute);
-            attributeExtractors.add(attributeExtensions.get(attribute).getAttributeExtractor());
+            final AttributeExtractor<String> extractor = attributeExtensions.get(attribute).getAttributeExtractor();
+            // Materialize once. The value is needed both for label evaluation and for the principal header, and
+            // AttributeExtractor.extract() carries no re-iterability contract -- a stream-backed implementation would
+            // yield nothing the second time and silently disable username/role throttling.
+            final List<String> values = new ArrayList<>();
+            extractor.extract().forEach(values::add);
+            principalValues = values;
+            attributeExtractors.add(new AttributeExtractor<>() {
+                @Override
+                public Attribute getAttribute() {
+                    return extractor.getAttribute();
+                }
+
+                @Override
+                public Iterable<String> extract() {
+                    return values;
+                }
+
+                @Override
+                public LogicalOperator getLogicalOperator() {
+                    return extractor.getLogicalOperator();
+                }
+            });
         }
 
         Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        // Hand the principal to core-side throttling so it can build per-username / per-role buckets. It goes on the
+        // task, not into the thread context: see WorkloadGroupTask#setThrottlePrincipal.
+        if (principalValues != null && task instanceof WorkloadGroupTask) {
+            String principal = String.join(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER, principalValues);
+            if (principal.isEmpty() == false) {
+                ((WorkloadGroupTask) task).setThrottlePrincipal(principal);
+            }
+        }
         chain.proceed(task, action, request, listener);
     }
 }

@@ -161,3 +161,194 @@
         name: "analytics2"
 
   - match: { acknowledged: true }
+
+---
+"test throttling field on the WorkloadGroup API":
+  - skip:
+      version: " - 3.8.99"
+      reason: "throttling was added to workload groups in 3.9"
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            wlm.workload_group.mode: "enabled"
+
+  # create with throttling: the limit round-trips as a JSON number, not a string
+  - do:
+      create_workload_group_context:
+        body:
+          {
+            "name": "throttled",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "throttling": {
+              "node_limit": 5
+            }
+          }
+
+  - match: { name: "throttled" }
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 5 }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - is_false: workload_groups.0.throttling.by
+  - match: { workload_groups.0.throttling.node_limit: 5 }
+
+  # a partial update keeps the key it does not mention
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 9
+            }
+          }
+
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 9 }
+
+  # an unknown throttle key is rejected
+  - do:
+      catch: /Unknown throttle setting/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "not_a_real_limit": 1
+            }
+          }
+
+  # an invalid by value is rejected; group scope is represented only by omitting by
+  - do:
+      catch: /throttling.by must be one of/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": "group"
+            }
+          }
+
+  - do:
+      catch: /throttling.by must be one of/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": "index"
+            }
+          }
+
+  # the replaced attribute key must not be silently interpreted as group scope
+  - do:
+      catch: /Unknown throttle setting/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "attribute": "username"
+            }
+          }
+
+  # username/role keying needs a principal attribute provider; without one the limit could never be enforced, so the
+  # config is rejected rather than silently accepted and ignored
+  - do:
+      catch: /needs a principal attribute provider/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": "username"
+            }
+          }
+
+  # clearing by keeps the limit and returns to the default group scope
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "by": null
+            }
+          }
+
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 9 }
+
+  # a negative limit is rejected
+  - do:
+      catch: /must be non-negative/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": -1
+            }
+          }
+
+  # with group scope there is no other throttle key, so clearing node_limit disables throttling
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": null
+            }
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - is_false: workload_groups.0.throttling
+
+  # a limit with no by re-enables throttling in group scope
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 7
+            }
+          }
+
+  - is_false: throttling.by
+  - match: { throttling.node_limit: 7 }
+
+  # "throttling": null also disables throttling entirely, and the field is then omitted
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": null
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - is_false: workload_groups.0.throttling
+
+  - do:
+      delete_workload_group_context:
+        name: "throttled"
+
+  - match: { acknowledged: true }

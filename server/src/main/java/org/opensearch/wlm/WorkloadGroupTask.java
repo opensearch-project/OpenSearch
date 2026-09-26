@@ -30,10 +30,19 @@ public class WorkloadGroupTask extends CancellableTask {
 
     private static final Logger logger = LogManager.getLogger(WorkloadGroupTask.class);
     public static final String WORKLOAD_GROUP_ID_HEADER = "workloadGroupId";
+    /** Separator between the {@code subfield|value} principal tokens carried by {@link #getThrottlePrincipal()}. */
+    public static final String WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER = "\u001F";
+    /**
+     * Separator between the subfield name and its value inside a single principal token, as in {@code username|alice}.
+     * Part of the contract with whichever plugin supplies the principal, so it is named rather than spelled inline.
+     */
+    public static final String WORKLOAD_GROUP_PRINCIPAL_SUBFIELD_DELIMITER = "|";
     public static final Supplier<String> DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER = () -> "DEFAULT_WORKLOAD_GROUP";
     private final LongSupplier nanoTimeSupplier;
     private String workloadGroupId;
     private boolean isWorkloadGroupSet = false;
+    private volatile String throttlePrincipal;
+    private volatile boolean throttleCounted;
 
     public WorkloadGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -88,6 +97,48 @@ public class WorkloadGroupTask extends CancellableTask {
         } else {
             this.workloadGroupId = DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get();
         }
+    }
+
+    /**
+     * Records the caller's principal for {@code username}/{@code role} throttling: {@code subfield|value} tokens (e.g.
+     * {@code username|alice}) joined by {@link #WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER}, set by the WLM auto-tagging
+     * filter. Held on the task rather than the {@link ThreadContext} so it is not serialized to shards/remote clusters and
+     * cannot collide across concurrent sub-requests sharing a thread context (an {@code _msearch}).
+     *
+     * @param throttlePrincipal the joined principal tokens, or {@code null} when no extractor is installed
+     */
+    public void setThrottlePrincipal(final String throttlePrincipal) {
+        this.throttlePrincipal = throttlePrincipal;
+    }
+
+    /**
+     * The caller's principal for throttle bucket resolution, or {@code null} when unknown, in which case
+     * {@code username}/{@code role} throttling fails open.
+     */
+    public String getThrottlePrincipal() {
+        return throttlePrincipal;
+    }
+
+    /**
+     * Marks this task's work as accounted for against a node-level throttle bucket, so a nested coordinator search on the
+     * same node inherits the charge rather than taking a second permit (which would make the request compete with itself).
+     * Set both when this task took a permit and when it was admitted free because its parent was already counted; never set
+     * when the request was not throttled, so the charge lands on the first eligible search in a nested chain. Not cleared on
+     * release (the task is short-lived), and release is driven by the returned
+     * {@link org.opensearch.common.lease.Releasable}, not this flag, so marking cannot double-release.
+     *
+     * @param throttleCounted whether this task's work is accounted for against a throttle bucket
+     */
+    public void setThrottleCounted(final boolean throttleCounted) {
+        this.throttleCounted = throttleCounted;
+    }
+
+    /**
+     * Whether this task's work is accounted for against a node-level throttle bucket — either because it took the permit
+     * itself or because its parent was already counted. {@code false} if it was never throttled.
+     */
+    public boolean isThrottleCounted() {
+        return throttleCounted;
     }
 
     public long getElapsedTime() {

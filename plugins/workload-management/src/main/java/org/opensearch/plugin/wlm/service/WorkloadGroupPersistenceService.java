@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -27,12 +28,17 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.util.Collection;
 import java.util.EnumMap;
@@ -365,5 +371,81 @@ public class WorkloadGroupPersistenceService {
      */
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    /**
+     * Validates the effective throttling configuration for an update. Throttling updates are partial, so a fragment that
+     * only changes {@code node_limit} must inherit the existing {@code by} value before enforceability is checked.
+     *
+     * @param request the update request
+     * @param clusterState state containing the currently stored workload group
+     * @throws IllegalArgumentException if the effective config cannot be enforced
+     */
+    public static void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState), clusterState);
+    }
+
+    static Settings getEffectiveThrottling(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        Settings incomingThrottling = request.getmMutableWorkloadGroupFragment().getThrottling();
+        if (incomingThrottling == null || incomingThrottling.isEmpty()) {
+            return incomingThrottling;
+        }
+        return clusterState.metadata()
+            .workloadGroups()
+            .values()
+            .stream()
+            .filter(group -> group.getName().equals(request.getName()))
+            .findFirst()
+            .map(
+                group -> updateExistingWorkloadGroup(group, request.getmMutableWorkloadGroupFragment()).getMutableWorkloadGroupFragment()
+                    .getThrottling()
+            )
+            .orElse(incomingThrottling);
+    }
+
+    /**
+     * Rejects a throttling config the cluster cannot honour, which would otherwise return a 200 for a config that never
+     * takes effect: either a pre-{@link Version#V_3_9_0} node is present (throttling is wire-gated, so it is dropped when
+     * the request or cluster state crosses that node), or {@code by} keys on a principal but no principal attribute is
+     * registered (no bucket can be resolved, so the limit always fails open). Called from the transport actions, not a
+     * cluster-state applier, because throwing while applying cluster state wedges the cluster-manager.
+     *
+     * @param throttling   the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
+     * @param clusterState state used to read the oldest node version in the cluster
+     * @throws IllegalArgumentException if the config cannot be enforced
+     */
+    public static void validateThrottlingIsEnforceable(Settings throttling, ClusterState clusterState) {
+        if (throttling == null || throttling.isEmpty()) {
+            return;
+        }
+        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+        if (minNodeVersion.before(Version.V_3_9_0)) {
+            throw new IllegalArgumentException(
+                "workload group throttling requires every node to be on "
+                    + Version.V_3_9_0
+                    + " or later, but the oldest node in the cluster is on "
+                    + minNodeVersion
+                    + ". The throttling config would be silently dropped; complete the upgrade first."
+            );
+        }
+        String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {
+            return;
+        }
+        try {
+            FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+            if (featureType.getAllowedAttributesRegistry().containsKey(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "throttling.by ["
+                        + by
+                        + "] needs a principal attribute provider (the security plugin) to be installed, otherwise the "
+                        + "limit can never be enforced. Omit [by] to use whole-group throttling instead."
+                );
+            }
+        } catch (ResourceNotFoundException e) {
+            // Feature type not registered on this node yet. Skip rather than reject a config that is probably fine --
+            // the throttle path fails open anyway, so a false rejection here is worse than a missed warning.
+            logger.debug("WLM feature type not registered; skipping principal-attribute check for throttling config", e);
+        }
     }
 }

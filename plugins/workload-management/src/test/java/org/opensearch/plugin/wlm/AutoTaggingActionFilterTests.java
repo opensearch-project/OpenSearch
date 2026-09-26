@@ -18,6 +18,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
@@ -37,7 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.doAnswer;
@@ -98,6 +102,187 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         autoTaggingActionFilter.apply(mock(Task.class), "Test", request, ActionRequestMetadata.empty(), null, mockFilterChain);
 
         verify(ruleProcessingService, times(0)).evaluateLabel(anyList());
+    }
+
+    public void testApplySetsThrottlePrincipalOnTaskWhenExtractorPresent() {
+        // A feature type that includes a "principal" attribute + a matching extractor extension in the map.
+        Attribute principalAttr = new Attribute() {
+            @Override
+            public String getName() {
+                return PRINCIPAL_ATTRIBUTE_NAME;
+            }
+
+            @Override
+            public void validateAttribute() {}
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
+        };
+        FeatureType featureTypeWithPrincipal = new FeatureType() {
+            @Override
+            public String getName() {
+                return "wlm";
+            }
+
+            @Override
+            public Map<Attribute, Integer> getOrderedAttributes() {
+                return Map.of(principalAttr, 1);
+            }
+        };
+        AttributeExtractor<String> principalExtractor = new AttributeExtractor<>() {
+            @Override
+            public Attribute getAttribute() {
+                return principalAttr;
+            }
+
+            @Override
+            public Iterable<String> extract() {
+                return List.of("username|alice", "role|admin");
+            }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return LogicalOperator.OR;
+            }
+        };
+        AttributeExtractorExtension extension = () -> principalExtractor;
+        Map<Attribute, AttributeExtractorExtension> extensions = Map.of(principalAttr, extension);
+
+        InMemoryRuleProcessingService svc = spy(
+            new InMemoryRuleProcessingService(
+                new AttributeValueStoreFactory(featureTypeWithPrincipal, DefaultAttributeValueStore::new),
+                null
+            )
+        );
+        AutoTaggingActionFilter filter = new AutoTaggingActionFilter(
+            svc,
+            threadPool,
+            extensions,
+            mock(WlmClusterSettingValuesProvider.class),
+            featureTypeWithPrincipal
+        );
+
+        SearchRequest request = mock(SearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "foo" });
+        ActionFilterChain<ActionRequest, ActionResponse> chain = mock(TestActionFilterChain.class);
+        WorkloadGroupTask task = newWorkloadGroupTask();
+        try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+            when(svc.evaluateLabel(anyList())).thenReturn(Optional.of("QG"));
+            filter.apply(task, "Test", request, ActionRequestMetadata.empty(), null, chain);
+
+            // Both principal tokens are joined (by WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER) onto the task for
+            // core-side throttling.
+            assertEquals(
+                "username|alice" + WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER + "role|admin",
+                task.getThrottlePrincipal()
+            );
+            // The principal must NOT land in the thread context: request headers are serialized onto every outgoing
+            // transport request, which would ship the caller's identity to every shard and to remote clusters.
+            assertNull(threadPool.getThreadContext().getHeader("workloadGroupPrincipal"));
+        }
+    }
+
+    public void testApplyTwiceOnOneThreadContextIsTolerated() {
+        // The filter can run more than once against one ThreadContext, and ThreadContext.putHeader throws when the key is
+        // already present -- so anything the filter writes there must tolerate a repeat, or the second run fails the
+        // request. Carrying the principal on the task instead is what makes that safe, and gives each sub-request its own
+        // value.
+        //
+        // Note the repeat is not the ordinary _msearch dispatch loop: TransportAction.execute takes
+        // taskManager.taskExecutionStarted(task) and closes it in a finally, which restores the request headers between
+        // sub-searches. It happens when a sub-search is dispatched from inside a previous one's response handling -- the
+        // queue drain once numRequests exceeds max_concurrent_searches -- where the sender's context, header included, is
+        // the one restored.
+        Attribute principalAttr = new Attribute() {
+            @Override
+            public String getName() {
+                return PRINCIPAL_ATTRIBUTE_NAME;
+            }
+
+            @Override
+            public void validateAttribute() {}
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
+        };
+        FeatureType featureTypeWithPrincipal = new FeatureType() {
+            @Override
+            public String getName() {
+                return "wlm";
+            }
+
+            @Override
+            public Map<Attribute, Integer> getOrderedAttributes() {
+                return Map.of(principalAttr, 1);
+            }
+        };
+        AtomicInteger extractCalls = new AtomicInteger();
+        AttributeExtractor<String> principalExtractor = new AttributeExtractor<>() {
+            @Override
+            public Attribute getAttribute() {
+                return principalAttr;
+            }
+
+            @Override
+            public Iterable<String> extract() {
+                extractCalls.incrementAndGet();
+                return List.of("username|alice");
+            }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return LogicalOperator.OR;
+            }
+        };
+        AttributeExtractorExtension extension = () -> principalExtractor;
+        InMemoryRuleProcessingService svc = spy(
+            new InMemoryRuleProcessingService(
+                new AttributeValueStoreFactory(featureTypeWithPrincipal, DefaultAttributeValueStore::new),
+                null
+            )
+        );
+        AutoTaggingActionFilter filter = new AutoTaggingActionFilter(
+            svc,
+            threadPool,
+            Map.of(principalAttr, extension),
+            mock(WlmClusterSettingValuesProvider.class),
+            featureTypeWithPrincipal
+        );
+
+        SearchRequest request = mock(SearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "foo" });
+        ActionFilterChain<ActionRequest, ActionResponse> chain = mock(TestActionFilterChain.class);
+        WorkloadGroupTask first = newWorkloadGroupTask();
+        WorkloadGroupTask second = newWorkloadGroupTask();
+        try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+            // No label, so the (separate, pre-existing) workload-group-id header is not set and this test isolates the
+            // principal.
+            when(svc.evaluateLabel(anyList())).thenReturn(Optional.empty());
+            filter.apply(first, "Test", request, ActionRequestMetadata.empty(), null, chain);
+            filter.apply(second, "Test", request, ActionRequestMetadata.empty(), null, chain);
+
+            // Each sub-request carries its own principal, and neither run threw on a duplicate key.
+            assertEquals("username|alice", first.getThrottlePrincipal());
+            assertEquals("username|alice", second.getThrottlePrincipal());
+            assertNull(threadPool.getThreadContext().getHeader("workloadGroupPrincipal"));
+            // The principal is materialized once per request and reused for both label evaluation and the task field;
+            // extract() carries no re-iterability contract, so calling it twice per request risks yielding nothing.
+            assertEquals("extract() must be invoked once per request", 2, extractCalls.get());
+        }
+    }
+
+    public void testApplyLeavesThrottlePrincipalUnsetWhenNoExtractor() {
+        // Default filter from setUp has no principal attribute/extractor -> the task's principal stays null, which is
+        // what makes username/role throttling fail open rather than bucket everyone together.
+        SearchRequest request = mock(SearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "foo" });
+        ActionFilterChain<ActionRequest, ActionResponse> chain = mock(TestActionFilterChain.class);
+        try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+            when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("QG"));
+            WorkloadGroupTask task = newWorkloadGroupTask();
+            autoTaggingActionFilter.apply(task, "Test", request, ActionRequestMetadata.empty(), null, chain);
+            assertNull(task.getThrottlePrincipal());
+        }
     }
 
     public void testApplyForScrollRequestWithOriginalIndices() {
@@ -167,6 +352,10 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+    }
+
+    private static WorkloadGroupTask newWorkloadGroupTask() {
+        return new WorkloadGroupTask(1L, "transport", "Test", "test task", TaskId.EMPTY_TASK_ID, Map.of());
     }
 
     private static class TestActionFilterChain implements ActionFilterChain<ActionRequest, ActionResponse> {
