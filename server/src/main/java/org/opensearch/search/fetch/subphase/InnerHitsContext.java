@@ -79,6 +79,20 @@ public final class InnerHitsContext {
         return innerHits;
     }
 
+    /**
+     * Returns a deep copy of this context. Each inner-hit definition is copied so that a
+     * fetch running on a concurrent segment search slice thread never shares the mutable
+     * {@link InnerHitSubContext} (doc IDs to load, root id, root {@link SourceLookup})
+     * with fetches running on other slices.
+     */
+    public InnerHitsContext copy() {
+        Map<String, InnerHitSubContext> copies = new HashMap<>();
+        for (Map.Entry<String, InnerHitSubContext> entry : innerHits.entrySet()) {
+            copies.put(entry.getKey(), entry.getValue().copy());
+        }
+        return new InnerHitsContext(copies);
+    }
+
     public void addInnerHitDefinition(InnerHitSubContext innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
             throw new IllegalArgumentException(
@@ -115,6 +129,26 @@ public final class InnerHitsContext {
         }
 
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
+
+        /**
+         * Returns a deep copy of this inner-hit definition. The copy keeps the immutable
+         * definition (query, sort, from/size, highlight, fetch configuration) but gets
+         * fresh result holders and per-fetch state, so that concurrent segment search
+         * slice threads never share the mutable fields mutated by
+         * {@link org.opensearch.search.fetch.subphase.InnerHitsPhase#hitExecute}.
+         */
+        public abstract InnerHitSubContext copy();
+
+        /**
+         * Copies the fetch configuration of this context onto a freshly constructed
+         * {@code target} of the same concrete type. Child inner hits are copied recursively.
+         */
+        protected void copyTo(InnerHitSubContext target) {
+            super.copyFetchStateTo(target);
+            if (childInnerHits != null) {
+                target.setChildInnerHits(childInnerHits.copy().getInnerHits());
+            }
+        }
 
         public String getName() {
             return name;
@@ -213,3 +247,4 @@ public final class InnerHitsContext {
         }
     }
 }
+
