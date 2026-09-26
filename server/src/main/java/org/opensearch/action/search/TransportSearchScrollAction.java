@@ -89,7 +89,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 // A scroll continuation arrives as a fresh client request with no parent task, and issues no nested
                 // coordinator search of its own, so there is nothing to inherit; see
                 // TransportSearchAction#parentAlreadyCounted.
-                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, false);
+                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, () -> false);
                 if (throttlePermit != null) {
                     throttledListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(throttledListener, throttlePermit);
                 }

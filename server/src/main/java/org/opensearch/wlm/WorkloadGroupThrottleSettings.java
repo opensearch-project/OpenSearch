@@ -101,9 +101,8 @@ public class WorkloadGroupThrottleSettings {
     }
 
     /**
-     * Returns the effective bucket dimension, including the implicit group default. Unknown keys are rejected here too
-     * so a node reading configuration from a newer peer fails open instead of accidentally applying group throttling to
-     * a schema it does not understand.
+     * Returns the effective bucket dimension, defaulting to the implicit group scope. Unknown keys are rejected so a
+     * schema this node does not understand is not silently applied as group throttling.
      */
     public static String getEffectiveBy(Settings throttling) {
         if (throttling == null) {
@@ -121,10 +120,8 @@ public class WorkloadGroupThrottleSettings {
     }
 
     /**
-     * Per-key validation: every key must be registered, {@code by} must be an allowed explicit value, and each limit must
-     * be a non-negative 32-bit integer ({@code -1} is the internal "unset" sentinel and is not explicitly configurable).
-     * Safe to run on a partial fragment from an update request; the cross-field checks live in
-     * {@link #validateMergedConfig(Settings)}.
+     * Per-key validation: every key must be registered, {@code by} an allowed value, and each limit a non-negative int.
+     * Safe on a partial update fragment; cross-field checks live in {@link #validateMergedConfig(Settings)}.
      *
      * @param throttling the throttling settings to validate
      * @throws IllegalArgumentException if any key is unknown or any value is invalid

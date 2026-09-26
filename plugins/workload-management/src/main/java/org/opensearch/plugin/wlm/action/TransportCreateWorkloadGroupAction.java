@@ -67,15 +67,11 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
     }
 
     /**
-     * Validates the throttling config on the node that accepted the request, before it is forwarded.
-     * <p>
-     * {@code clusterManagerOperation} alone is not enough. When this node is not the elected cluster-manager the request is
-     * serialized to the manager at that node's transport version, and {@code throttling} is gated on the wire at
-     * {@code V_3_9_0} -- so forwarding to a pre-3.9 manager strips the field before the manager-side check can ever see it,
-     * and an older manager runs older plugin code with no such check at all. The result was a 200 for a group persisted
-     * without the throttling the caller asked for, in exactly the topology the guard was written to reject (managers are
-     * commonly upgraded last). Checking here closes that: any node able to parse a {@code throttling} body is already 3.9+,
-     * so its own cluster state sees the pre-3.9 node and the check fires. The manager-side call stays authoritative.
+     * Validates the throttling config on the node that accepted the request, before forwarding. {@code clusterManagerOperation}
+     * alone is not enough: forwarding to a pre-{@code V_3_9_0} manager strips the wire-gated {@code throttling} field before
+     * the manager-side check sees it (and an older manager has no such check), yielding a 200 for a group persisted without
+     * throttling. Any node that can parse a {@code throttling} body is 3.9+, so checking here catches the pre-3.9 peer; the
+     * manager-side call stays authoritative.
      *
      * @param task task associated with the request
      * @param request create workload group request

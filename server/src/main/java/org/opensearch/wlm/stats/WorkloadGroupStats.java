@@ -97,11 +97,13 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
         public static final String TOTAL_CANCELLATIONS = "total_cancellations";
         public static final String FAILURES = "failures";
         public static final String THROTTLED = "total_throttled";
+        public static final String WOULD_THROTTLED = "total_would_throttle";
         private long completions;
         private long rejections;
         private long failures;
         private long cancellations;
         private long throttled;
+        private long wouldThrottle;
         private Map<ResourceType, ResourceStats> resourceStats;
 
         // this is needed to support the factory method
@@ -113,6 +115,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             long failures,
             long cancellations,
             long throttled,
+            long wouldThrottle,
             Map<ResourceType, ResourceStats> resourceStats
         ) {
             this.completions = completions;
@@ -120,6 +123,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.failures = failures;
             this.cancellations = cancellations;
             this.throttled = throttled;
+            this.wouldThrottle = wouldThrottle;
             this.resourceStats = resourceStats;
         }
 
@@ -133,6 +137,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             // would consume the resourceStats map header and desync everything after it.
             if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
                 this.throttled = in.readVLong();
+                this.wouldThrottle = in.readVLong();
             }
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
@@ -151,6 +156,10 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
 
         public long getThrottled() {
             return throttled;
+        }
+
+        public long getWouldThrottle() {
+            return wouldThrottle;
         }
 
         public Map<ResourceType, ResourceStats> getResourceStats() {
@@ -176,6 +185,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             statsHolder.failures = workloadGroupState.getFailures();
             statsHolder.cancellations = workloadGroupState.getTotalCancellations();
             statsHolder.throttled = workloadGroupState.getTotalThrottled();
+            statsHolder.wouldThrottle = workloadGroupState.getTotalWouldThrottle();
             statsHolder.resourceStats = resourceStatsMap;
             return statsHolder;
         }
@@ -194,6 +204,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             // version-gated to match the StreamInput ctor; read/write gates and order must stay in sync.
             if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
                 out.writeVLong(statsHolder.throttled);
+                out.writeVLong(statsHolder.wouldThrottle);
             }
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
@@ -211,6 +222,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             // builder.field(FAILURES, failures);
             builder.field(TOTAL_CANCELLATIONS, cancellations);
             builder.field(THROTTLED, throttled);
+            builder.field(WOULD_THROTTLED, wouldThrottle);
 
             for (ResourceType resourceType : ResourceType.getSortedValues()) {
                 ResourceStats resourceStats1 = resourceStats.get(resourceType);
@@ -232,12 +244,13 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
                 && Objects.equals(resourceStats, that.resourceStats)
                 && failures == that.failures
                 && cancellations == that.cancellations
-                && throttled == that.throttled;
+                && throttled == that.throttled
+                && wouldThrottle == that.wouldThrottle;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(completions, rejections, cancellations, failures, throttled, resourceStats);
+            return Objects.hash(completions, rejections, cancellations, failures, throttled, wouldThrottle, resourceStats);
         }
     }
 
