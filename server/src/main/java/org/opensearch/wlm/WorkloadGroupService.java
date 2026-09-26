@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService.TRACKED_RESOURCES;
@@ -328,10 +329,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     }
 
     /**
-     * Group-and-principal seam over {@link #acquireThrottleOrReject(WorkloadGroupTask, boolean)} for tests that want to
-     * exercise bucket resolution and the limit directly, without building a task and a thread context to carry the
-     * workload group id. Package-private on purpose: production callers go through the task-aware variant so the
-     * request is marked as counted and re-entrancy is handled.
+     * Test seam over {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)} exercising bucket resolution and
+     * the limit directly, without a task or thread context. Package-private: production callers use the task-aware variant
+     * so the request is marked counted and re-entrancy is handled.
      *
      * @param workloadGroupId the workload group the request is assigned to
      * @param principal       the caller's joined principal tokens, or {@code null} (see resolver)
@@ -339,7 +339,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
      */
     Releasable acquireThrottleOrReject(String workloadGroupId, String principal) {
-        return acquireThrottleOrReject(workloadGroupId, principal, false, counted -> {});
+        return acquireThrottleOrReject(workloadGroupId, principal, () -> false, counted -> {});
     }
 
     /**
@@ -350,12 +350,13 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      *
      * @param task                 the request's task; marked as counted in both the acquired and the exempted case, so the
      *                             accounting propagates to its own nested searches
-     * @param parentAlreadyCounted whether this request's parent task is already accounted for against a throttle bucket, so
-     *                             a nested coordinator search is not charged a second permit for its own request family
+     * @param parentAlreadyCounted supplies whether the parent task is already counted, so a nested coordinator search is
+     *                             not charged twice. Supplied lazily so the parent lookup runs only for a throttling group,
+     *                             not on every search
      * @return a permit to close on request completion, or {@code null} if not throttled
      * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
      */
-    public Releasable acquireThrottleOrReject(WorkloadGroupTask task, boolean parentAlreadyCounted) {
+    public Releasable acquireThrottleOrReject(WorkloadGroupTask task, BooleanSupplier parentAlreadyCounted) {
         return acquireThrottleOrReject(
             task.getWorkloadGroupId(),
             task.getThrottlePrincipal(),
@@ -365,21 +366,14 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     }
 
     /**
-     * Wraps {@code listener} so the request's throttle permit is released <em>before</em> the listener is notified.
-     * <p>
-     * The ordering is the point. A completion listener may synchronously start new work in the same bucket -- an
-     * {@code _msearch} dispatches its next queued sub-search from inside the previous one's response handling
-     * ({@code TransportMultiSearchAction}) -- so releasing after the listener would let a request the coordinator
-     * deliberately serialized be admitted while its own predecessor is still counted, and rejected with a spurious 429.
-     * With {@code max_concurrent_searches} at or below {@code node_limit} that is deterministic rather than a race.
-     * <p>
-     * Releasing first is safe in the other direction too: the search pipeline's response transform wraps this listener from
-     * the outside, so it still runs while the permit is held, and the returned {@link Releasable} is idempotent. The close
-     * is guarded because a failure to give a slot back must never turn a successful search into a client-visible error --
-     * the reason the release was originally ordered after the listener.
+     * Wraps {@code listener} so the request's throttle permit is released <em>before</em> the listener is notified: a
+     * completion listener may synchronously start new work in the same bucket (an {@code _msearch} dispatches its next
+     * sub-search from the previous one's response handler), so releasing after would spuriously 429 a request the
+     * coordinator deliberately serialized. The close is guarded so a failed release can never turn a successful search into
+     * a client-visible error.
      *
      * @param listener       the listener to notify once the permit has been given back
-     * @param throttlePermit the permit acquired by {@link #acquireThrottleOrReject(WorkloadGroupTask, boolean)}
+     * @param throttlePermit the permit acquired by {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)}
      */
     public static <T> ActionListener<T> releaseThrottlePermitBeforeCompletion(
         final ActionListener<T> listener,
@@ -397,27 +391,13 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private Releasable acquireThrottleOrReject(
         String workloadGroupId,
         String principal,
-        boolean parentAlreadyCounted,
+        BooleanSupplier parentAlreadyCounted,
         Consumer<Boolean> onCounted
     ) {
         if (workloadManagementSettings.getWlmMode() != WlmMode.ENABLED) {
             return null;
         }
         if (workloadGroupId == null || workloadGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) {
-            return null;
-        }
-        // Re-entrancy. A coordinator search can issue a nested coordinator search on this same node while holding a
-        // permit: a terms lookup with a subquery does exactly that during the rewrite phase. Charging the nested request a
-        // second permit makes the request compete with itself -- with node_limit=N, N such requests would all be rejected
-        // at precisely the configured concurrency. The parent already paid, so admit the nested request for free.
-        //
-        // Checked before the group lookup and bucket resolution below, which a nested request would otherwise pay for
-        // only to be exempted anyway. Marked as counted even though no permit was taken, so the accounting is transitive:
-        // a further level of nesting (a terms lookup whose subquery is itself a terms lookup) reads this task and is
-        // likewise admitted for free rather than charged for a family that already paid. Release stays tied to the
-        // Releasable returned to the caller, null here, so marking a task cannot cause a double release.
-        if (parentAlreadyCounted) {
-            onCounted.accept(true);
             return null;
         }
         try {
@@ -433,6 +413,14 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             }
             int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
             if (nodeLimit < 1) {
+                return null;
+            }
+            // Re-entrancy: a nested coordinator search (e.g. a terms lookup's subquery during rewrite) inherits its
+            // already-counted parent's charge instead of taking a second permit. Evaluated here, past the early-outs, so the
+            // parent-task lookup stays off searches whose group does not throttle. Marked counted (transitively) though no
+            // permit is taken; release is tied to the returned Releasable, not this flag.
+            if (parentAlreadyCounted.getAsBoolean()) {
+                onCounted.accept(true);
                 return null;
             }
             String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
@@ -456,26 +444,19 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 target += " for " + by + " [" + byValue + "]";
             }
             if (workloadGroup.getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
-                // MONITOR observes only: log that the request WOULD have been rejected, then admit it without touching
-                // total_throttled, consistent with MONITOR being dormant on the cancellation path. DEBUG, not INFO:
-                // this fires once per would-be-throttled request, so INFO would spam a hot bucket under load.
+                // MONITOR observes only: count the would-be rejection against total_would_throttle (a signal for sizing
+                // node_limit before enforcing) and admit, leaving total_throttled meaning "actually rejected". DEBUG since
+                // it fires once per would-be-throttled request.
                 logger.debug(
                     "Request would be throttled (monitor mode, not rejected): {} reached its per-node limit of {} concurrent requests.",
                     target,
                     nodeLimit
                 );
+                recordThrottleStat(workloadGroupId, true);
                 return null;
             }
-            // Record the rejection without ever letting a stats failure swallow the 429. Use the raw state map, not the
-            // DEFAULT-fallback accessor, so a not-yet-registered group isn't misattributed to DEFAULT.
-            try {
-                WorkloadGroupState workloadGroupState = workloadGroupsStateAccessor.getWorkloadGroupStateMap().get(workloadGroupId);
-                if (workloadGroupState != null) {
-                    workloadGroupState.totalThrottled.inc();
-                }
-            } catch (Exception statsException) {
-                logger.warn("Failed to record throttle stat for workload group [" + workloadGroupId + "]", statsException);
-            }
+            // Record the rejection without ever letting a stats failure swallow the 429.
+            recordThrottleStat(workloadGroupId, false);
             throw new OpenSearchRejectedExecutionException(
                 "Request throttled: " + target + " reached its per-node limit of " + nodeLimit + " concurrent requests."
             );
@@ -490,17 +471,31 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     }
 
     /**
-     * Resolves the value the throttle bucket is keyed by:
-     * {@link WorkloadGroupThrottleSettings#GROUP_SCOPE} itself for whole-group throttling, or the principal's
-     * {@code username} / {@code role} subfield value.
-     * <p>
-     * A principal may carry several values for one subfield (a user in many roles). The request is charged to exactly
-     * one of them, chosen as the lexicographically smallest so the bucket is stable: picking whichever value the
-     * extractor happened to emit first would let the same user land in different buckets on different requests, and so
-     * draw more than one allowance.
+     * Bumps {@code total_would_throttle} ({@code wouldThrottleOnly == true}, MONITOR observed) or {@code total_throttled}
+     * (actual rejection). Swallows stats failures so they can't mask the request's outcome, and uses the raw state map so a
+     * not-yet-registered group isn't misattributed to DEFAULT.
+     */
+    private void recordThrottleStat(String workloadGroupId, boolean wouldThrottleOnly) {
+        try {
+            WorkloadGroupState workloadGroupState = workloadGroupsStateAccessor.getWorkloadGroupStateMap().get(workloadGroupId);
+            if (workloadGroupState != null) {
+                if (wouldThrottleOnly) {
+                    workloadGroupState.totalWouldThrottle.inc();
+                } else {
+                    workloadGroupState.totalThrottled.inc();
+                }
+            }
+        } catch (Exception statsException) {
+            logger.warn("Failed to record throttle stat for workload group [" + workloadGroupId + "]", statsException);
+        }
+    }
+
+    /**
+     * Resolves the bucket key value: {@link WorkloadGroupThrottleSettings#GROUP_SCOPE} for whole-group throttling, else the
+     * principal's {@code username}/{@code role} value. When a principal carries several values for the subfield (a user in
+     * many roles), the lexicographically smallest is chosen so the same caller lands in a stable bucket.
      *
-     * @return the bucket dimension value, or {@code null} to fail open (not throttled) when the principal is absent or has
-     *         no usable value for the subfield
+     * @return the bucket dimension value, or {@code null} to fail open when the principal has no usable value
      */
     private String resolveThrottleByValue(String by, String principal) {
         if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {

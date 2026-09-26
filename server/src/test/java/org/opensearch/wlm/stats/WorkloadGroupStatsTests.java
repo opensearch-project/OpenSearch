@@ -39,6 +39,7 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
                 2,
                 0,
                 5,
+                8,
                 Map.of(ResourceType.CPU, new WorkloadGroupStats.ResourceStats(0.3, 13, 2))
             )
         );
@@ -48,7 +49,7 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
         workloadGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-            "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"total_throttled\":5,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
+            "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"total_throttled\":5,\"total_would_throttle\":8,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
             builder.toString()
         );
     }
@@ -63,21 +64,24 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
                     2,
                     7,
                     5,
+                    9,
                     Map.of(ResourceType.CPU, new WorkloadGroupStats.ResourceStats(0.3, 11, 4))
                 )
             )
         );
 
-        // A 3.9 peer exchanges total_throttled, and everything after it on the wire stays aligned.
+        // A 3.9 peer exchanges total_throttled and total_would_throttle, and everything after them on the wire stays aligned.
         WorkloadGroupStats.WorkloadGroupStatsHolder current = copyInstance(original, Version.V_3_9_0).getStats().get("group-1");
         assertEquals(5, current.getThrottled());
+        assertEquals(9, current.getWouldThrottle());
         assertEquals(100, current.getCompletions());
         assertEquals(0.3, current.getResourceStats().get(ResourceType.CPU).getCurrentUsage(), 0.0);
 
-        // A pre-throttling peer never writes total_throttled, so it must read back as 0 and -- the actual hazard --
-        // the resourceStats map that follows it must still deserialize instead of being consumed as the throttled slot.
+        // A pre-throttling peer never writes total_throttled/total_would_throttle, so they must read back as 0 and -- the
+        // actual hazard -- the resourceStats map that follows must still deserialize instead of being consumed as a throttle slot.
         WorkloadGroupStats.WorkloadGroupStatsHolder legacy = copyInstance(original, Version.V_3_8_0).getStats().get("group-1");
         assertEquals(0, legacy.getThrottled());
+        assertEquals(0, legacy.getWouldThrottle());
         assertEquals(100, legacy.getCompletions());
         assertEquals(13, legacy.getRejections());
         assertEquals(7, legacy.getCancellations());
@@ -97,6 +101,7 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
         stats.put(
             randomAlphaOfLength(10),
             new WorkloadGroupStats.WorkloadGroupStatsHolder(
+                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

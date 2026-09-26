@@ -47,6 +47,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 1,
                 0,
                 0,
+                0,
                 Map.of(
                     ResourceType.CPU,
                     new WorkloadGroupStats.ResourceStats(0, 0, 0),
@@ -82,6 +83,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
                 + "        \"total_rejections\" : 0,\n"
                 + "        \"total_cancellations\" : 0,\n"
                 + "        \"total_throttled\" : 0,\n"
+                + "        \"total_would_throttle\" : 0,\n"
                 + "        \"cpu\" : {\n"
                 + "          \"current_usage\" : 0.0,\n"
                 + "          \"cancellations\" : 0,\n"

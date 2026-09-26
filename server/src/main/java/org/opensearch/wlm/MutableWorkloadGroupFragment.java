@@ -68,9 +68,26 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         Settings settings,
         Settings throttling
     ) {
-        validateResourceLimits(resourceLimits);
-        WorkloadGroupSearchSettings.validate(settings);
-        WorkloadGroupThrottleSettings.validate(throttling);
+        this(resiliencyMode, resourceLimits, settings, throttling, true);
+    }
+
+    /**
+     * @param validate whether to eagerly validate the fields. Pass {@code false} only for internal reconstruction of an
+     *                 already-parsed fragment (e.g. WorkloadGroup normalizing away null clear-markers), where throttling is
+     *                 (re)checked by {@link WorkloadGroupThrottleSettings#validateMergedConfig} anyway.
+     */
+    public MutableWorkloadGroupFragment(
+        ResiliencyMode resiliencyMode,
+        Map<ResourceType, Double> resourceLimits,
+        Settings settings,
+        Settings throttling,
+        boolean validate
+    ) {
+        if (validate) {
+            validateResourceLimits(resourceLimits);
+            WorkloadGroupSearchSettings.validate(settings);
+            WorkloadGroupThrottleSettings.validate(throttling);
+        }
         this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
         this.settings = settings != null ? settings : Settings.EMPTY;
@@ -154,9 +171,8 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return Settings.EMPTY;
             }
-            Settings throttling = Settings.fromXContent(parser);
-            WorkloadGroupThrottleSettings.validate(throttling);
-            return throttling;
+            // No per-key validation here; it is deferred to setThrottling / WorkloadGroup's constructor. See setThrottling.
+            return Settings.fromXContent(parser);
         }
     }
 
@@ -386,7 +402,11 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     }
 
     void setThrottling(Settings throttling) {
-        WorkloadGroupThrottleSettings.validate(throttling);
+        // No per-key validation here: this setter is reached only from XContent parse, shared by the create/update REST
+        // parse and the on-disk gateway read (WorkloadGroupMetadata.context() == ALL_CONTEXTS). Validating would make the
+        // gateway read strict where the wire read is lenient, wedging a node that reads a config a newer peer wrote.
+        // Validation is deferred to WorkloadGroup's constructor (validateMergedConfig: strict on create/update, advisory on
+        // deserialization); the all-args constructor still validates eagerly for programmatic construction.
         this.throttling = throttling != null ? throttling : Settings.EMPTY;
     }
 

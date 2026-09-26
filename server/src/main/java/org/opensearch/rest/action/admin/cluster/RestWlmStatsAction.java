@@ -194,6 +194,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell("|");
         table.addCell("TOTAL_THROTTLED", verbose ? "desc:Total Throttled Queries" : "");
         table.addCell("|");
+        table.addCell("TOTAL_WOULD_THROTTLE", verbose ? "desc:Total Queries That Would Be Throttled In Monitor Mode" : "");
+        table.addCell("|");
         table.addCell("CPU_USAGE", verbose ? "desc:CPU Usage" : "");
         table.addCell("|");
         table.addCell("MEMORY_USAGE", verbose ? "desc:Memory Usage" : "");
@@ -216,6 +218,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell(statsHolder.getCancellations());
         table.addCell("|");
         table.addCell(statsHolder.getThrottled());
+        table.addCell("|");
+        table.addCell(statsHolder.getWouldThrottle());
         table.addCell("|");
 
         WorkloadGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);
@@ -240,7 +244,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
      * Builds a tabular response with '|' column separators.
      */
     protected void buildTable(Table table, List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
-        final int COLUMN_COUNT = 15;
+        // Derive the footer width from the headers rather than hardcoding it, so adding a column cannot silently desync.
+        final int COLUMN_COUNT = table.getHeaders().size();
 
         for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();

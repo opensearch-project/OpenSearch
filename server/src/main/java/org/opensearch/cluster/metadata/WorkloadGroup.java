@@ -94,11 +94,15 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         Settings normalizedThrottling = stripClearMarkers(mutableWorkloadGroupFragment.getThrottling());
         if (normalizedSettings.equals(mutableWorkloadGroupFragment.getSettings()) == false
             || normalizedThrottling.equals(mutableWorkloadGroupFragment.getThrottling()) == false) {
+            // Reconstruct without re-validating: this only strips null clear-markers from an already-parsed fragment, and
+            // re-validating here would run before the deserialization-aware validateMergedConfig below, making the gateway
+            // read strict where the wire read is lenient.
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
                 normalizedSettings,
-                normalizedThrottling
+                normalizedThrottling,
+                false
             );
         }
 
@@ -242,8 +246,13 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         return builder;
     }
 
+    /**
+     * Deserializes a workload group from XContent. This is the on-disk gateway read of persisted cluster state at startup
+     * ({@code WorkloadGroupMetadata#context()} == ALL_CONTEXTS), so it builds leniently. The create/update API path parses
+     * via {@link Builder#fromXContent} and calls the strict {@link Builder#build()}, so it is unaffected.
+     */
     public static WorkloadGroup fromXContent(final XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser).build();
+        return Builder.fromXContent(parser).build(true);
     }
 
     public static Diff<WorkloadGroup> readDiff(final StreamInput in) throws IOException {
@@ -395,7 +404,16 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
 
         public WorkloadGroup build() {
-            return new WorkloadGroup(name, _id, mutableWorkloadGroupFragment, updatedAt);
+            return build(false);
+        }
+
+        /**
+         * @param deserializing {@code true} on the deserialization path (wire and on-disk gateway read), where merged
+         *                      throttle validation is advisory (accept-with-warning) so a config a newer peer wrote cannot
+         *                      wedge this node; {@code false} on create/update, which rejects an invalid config outright.
+         */
+        public WorkloadGroup build(boolean deserializing) {
+            return new WorkloadGroup(name, _id, mutableWorkloadGroupFragment, updatedAt, deserializing);
         }
 
         public MutableWorkloadGroupFragment getMutableWorkloadGroupFragment() {

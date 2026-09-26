@@ -530,7 +530,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         // The outer request takes the group's only permit and is marked as counted.
         WorkloadGroupTask outer = throttleTask("wg-1");
-        Releasable outerPermit = workloadGroupService.acquireThrottleOrReject(outer, false);
+        Releasable outerPermit = workloadGroupService.acquireThrottleOrReject(outer, () -> false);
         assertNotNull(outerPermit);
         assertTrue("a successful acquire must mark the task as counted", outer.isThrottleCounted());
 
@@ -538,7 +538,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         // parent. At node_limit=1 charging it again would 429 the request that spawned it, so it is admitted with no
         // permit of its own -- null means "nothing to release", not "throttled".
         WorkloadGroupTask nested = throttleTask("wg-1");
-        assertNull(workloadGroupService.acquireThrottleOrReject(nested, true));
+        assertNull(workloadGroupService.acquireThrottleOrReject(nested, () -> true));
         // The exempt request must still be marked as counted, even though it holds no permit. The accounting has to be
         // transitive: this task may itself issue a nested search (a terms lookup whose subquery is another terms lookup),
         // and that grandchild reads only its own parent. If this task recorded nothing, the grandchild would be charged a
@@ -553,7 +553,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         // The exemption applies only to a request whose parent was counted: an independent request still hits the limit,
         // so this cannot silently disable throttling for the group.
         WorkloadGroupTask independent = throttleTask("wg-1");
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.acquireThrottleOrReject(independent, false));
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> workloadGroupService.acquireThrottleOrReject(independent, () -> false)
+        );
 
         outerPermit.close();
     }
@@ -568,14 +571,14 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         // that never went through admission and so is never counted. Sibling sub-searches are independent units of client
         // work and must each be charged, so the first takes the group's only permit and the second is rejected.
         WorkloadGroupTask firstSubSearch = throttleTask("wg-1");
-        Releasable firstPermit = workloadGroupService.acquireThrottleOrReject(firstSubSearch, false);
+        Releasable firstPermit = workloadGroupService.acquireThrottleOrReject(firstSubSearch, () -> false);
         assertNotNull("the first sub-search of an _msearch must take its own permit", firstPermit);
         assertTrue(firstSubSearch.isThrottleCounted());
 
         WorkloadGroupTask secondSubSearch = throttleTask("wg-1");
         expectThrows(
             OpenSearchRejectedExecutionException.class,
-            () -> workloadGroupService.acquireThrottleOrReject(secondSubSearch, false)
+            () -> workloadGroupService.acquireThrottleOrReject(secondSubSearch, () -> false)
         );
         assertFalse("a rejected request must not be marked as counted", secondSubSearch.isThrottleCounted());
         assertEquals(
@@ -597,19 +600,19 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         // reads only its own parent, so the exemption is only correct if it survives a hop through a task that holds no
         // permit of its own. Root A pays; B and C must both ride on that one permit.
         WorkloadGroupTask rootA = throttleTask("wg-1");
-        Releasable rootPermit = workloadGroupService.acquireThrottleOrReject(rootA, false);
+        Releasable rootPermit = workloadGroupService.acquireThrottleOrReject(rootA, () -> false);
         assertNotNull(rootPermit);
         assertTrue(rootA.isThrottleCounted());
 
         WorkloadGroupTask nestedB = throttleTask("wg-1");
-        assertNull(workloadGroupService.acquireThrottleOrReject(nestedB, rootA.isThrottleCounted()));
+        assertNull(workloadGroupService.acquireThrottleOrReject(nestedB, () -> rootA.isThrottleCounted()));
 
         // C sees only what B advertises. If the exempt middle task recorded nothing, C would be charged a fresh permit and
         // self-reject at node_limit=1 -- one legitimate request 429ing itself.
         WorkloadGroupTask grandchildC = throttleTask("wg-1");
         assertNull(
             "a second level of nesting must inherit the accounting through the exempt middle task",
-            workloadGroupService.acquireThrottleOrReject(grandchildC, nestedB.isThrottleCounted())
+            workloadGroupService.acquireThrottleOrReject(grandchildC, () -> nestedB.isThrottleCounted())
         );
         assertEquals(
             "no level of a single request's own nesting may be counted as a throttle",
@@ -619,7 +622,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         // The accounting must not leak into unrelated requests: the group is still at its limit for anyone else.
         WorkloadGroupTask independent = throttleTask("wg-1");
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.acquireThrottleOrReject(independent, false));
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> workloadGroupService.acquireThrottleOrReject(independent, () -> false)
+        );
 
         rootPermit.close();
     }
@@ -704,9 +710,25 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", null)); // first admit takes the only slot
         // A MONITOR group observes only: an over-limit request is admitted (null permit, nothing to release) rather
-        // than rejected, and the would-be rejection is not counted.
+        // than rejected. It is not counted as an actual rejection (total_throttled), but it IS counted against
+        // total_would_throttle so operators can size node_limit before switching to an enforcing mode.
         assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
         assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalWouldThrottle());
+    }
+
+    public void testAcquireThrottleEnforcedModeDoesNotCountWouldThrottle() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
+        stubClusterStateWithGroup(throttledGroup("wg-1", throttling, MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED));
+
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
+        // An enforcing group increments total_throttled on rejection and never total_would_throttle: that counter is
+        // exclusive to MONITOR's observe-only path.
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.acquireThrottleOrReject("wg-1", null));
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalWouldThrottle());
     }
 
     public void testAcquireThrottleSoftModeStillRejects() {

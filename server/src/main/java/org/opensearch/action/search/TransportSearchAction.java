@@ -500,7 +500,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 try {
                     Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject(
                         (WorkloadGroupTask) task,
-                        parentAlreadyCounted(task)
+                        () -> parentAlreadyCounted(task)
                     );
                     if (throttlePermit != null) {
                         // Give the slot back before notifying downstream, not after: a completion listener can synchronously
@@ -542,17 +542,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        // Parent the rewrite phase's searches (a terms lookup with a subquery issues one) on this task,
-                        // so throttle admission can recognise them as nested and not charge the request family twice.
-                        // See parentAlreadyCounted.
-                        //
-                        // Only when this request's work is actually counted. Otherwise there is nothing to inherit, and
-                        // EMPTY_TASK_ID leaves the rewrite client unwrapped -- so a search in a group without throttling
-                        // behaves exactly as before, rather than every search in the cluster gaining a parent task it
-                        // never had. A consequence worth naming: a nested search whose own group is throttled while its
-                        // parent's is not sees no parent here and is charged on its own merits, so the throttle applies to
-                        // the first eligible search in a nested chain and an unthrottled parent cannot launder work into a
-                        // throttled group.
+                        // Parent the rewrite phase's searches (e.g. a terms lookup subquery) on this task, but only when
+                        // this request is actually counted, so throttle admission treats them as nested and does not charge
+                        // the family twice. When uncounted, EMPTY_TASK_ID leaves the rewrite client unwrapped, so a search
+                        // in an unthrottled group behaves exactly as before. See parentAlreadyCounted.
                         searchService.getRewriteContext(
                             timeProvider::getAbsoluteStartMillis,
                             searchRequest,
@@ -573,24 +566,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Whether this request's parent task is already accounted for against a node-level throttle bucket, in which case
-     * admission charges this request nothing; see
-     * {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, boolean)}.
-     * <p>
-     * A coordinator search can issue a nested coordinator search on the same node while holding a permit -- a terms lookup
-     * with a subquery does this during the rewrite phase -- and charging the nested request again would make the request
-     * compete with itself.
-     * <p>
-     * Only the immediate parent is inspected, and that is sufficient rather than a simplification: the only thing that
-     * parents a coordinator search on another coordinator search is the rewrite client, and it is wrapped only when the
-     * parent itself was counted (see the {@code getRewriteContext} call in {@code executeRequest}). So a counted ancestor,
-     * when one exists at all, is always the immediate parent. Parents that are not coordinator searches -- an
-     * {@code _msearch}'s multi-search task, a reindex/by-query task -- never carry the flag, so their child searches are
-     * each charged, which is intended: they are independent units of client work.
-     * <p>
-     * Local parents only, which is exactly the right scope: the throttle is per node, so a parent on another node was
-     * counted against that node's budget rather than this one's. {@code TaskManager#getTask} is keyed by a node-local id,
-     * so skipping remote parents also avoids resolving a remote id to an unrelated local task.
+     * Whether this request's parent task is already counted against a node-level throttle bucket, so admission charges it
+     * nothing (see {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)}); a nested
+     * coordinator search issued during rewrite would otherwise make the request compete with itself. Only the immediate,
+     * local parent is inspected: the rewrite client is the only thing that parents a counted coordinator search, and it is
+     * wrapped only when that parent was counted, so a counted ancestor is always the immediate parent. Non-search parents
+     * (an {@code _msearch} task, a reindex task) never carry the flag, so their child searches are each charged, as
+     * intended. Remote parents are skipped -- the throttle is per node, and {@code TaskManager#getTask} is node-local.
      */
     private boolean parentAlreadyCounted(final Task task) {
         TaskId parentTaskId = task.getParentTaskId();

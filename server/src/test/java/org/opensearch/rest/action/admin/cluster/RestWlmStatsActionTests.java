@@ -102,7 +102,15 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
 
     public void testAddRow() {
         Table table = action.createTableWithHeaders(null, true);
-        WorkloadGroupStats.WorkloadGroupStatsHolder stats = new WorkloadGroupStats.WorkloadGroupStatsHolder(1, 2, 3, 4, 5, new HashMap<>());
+        WorkloadGroupStats.WorkloadGroupStatsHolder stats = new WorkloadGroupStats.WorkloadGroupStatsHolder(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            new HashMap<>()
+        );
         action.addRow(table, "node1", "group1", stats);
         assertEquals(1, table.getRows().size());
     }
@@ -123,7 +131,15 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
         statsMap.put(ResourceType.CPU, cpuStats);
         statsMap.put(ResourceType.MEMORY, memoryStats);
 
-        WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = new WorkloadGroupStats.WorkloadGroupStatsHolder(1, 2, 3, 4, 5, statsMap);
+        WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = new WorkloadGroupStats.WorkloadGroupStatsHolder(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            statsMap
+        );
         Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> groupStats = new HashMap<>();
         groupStats.put("groupA", statsHolder);
         WorkloadGroupStats stats = new WorkloadGroupStats(groupStats);

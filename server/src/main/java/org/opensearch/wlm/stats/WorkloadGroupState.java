@@ -44,6 +44,13 @@ public class WorkloadGroupState {
     public final CounterMetric totalThrottled = new CounterMetric();
 
     /**
+     * This will track the cumulative requests that would have been throttled in MONITOR mode but were admitted anyway, in the
+     * workload group since the OpenSearch start time. It gives operators a signal to size {@code node_limit} before switching a
+     * group to an enforcing mode; unlike {@link #totalThrottled}, no request was actually rejected.
+     */
+    public final CounterMetric totalWouldThrottle = new CounterMetric();
+
+    /**
      * This is used to store the resource type state both for CPU and MEMORY
      */
     private final Map<ResourceType, ResourceTypeState> resourceState;
@@ -91,6 +98,14 @@ public class WorkloadGroupState {
      */
     public long getTotalThrottled() {
         return totalThrottled.count();
+    }
+
+    /**
+     *
+     * @return requests that would have been throttled in MONITOR mode in the workload group
+     */
+    public long getTotalWouldThrottle() {
+        return totalWouldThrottle.count();
     }
 
     /**

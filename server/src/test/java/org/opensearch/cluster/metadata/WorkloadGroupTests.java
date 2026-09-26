@@ -458,6 +458,44 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         );
     }
 
+    public void testGatewayReadAcceptsInvalidThrottleConfigLeniently() throws IOException {
+        // The on-disk gateway read (WorkloadGroup.fromXContent, used because WorkloadGroupMetadata.context() is
+        // ALL_CONTEXTS) must not throw on a throttle config this node considers invalid -- a newer peer's schema, a
+        // downgrade, or remote cluster state from a newer manager -- because throwing while loading persisted cluster
+        // state would stop the node from starting rather than failing one API call. It mirrors the transport wire read,
+        // which does no per-key validation. Two flavours: an unknown key and a cross-field-invalid ceiling.
+        long now = Instant.now().getMillis();
+        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
+            String json = String.format(
+                Locale.ROOT,
+                "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+                    + "\"resource_limits\":{\"cpu\":0.3},\"throttling\":%s,\"updated_at\":%d}",
+                badThrottling,
+                now
+            );
+            XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+            assertNotNull(WorkloadGroup.fromXContent(parser)); // lenient: must not throw
+        }
+    }
+
+    public void testCreatePathStillRejectsInvalidThrottleConfig() throws IOException {
+        // The create/update path stays strict: the same configs the gateway read accepts leniently are rejected here via
+        // the strict Builder.build().
+        long now = Instant.now().getMillis();
+        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
+            String json = String.format(
+                Locale.ROOT,
+                "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+                    + "\"resource_limits\":{\"cpu\":0.3},\"throttling\":%s,\"updated_at\":%d}",
+                badThrottling,
+                now
+            );
+            XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+            WorkloadGroup.Builder builder = WorkloadGroup.Builder.fromXContent(parser);
+            expectThrows(IllegalArgumentException.class, builder::build);
+        }
+    }
+
     public void testNegativeThrottleLimitRejected() {
         // -1 is the internal "unset" sentinel and, like any negative value, is not user-settable.
         for (int badLimit : new int[] { -1, -2 }) {

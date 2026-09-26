@@ -404,17 +404,11 @@ public class WorkloadGroupPersistenceService {
     }
 
     /**
-     * Rejects a throttling config the cluster cannot actually honour. Both cases below would otherwise return a 200 for
-     * a config that silently never takes effect:
-     * <ul>
-     *   <li>a node older than {@link Version#V_3_9_0} is still in the cluster. {@code throttling} is gated on the wire,
-     *       so the config is dropped when the request or the resulting cluster state crosses that node, and the group
-     *       reads back without it.</li>
-     *   <li>{@code by} keys on a principal ({@code username}/{@code role}) but no principal attribute is registered,
-     *       so no bucket can ever be resolved and the limit always fails open.</li>
-     * </ul>
-     * Called from the cluster-manager transport actions rather than from a cluster-state applier or settings update
-     * consumer on purpose: throwing while applying cluster state wedges the cluster-manager.
+     * Rejects a throttling config the cluster cannot honour, which would otherwise return a 200 for a config that never
+     * takes effect: either a pre-{@link Version#V_3_9_0} node is present (throttling is wire-gated, so it is dropped when
+     * the request or cluster state crosses that node), or {@code by} keys on a principal but no principal attribute is
+     * registered (no bucket can be resolved, so the limit always fails open). Called from the transport actions, not a
+     * cluster-state applier, because throwing while applying cluster state wedges the cluster-manager.
      *
      * @param throttling   the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
      * @param clusterState state used to read the oldest node version in the cluster
