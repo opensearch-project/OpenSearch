@@ -123,8 +123,13 @@ public class CollectionUtils {
 
         do {
             T old = oldArray.next(); // get the next item and advance iter
-            if (comparator.compare(cmp, old) != 0 && (cmp = deduped.next()) != old) {
-                deduped.set(old);
+            if (comparator.compare(cmp, old) != 0) {
+                // a new unique value: advance the write cursor and only copy when it isn't already in place
+                if (deduped.next() != old) {
+                    deduped.set(old);
+                }
+                // remember the value we just retained, not the (possibly stale) value under the write cursor
+                cmp = old;
             }
         } while (oldArray.hasNext());
         // in place update
