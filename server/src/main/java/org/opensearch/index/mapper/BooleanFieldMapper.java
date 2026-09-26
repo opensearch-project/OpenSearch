@@ -276,9 +276,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            if (!isSearchable()) {
+            if (!isEffectiveSearchable(context)) {
                 return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
             }
+
             Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());

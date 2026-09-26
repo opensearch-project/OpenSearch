@@ -86,7 +86,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(context.fieldMapper("student_id")).thenReturn(numberFieldType);
         when(numberFieldType.unwrap()).thenReturn(numberFieldType);
         Query bitmapQuery = mock(Query.class);
-        when(numberFieldType.bitmapQuery(any(BytesArray.class))).thenReturn(bitmapQuery);
+        when(numberFieldType.bitmapQuery(any(BytesArray.class), any(QueryShardContext.class))).thenReturn(bitmapQuery);
 
         Query result = builder.doToQuery(context);
         assertNotNull(result);
