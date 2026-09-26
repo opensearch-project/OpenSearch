@@ -64,9 +64,11 @@ public final class SearchResponseUtil {
             response.getSuccessfulShards(),
             response.getSkippedShards(),
             response.getTook().millis(),
+            response.getPhaseTook(),
             response.getShardFailures(),
             response.getClusters(),
-            response.pointInTimeId()
+            response.pointInTimeId(),
+            response.getShardInfo()
         );
     }
 

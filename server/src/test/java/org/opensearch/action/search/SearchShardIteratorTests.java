@@ -36,6 +36,9 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.routing.GroupShardsIteratorTests;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.EqualsHashCodeTestUtils;
@@ -55,6 +58,30 @@ public class SearchShardIteratorTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
         assertSame(shardId, searchShardIterator.shardId());
+    }
+
+    public void testShardRoutingsAreRetainedOnlyWhenIncludedInShardInfo() {
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomIntBetween(0, 5));
+        List<ShardRouting> shards = List.of(
+            TestShardRouting.newShardRouting(shardId, "node-a", true, ShardRoutingState.STARTED),
+            TestShardRouting.newShardRouting(shardId, "node-b", false, ShardRoutingState.STARTED)
+        );
+
+        // an ordinary search must not pay to retain routings it will never read
+        assertNull(new SearchShardIterator(null, shardId, shards, OriginalIndices.NONE).getShardRoutings());
+        assertFalse(new SearchShardIterator(null, shardId, shards, OriginalIndices.NONE).includeInShardInfo());
+        assertNull(new SearchShardIterator(null, shardId, shards, OriginalIndices.NONE, false).getShardRoutings());
+
+        // a shard described in shard_info needs them to report the primary flag and shard state
+        SearchShardIterator capturing = new SearchShardIterator(null, shardId, shards, OriginalIndices.NONE, true);
+        assertEquals(shards, capturing.getShardRoutings());
+        assertTrue(capturing.includeInShardInfo());
+
+        // target nodes are derived from the routings either way, so skipping the capture cannot change execution
+        assertEquals(new SearchShardIterator(null, shardId, shards, OriginalIndices.NONE).getTargetNodeIds(), capturing.getTargetNodeIds());
+
+        // point-in-time readers are targeted through plain node ids and never have routings
+        assertNull(new SearchShardIterator(null, shardId, List.of("node-a"), OriginalIndices.NONE, null, null).getShardRoutings());
     }
 
     public void testGetOriginalIndices() {

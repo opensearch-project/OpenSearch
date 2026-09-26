@@ -45,6 +45,7 @@ import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.Operator;
@@ -112,6 +113,25 @@ public class RestActions {
         int failed,
         ShardOperationFailedException[] shardFailures
     ) throws IOException {
+        buildBroadcastShardsHeader(builder, params, total, successful, skipped, failed, shardFailures, null);
+    }
+
+    /**
+     * Renders the standard {@code _shards} block, optionally appending the contents of an
+     * additional {@link ToXContentFragment} inside the same object. This allows callers to nest
+     * extra structured fields (e.g. {@code shard_info}) under {@code _shards} without rebuilding
+     * the block.
+     */
+    public static void buildBroadcastShardsHeader(
+        XContentBuilder builder,
+        Params params,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        ShardOperationFailedException[] shardFailures,
+        ToXContentFragment additional
+    ) throws IOException {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
         builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
@@ -125,6 +145,9 @@ public class RestActions {
                 shardFailure.toXContent(builder, params);
             }
             builder.endArray();
+        }
+        if (additional != null) {
+            additional.toXContent(builder, params);
         }
         builder.endObject();
     }
