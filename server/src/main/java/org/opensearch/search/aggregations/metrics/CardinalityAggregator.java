@@ -53,7 +53,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.OpenSearchStatusException;
+
 import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.lease.Releasable;
@@ -65,7 +65,7 @@ import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.rest.RestStatus;
+
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -278,6 +278,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Weight weight = context.query().rewrite(context.searcher()).createWeight(context.searcher(), ScoreMode.TOP_DOCS, 1f);
             Scorer scorer = weight.scorer(ctx);
             if (scorer == null) {
+                Releasables.close(pruningCollector);
                 return false;
             }
             pruningCollector.setScorer(scorer);
@@ -287,13 +288,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             pruningCollector.postCollect();
             Releasables.close(pruningCollector);
         } catch (Exception e) {
-            throw new OpenSearchStatusException(
-                "Failed when performing dynamic pruning in cardinality aggregation. You can set cluster setting ["
-                    + CARDINALITY_AGGREGATION_PRUNING_THRESHOLD.getKey()
-                    + "] to 0 to disable.",
-                RestStatus.INTERNAL_SERVER_ERROR,
+            Releasables.closeWhileHandlingException(pruningCollector);
+            logger.warn(
+                "Dynamic pruning failed for cardinality aggregation, falling back to non-pruning path. "
+                    + "You can set cluster setting [{}] to 0 to disable this optimization.",
+                CARDINALITY_AGGREGATION_PRUNING_THRESHOLD.getKey(),
                 e
             );
+            return false;
         }
         return true;
     }
