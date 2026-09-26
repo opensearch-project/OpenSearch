@@ -45,6 +45,7 @@ public final class AnalyticsStatsCollector {
 
     private final LatencyTotals queriesElapsed = new LatencyTotals();
     private final LatencyTotals queriesPlanning = new LatencyTotals();
+    private final LongAdder queriesPlanningFailed = new LongAdder();
 
     private final ConcurrentMap<String, StageCounters> byStageType = new ConcurrentHashMap<>();
 
@@ -52,6 +53,14 @@ public final class AnalyticsStatsCollector {
     private final LongAdder fragmentsSucceeded = new LongAdder();
     private final LongAdder fragmentsFailed = new LongAdder();
     private final LatencyTotals fragmentsElapsed = new LatencyTotals();
+
+    /**
+     * Records a planning-phase failure. Called from {@code DefaultPlanExecutor.doExecute}
+     * when an exception escapes {@code executeInternal} before execution begins.
+     */
+    public void recordPlanningFailure() {
+        queriesPlanningFailed.increment();
+    }
 
     /**
      * Folds a completed query's execution into the rollup. Called once per query
@@ -136,7 +145,11 @@ public final class AnalyticsStatsCollector {
 
     /** Builds an immutable snapshot of all counters at this instant. */
     public AnalyticsStats snapshot() {
-        AnalyticsStats.Queries queries = new AnalyticsStats.Queries(queriesElapsed.snapshot(), queriesPlanning.snapshot());
+        AnalyticsStats.Queries queries = new AnalyticsStats.Queries(
+            queriesElapsed.snapshot(),
+            queriesPlanning.snapshot(),
+            queriesPlanningFailed.sum()
+        );
         Map<String, AnalyticsStats.StageBucket> stageMap = new TreeMap<>();
         for (Map.Entry<String, StageCounters> e : byStageType.entrySet()) {
             StageCounters c = e.getValue();
