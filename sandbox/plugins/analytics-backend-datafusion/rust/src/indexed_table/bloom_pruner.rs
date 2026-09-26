@@ -163,6 +163,9 @@ async fn bloom_prune_rg_inner(
         let col_chunk = rg_meta.column(col_idx);
 
         // Check if bloom filter metadata is available.
+        // TODO [df55-followup]: this hand-rolled probe skips columns lacking bloom_filter_length; adopt
+        // parquet-59's get_row_group_column_bloom_filter + header-probe to recover pruning for files that
+        // omit the length (datafusion#23302 exposes public prune_by_bloom_filters/BloomFilterStatistics; B-4 in ../../implementation/df55-new-api-adoption-tasklist.md). Correctness/coverage.
         let bf_offset: u64 = match col_chunk.bloom_filter_offset() {
             Some(offset) if offset >= 0 => offset as u64,
             _ => continue, // no bloom filter for this column

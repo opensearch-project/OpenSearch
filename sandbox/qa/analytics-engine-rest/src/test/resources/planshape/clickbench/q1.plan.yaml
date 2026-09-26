@@ -10,11 +10,11 @@ plans:
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
           OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
             OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
-              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+              OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
-        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
@@ -30,8 +30,8 @@ plans:
   prod1s:
     post_cbo: |
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
-        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
-        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
