@@ -65,20 +65,29 @@ public class OpenSearchDistributionSatisfiesTests extends OpenSearchTestCase {
         assertTrue(h.satisfies(h));
     }
 
-    public void testFinerHashSatisfiesCoarserHash() {
-        // HASH(k1, k2) satisfies HASH(k1) — rows colocated by hash(k1, k2) are also colocated
-        // by hash(k1). Demanded keys must be a prefix of produced keys.
-        OpenSearchDistribution finer = traitDef.hash(List.of(0, 1), 4);
-        OpenSearchDistribution coarser = traitDef.hash(List.of(0), 4);
-        assertTrue(finer.satisfies(coarser));
+    public void testHashOnMoreKeysDoesNotSatisfyDemandOnFewer() {
+        // HASH(k1, k2) does NOT satisfy a demand for HASH(k1). The partition of a row is a function of the
+        // WHOLE key tuple: the producer builds DataFusion's Partitioning::Hash(exprs, n) over every key and
+        // partitions with DataFusion's own BatchPartitioner (create_hashes over all exprs, then % n — see
+        // partition_batch_by_hash in api.rs). So two rows sharing k1 but differing in k2 land in DIFFERENT
+        // partitions, and a consumer keyed on k1 alone (a join on k1, or GROUP BY k1) would see its groups
+        // split across workers.
+        //
+        // This direction was once asserted to hold, on the reasoning that "rows colocated by hash(k1,k2) are
+        // also colocated by hash(k1)" — true of sorting/clustering, false of hashing a tuple.
+        OpenSearchDistribution onTwoKeys = traitDef.hash(List.of(0, 1), 4);
+        OpenSearchDistribution demandOnOne = traitDef.hash(List.of(0), 4);
+        assertFalse(onTwoKeys.satisfies(demandOnOne));
     }
 
-    public void testCoarserHashDoesNotSatisfyFinerHash() {
-        // HASH(k1) does NOT satisfy HASH(k1, k2) — partitioning by k1 alone doesn't colocate
-        // rows by k2.
-        OpenSearchDistribution coarser = traitDef.hash(List.of(0), 4);
-        OpenSearchDistribution finer = traitDef.hash(List.of(0, 1), 4);
-        assertFalse(coarser.satisfies(finer));
+    public void testHashOnFewerKeysSatisfiesDemandOnMore() {
+        // HASH(k1) DOES satisfy a demand for HASH(k1, k2): every (k1, k2) group is a subset of a k1 group,
+        // and the whole k1 group lives in one partition — so the finer grouping is whole there too. Coarser
+        // satisfies finer, i.e. produced keys must be a SUBSET of demanded keys (the direction DataFusion's
+        // own Partitioning::satisfy and Spark's HashPartitioning.satisfies(ClusteredDistribution) use).
+        OpenSearchDistribution onOneKey = traitDef.hash(List.of(0), 4);
+        OpenSearchDistribution demandOnTwo = traitDef.hash(List.of(0, 1), 4);
+        assertTrue(onOneKey.satisfies(demandOnTwo));
     }
 
     public void testHashWithDifferentPartitionCountsDoNotSatisfy() {
