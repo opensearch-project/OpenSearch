@@ -168,7 +168,9 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -313,6 +315,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
      */
     @Nullable
     private MockEventuallyConsistentRepository.Context blobStoreContext;
+
+    private volatile boolean blockRepositoryDeletes = false;
 
     @Before
     public void createServices() {
@@ -1654,6 +1658,56 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }, TimeUnit.MINUTES.toMillis(1L));
     }
 
+    // A delete whose repository I/O hangs must still terminate via the I/O timeout
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testDeleteTimesOutWhenRepositoryHangs() {
+        blobStoreContext = null; // use the plain FsRepository, which hangs deleteSnapshots when blockRepositoryDeletes is set
+        setupTestCluster(1, 1);
+
+        final String repoName = "repo";
+        final String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 5);
+
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentClusterManager(
+            testClusterNodes.nodes.values().iterator().next().clusterService.state()
+        );
+
+        final StepListener<CreateSnapshotResponse> createSnapshotListener = new StepListener<>();
+        continueOrDie(
+            createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .execute(createSnapshotListener)
+        );
+
+        final StepListener<AcknowledgedResponse> deleteListener = new StepListener<>();
+        continueOrDie(createSnapshotListener, createSnapshotResponse -> {
+            blockRepositoryDeletes = true;
+            client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteListener);
+        });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(
+            "a delete should be in progress while the repository hangs",
+            clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress()
+        );
+
+        runUntil(
+            () -> clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress() == false,
+            TimeValue.timeValueHours(1).millis()
+        );
+
+        blockRepositoryDeletes = false;
+    }
+
     private void runUntil(Supplier<Boolean> fulfilled, long timeout) {
         final long start = deterministicTaskQueue.getCurrentTimeMillis();
         while (timeout > deterministicTaskQueue.getCurrentTimeMillis() - start) {
@@ -2568,6 +2622,19 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         @Override
                         protected void assertSnapshotOrGenericThread() {
                             // eliminate thread name check as we create repo in the test thread
+                        }
+
+                        @Override
+                        public void deleteSnapshots(
+                            Collection<SnapshotId> snapshotIds,
+                            long repositoryStateId,
+                            Version repositoryMetaVersion,
+                            ActionListener<RepositoryData> listener
+                        ) {
+                            if (blockRepositoryDeletes) {
+                                return; // never complete, simulating a hung store
+                            }
+                            super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
                         }
                     };
                 } else {
