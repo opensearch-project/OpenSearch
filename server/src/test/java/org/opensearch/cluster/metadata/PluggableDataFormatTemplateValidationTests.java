@@ -20,6 +20,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,10 +44,16 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        // MockCommitterEnginePlugin supplies a committer factory so EngineConfigFactory accepts pluggable
-        // indices; MockDocValuesDataFormatPlugin registers the "mock-dv" data format (columnar storage
-        // only for doc-values-backed types) so the capability path rejects index:true.
-        return List.of(MockCommitterEnginePlugin.class, MockDocValuesDataFormatPlugin.class);
+        // MockDocValuesDataFormatPlugin registers the "mock-dv" data format (columnar storage only for
+        // doc-values-backed types) so the capability path rejects index:true.
+        // EngineConfigFactory permits exactly one committer factory per node; when the sandbox stack is
+        // installed, its LucenePlugin supplies the real committer, so the in-memory mock committer is only
+        // registered in the plugin-free run.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(List.of(MockDocValuesDataFormatPlugin.class));
+        if (shouldInstallSandboxStack() == false) {
+            plugins.add(MockCommitterEnginePlugin.class);
+        }
+        return plugins;
     }
 
     @Override
