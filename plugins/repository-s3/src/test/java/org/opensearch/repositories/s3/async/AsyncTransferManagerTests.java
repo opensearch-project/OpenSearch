@@ -51,6 +51,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -235,20 +237,27 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         verify(s3AsyncClient, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
     }
 
-    public void testMultipartUploadWithoutResponseChecksums() throws Exception {
+    public void testMultipartUploadWithoutResponseChecksumsFailsClosed() throws Exception {
+        assertMissingChecksumFails(1);
+    }
+
+    public void testMultipartUploadWithOneMissingResponseChecksumFailsClosed() throws Exception {
+        assertMissingChecksumFails(2);
+    }
+
+    private void assertMissingChecksumFails(int missingPartNumber) throws Exception {
         CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = new CompletableFuture<>();
         createMultipartUploadFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
         when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadFuture);
 
-        CompletableFuture<UploadPartResponse> uploadPartFuture = new CompletableFuture<>();
-        uploadPartFuture.complete(UploadPartResponse.builder().build());
-        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(uploadPartFuture);
-
-        CompletableFuture<CompleteMultipartUploadResponse> completeMultipartUploadFuture = new CompletableFuture<>();
-        completeMultipartUploadFuture.complete(CompleteMultipartUploadResponse.builder().build());
-        when(s3AsyncClient.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
-            completeMultipartUploadFuture
-        );
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenAnswer(invocation -> {
+            UploadPartRequest request = invocation.getArgument(0);
+            UploadPartResponse.Builder response = UploadPartResponse.builder();
+            if (request.partNumber() != missingPartNumber) {
+                response.checksumCRC32("pzjqHA==");
+            }
+            return CompletableFuture.completedFuture(response.build());
+        });
 
         CompletableFuture<AbortMultipartUploadResponse> abortMultipartUploadFuture = new CompletableFuture<>();
         abortMultipartUploadFuture.complete(AbortMultipartUploadResponse.builder().build());
@@ -266,11 +275,50 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             new StatsMetricPublisher()
         );
 
-        resultFuture.get(5, TimeUnit.SECONDS);
+        ExecutionException exception = expectThrows(ExecutionException.class, () -> resultFuture.get(5, TimeUnit.SECONDS));
+        IllegalStateException cause = (IllegalStateException) ExceptionsHelper.unwrap(exception, IllegalStateException.class);
+        assertNotNull(cause);
+        assertTrue(cause.getMessage(), cause.getMessage().contains("part " + missingPartNumber + " of file [key]"));
+        assertTrue(cause.getMessage(), cause.getMessage().contains("remote_integrity_check_enabled"));
 
         verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
-        verify(s3AsyncClient, times(1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+    }
+
+    public void testMultipartUploadWithoutRemoteIntegrityCheck() throws Exception {
+        when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CompletableFuture.completedFuture(CreateMultipartUploadResponse.builder().uploadId("uploadId").build())
+        );
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(
+            CompletableFuture.completedFuture(UploadPartResponse.builder().build())
+        );
+        when(s3AsyncClient.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            CompletableFuture.completedFuture(CompleteMultipartUploadResponse.builder().build())
+        );
+
+        asyncTransferManager.uploadObject(
+            s3AsyncClient,
+            buildUploadRequest(false, 3376132981L),
+            new StreamContext(
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
+                ByteSizeUnit.MB.toBytes(1),
+                ByteSizeUnit.MB.toBytes(1),
+                5
+            ),
+            new StatsMetricPublisher()
+        ).get(5, TimeUnit.SECONDS);
+
+        ArgumentCaptor<CreateMultipartUploadRequest> createRequest = ArgumentCaptor.forClass(CreateMultipartUploadRequest.class);
+        verify(s3AsyncClient).createMultipartUpload(createRequest.capture());
+        assertNull(createRequest.getValue().checksumAlgorithm());
+        ArgumentCaptor<UploadPartRequest> partRequest = ArgumentCaptor.forClass(UploadPartRequest.class);
+        verify(s3AsyncClient, times(5)).uploadPart(partRequest.capture(), any(AsyncRequestBody.class));
+        partRequest.getAllValues().forEach(request -> assertNull(request.checksumAlgorithm()));
+        ArgumentCaptor<CompleteMultipartUploadRequest> completionRequest = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
+        verify(s3AsyncClient).completeMultipartUpload(completionRequest.capture());
+        completionRequest.getValue().multipartUpload().parts().forEach(part -> assertNull(part.checksumCRC32()));
         verify(s3AsyncClient, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
     }
 

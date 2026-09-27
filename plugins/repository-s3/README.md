@@ -2,6 +2,17 @@
 
 The repository-s3 plugin enables the use of S3 as a place to store snapshots.
 
+## S3-compatible stores without CRC32 response checksums
+
+Parallel multipart uploads with remote integrity checking enabled require CRC32
+checksums from the S3 service. A missing `UploadPart` response checksum fails
+the upload with a descriptive error rather
+than silently bypassing remote integrity verification. For a compatible service
+that does not implement these checksums, set `remote_integrity_check_enabled` to
+`false` in the S3 repository settings. For uploads with an expected file
+checksum, this verifies the bytes read locally, but cannot verify the bytes
+stored by the service.
+
 ## Testing
 
 ### Unit Tests

@@ -317,7 +317,8 @@ public class AsyncPartsHandler {
                     inputStreamContainers,
                     uploadPartResponse,
                     partNumber,
-                    uploadRequest.doRemoteDataIntegrityCheck()
+                    uploadRequest.doRemoteDataIntegrityCheck(),
+                    uploadRequest.getKey()
                 )
             );
         futures.add(convertFuture);
@@ -330,17 +331,26 @@ public class AsyncPartsHandler {
         AtomicReferenceArray<CheckedContainer> inputStreamContainers,
         UploadPartResponse partResponse,
         int partNumber,
-        boolean isRemoteDataIntegrityCheckEnabled
+        boolean isRemoteDataIntegrityCheckEnabled,
+        String fileName
     ) {
         CompletedPart.Builder completedPartBuilder = CompletedPart.builder().eTag(partResponse.eTag()).partNumber(partNumber);
         if (isRemoteDataIntegrityCheckEnabled) {
             String checksumCRC32 = partResponse.checksumCRC32();
-            if (checksumCRC32 != null) {
-                completedPartBuilder.checksumCRC32(checksumCRC32);
-                CheckedContainer inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
-                inputStreamCRC32Container.setChecksum(checksumCRC32);
-                inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
+            if (checksumCRC32 == null) {
+                throw new IllegalStateException(
+                    "UploadPart response for part "
+                        + partNumber
+                        + " of file ["
+                        + fileName
+                        + "] did not include a CRC32 checksum; for an S3-compatible service without checksum support, "
+                        + "set repository setting [remote_integrity_check_enabled] to false"
+                );
             }
+            completedPartBuilder.checksumCRC32(checksumCRC32);
+            CheckedContainer inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
+            inputStreamCRC32Container.setChecksum(checksumCRC32);
+            inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
         }
         CompletedPart completedPart = completedPartBuilder.build();
         completedParts.set(partNumber - 1, completedPart);

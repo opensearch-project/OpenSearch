@@ -85,10 +85,6 @@ import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -633,17 +629,22 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     }
 
     public void testFailureWhenLargeFileRedirected() throws IOException, InterruptedException {
-        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.LOW);
-        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.NORMAL);
+        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.LOW, false);
+        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.NORMAL, false);
     }
 
     public void testLargeFileRedirected() throws IOException, InterruptedException {
-        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.LOW);
-        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.NORMAL);
+        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.LOW, false);
+        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.NORMAL, false);
     }
 
-    private void testLargeFilesRedirectedToSlowSyncClient(boolean expectException, WritePriority writePriority) throws IOException,
-        InterruptedException {
+    public void testLargeFileRedirectedWithFinalizerFailure() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.NORMAL, true);
+    }
+
+    private void testLargeFilesRedirectedToSlowSyncClient(boolean uploadPartFails, WritePriority writePriority, boolean finalizerFails)
+        throws IOException, InterruptedException {
+        boolean expectException = uploadPartFails || finalizerFails;
         ByteSizeValue capacity = new ByteSizeValue(1, ByteSizeUnit.GB);
         int numberOfParts = 20;
         final ByteSizeValue partSize = new ByteSizeValue(capacity.getBytes() / numberOfParts + 1, ByteSizeUnit.BYTES);
@@ -711,7 +712,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             .uploadId(randomAlphaOfLength(10))
             .build();
         when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadResponse);
-        if (expectException) {
+        if (uploadPartFails) {
             when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(
                 SdkException.create("Expected upload part request to fail", new RuntimeException())
             );
@@ -728,7 +729,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         );
 
         List<InputStream> openInputStreams = new ArrayList<>();
-        final S3BlobContainer s3BlobContainer = Mockito.spy(new S3BlobContainer(blobPath, blobStore));
+        final S3BlobContainer s3BlobContainer = new S3BlobContainer(blobPath, blobStore);
+        AtomicBoolean finalizerCalled = new AtomicBoolean();
 
         StreamContextSupplier streamContextSupplier = partSize1 -> new StreamContext((partNo, size, position) -> {
             InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
@@ -741,7 +743,13 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             .fileSize(blobSize)
             .failIfAlreadyExists(false)
             .writePriority(writePriority)
-            .uploadFinalizer(Assert::assertTrue)
+            .uploadFinalizer(uploadSuccess -> {
+                Assert.assertTrue(uploadSuccess);
+                finalizerCalled.set(true);
+                if (finalizerFails) {
+                    throw new IOException("Expected local checksum validation to fail");
+                }
+            })
             .doRemoteDataIntegrityCheck(false)
             .metadata(new HashMap<>())
             .build();
@@ -753,14 +761,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         } else {
             assertNull(exceptionRef.get());
         }
-        verify(s3BlobContainer, times(1)).executeMultipartUpload(
-            any(S3BlobStore.class),
-            anyString(),
-            any(InputStream.class),
-            anyLong(),
-            anyMap(),
-            isNull()
-        );
+        assertEquals(uploadPartFails == false, finalizerCalled.get());
+        verify(client, times(expectException ? 0 : 1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
 
         if (expectException) {
             verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
