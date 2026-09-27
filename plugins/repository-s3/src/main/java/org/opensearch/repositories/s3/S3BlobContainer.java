@@ -836,6 +836,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 );
             }
 
+            // Validate locally read bytes before committing the multipart upload, so a failure aborts it in the finally block.
             if (uploadFinalizer != null) {
                 uploadFinalizer.accept(true);
             }

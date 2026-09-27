@@ -232,8 +232,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
 
     /**
-     * Require the S3 service to return CRC32 checksums for multipart uploads. When disabled,
-     * the transfer container verifies the bytes read locally when an expected checksum is available.
+     * Repository setting (not a node setting): require the S3 service to return CRC32 checksums for multipart uploads.
+     * When disabled, the transfer container verifies the bytes read locally when an expected checksum is available.
      */
     static final Setting<Boolean> REMOTE_INTEGRITY_CHECK_ENABLED = Setting.boolSetting("remote_integrity_check_enabled", true);
 
