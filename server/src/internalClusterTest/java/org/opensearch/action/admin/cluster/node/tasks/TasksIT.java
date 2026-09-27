@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -51,6 +52,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportReplicationActionTests;
@@ -60,6 +62,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
@@ -865,6 +868,16 @@ public class TasksIT extends AbstractTasksIT {
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
 
+        assertTrue(client().admin().cluster().prepareDeleteTask(taskId).get().isAcknowledged());
+        assertBusy(() -> {
+            assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+            SearchResponse deleteSearchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
+                .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.idsQuery().addIds(taskId.toString())))
+                .get();
+            assertEquals(0L, deleteSearchResponse.getHits().getTotalHits().value());
+        });
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(taskId).get());
+
         // run it again to check that the tasks index has been successfully created and can be re-used
         client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
         events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
@@ -904,6 +917,9 @@ public class TasksIT extends AbstractTasksIT {
         GetTaskResponse getResponse = expectFinishedTask(failedTaskId);
         assertNull(getResponse.getTask().getResponse());
         assertEquals(error, getResponse.getTask().getErrorAsMap());
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(failedTaskId).get().isAcknowledged());
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(failedTaskId).get());
     }
 
     public void testGetTaskNotFound() throws Exception {
@@ -957,6 +973,80 @@ public class TasksIT extends AbstractTasksIT {
 
         assertNotNull(taskResult.getError());
         assertNull(taskResult.getResponse());
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(task.getTaskId()).get().isAcknowledged());
+        expectNotFound(() -> client().admin().cluster().prepareDeleteTask(task.getTaskId()).get());
+    }
+
+    public void testDeleteTaskResultRequiresLeafFirstOrder() throws Exception {
+        TaskId parentTaskId = new TaskId("fake", 100);
+        TaskId childTaskId = new TaskId("fake", 101);
+        TaskId grandchildTaskId = new TaskId("fake", 102);
+        storeTaskResult(parentTaskId, TaskId.EMPTY_TASK_ID);
+        storeTaskResult(childTaskId, parentTaskId);
+        storeTaskResult(grandchildTaskId, childTaskId);
+
+        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertDeleteTaskConflict(parentTaskId, "stored child task results");
+        assertDeleteTaskConflict(childTaskId, "stored child task results");
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(grandchildTaskId).get().isAcknowledged());
+        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertTrue(client().admin().cluster().prepareDeleteTask(childTaskId).get().isAcknowledged());
+        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertTrue(client().admin().cluster().prepareDeleteTask(parentTaskId).get().isAcknowledged());
+    }
+
+    public void testDeleteTaskResultRejectsRunningChild() throws Exception {
+        TaskId parentTaskId = new TaskId("fake", 200);
+        storeTaskResult(parentTaskId, TaskId.EMPTY_TASK_ID);
+
+        TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
+        request.setParentTask(parentTaskId);
+        ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request);
+        try {
+            assertBusy(() -> {
+                List<TaskInfo> childTasks = client().admin().cluster().prepareListTasks().setParentTaskId(parentTaskId).get().getTasks();
+                assertThat(childTasks, hasSize(1));
+            });
+            assertDeleteTaskConflict(parentTaskId, "running child tasks");
+        } finally {
+            new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
+        }
+        future.get();
+
+        assertTrue(client().admin().cluster().prepareDeleteTask(parentTaskId).get().isAcknowledged());
+    }
+
+    private void storeTaskResult(TaskId taskId, TaskId parentTaskId) throws IOException {
+        TaskInfo storedTaskInfo = new TaskInfo(
+            taskId,
+            "test_type",
+            "test_action",
+            "test_description",
+            null,
+            0L,
+            1L,
+            false,
+            false,
+            parentTaskId,
+            Collections.emptyMap(),
+            null,
+            null
+        );
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        internalCluster().getInstance(TaskResultsService.class)
+            .storeResult(new TaskResult(storedTaskInfo, new RuntimeException("test")), future);
+        future.actionGet();
+    }
+
+    private void assertDeleteTaskConflict(TaskId taskId, String expectedMessage) {
+        OpenSearchStatusException exception = expectThrows(
+            OpenSearchStatusException.class,
+            () -> client().admin().cluster().prepareDeleteTask(taskId).get()
+        );
+        assertEquals(RestStatus.CONFLICT, exception.status());
+        assertThat(exception.getMessage(), containsString(expectedMessage));
     }
 
     public void testStoreTaskResultFailsDueToMissingIndexMappingFields() throws IOException {

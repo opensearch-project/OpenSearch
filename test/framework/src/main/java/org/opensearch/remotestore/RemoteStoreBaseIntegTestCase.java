@@ -35,6 +35,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
@@ -83,6 +84,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected boolean clusterSettingsSuppliedByTest = false;
     protected boolean asyncUploadMockFsRepo = randomBoolean();
     private boolean metadataSupportedType = randomBoolean();
+    protected boolean remoteStoreFencing = randomFencingMode();
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -157,11 +159,40 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
         }
-        if (clusterSettingsSuppliedByTest) {
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
-        } else {
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreRepoSettings()).build();
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        if (clusterSettingsSuppliedByTest == false) {
+            settings.put(remoteStoreRepoSettings());
         }
+        if (remoteStoreFencingForAllIndices()) {
+            logger.info("Running with remote store fencing enabled for all indices");
+            settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true);
+        }
+        return settings.build();
+    }
+
+    /**
+     * When {@code true}, the whole test runs with the object-store fence engaged: the dynamic cluster default
+     * ({@code cluster.remote_store.fencing.enabled}) is put into every node's settings, and since that default is
+     * baked into the final {@code index.remote_store.fencing.enabled} index setting at creation time, every
+     * remote-store-backed index the test creates is fenced — with no per-test changes. This is exactly the path an
+     * operator enabling the feature fleet-wide takes.
+     * <p>
+     * Randomized per test from the test seed (like {@code asyncUploadMockFsRepo} above), so CI exercises the
+     * existing remote store + segment replication regression surface in both modes across runs; reproduce a given
+     * choice with {@code -Dtests.seed}, or force one mode for a whole run with
+     * {@code -Dtests.remote_store.fencing=true|false}. Suites that manage fencing explicitly should override this
+     * to return {@code false}.
+     */
+    protected boolean remoteStoreFencingForAllIndices() {
+        return remoteStoreFencing;
+    }
+
+    protected static boolean randomFencingMode() {
+        String forced = System.getProperty("tests.remote_store.fencing");
+        if (forced != null) {
+            return Boolean.parseBoolean(forced);
+        }
+        return randomBoolean();
     }
 
     protected Settings remoteStoreRepoSettings() {
@@ -258,6 +289,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         clusterSettingsSuppliedByTest = false;
         asyncUploadMockFsRepo = randomBoolean();
         metadataSupportedType = randomBoolean();
+        remoteStoreFencing = randomFencingMode();
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();

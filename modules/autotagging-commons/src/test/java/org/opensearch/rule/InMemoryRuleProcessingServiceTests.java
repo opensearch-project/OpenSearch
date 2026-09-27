@@ -95,13 +95,50 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForExactMatchWithLongestMatchingPrefixCase() {
-        sut.add(getRule(Set.of("test1", "change"), "test_id"));
-        sut.add(getRule(Set.of("test", "double"), "test_id1"));
+        sut.add(getRule(Set.of("test1*", "change"), "test_id"));
+        sut.add(getRule(Set.of("test*", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
         Optional<String> label = sut.evaluateLabel(extractors);
         assertTrue(label.isPresent());
         assertEquals("test_id1", label.get());
+    }
+
+    public void testEvaluateLabelForExactValueDoesNotPrefixMatch() {
+        // A value stored without a trailing wildcard is matched exactly, so a longer request does not match.
+        sut.add(getRule(Set.of("test", "change"), "test_id"));
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertFalse(label.isPresent());
+    }
+
+    public void testEvaluateLabelForLongestWildcardPrefixWins() {
+        // Two wildcard rules both prefix-match the request; the one with the longer matching prefix scores higher and wins.
+        sut.add(getRule(Set.of("test*"), "short_prefix"));
+        sut.add(getRule(Set.of("testi*"), "long_prefix"));
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertTrue(label.isPresent());
+        assertEquals("long_prefix", label.get());
+    }
+
+    public void testRemoveExactValueLeavesSiblingWildcardValue() {
+        // Exact "my-index" and wildcard "my-index*" are stored under distinct keys; removing the exact rule must
+        // not remove the wildcard rule (the pre-fix code stripped '*', conflating the two keys).
+        Rule exactRule = getRule(Set.of("my-index"), "exact_group");
+        Rule wildcardRule = getRule(Set.of("my-index*"), "prefix_group");
+        sut.add(exactRule);
+        sut.add(wildcardRule);
+        sut.remove(exactRule);
+
+        // The wildcard rule still matches both the exact stem and a longer index.
+        assertEquals("prefix_group", sut.evaluateLabel(getAttributeExtractors(List.of("my-index"))).orElse(null));
+        assertEquals("prefix_group", sut.evaluateLabel(getAttributeExtractors(List.of("my-index-1"))).orElse(null));
+
+        sut.remove(wildcardRule);
+        assertFalse(sut.evaluateLabel(getAttributeExtractors(List.of("my-index-1"))).isPresent());
     }
 
     public void testEvaluateLabelForNoMatchWithLongestMatchingPrefixCase() {

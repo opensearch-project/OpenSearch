@@ -37,6 +37,7 @@ use super::index::RowGroupDocsCollector;
 use super::page_pruner::PagePruner;
 use super::stream::{FilterStrategy, RowGroupInfo};
 use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
+use crate::indexed_table::index::CollectDocsResult;
 
 mod boolean_algebra;
 mod constant_predicate;
@@ -152,7 +153,11 @@ struct MockCollector {
 }
 
 impl RowGroupDocsCollector for MockCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -161,7 +166,7 @@ impl RowGroupDocsCollector for MockCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -231,10 +236,11 @@ async fn run_tree_and_plan(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        arrow_schema: schema.clone(),
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
     let tree = tree.push_not_down();
@@ -254,14 +260,18 @@ async fn run_tree_and_plan(
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -273,8 +283,10 @@ async fn run_tree_and_plan(
                         _stream_metrics,
                     ),
                 ),
-                collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

@@ -527,6 +527,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
+                if (entry.getValue() instanceof Map == false) {
+                    throw new OpenSearchParseException("key [mappings] must be an object");
+                }
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());

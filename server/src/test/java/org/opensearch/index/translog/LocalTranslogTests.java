@@ -477,9 +477,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(194L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(139L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -487,9 +487,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(231L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(176L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -497,9 +497,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(273L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(218L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -507,9 +507,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(273L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -519,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(328L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -527,9 +527,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.endObject();
                 assertEquals(
                     "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                        + 326
+                        + 328
                         + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                        + 271
+                        + 273
                         + ",\"earliest_last_modified_age\":"
                         + stats.getEarliestLastModifiedAge()
                         + ",\"remote_store\":{\"upload\":{"
@@ -546,7 +546,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -3612,6 +3612,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
+        String deleteRouting = wireVersion.onOrAfter(Version.V_3_9_0) ? "custom-routing" : null;
         Engine.Delete eDelete = new Engine.Delete(
             doc.id(),
             newUid(doc),
@@ -3622,7 +3623,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             Origin.PRIMARY,
             0,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            0,
+            deleteRouting
         );
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
@@ -3634,6 +3636,76 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         in.setVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
+        assertEquals(deleteRouting, serializedDelete.routing());
+    }
+
+    public void testDeleteRoutingBackwardCompatibility() throws Exception {
+        // Old version writes without routing, new version reads with routing=null
+        BytesStreamOutput out = new BytesStreamOutput();
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.V_3_9_0)
+        );
+        out.setVersion(oldVersion);
+        Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, "tenant-abc");
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(oldVersion);
+        Translog.Delete deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals(1, deserialized.seqNo());
+        assertNull("Routing must be null when written with old format", deserialized.routing());
+
+        // New version writes with routing, new version reads with routing preserved
+        out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        in = out.bytes().streamInput();
+        in.setVersion(Version.CURRENT);
+        deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals("tenant-abc", deserialized.routing());
+    }
+
+    public void testDeleteRoutingTranslogRoundTrip() throws Exception {
+        // Write deletes with and without routing to a real translog, read them back
+        Translog.Location loc1 = translog.add(new Translog.Delete("doc-1", 0, primaryTerm.get(), 1, "tenant-routing"));
+        Translog.Location loc2 = translog.add(new Translog.Delete("doc-2", 1, primaryTerm.get(), 1));
+
+        Translog.Delete readBack1 = (Translog.Delete) translog.readOperation(loc1);
+        assertNotNull(readBack1);
+        assertEquals("doc-1", readBack1.id());
+        assertEquals("tenant-routing", readBack1.routing());
+
+        Translog.Delete readBack2 = (Translog.Delete) translog.readOperation(loc2);
+        assertNotNull(readBack2);
+        assertEquals("doc-2", readBack2.id());
+        assertNull(readBack2.routing());
+
+        // Verify via snapshot as well
+        translog.rollGeneration();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            boolean foundRouted = false;
+            boolean foundUnrouted = false;
+            while ((op = snapshot.next()) != null) {
+                if (op instanceof Translog.Delete) {
+                    Translog.Delete del = (Translog.Delete) op;
+                    if ("doc-1".equals(del.id())) {
+                        assertEquals("tenant-routing", del.routing());
+                        foundRouted = true;
+                    } else if ("doc-2".equals(del.id())) {
+                        assertNull(del.routing());
+                        foundUnrouted = true;
+                    }
+                }
+            }
+            assertTrue("Should find delete with routing in snapshot", foundRouted);
+            assertTrue("Should find delete without routing in snapshot", foundUnrouted);
+        }
     }
 
     public void testRollGeneration() throws Exception {

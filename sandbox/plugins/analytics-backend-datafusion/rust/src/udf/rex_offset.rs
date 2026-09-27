@@ -44,8 +44,8 @@ use datafusion::logical_expr::{
 };
 use regex::Regex;
 
-use super::{coerce_args, CoerceMode};
 use super::rex_extract::compile_pattern;
+use super::{coerce_args, CoerceMode};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(RexOffsetUdf::new()));
@@ -108,13 +108,16 @@ impl ScalarUDFImpl for RexOffsetUdf {
         let input_arr = args.args[0].clone().into_array(n)?;
         let input = StringArrayView::from_array(&input_arr)?;
 
-        let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(args.args[1].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let pattern_array: Option<StringArrayView<'_>> =
-            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let pattern_arr_ref: Option<ArrayRef> =
+            if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
+                Some(args.args[1].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let pattern_array: Option<StringArrayView<'_>> = pattern_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
 
         let mut builder = StringBuilder::with_capacity(n, n * 32);
         for i in 0..n {
@@ -123,7 +126,10 @@ impl ScalarUDFImpl for RexOffsetUdf {
                 continue;
             };
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
+            let regex: &Regex = match (
+                &scalar_regex,
+                pattern_array.as_ref().and_then(|a| a.cell(i)),
+            ) {
                 (Some(r), _) => r,
                 (None, Some(s)) => {
                     regex_owned = compile_pattern(s)?;
@@ -229,7 +235,10 @@ mod tests {
         // Java calls `matcher.find()` once, then walks named groups within
         // that single match. Subsequent matches don't contribute.
         let r = compile_pattern("(?<n>\\d+)").unwrap();
-        assert_eq!(calculate_offsets(&r, "12 then 34"), Some("n=0-1".to_string()));
+        assert_eq!(
+            calculate_offsets(&r, "12 then 34"),
+            Some("n=0-1".to_string())
+        );
     }
 
     #[test]

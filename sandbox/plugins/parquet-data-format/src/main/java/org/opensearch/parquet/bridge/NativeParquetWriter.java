@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
@@ -31,6 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * if instances are shared across threads.
  */
 public class NativeParquetWriter {
+
+    private static final Logger logger = LogManager.getLogger(NativeParquetWriter.class);
 
     private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
     private final String filePath;
@@ -151,6 +155,25 @@ public class NativeParquetWriter {
      */
     public RowIdMapping getRowIdMapping() {
         return rowIdMapping.get();
+    }
+
+    /**
+     * Removes the native writer registry entry for this file without finalizing it. Idempotent and
+     * best-effort: safe to call after a failed/partial flush, and a no-op if this writer was never
+     * initialized (no native entry exists) or was already flushed (finalize already removed it).
+     * Never throws — intended for the shard close / going-red teardown path, where it guarantees a
+     * writer stranded by a failed operation does not survive as a stale entry and block recovery's
+     * re-create for the same file.
+     */
+    public void cleanup() {
+        if (initialized == false) {
+            return; // no native entry was ever created
+        }
+        try {
+            RustBridge.cleanupWriter(filePath);
+        } catch (Exception e) {
+            logger.warn("Failed to clean up native writer for {}: {}", filePath, e.getMessage());
+        }
     }
 
 }

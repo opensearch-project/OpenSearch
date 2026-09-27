@@ -1,0 +1,58 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "l_orderkey": {
+        "type": "long"
+      },
+      "l_partkey": {
+        "type": "long"
+      },
+      "l_suppkey": {
+        "type": "long"
+      },
+      "l_linenumber": {
+        "type": "integer"
+      },
+      "l_quantity": {
+        "type": "double"
+      },
+      "l_extendedprice": {
+        "type": "double"
+      },
+      "l_discount": {
+        "type": "double"
+      },
+      "l_tax": {
+        "type": "double"
+      },
+      "l_returnflag": {
+        "type": "keyword"
+      },
+      "l_linestatus": {
+        "type": "keyword"
+      },
+      "l_shipdate": {
+        "type": "date"
+      },
+      "l_commitdate": {
+        "type": "date"
+      },
+      "l_receiptdate": {
+        "type": "date"
+      },
+      "l_shipinstruct": {
+        "type": "keyword"
+      },
+      "l_shipmode": {
+        "type": "keyword"
+      },
+      "l_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

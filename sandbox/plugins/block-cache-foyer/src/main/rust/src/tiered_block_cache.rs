@@ -25,8 +25,8 @@
 //! via `RecoverMode::Quiet`. After restart, `get()` probes metadata cache first
 //! and finds the recovered entries — zero S3 calls for metadata.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use bytes::Bytes;
 
@@ -98,7 +98,8 @@ impl TieredBlockCache {
     pub fn update_max_metadata_entry_size(&self, size: u64) {
         self.max_metadata_entry_size.store(size, Ordering::Relaxed);
         native_bridge_common::log_info!(
-            "[tiered-block-cache] max_metadata_entry_size updated to {}B", size
+            "[tiered-block-cache] max_metadata_entry_size updated to {}B",
+            size
         );
     }
 
@@ -106,7 +107,8 @@ impl TieredBlockCache {
     pub fn update_max_data_entry_size(&self, size: u64) {
         self.max_data_entry_size.store(size, Ordering::Relaxed);
         native_bridge_common::log_info!(
-            "[tiered-block-cache] max_data_entry_size updated to {}B", size
+            "[tiered-block-cache] max_data_entry_size updated to {}B",
+            size
         );
     }
 
@@ -145,9 +147,10 @@ impl BlockCache for TieredBlockCache {
         self
     }
 
-    fn get<'a>(&'a self, key: &'a CacheKey)
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
-    {
+    fn get<'a>(
+        &'a self,
+        key: &'a CacheKey,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>> {
         Box::pin(async move {
             // Metadata cache first — small SSD, fast probe, never evicts.
             // On warm restart, Foyer recovers these from disk — instant hit.

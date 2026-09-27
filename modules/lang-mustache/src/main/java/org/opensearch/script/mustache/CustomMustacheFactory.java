@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
@@ -102,6 +103,12 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         } catch (IOException e) {
             throw new MustacheException("Unable to encode value", e);
         }
+    }
+
+    /** Partial templates ({{>name}}) are not supported. */
+    @Override
+    public Reader getReader(String resourceName) {
+        throw new MustacheException("Partial templates are not supported in OpenSearch Mustache scripts: [" + resourceName + "]");
     }
 
     static Encoder createEncoder(String mimeType) {

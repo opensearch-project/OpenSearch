@@ -31,7 +31,9 @@ pub struct CrcWriter<W: Write> {
 impl<W: Write> CrcWriter<W> {
     pub fn new(inner: W) -> (Self, CrcHandle) {
         let hasher = Arc::new(Mutex::new(crc32fast::Hasher::new()));
-        let handle = CrcHandle { hasher: hasher.clone() };
+        let handle = CrcHandle {
+            hasher: hasher.clone(),
+        };
         (Self { inner, hasher }, handle)
     }
 }

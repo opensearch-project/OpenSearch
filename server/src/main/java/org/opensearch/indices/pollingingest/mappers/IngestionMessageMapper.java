@@ -34,14 +34,16 @@ public interface IngestionMessageMapper {
     String OP_TYPE_CREATE = "create";
 
     /**
-     * Maps and processes an ingestion message to a shard update message.
+     * Maps an already-decoded message into a shard update.
      *
-     * @param pointer the shard pointer for this message
-     * @param message the message from the streaming source
+     * @param pointer       the shard pointer for this message
+     * @param message       the original message (used for metadata such as timestamp)
+     * @param decodedPayload the payload decoded by the shard's {@link org.opensearch.index.IngestionPayloadDecoder}
      * @return the shard update message
-     * @throws IllegalArgumentException if the message format is invalid
+     * @throws IllegalArgumentException if the decoded payload is structurally invalid
      */
-    ShardUpdateMessage mapAndProcess(IngestionShardPointer pointer, Message message) throws IllegalArgumentException;
+    ShardUpdateMessage mapAndProcess(IngestionShardPointer pointer, Message message, Map<String, Object> decodedPayload)
+        throws IllegalArgumentException;
 
     /**
      * Enum representing different mapper types.

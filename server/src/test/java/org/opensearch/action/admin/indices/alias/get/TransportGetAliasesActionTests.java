@@ -252,6 +252,24 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
         );
     }
 
+    public void testExecutorIsManagement() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        TransportGetAliasesAction action = new TransportGetAliasesAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            mock(SystemIndices.class)
+        );
+        // Serialization of alias metadata can be slow on clusters with many filtered aliases.
+        // The MANAGEMENT executor keeps this work off the Netty transport thread.
+        assertEquals(ThreadPool.Names.MANAGEMENT, action.executor());
+    }
+
     public void testResolveIndices() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(systemIndexTestClusterState());

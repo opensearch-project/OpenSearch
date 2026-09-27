@@ -59,9 +59,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -99,6 +101,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.balance.index",
         0.55f,
         0.0f,
+        Float.MAX_VALUE,
+        new IndexBalanceFactorValidator(),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -106,6 +110,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.balance.shard",
         0.45f,
         0.0f,
+        Float.MAX_VALUE,
+        new ShardBalanceFactorValidator(),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -516,6 +522,67 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      */
     public boolean getPreferPrimaryBalance() {
         return preferPrimaryShardBalance;
+    }
+
+    /**
+     * Validates that the index balance factor, combined with the shard balance factor, sums to a value greater than zero.
+     *
+     * @opensearch.internal
+     */
+    static final class IndexBalanceFactorValidator implements Setting.Validator<Float> {
+
+        @Override
+        public void validate(Float value) {}
+
+        @Override
+        public void validate(final Float value, final Map<Setting<?>, Object> settings) {
+            final float shardBalance = (Float) settings.get(SHARD_BALANCE_FACTOR_SETTING);
+            doValidateBalanceFactorSum(value, shardBalance);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(SHARD_BALANCE_FACTOR_SETTING);
+            return settings.iterator();
+        }
+    }
+
+    /**
+     * Validates that the shard balance factor, combined with the index balance factor, sums to a value greater than zero.
+     *
+     * @opensearch.internal
+     */
+    static final class ShardBalanceFactorValidator implements Setting.Validator<Float> {
+
+        @Override
+        public void validate(Float value) {}
+
+        @Override
+        public void validate(final Float value, final Map<Setting<?>, Object> settings) {
+            final float indexBalance = (Float) settings.get(INDEX_BALANCE_FACTOR_SETTING);
+            doValidateBalanceFactorSum(indexBalance, value);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(INDEX_BALANCE_FACTOR_SETTING);
+            return settings.iterator();
+        }
+    }
+
+    static void doValidateBalanceFactorSum(float indexBalance, float shardBalance) {
+        float sum = indexBalance + shardBalance;
+        if (sum <= 0.0f) {
+            throw new IllegalArgumentException(
+                "Balance factors ["
+                    + INDEX_BALANCE_FACTOR_SETTING.getKey()
+                    + "] and ["
+                    + SHARD_BALANCE_FACTOR_SETTING.getKey()
+                    + "] must sum to a value greater than zero but was ["
+                    + sum
+                    + "]"
+            );
+        }
     }
 
     /**

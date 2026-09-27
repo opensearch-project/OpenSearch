@@ -1450,4 +1450,153 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         return new AggregateFileCacheStats(System.currentTimeMillis(), overallStats, fullStats, blockStats, pinnedStats);
     }
 
+    public void testReadBlockNotReleasedWhenAutoReleaseDisabled() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("remote_index")
+            .settings(
+                settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                    .put("index.routing.allocation.require._id", "warm_node")
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("remote_index")).build();
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .blocks(ClusterBlocks.builder().addBlocks(indexMetadataBuilder.build()).build())
+                .build(),
+            allocation
+        );
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+        Settings settings = Settings.builder().put(DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE.getKey(), false).build();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            settings,
+            () -> clusterState,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> {
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(null);
+            },
+            () -> 2.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    indicesToReleaseReadBlock.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+        Map<String, DiskUsage> builder = new HashMap<>();
+        builder.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 40));
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[remote_index][0][p]", 172L);
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+
+        // With auto_release disabled, read blocks should NOT be released
+        assertNull(indicesToReleaseReadBlock.get());
+    }
+
+    public void testReadBlockReleasedForExcludedPatternsWhenAutoReleaseDisabled() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        // Create a system index (dot-prefixed) and a user index, both with read blocks
+        IndexMetadata.Builder systemIndexBuilder = IndexMetadata.builder(".opensearch-security")
+            .settings(
+                settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                    .put("index.routing.allocation.require._id", "warm_node")
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        IndexMetadata.Builder userIndexBuilder = IndexMetadata.builder("user_index")
+            .settings(
+                settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                    .put("index.routing.allocation.require._id", "warm_node")
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(systemIndexBuilder).put(userIndexBuilder).build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metadata.index(".opensearch-security"))
+            .addAsNew(metadata.index("user_index"))
+            .build();
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .blocks(ClusterBlocks.builder().addBlocks(systemIndexBuilder.build()).addBlocks(userIndexBuilder.build()).build())
+                .build(),
+            allocation
+        );
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+        Settings settings = Settings.builder().put(DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE.getKey(), false).build();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            settings,
+            () -> clusterState,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> {
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(null);
+            },
+            () -> 2.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    indicesToReleaseReadBlock.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+        Map<String, DiskUsage> builder = new HashMap<>();
+        builder.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 40));
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[.opensearch-security][0][p]", 86L);
+        shardSizes.put("[user_index][0][p]", 86L);
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+
+        // With auto_release disabled but default exclude_patterns [".*"],
+        // system index (.opensearch-security) should still be released,
+        // but user_index should NOT be released
+        assertNotNull(indicesToReleaseReadBlock.get());
+        assertTrue(indicesToReleaseReadBlock.get().contains(".opensearch-security"));
+        assertFalse(indicesToReleaseReadBlock.get().contains("user_index"));
+    }
+
 }

@@ -1255,7 +1255,8 @@ public final class IndexModule {
     public MapperService newIndexMapperService(
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService
+        ScriptService scriptService,
+        DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         return new MapperService(
             indexSettings,
@@ -1267,8 +1268,23 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             () -> false,
-            scriptService
+            scriptService,
+            dataFormatRegistry
         );
+    }
+
+    /**
+     * creates a new mapper service to do administrative work like mapping updates. This *should not* be used for document parsing.
+     * doing so will result in an exception.
+     * <p>
+     * Overload retained for binary compatibility; delegates with no pluggable data format registry.
+     */
+    public MapperService newIndexMapperService(
+        NamedXContentRegistry xContentRegistry,
+        MapperRegistry mapperRegistry,
+        ScriptService scriptService
+    ) throws IOException {
+        return newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, null);
     }
 
     /**

@@ -49,7 +49,10 @@ struct SingleRowGroupStatistics<'a> {
 }
 
 impl<'a> SingleRowGroupStatistics<'a> {
-    fn converter<'b>(&'a self, column: &'b Column) -> datafusion::common::Result<StatisticsConverter<'a>> {
+    fn converter<'b>(
+        &'a self,
+        column: &'b Column,
+    ) -> datafusion::common::Result<StatisticsConverter<'a>> {
         Ok(StatisticsConverter::try_new(
             &column.name,
             self.arrow_schema,
@@ -109,6 +112,8 @@ pub struct DynamicRgPruner {
     filter: Arc<dyn PhysicalExpr>,
     /// Full (parquet) schema — used to build the `PruningPredicate`.
     full_schema: SchemaRef,
+    /// Per-segment arrow schema derived from parquet footer.
+    seg_arrow_schema: SchemaRef,
     /// Generation of the snapshot currently cached in `pruning_predicate`.
     /// `u64::MAX` means "nothing cached yet" (forces a build on first use).
     cached_generation: u64,
@@ -124,10 +129,12 @@ impl DynamicRgPruner {
     pub fn new(
         filter: Option<Arc<dyn PhysicalExpr>>,
         full_schema: SchemaRef,
+        seg_arrow_schema: SchemaRef,
     ) -> Option<Self> {
         filter.map(|filter| Self {
             filter,
             full_schema,
+            seg_arrow_schema,
             cached_generation: u64::MAX,
             pruning_predicate: None,
         })
@@ -171,7 +178,7 @@ impl DynamicRgPruner {
             .clone()
             .map(|predicate| RgPruningContext {
                 predicate,
-                schema: Arc::clone(&self.full_schema),
+                seg_arrow_schema: self.seg_arrow_schema.clone(),
             })
     }
 
@@ -194,7 +201,8 @@ impl DynamicRgPruner {
 #[derive(Clone)]
 pub struct RgPruningContext {
     predicate: Arc<PruningPredicate>,
-    schema: SchemaRef,
+    /// Per-segment arrow schema derived from parquet footer.
+    seg_arrow_schema: SchemaRef,
 }
 
 impl RgPruningContext {
@@ -204,19 +212,11 @@ impl RgPruningContext {
         let Some(rg_meta) = metadata.row_groups().get(rg_idx) else {
             return false;
         };
-        // Resolve stats against the segment's OWN parquet schema, not the full table
-        // schema: StatisticsConverter maps name→parquet-column positionally, so the full
-        // schema reads the wrong/no column under dynamic-mapping schema drift.
         let descr = metadata.file_metadata().schema_descr();
-        let seg_schema = datafusion::parquet::arrow::parquet_to_arrow_schema(
-            descr,
-            metadata.file_metadata().key_value_metadata(),
-        )
-        .unwrap_or_else(|_| self.schema.as_ref().clone());
         let stats = SingleRowGroupStatistics {
             parquet_schema: descr,
             rg_meta,
-            arrow_schema: &seg_schema,
+            arrow_schema: &self.seg_arrow_schema,
         };
         // `prune` returns one bool per container (we have exactly one). `false`
         // means "provably cannot match" → safe to skip. Any error => keep.
@@ -232,10 +232,10 @@ mod tests {
     use super::*;
     use datafusion::arrow::array::{Int32Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field};
+    use datafusion::logical_expr::Operator;
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
     use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
-    use datafusion::logical_expr::Operator;
     use tempfile::NamedTempFile;
 
     // Schema drift: the table schema orders columns differently from the segment's own
@@ -280,7 +280,17 @@ mod tests {
         let zero: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
         let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(sev, Operator::GtEq, zero));
         let predicate = Arc::new(PruningPredicate::try_new(expr, table_schema.clone()).unwrap());
-        let ctx = RgPruningContext { predicate, schema: table_schema };
+        let file_arrow_schema = Arc::new(
+            datafusion::parquet::arrow::parquet_to_arrow_schema(
+                md.file_metadata().schema_descr(),
+                md.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
+        let ctx = RgPruningContext {
+            predicate,
+            seg_arrow_schema: file_arrow_schema,
+        };
 
         assert!(
             !ctx.rg_provably_excluded(&md, 0),

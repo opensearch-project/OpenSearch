@@ -25,9 +25,11 @@ public enum StageTaskState {
     /** Terminal failure — the task itself errored or its response stream faulted. */
     FAILED,
     /** Terminal cancellation — the task was cancelled by the parent query or stage. */
-    CANCELLED;
+    CANCELLED,
+    /** Terminal skip — never sent, because the task provably could not contribute to the result. */
+    SKIPPED;
 
     public boolean isTerminal() {
-        return this == FINISHED || this == FAILED || this == CANCELLED;
+        return this == FINISHED || this == FAILED || this == CANCELLED || this == SKIPPED;
     }
 }

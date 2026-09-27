@@ -25,7 +25,9 @@ use datafusion::logical_expr::{
 };
 use serde_json::Value;
 
-use super::json_common::{parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView};
+use super::json_common::{
+    parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView,
+};
 use super::{coerce_slot, CoerceMode};
 
 const NAME: &str = "json_delete";
@@ -95,8 +97,10 @@ impl ScalarUDFImpl for JsonDeleteUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut path_buf: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);

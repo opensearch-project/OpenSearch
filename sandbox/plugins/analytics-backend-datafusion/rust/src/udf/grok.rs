@@ -51,7 +51,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
-use datafusion::arrow::array::{Array, ArrayRef, MapBuilder, MapFieldNames, StringArray, StringBuilder};
+use datafusion::arrow::array::{
+    Array, ArrayRef, MapBuilder, MapFieldNames, StringArray, StringBuilder,
+};
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -87,8 +89,9 @@ static GROK_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
 /// Matches the synthetic `(?<nameN>` capture-group openers in a resolved grok
 /// regex — ported from `GrokUtils.NAMED_REGEX`. Used to recover the group order
 /// for output, mirroring `GrokUtils.getNameGroups`.
-static NAMED_GROUP: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\(\?<([a-zA-Z][a-zA-Z0-9]*)>").expect("NAMED_GROUP is a valid regex"));
+static NAMED_GROUP: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\(\?<([a-zA-Z][a-zA-Z0-9]*)>").expect("NAMED_GROUP is a valid regex")
+});
 
 /// Parsed dictionary: pattern name → definition. Built once.
 static DICTIONARY: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
@@ -375,9 +378,10 @@ impl ScalarUDFImpl for GrokUdf {
                 // fancy-regex returns Result<Option<Captures>>; a runtime regex
                 // error (e.g. backtrack-limit) surfaces as a DataFusion error
                 // rather than a silent miss.
-                resolved.regex.captures(input.value(i)).map_err(|e| {
-                    DataFusionError::Execution(format!("grok: match failed: {e}"))
-                })?
+                resolved
+                    .regex
+                    .captures(input.value(i))
+                    .map_err(|e| DataFusionError::Execution(format!("grok: match failed: {e}")))?
             };
             for (field, group) in &fields {
                 builder.keys().append_value(field);
@@ -475,8 +479,15 @@ mod tests {
     fn number_greedydata_with_lookbehind_and_atomic_group() {
         // testGrokAddressOverriding: "%{NUMBER} %{GREEDYDATA:address}" — NUMBER →
         // BASE10NUM uses lookbehind + atomic group (regex crate would reject).
-        let map = run_grok(vec![Some("880 Holmes Lane")], "%{NUMBER} %{GREEDYDATA:address}").unwrap();
-        assert_eq!(value_for(&map, 0, "address").as_deref(), Some("Holmes Lane"));
+        let map = run_grok(
+            vec![Some("880 Holmes Lane")],
+            "%{NUMBER} %{GREEDYDATA:address}",
+        )
+        .unwrap();
+        assert_eq!(
+            value_for(&map, 0, "address").as_deref(),
+            Some("Holmes Lane")
+        );
     }
 
     #[test]
@@ -501,7 +512,11 @@ mod tests {
     #[test]
     fn unwanted_groups_are_dropped() {
         // NUMBER has no subname → UNWANTED → must not appear as an output key.
-        let map = run_grok(vec![Some("880 Holmes Lane")], "%{NUMBER} %{GREEDYDATA:address}").unwrap();
+        let map = run_grok(
+            vec![Some("880 Holmes Lane")],
+            "%{NUMBER} %{GREEDYDATA:address}",
+        )
+        .unwrap();
         let keys: Vec<String> = row_entries(&map, 0).into_iter().map(|(k, _)| k).collect();
         assert!(keys.contains(&"address".to_string()));
         assert!(!keys.contains(&"UNWANTED".to_string()));

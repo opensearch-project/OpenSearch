@@ -59,12 +59,7 @@ pub trait MetadataCachingStore: ObjectStore {
     /// Promote `data` ranges to the never-evict metadata tier.
     ///
     /// Default: no-op.
-    fn put_metadata(
-        &self,
-        _path: &str,
-        _ranges: &[std::ops::Range<u64>],
-        _data: &[Bytes],
-    ) {}
+    fn put_metadata(&self, _path: &str, _ranges: &[std::ops::Range<u64>], _data: &[Bytes]) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +101,11 @@ impl TieredObjectStore {
     /// Set the remote store (once). Subsequent calls are ignored.
     pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
         let was_set = self.remote.set(store).is_err();
-        native_bridge_common::log_debug!("[warm-tier] set_remote wired={} (already_set={})", !was_set, was_set);
+        native_bridge_common::log_debug!(
+            "[warm-tier] set_remote wired={} (already_set={})",
+            !was_set,
+            was_set
+        );
     }
 
     /// Attach a block cache. Hot nodes skip this; `None` means no caching.
@@ -229,7 +228,11 @@ impl TieredObjectStore {
         match range {
             GetRange::Bounded(r) => Some((r.start, r.end)),
             GetRange::Suffix(n) => {
-                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                let file_size = self
+                    .registry
+                    .get(path_str)
+                    .map(|g| g.size())
+                    .filter(|&s| s > 0);
                 match file_size {
                     Some(size) => Some((size.saturating_sub(*n), size)),
                     None => {
@@ -242,7 +245,11 @@ impl TieredObjectStore {
                 }
             }
             GetRange::Offset(o) => {
-                let file_size = self.registry.get(path_str).map(|g| g.size()).filter(|&s| s > 0);
+                let file_size = self
+                    .registry
+                    .get(path_str)
+                    .map(|g| g.size())
+                    .filter(|&s| s > 0);
                 match file_size {
                     Some(size) => Some((*o, size)),
                     None => {
@@ -276,7 +283,11 @@ impl TieredObjectStore {
     /// Checks if a local read error is NotFound and the file has since transitioned
     /// to REMOTE in the registry (e.g., afterSyncToRemote deleted the local copy).
     /// Returns the remote path + store if retry is possible, None otherwise.
-    fn should_retry_remote(&self, path_str: &str, err: &object_store::Error) -> Option<(Path, Arc<dyn ObjectStore>)> {
+    fn should_retry_remote(
+        &self,
+        path_str: &str,
+        err: &object_store::Error,
+    ) -> Option<(Path, Arc<dyn ObjectStore>)> {
         if matches!(err, object_store::Error::NotFound { .. }) {
             let resolved = self.resolve_remote(path_str);
             if resolved.is_some() {
@@ -294,7 +305,11 @@ impl TieredObjectStore {
     /// Fast-path head response from registry or directory existence check.
     /// Returns `Some(GetResult)` if the head can be answered without I/O,
     /// `None` if the caller should fall through to the normal get_opts path.
-    fn try_head_from_registry(&self, location: &Path, path_str: &str) -> Option<OsResult<GetResult>> {
+    fn try_head_from_registry(
+        &self,
+        location: &Path,
+        path_str: &str,
+    ) -> Option<OsResult<GetResult>> {
         // Check registry for cached file size
         if let Some(guard) = self.registry.get(path_str) {
             let size = guard.size();
@@ -355,9 +370,7 @@ impl TieredObjectStore {
         let (start, end) = self.resolve_range(path_str, range)?;
         let key = range_cache_key(path_str, start, end);
         let cached = cache.get(&key).await?;
-        let file_size = self.registry.get(path_str)
-            .map(|g| g.size())
-            .unwrap_or(end);
+        let file_size = self.registry.get(path_str).map(|g| g.size()).unwrap_or(end);
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified: chrono::DateTime::<chrono::Utc>::default(),
@@ -455,8 +468,9 @@ impl TieredObjectStore {
         slots: &mut Vec<Option<Bytes>>,
     ) {
         if let Some(ref cache) = self.cache {
-            for (fetched_bytes, (&slot_i, miss_range)) in
-                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
+            for (fetched_bytes, (&slot_i, miss_range)) in fetched
+                .iter()
+                .zip(miss_indices.iter().zip(miss_ranges.iter()))
             {
                 let key = range_cache_key(path_str, miss_range.start, miss_range.end);
                 cache.put(&key, fetched_bytes.clone());
@@ -481,7 +495,12 @@ impl fmt::Debug for TieredObjectStore {
 
 impl fmt::Display for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TieredObjectStore(files={}, cache={})", self.registry.len(), self.cache.is_some())
+        write!(
+            f,
+            "TieredObjectStore(files={}, cache={})",
+            self.registry.len(),
+            self.cache.is_some()
+        )
     }
 }
 
@@ -560,7 +579,10 @@ impl ObjectStore for TieredObjectStore {
         // On miss: fetches from S3/local, then populates data Foyer via put()
         // so repeated reads hit cache.
         if let Some(ref get_range) = options.range {
-            if let Some(result) = self.try_serve_from_cache(path_str, location, get_range).await {
+            if let Some(result) = self
+                .try_serve_from_cache(path_str, location, get_range)
+                .await
+            {
                 return result;
             }
         }
@@ -611,9 +633,7 @@ impl ObjectStore for TieredObjectStore {
                     let bytes = get_result.bytes().await?;
                     let key = range_cache_key(path_str, start, end);
                     cache.put(&key, bytes.clone());
-                    let file_size = self.registry.get(path_str)
-                        .map(|g| g.size())
-                        .unwrap_or(end);
+                    let file_size = self.registry.get(path_str).map(|g| g.size()).unwrap_or(end);
                     let meta = ObjectMeta {
                         location: location.clone(),
                         last_modified: chrono::DateTime::<chrono::Utc>::default(),
@@ -651,7 +671,11 @@ impl ObjectStore for TieredObjectStore {
         let fetched = self.fetch_misses(location, path_str, &miss_ranges).await?;
 
         self.populate_cache_and_reassemble(
-            path_str, &fetched, &miss_indices, &miss_ranges, &mut slots,
+            path_str,
+            &fetched,
+            &miss_indices,
+            &miss_ranges,
+            &mut slots,
         );
 
         Ok(slots.into_iter().map(|o| o.unwrap()).collect())

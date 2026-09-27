@@ -143,16 +143,20 @@ fn test_create_with_zero_cache_ptr_creates_uncached_store() {
 /// without consuming the Box — two stores can share the same cache pointer.
 #[test]
 fn test_create_with_cache_does_not_consume_pointer() {
+    use bytes::Bytes;
     use opensearch_block_cache::range_cache::CacheKey;
     use opensearch_block_cache::traits::BlockCache;
-    use bytes::Bytes;
 
     // Minimal no-op cache used only to construct a valid Box<Arc<dyn BlockCache>> pointer.
     struct NoopCache;
     impl BlockCache for NoopCache {
-        fn as_any(&self) -> &dyn std::any::Any { self }
-        fn get<'a>(&'a self, _key: &'a CacheKey)
-            -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn get<'a>(
+            &'a self,
+            _key: &'a CacheKey,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
         {
             Box::pin(std::future::ready(None))
         }

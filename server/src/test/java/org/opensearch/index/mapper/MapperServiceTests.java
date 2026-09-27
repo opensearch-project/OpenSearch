@@ -190,8 +190,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
-                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+                "The provided value "
+                    + (XContentConstraints.DEFAULT_MAX_DEPTH + 1)
+                    + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                    + XContentConstraints.DEFAULT_MAX_DEPTH
+                    + ". Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
             )
         );
     }

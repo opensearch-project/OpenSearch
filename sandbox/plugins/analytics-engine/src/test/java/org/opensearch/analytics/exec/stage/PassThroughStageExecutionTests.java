@@ -15,6 +15,7 @@ import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -54,7 +55,7 @@ public class PassThroughStageExecutionTests extends OpenSearchTestCase {
     /** start() materialises one no-op LOCAL task and transitions to RUNNING. */
     public void testStartMaterialisesSingleLocalTask() {
         PassThroughStageExecution exec = new PassThroughStageExecution(stageWithId(0), mockContext(), new RowProducingSink());
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         assertEquals(StageExecution.State.RUNNING, exec.getState());
         assertEquals(1, exec.tasks().size());
         assertTrue("local task variant", exec.tasks().get(0) instanceof LocalStageTask);
@@ -63,12 +64,12 @@ public class PassThroughStageExecutionTests extends OpenSearchTestCase {
     /** Re-entry guard: second start() after terminal is a no-op (no task re-materialisation). */
     public void testStartIsNoopAfterTerminalTransition() {
         PassThroughStageExecution exec = new PassThroughStageExecution(stageWithId(0), mockContext(), new RowProducingSink());
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         // Drive to a terminal directly via cancel; subsequent start() must not re-materialise tasks.
         exec.cancel("test");
         assertEquals(StageExecution.State.CANCELLED, exec.getState());
         int tasksBefore = exec.tasks().size();
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         assertEquals(StageExecution.State.CANCELLED, exec.getState());
         assertEquals("tasks list unchanged after second start()", tasksBefore, exec.tasks().size());
     }

@@ -25,7 +25,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -510,15 +509,6 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
         assertFalse(result.isPresent());
     }
 
-    public void testWriterDefaultDeleteDocumentThrowsUnsupported() {
-        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
-            () -> writer.deleteDocument(new DeleteInput("_id", "1", 1L))
-        );
-        assertTrue(e.getMessage().contains("deleteDocument is not supported"));
-    }
-
     /**
      * Rollback path with the indexSort branch (LogByteSizeMergePolicy + IndexSort). Here
      * forceMerge actually rewrites the segment, so the tombstone is physically expunged
@@ -655,5 +645,112 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
         assertTrue("getHeapBytesUsed should be > 0 before close", writer.getHeapBytesUsed() > 0);
         writer.close();
         assertEquals("getHeapBytesUsed should be 0 after close", 0L, writer.getHeapBytesUsed());
+    }
+
+    /**
+     * A delete can resolve a previous copy to a generation whose writer has already flushed but is
+     * still registered with the delete engine. The row id can no longer be applied by that writer,
+     * so it must not stay buffered and must not be counted toward heap usage.
+     */
+    public void testPositionalDeleteRecordedAfterFlushIsDiscarded() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc " + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            assertFalse("flush must produce files", fileInfos.writerFilesMap().isEmpty());
+            assertEquals("no heap after flush", 0L, writer.getHeapBytesUsed());
+
+            // Late delete: arrives after applyPositionalDeletes has drained the queue.
+            writer.recordPositionalDelete(1L);
+            writer.recordPositionalDelete(2L);
+
+            assertEquals("late positional deletes must not be held on a flushed writer", 0L, writer.getHeapBytesUsed());
+        }
+    }
+
+    /** A writer closed without flushing (rollback path) must also release late row ids. */
+    public void testPositionalDeleteRecordedAfterCloseIsDiscarded() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        LuceneWriter writer = new LuceneWriter(
+            1L,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
+        );
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addField(textField, "hello world");
+        input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+        writer.addDoc(input);
+        // A pending row id that the writer never gets to apply.
+        writer.recordPositionalDelete(0L);
+        assertTrue("pending positional delete must be counted before close", writer.getHeapBytesUsed() > 0);
+
+        writer.close();
+        assertEquals("close must release buffered positional deletes", 0L, writer.getHeapBytesUsed());
+
+        writer.recordPositionalDelete(0L);
+        assertEquals("late positional delete after close must not be held", 0L, writer.getHeapBytesUsed());
+    }
+
+    /** Sealing must not affect row ids recorded before flush: they are still applied. */
+    public void testPositionalDeleteRecordedBeforeFlushIsApplied() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        FileInfos fileInfos;
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc " + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+            writer.recordPositionalDelete(1L);
+            fileInfos = writer.flush(FlushInput.EMPTY);
+            assertEquals("applied positional delete must not be counted after flush", 0L, writer.getHeapBytesUsed());
+        }
+
+        WriterFileSet fileSet = fileInfos.writerFilesMap().get(dataFormat);
+        try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(fileSet.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+            assertEquals(3, reader.maxDoc());
+            assertEquals("row 1 must be marked deleted", 2, reader.numDocs());
+            assertNotNull(reader.leaves().get(0).reader().getLiveDocs());
+            assertFalse("doc 1 must be dead", reader.leaves().get(0).reader().getLiveDocs().get(1));
+        }
     }
 }

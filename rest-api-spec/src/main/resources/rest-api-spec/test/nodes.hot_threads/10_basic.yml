@@ -1,0 +1,26 @@
+---
+"Nodes hot threads accepts a valid snapshots value":
+  - do:
+      nodes.hot_threads:
+        snapshots: 3
+        threads: 1
+
+---
+"Nodes hot threads rejects an excessive snapshots value":
+  - skip:
+      version: " - 3.9.99"
+      reason: "snapshots is bounded from 3.10.0"
+  - do:
+      catch: bad_request
+      nodes.hot_threads:
+        snapshots: 500000000
+
+---
+"Nodes hot threads rejects a non-positive snapshots value":
+  - skip:
+      version: " - 3.9.99"
+      reason: "snapshots is bounded from 3.10.0"
+  - do:
+      catch: bad_request
+      nodes.hot_threads:
+        snapshots: 0

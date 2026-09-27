@@ -76,6 +76,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(Netty4HttpServerTransport.SETTING_HTTP_PIPELINE_DEPTH.getKey(), 1500)
             .build();
     }
 
@@ -94,6 +95,8 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         }
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
+        // See please https://github.com/netty/netty/pull/17068 why 128 is the cap, we should be able to
+        // make it configurable in the Netty next release.
         for (int i = 0; i < 150; i++) {
             requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }

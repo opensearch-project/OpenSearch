@@ -68,6 +68,15 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_DETERMINIZE_WORK_LIMIT = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
+    /**
+     * Upper bound for {@code max_determinized_states}. The determinize work limit exists to cap the
+     * amount of work Lucene performs while determinizing a regexp automaton; allowing an arbitrarily
+     * large value (e.g. {@link Integer#MAX_VALUE}) effectively disables that safeguard and lets a
+     * crafted pattern exhaust the heap before Lucene ever throws {@code TooComplexToDeterminizeException}.
+     * This ceiling (100x the default) still permits legitimately complex expressions while keeping the
+     * safeguard effective. See CVE-2026-63136.
+     */
+    public static final int MAX_DETERMINIZE_WORK_LIMIT = 1_000_000;
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
@@ -113,7 +122,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         syntaxFlagsValue = in.readVInt();
-        maxDeterminizedStates = in.readVInt();
+        // Route through the setter so the CVE-2026-63136 bound is enforced on the transport
+        // deserialization path too, not just REST/XContent. Protects a patched data node from an
+        // unbounded value sent by an unpatched coordinating node in a mixed-version cluster.
+        maxDeterminizedStates(in.readVInt());
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
     }
@@ -180,6 +192,14 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
      * Sets the regexp maxDeterminizedStates.
      */
     public RegexpQueryBuilder maxDeterminizedStates(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] max_determinized_states cannot be negative but was [" + value + "]");
+        }
+        if (value > MAX_DETERMINIZE_WORK_LIMIT) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] max_determinized_states cannot exceed [" + MAX_DETERMINIZE_WORK_LIMIT + "] but was [" + value + "]"
+            );
+        }
         this.maxDeterminizedStates = value;
         return this;
     }

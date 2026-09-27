@@ -8,10 +8,10 @@
 
 //! FFM lifecycle entry points exported to Java.
 
-use std::sync::Arc;
-use native_bridge_common::ffm_safe;
 use crate::foyer::foyer_cache::FoyerCache;
 use crate::tiered_block_cache::TieredBlockCache;
+use native_bridge_common::ffm_safe;
+use std::sync::Arc;
 
 /// Create a [`FoyerCache`] and return an opaque `Box<Arc<dyn BlockCache>>` fat pointer as `i64`.
 ///
@@ -58,8 +58,11 @@ pub unsafe extern "C" fn foyer_create_cache(
     let io_engine = if io_engine_ptr.is_null() {
         "auto"
     } else {
-        std::str::from_utf8(std::slice::from_raw_parts(io_engine_ptr, io_engine_len as usize))
-            .unwrap_or("auto")
+        std::str::from_utf8(std::slice::from_raw_parts(
+            io_engine_ptr,
+            io_engine_len as usize,
+        ))
+        .unwrap_or("auto")
     };
     let cache: Arc<dyn crate::traits::BlockCache> = Arc::new(FoyerCache::new(
         disk_bytes as usize,
@@ -88,7 +91,9 @@ pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) -> i64 {
     if ptr <= 0 {
         return Err(format!("foyer_destroy_cache: invalid ptr {}", ptr));
     }
-    drop(Box::from_raw(ptr as *mut Arc<dyn crate::traits::BlockCache>));
+    drop(Box::from_raw(
+        ptr as *mut Arc<dyn crate::traits::BlockCache>,
+    ));
     Ok(0)
 }
 
@@ -174,7 +179,9 @@ pub unsafe extern "C" fn foyer_clear_cache(ptr: i64) -> i64 {
     } else if let Some(tiered) = boxed.as_any().downcast_ref::<TieredBlockCache>() {
         tiered.clear_sync();
     } else {
-        return Err("foyer_clear_cache: downcast to FoyerCache or TieredBlockCache failed".to_string());
+        return Err(
+            "foyer_clear_cache: downcast to FoyerCache or TieredBlockCache failed".to_string(),
+        );
     }
     native_bridge_common::log_info!("ffm: foyer_clear_cache completed");
     Ok(0)
@@ -237,7 +244,10 @@ pub unsafe extern "C" fn foyer_update_sweep_interval(ptr: i64, new_secs: u64) ->
 #[no_mangle]
 pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) -> i64 {
     if ptr <= 0 {
-        return Err(format!("foyer_update_persist_interval: invalid ptr {}", ptr));
+        return Err(format!(
+            "foyer_update_persist_interval: invalid ptr {}",
+            ptr
+        ));
     }
     let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
     if let Some(foyer) = boxed.as_any().downcast_ref::<FoyerCache>() {
@@ -269,7 +279,8 @@ pub extern "C" fn foyer_evict_prefix(ptr: i64, prefix_ptr: *const u8, prefix_len
     }
     let prefix = unsafe {
         let bytes = std::slice::from_raw_parts(prefix_ptr, prefix_len as usize);
-        std::str::from_utf8(bytes).map_err(|e| format!("foyer_evict_prefix: invalid utf-8: {}", e))?
+        std::str::from_utf8(bytes)
+            .map_err(|e| format!("foyer_evict_prefix: invalid utf-8: {}", e))?
     };
     let boxed = unsafe { &*(ptr as *const Arc<dyn crate::traits::BlockCache>) };
     boxed.evict_prefix(prefix);
@@ -318,22 +329,31 @@ pub unsafe extern "C" fn foyer_create_tiered_cache(
     if data_dir_ptr.is_null() {
         return Err("data_dir_ptr is null".to_string());
     }
-    let data_dir = std::str::from_utf8(std::slice::from_raw_parts(data_dir_ptr, data_dir_len as usize))
-        .map_err(|e| format!("invalid UTF-8 in data_dir path: {}", e))?;
+    let data_dir = std::str::from_utf8(std::slice::from_raw_parts(
+        data_dir_ptr,
+        data_dir_len as usize,
+    ))
+    .map_err(|e| format!("invalid UTF-8 in data_dir path: {}", e))?;
 
     // Parse metadata dir
     if meta_dir_ptr.is_null() {
         return Err("meta_dir_ptr is null".to_string());
     }
-    let meta_dir = std::str::from_utf8(std::slice::from_raw_parts(meta_dir_ptr, meta_dir_len as usize))
-        .map_err(|e| format!("invalid UTF-8 in meta_dir path: {}", e))?;
+    let meta_dir = std::str::from_utf8(std::slice::from_raw_parts(
+        meta_dir_ptr,
+        meta_dir_len as usize,
+    ))
+    .map_err(|e| format!("invalid UTF-8 in meta_dir path: {}", e))?;
 
     // Parse io_engine
     let io_engine = if io_engine_ptr.is_null() {
         "auto"
     } else {
-        std::str::from_utf8(std::slice::from_raw_parts(io_engine_ptr, io_engine_len as usize))
-            .unwrap_or("auto")
+        std::str::from_utf8(std::slice::from_raw_parts(
+            io_engine_ptr,
+            io_engine_len as usize,
+        ))
+        .unwrap_or("auto")
     };
 
     // Build data cache (default reinsertion = RejectAll)
@@ -368,11 +388,13 @@ pub unsafe extern "C" fn foyer_create_tiered_cache(
     native_bridge_common::log_info!(
         "[tiered-block-cache] ffm: created tiered cache: data_dir={}, meta_dir={}, \
          data_disk={}B, meta_disk={}B",
-        data_dir, meta_dir, data_disk_bytes, meta_disk_bytes
+        data_dir,
+        meta_dir,
+        data_disk_bytes,
+        meta_disk_bytes
     );
 
-    let cache: Arc<dyn crate::traits::BlockCache> = Arc::new(
-        TieredBlockCache::new(data_cache, metadata_cache)
-    );
+    let cache: Arc<dyn crate::traits::BlockCache> =
+        Arc::new(TieredBlockCache::new(data_cache, metadata_cache));
     Ok(Box::into_raw(Box::new(cache)) as i64)
 }

@@ -216,7 +216,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment, IndexSha
          * Checks if a file in a store is the same file
          *
          * @param md file in a store
-         * @return true if file in a store this this file have the same checksum and length
+         * @return true if file in a store this file has the same checksum and length
          */
         public boolean isSame(StoreFileMetadata md) {
             return metadata.isSame(md);
@@ -226,7 +226,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment, IndexSha
          * Checks if a file in a store is the same file
          *
          * @param fileInfo file in a store
-         * @return true if file in a store this this file have the same checksum and length
+         * @return true if file in a store this file has the same checksum and length
          */
         public boolean isSame(FileInfo fileInfo) {
             if (numberOfParts != fileInfo.numberOfParts) {

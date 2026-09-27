@@ -9,6 +9,8 @@
 package org.opensearch.be.datafusion;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.Any;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -21,7 +23,9 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Correlate;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.core.Uncollect;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -44,6 +48,7 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
@@ -54,6 +59,7 @@ import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapte
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -78,6 +84,8 @@ import io.substrait.plan.ProtoPlanConverter;
 import io.substrait.proto.PlanRel;
 import io.substrait.proto.ReadRel;
 import io.substrait.relation.Aggregate;
+import io.substrait.relation.Extension;
+import io.substrait.relation.ExtensionSingle;
 import io.substrait.relation.Fetch;
 import io.substrait.relation.Filter;
 import io.substrait.relation.Project;
@@ -315,6 +323,36 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return rexBuilder.makeCast(varcharNullable, arg);
     }
 
+    /** PARTIAL-side LIST over a source multi-value field; flattens elements across documents. */
+    static final SqlAggFunction LOCAL_MV_COLLECT_OP = new SqlAggFunction(
+        "mv_collect",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** PARTIAL-side VALUES over a source multi-value field; flattens and de-duplicates elements. */
+    static final SqlAggFunction LOCAL_MV_COLLECT_DISTINCT_OP = new SqlAggFunction(
+        "mv_collect_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     /** FINAL-side merge for LIST; un-nests per-shard list states. */
     static final SqlAggFunction LOCAL_LIST_MERGE_OP = new SqlAggFunction(
         "list_merge",
@@ -437,6 +475,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_FIRST_OP, "first_value"),
         FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
         FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
+        FunctionMappings.s(LOCAL_MV_COLLECT_OP, "mv_collect"),
+        FunctionMappings.s(LOCAL_MV_COLLECT_DISTINCT_OP, "mv_collect_distinct"),
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
@@ -469,6 +509,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     @Override
     public byte[] convertFragment(RelNode fragment) {
         LOGGER.debug("Converting fragment [{}]", fragment.getClass().getSimpleName());
+        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
+        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
+        // emits a ReadRel with the stage-input-id as the named table. Also rewrites
+        // OpenSearchBroadcastScan leaves (M1 broadcast probe fragments carry
+        // Join(TableScan, BroadcastScan)) so isthmus sees a plain TableScan whose
+        // qualified name is "broadcast-<buildStageId>". No-op when the fragment has
+        // no rewritable leaves (e.g. plain shard-scan or Values cases).
         RelNode rewritten = rewriteStageInputScans(fragment);
         return convertToSubstrait(rewritten);
     }
@@ -549,6 +596,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private static RelNode preprocessForSubstrait(RelNode rel) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+        preprocessed = MultiValueRelRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
@@ -659,10 +707,30 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return Aggregate.builder().from(agg).measures(newMeasures).build();
     }
 
-    /** Rewrites {@link OpenSearchStageInputScan} leaves to TableScan with {@code "input-<childStageId>"} names. */
+    /**
+     * Rewrites every {@link OpenSearchStageInputScan} or {@link OpenSearchBroadcastScan} in
+     * the RelNode tree to a plain Calcite {@link TableScan} whose qualified name matches what
+     * the matching runtime component registers on the native session:
+     * <ul>
+     *   <li>{@code "input-<childStageId>"} for stage-input scans — registered as a partition
+     *       stream by {@link DatafusionReduceSink}, mirroring {@code AbstractDatafusionReduceSink.inputIdFor}.</li>
+     *   <li>{@code "broadcast-<buildStageId>"} for broadcast scans — registered as a
+     *       {@code MemTable} by {@code BroadcastInjectionHandler} before plan execution.</li>
+     * </ul>
+     *
+     * <p>For single-input fragments the sole stage id (typically 0) reproduces the
+     * conventional {@code "input-0"} name; for multi-input shapes (Union, coord-centric Join)
+     * each branch refers to its own child stage id and the isthmus visitor emits one
+     * {@code NamedScan} per branch. For M1 broadcast, the probe fragment carries one
+     * {@code OpenSearchTableScan} and one {@link OpenSearchBroadcastScan} — the latter
+     * resolves to the broadcast memtable at execution time.
+     */
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
             return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), "input-" + scan.getChildStageId(), scan.getRowType());
+        }
+        if (node instanceof OpenSearchBroadcastScan scan) {
+            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), scan.getNamedInputId(), scan.getRowType());
         }
         List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
         boolean changed = false;
@@ -746,6 +814,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 if (rewritten == null) return bound;
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
+
         };
         // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
@@ -760,6 +829,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
                     .collect(ImmutableList.toImmutableList());
             }
+
         };
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
@@ -775,7 +845,83 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 Rel rel = super.visit(aggregate);
                 return rel instanceof Aggregate agg ? addNullArgFilters(aggregate, agg) : rel;
             }
+
+            @Override
+            public Rel visit(Correlate correlate) {
+                MultiValueExpandSpec spec = explicitMultiValueExpand(correlate, typeConverter);
+                if (spec == null) {
+                    return super.visit(correlate);
+                }
+                return ExtensionSingle.from(new MultiValueExpandDetail(spec), apply(correlate.getLeft())).build();
+            }
+
+            @Override
+            public Rel visitOther(RelNode other) {
+                if (other instanceof MultiValueExpandRel expand) {
+                    MultiValueExpandSpec spec = new MultiValueExpandSpec(
+                        expand.fieldIndex(),
+                        null,
+                        true,
+                        true,
+                        typeConverter.toNamedStruct(expand.getRowType()).struct()
+                    );
+                    return ExtensionSingle.from(new MultiValueExpandDetail(spec), apply(expand.getInput())).build();
+                }
+                return super.visitOther(other);
+            }
         };
+    }
+
+    private static MultiValueExpandSpec explicitMultiValueExpand(Correlate correlate, TypeConverter typeConverter) {
+        if (correlate.getJoinType() != org.apache.calcite.rel.core.JoinRelType.INNER || correlate.getRequiredColumns().cardinality() != 1) {
+            return null;
+        }
+        RelNode right = correlate.getRight();
+        Integer limit = null;
+        if (right instanceof org.apache.calcite.rel.core.Sort sort) {
+            if (!(sort.fetch instanceof RexLiteral literal)) {
+                return null;
+            }
+            limit = literal.getValueAs(Integer.class);
+            right = sort.getInput();
+        }
+        if (!(right instanceof Uncollect)) {
+            return null;
+        }
+        return new MultiValueExpandSpec(
+            correlate.getRequiredColumns().nextSetBit(0),
+            limit,
+            true,
+            false,
+            typeConverter.toNamedStruct(correlate.getRowType()).struct()
+        );
+    }
+
+    private record MultiValueExpandSpec(int fieldIndex, Integer limit, boolean append, boolean distinct, Type.Struct outputType) {
+    }
+
+    private static final class MultiValueExpandDetail implements Extension.SingleRelDetail {
+        private static final String TYPE_URL = "opensearch://analytics/multi_value_expand/v1";
+        private final MultiValueExpandSpec spec;
+
+        private MultiValueExpandDetail(MultiValueExpandSpec spec) {
+            this.spec = spec;
+        }
+
+        @Override
+        public Type.Struct deriveRecordType(Rel input) {
+            return spec.outputType();
+        }
+
+        @Override
+        public Any toProto(io.substrait.relation.RelProtoConverter converter) {
+            ByteBuffer payload = ByteBuffer.allocate(16);
+            payload.putInt(spec.fieldIndex());
+            payload.putInt(spec.limit() == null ? -1 : spec.limit());
+            payload.putInt(spec.append() ? 1 : 0);
+            payload.putInt(spec.distinct() ? 1 : 0);
+            return Any.newBuilder().setTypeUrl(TYPE_URL).setValue(ByteString.copyFrom(payload.array())).build();
+        }
     }
 
     /**

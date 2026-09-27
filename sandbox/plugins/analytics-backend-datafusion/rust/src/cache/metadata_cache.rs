@@ -7,18 +7,21 @@
  */
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
+use parking_lot::RwLock;
+
+use crate::parquet_page_cache::is_scoped_page_index_enabled;
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
 };
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::DefaultFilesMetadataCache;
+use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use object_store::path::Path;
 use native_bridge_common::log_error;
-use crate::parquet_page_cache::is_scoped_page_index_enabled;
+use object_store::path::Path;
 
 // Cache type constants
 pub const CACHE_TYPE_METADATA: &str = "METADATA";
@@ -233,6 +236,59 @@ impl FileMetadataCache for MutexFileMetadataCache {
     }
 }
 
+/// The global runtime's `RuntimeEnv`, for callers that have none to read it from. Sharing the whole
+/// environment keeps a caller's cache and memory budget consistent with the node's. `Weak`, so a
+/// registration never keeps a closed runtime alive.
+static GLOBAL_RUNTIME_ENV: RwLock<Option<Weak<RuntimeEnv>>> = RwLock::new(None);
+
+/// Called once per `create_global_runtime`; a later runtime replaces the registration.
+pub fn register_global_runtime_env(runtime_env: &Arc<RuntimeEnv>) {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the global DataFusion RuntimeEnv registration");
+    *GLOBAL_RUNTIME_ENV.write() = Some(Arc::downgrade(runtime_env));
+}
+
+/// The registered environment, or `None` before a global runtime exists or after the last one was
+/// closed.
+pub fn global_runtime_env() -> Option<Arc<RuntimeEnv>> {
+    GLOBAL_RUNTIME_ENV.read().as_ref().and_then(Weak::upgrade)
+}
+
+#[cfg(test)]
+mod global_cache_registry_tests {
+    use super::*;
+    use once_cell::sync::Lazy;
+
+    /// Held in statics: the registry keeps only a `Weak`, so an environment dropped at test end
+    /// would leave a dead registration for the next test in this binary.
+    static FIRST: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| Arc::new(RuntimeEnv::default()));
+    static SECOND: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| Arc::new(RuntimeEnv::default()));
+
+    #[test]
+    fn a_registered_runtime_env_reads_back_as_the_same_object() {
+        let _globals = crate::test_process_globals::lock();
+        register_global_runtime_env(&FIRST);
+
+        let read_back = global_runtime_env().expect("a registered environment must be readable");
+        assert!(
+            Arc::ptr_eq(&FIRST, &read_back),
+            "readers must share one environment, otherwise each caller gets its own cache and \
+             memory budget"
+        );
+    }
+
+    #[test]
+    fn a_later_registration_replaces_the_earlier_one() {
+        let _globals = crate::test_process_globals::lock();
+        register_global_runtime_env(&FIRST);
+        register_global_runtime_env(&SECOND);
+
+        let read_back = global_runtime_env().expect("the later environment must be readable");
+        assert!(Arc::ptr_eq(&SECOND, &read_back));
+        assert!(!Arc::ptr_eq(&FIRST, &read_back));
+    }
+}
+
 #[cfg(test)]
 mod strip_page_index_tests {
     use super::*;
@@ -297,14 +353,20 @@ mod strip_page_index_tests {
     fn put_strips_page_index_and_get_returns_footer_only() {
         let bytes = parquet_with_page_index();
         let entry = full_index_entry(&bytes);
-        assert!(page_index_present(&entry), "precondition: entry has page index");
+        assert!(
+            page_index_present(&entry),
+            "precondition: entry has page index"
+        );
 
         let cache = MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(64 * 1024 * 1024));
         let key = Path::from("data.parquet");
         cache.put(&key, entry);
 
         let got = cache.get(&key).expect("entry must be retrievable");
-        assert!(!page_index_present(&got), "cached entry must be footer-only after put");
+        assert!(
+            !page_index_present(&got),
+            "cached entry must be footer-only after put"
+        );
         let cached = got
             .file_metadata
             .as_any()
@@ -312,7 +374,10 @@ mod strip_page_index_tests {
             .unwrap();
         let m = cached.parquet_metadata();
         assert!(m.num_row_groups() > 0);
-        assert!(m.row_group(0).column(0).statistics().is_some(), "footer stats must survive");
+        assert!(
+            m.row_group(0).column(0).statistics().is_some(),
+            "footer stats must survive"
+        );
     }
 
     #[test]

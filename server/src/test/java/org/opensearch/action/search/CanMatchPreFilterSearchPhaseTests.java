@@ -192,6 +192,166 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSkippedShardGroupsAreNotSentToCanMatch() throws InterruptedException {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        List<Integer> canMatchShardIds = Collections.synchronizedList(new ArrayList<>());
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            @Override
+            public void sendCanMatch(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ActionListener<SearchService.CanMatchResponse> listener
+            ) {
+                canMatchShardIds.add(request.shardId().id());
+                listener.onResponse(new SearchService.CanMatchResponse(true, null));
+            }
+        };
+
+        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
+        shardsIter.get(0).resetAndSkip();
+
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+
+        final SearchRequestOperationsListener searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(assertingListener),
+            LogManager.getLogger()
+        );
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            OpenSearchExecutors.newDirectExecutorService(),
+            searchRequest,
+            null,
+            shardsIter,
+            timeProvider,
+            ClusterState.EMPTY_STATE,
+            null,
+            (iter) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    result.set(iter);
+                    searchRequestOperationsListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                    latch.countDown();
+                }
+            },
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
+            NoopTracer.INSTANCE
+        );
+
+        canMatchPhase.start();
+        latch.await();
+
+        assertThat(canMatchShardIds, equalTo(List.of(1)));
+        assertTrue(result.get().get(0).skip());
+        assertFalse(result.get().get(1).skip());
+    }
+
+    public void testAllSkippedShardGroupsAreNotSentToCanMatch() throws InterruptedException {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            @Override
+            public void sendCanMatch(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ActionListener<SearchService.CanMatchResponse> listener
+            ) {
+                fail("can_match should not be sent to skipped shard groups");
+            }
+        };
+
+        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
+        shardsIter.get(0).resetAndSkip();
+        shardsIter.get(1).resetAndSkip();
+
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+
+        final SearchRequestOperationsListener searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(assertingListener),
+            LogManager.getLogger()
+        );
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            OpenSearchExecutors.newDirectExecutorService(),
+            searchRequest,
+            null,
+            shardsIter,
+            timeProvider,
+            ClusterState.EMPTY_STATE,
+            null,
+            (iter) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    result.set(iter);
+                    searchRequestOperationsListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                    latch.countDown();
+                }
+            },
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
+            NoopTracer.INSTANCE
+        );
+
+        canMatchPhase.start();
+        latch.await();
+
+        assertTrue(result.get().get(0).skip());
+        assertTrue(result.get().get(1).skip());
+    }
+
     public void testFilterWithFailure() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,

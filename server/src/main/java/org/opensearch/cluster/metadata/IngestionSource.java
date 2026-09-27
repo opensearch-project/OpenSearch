@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
@@ -48,6 +49,8 @@ public class IngestionSource {
     private final TimeValue pointerBasedLagUpdateInterval;
     private final IngestionMessageMapper.MapperType mapperType;
     private final Map<String, Object> mapperSettings;
+    private final String decoderType;
+    private final Map<String, Object> decoderSettings;
     private final WarmupConfig warmupConfig;
     private final SourcePartitionStrategy sourcePartitionStrategy;
 
@@ -64,6 +67,8 @@ public class IngestionSource {
         TimeValue pointerBasedLagUpdateInterval,
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
+        String decoderType,
+        Map<String, Object> decoderSettings,
         WarmupConfig warmupConfig,
         SourcePartitionStrategy sourcePartitionStrategy
     ) {
@@ -79,6 +84,8 @@ public class IngestionSource {
         this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
         this.mapperType = mapperType;
         this.mapperSettings = mapperSettings != null ? Collections.unmodifiableMap(mapperSettings) : Collections.emptyMap();
+        this.decoderType = decoderType;
+        this.decoderSettings = decoderSettings != null ? Collections.unmodifiableMap(decoderSettings) : Collections.emptyMap();
         this.warmupConfig = warmupConfig;
         this.sourcePartitionStrategy = sourcePartitionStrategy;
     }
@@ -131,6 +138,14 @@ public class IngestionSource {
         return mapperSettings;
     }
 
+    public String getDecoderType() {
+        return decoderType;
+    }
+
+    public Map<String, Object> getDecoderSettings() {
+        return decoderSettings;
+    }
+
     public WarmupConfig getWarmupConfig() {
         return warmupConfig;
     }
@@ -156,6 +171,8 @@ public class IngestionSource {
             && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval)
             && Objects.equals(mapperType, ingestionSource.mapperType)
             && Objects.equals(mapperSettings, ingestionSource.mapperSettings)
+            && Objects.equals(decoderType, ingestionSource.decoderType)
+            && Objects.equals(decoderSettings, ingestionSource.decoderSettings)
             && Objects.equals(warmupConfig, ingestionSource.warmupConfig)
             && Objects.equals(sourcePartitionStrategy, ingestionSource.sourcePartitionStrategy);
     }
@@ -175,6 +192,8 @@ public class IngestionSource {
             pointerBasedLagUpdateInterval,
             mapperType,
             mapperSettings,
+            decoderType,
+            decoderSettings,
             warmupConfig,
             sourcePartitionStrategy
         );
@@ -211,6 +230,11 @@ public class IngestionSource {
             + '\''
             + ", mapperSettings="
             + mapperSettings
+            + ", decoderType='"
+            + decoderType
+            + '\''
+            + ", decoderSettings="
+            + decoderSettings
             + ", warmupConfig="
             + warmupConfig
             + ", sourcePartitionStrategy='"
@@ -327,6 +351,8 @@ public class IngestionSource {
         );
         private IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.getDefault(Settings.EMPTY);
         private Map<String, Object> mapperSettings = new HashMap<>();
+        private String decoderType = INGESTION_SOURCE_DECODER_TYPE_SETTING.getDefault(Settings.EMPTY);
+        private Map<String, Object> decoderSettings = new HashMap<>();
         private SourcePartitionStrategy sourcePartitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.getDefault(Settings.EMPTY);
         // Warmup configuration
         private TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
@@ -347,6 +373,8 @@ public class IngestionSource {
             this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
             this.mapperType = ingestionSource.mapperType;
             this.mapperSettings = new HashMap<>(ingestionSource.mapperSettings);
+            this.decoderType = ingestionSource.decoderType;
+            this.decoderSettings = new HashMap<>(ingestionSource.decoderSettings);
             this.sourcePartitionStrategy = ingestionSource.sourcePartitionStrategy;
             // Copy warmup config
             WarmupConfig wc = ingestionSource.warmupConfig;
@@ -414,6 +442,16 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setDecoderType(String decoderType) {
+            this.decoderType = decoderType;
+            return this;
+        }
+
+        public Builder setDecoderSettings(Map<String, Object> decoderSettings) {
+            this.decoderSettings = decoderSettings;
+            return this;
+        }
+
         public Builder setSourcePartitionStrategy(SourcePartitionStrategy sourcePartitionStrategy) {
             this.sourcePartitionStrategy = sourcePartitionStrategy;
             return this;
@@ -450,6 +488,8 @@ public class IngestionSource {
                 pointerBasedLagUpdateInterval,
                 mapperType,
                 mapperSettings,
+                decoderType,
+                decoderSettings,
                 warmupConfig,
                 sourcePartitionStrategy
             );

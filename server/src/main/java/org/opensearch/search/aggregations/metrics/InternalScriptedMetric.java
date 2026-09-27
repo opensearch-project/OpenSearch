@@ -38,6 +38,7 @@ import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -99,8 +100,19 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
-            InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
-            aggregationObjects.addAll(mapReduceAggregation.aggregations);
+            if (aggregation instanceof InternalScriptedMetric mapReduceAggregation) {
+                aggregationObjects.addAll(mapReduceAggregation.aggregations);
+            } else if (aggregation instanceof InternalAvg avg) {
+                aggregationObjects.add(new ScriptedAvg(avg.getSum(), avg.getCount()));
+            } else {
+                throw new AggregationExecutionException(
+                    "aggregation ["
+                        + aggregation.getName()
+                        + "] of type ["
+                        + aggregation.getType()
+                        + "] cannot be reduced together with a scripted metric aggregation"
+                );
+            }
         }
         InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         List<Object> aggregation;

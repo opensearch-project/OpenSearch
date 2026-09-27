@@ -57,15 +57,21 @@ import org.objectweb.asm.tree.analysis.Frame;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -109,6 +115,7 @@ public class OpenSearchLoggerUsageChecker {
 
     private static void checkLoggerUsage(Consumer<WrongLoggerUsage> wrongUsageCallback, String... classDirectories)
         throws IOException {
+        ClassLoader classLoader = buildClassLoader(classDirectories);
         for (String classDirectory : classDirectories) {
             Path root = Paths.get(classDirectory);
             if (Files.isDirectory(root) == false) {
@@ -119,7 +126,7 @@ public class OpenSearchLoggerUsageChecker {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
                         try (InputStream in = Files.newInputStream(file)) {
-                            OpenSearchLoggerUsageChecker.check(wrongUsageCallback, in);
+                            OpenSearchLoggerUsageChecker.check(wrongUsageCallback, in, s -> true, classLoader);
                         }
                     }
                     return super.visitFile(file, attrs);
@@ -128,15 +135,33 @@ public class OpenSearchLoggerUsageChecker {
         }
     }
 
-    public static void check(Consumer<WrongLoggerUsage> wrongUsageCallback, InputStream inputStream) throws IOException {
-        check(wrongUsageCallback, inputStream, s -> true);
+    /**
+     * Builds a class loader that can resolve the classes being checked (in addition to the JDK and log4j classes that
+     * are already on the checker's class path). This allows the checker to determine whether a logger argument is a
+     * {@link Throwable} subtype, which is needed to support the SLF4J/Log4j2 style of passing a trailing throwable.
+     */
+    private static ClassLoader buildClassLoader(String... classDirectories) {
+        List<URL> urls = new ArrayList<>();
+        for (String classDirectory : classDirectories) {
+            try {
+                urls.add(Paths.get(classDirectory).toUri().toURL());
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Unable to resolve class directory " + classDirectory, e);
+            }
+        }
+        return new URLClassLoader(urls.toArray(new URL[0]), OpenSearchLoggerUsageChecker.class.getClassLoader());
     }
 
     // used by tests
     static void check(Consumer<WrongLoggerUsage> wrongUsageCallback, InputStream inputStream, Predicate<String> methodsToCheck)
         throws IOException {
+        check(wrongUsageCallback, inputStream, methodsToCheck, OpenSearchLoggerUsageChecker.class.getClassLoader());
+    }
+
+    static void check(Consumer<WrongLoggerUsage> wrongUsageCallback, InputStream inputStream, Predicate<String> methodsToCheck,
+                      ClassLoader classLoader) throws IOException {
         ClassReader cr = new ClassReader(inputStream);
-        cr.accept(new ClassChecker(wrongUsageCallback, methodsToCheck), 0);
+        cr.accept(new ClassChecker(wrongUsageCallback, methodsToCheck, classLoader), 0);
     }
 
     public static class WrongLoggerUsage {
@@ -199,11 +224,13 @@ public class OpenSearchLoggerUsageChecker {
         private boolean ignoreChecks;
         private final Consumer<WrongLoggerUsage> wrongUsageCallback;
         private final Predicate<String> methodsToCheck;
+        private final ClassLoader classLoader;
 
-        ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck) {
+        ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck, ClassLoader classLoader) {
             super(Opcodes.ASM9);
             this.wrongUsageCallback = wrongUsageCallback;
             this.methodsToCheck = methodsToCheck;
+            this.classLoader = classLoader;
         }
 
         @Override
@@ -222,7 +249,7 @@ public class OpenSearchLoggerUsageChecker {
         @Override
         public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
             if (ignoreChecks == false && methodsToCheck.test(name)) {
-                return new MethodChecker(this.className, access, name, desc, wrongUsageCallback);
+                return new MethodChecker(this.className, access, name, desc, wrongUsageCallback, classLoader);
             } else {
                 return super.visitMethod(access, name, desc, signature, exceptions);
             }
@@ -232,12 +259,15 @@ public class OpenSearchLoggerUsageChecker {
     private static class MethodChecker extends MethodVisitor {
         private final String className;
         private final Consumer<WrongLoggerUsage> wrongUsageCallback;
+        private final ClassLoader classLoader;
         private boolean ignoreChecks;
 
-        MethodChecker(String className, int access, String name, String desc, Consumer<WrongLoggerUsage> wrongUsageCallback) {
+        MethodChecker(String className, int access, String name, String desc, Consumer<WrongLoggerUsage> wrongUsageCallback,
+                      ClassLoader classLoader) {
             super(Opcodes.ASM7, new MethodNode(access, name, desc, null, null));
             this.className = className;
             this.wrongUsageCallback = wrongUsageCallback;
+            this.classLoader = classLoader;
         }
 
         @Override
@@ -259,14 +289,17 @@ public class OpenSearchLoggerUsageChecker {
         public void findBadLoggerUsages(MethodNode methodNode) {
             Analyzer<BasicValue> stringPlaceHolderAnalyzer = new Analyzer<>(new PlaceHolderStringInterpreter());
             Analyzer<BasicValue> arraySizeAnalyzer = new Analyzer<>(new ArraySizeInterpreter());
+            Analyzer<BasicValue> throwableAnalyzer = new Analyzer<>(new ThrowableInterpreter(classLoader));
             try {
                 stringPlaceHolderAnalyzer.analyze(className, methodNode);
                 arraySizeAnalyzer.analyze(className, methodNode);
+                throwableAnalyzer.analyze(className, methodNode);
             } catch (AnalyzerException e) {
                 throw new RuntimeException("Internal error: failed in analysis step", e);
             }
             Frame<BasicValue>[] logMessageFrames = stringPlaceHolderAnalyzer.getFrames();
             Frame<BasicValue>[] arraySizeFrames = arraySizeAnalyzer.getFrames();
+            Frame<BasicValue>[] throwableFrames = throwableAnalyzer.getFrames();
             AbstractInsnNode[] insns = methodNode.instructions.toArray();
             int lineNumber = -1;
             for (int i = 0; i < insns.length; i++) {
@@ -290,7 +323,7 @@ public class OpenSearchLoggerUsageChecker {
 
                         int lengthWithoutMarker = argumentTypes.length - markerOffset;
 
-                        verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
+                        verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, throwableFrames, lineNumber, i,
                             methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
                     }
                 } else if (insn.getOpcode() == Opcodes.INVOKESPECIAL) { // constructor invocation
@@ -348,7 +381,7 @@ public class OpenSearchLoggerUsageChecker {
 
                             int lengthWithoutMarker = argumentTypes.length - markerOffset;
 
-                            verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
+                            verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, throwableFrames, lineNumber, i,
                                 methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
                         }
                     }
@@ -357,8 +390,8 @@ public class OpenSearchLoggerUsageChecker {
         }
 
         private void verifyLoggerUsage(MethodNode methodNode, Frame<BasicValue>[] logMessageFrames, Frame<BasicValue>[] arraySizeFrames,
-                                       int lineNumber, int i, MethodInsnNode methodInsn, Type[] argumentTypes,
-                                       int markerOffset, int lengthWithoutMarker) {
+                                       Frame<BasicValue>[] throwableFrames, int lineNumber, int i, MethodInsnNode methodInsn,
+                                       Type[] argumentTypes, int markerOffset, int lengthWithoutMarker) {
             if (lengthWithoutMarker == 2 &&
                 argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
                 (argumentTypes[markerOffset + 1].equals(OBJECT_ARRAY_CLASS) ||
@@ -370,8 +403,11 @@ public class OpenSearchLoggerUsageChecker {
                 argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
                 argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
                 // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
+                // In SLF4J / Log4j2 style a trailing Throwable is not a placeholder argument; it is extracted and
+                // logged as the associated exception. Detect that case so the placeholder count check can allow it.
+                boolean lastArgIsThrowable = isThrowableArg(throwableFrames[i], methodInsn, argumentTypes.length - 1);
                 checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0,
-                    lengthWithoutMarker - 1);
+                    lengthWithoutMarker - 1, lastArgIsThrowable);
             } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) &&
                 lengthWithoutMarker == 2 ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS) : true) {
                 // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
@@ -384,16 +420,36 @@ public class OpenSearchLoggerUsageChecker {
 
         private void checkFixedArityArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, int lineNumber,
                                          MethodInsnNode methodInsn, int messageIndex, int positionalArgsLength) {
+            checkFixedArityArgs(methodNode, logMessageFrame, lineNumber, methodInsn, messageIndex, positionalArgsLength, false);
+        }
+
+        private void checkFixedArityArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, int lineNumber,
+                                         MethodInsnNode methodInsn, int messageIndex, int positionalArgsLength,
+                                         boolean lastArgIsThrowable) {
             PlaceHolderStringBasicValue logMessageLength = checkLogMessageConsistency(methodNode, logMessageFrame, lineNumber, methodInsn,
                 messageIndex, positionalArgsLength);
             if (logMessageLength == null) {
                 return;
             }
             if (logMessageLength.minValue != positionalArgsLength) {
+                // SLF4J / Log4j2 style: a trailing Throwable is not a placeholder argument. When the last argument is
+                // statically a Throwable, Log4j2 extracts it as the logged exception, so the message is allowed to have
+                // one fewer placeholder than the number of positional arguments.
+                if (lastArgIsThrowable && logMessageLength.minValue == positionalArgsLength - 1) {
+                    return;
+                }
                 wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
                     "Expected " + logMessageLength.minValue + " arguments but got " + positionalArgsLength));
                 return;
             }
+        }
+
+        private static boolean isThrowableArg(Frame<BasicValue> throwableFrame, MethodInsnNode methodInsn, int index) {
+            if (throwableFrame == null) {
+                return false;
+            }
+            BasicValue value = getStackValue(throwableFrame, methodInsn, index);
+            return value instanceof ThrowableBasicValue;
         }
 
         private void checkArrayArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, Frame<BasicValue> arraySizeFrame,
@@ -537,6 +593,31 @@ public class OpenSearchLoggerUsageChecker {
         }
     }
 
+    /**
+     * A {@link BasicValue} that marks a stack/local value as being statically known to be a {@link Throwable}.
+     */
+    private static final class ThrowableBasicValue extends BasicValue {
+        ThrowableBasicValue(Type type) {
+            super(type);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            return super.equals(o);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + 1;
+        }
+    }
+
     private static final class PlaceHolderStringInterpreter extends BasicInterpreter {
         PlaceHolderStringInterpreter() {
             super(Opcodes.ASM7);
@@ -625,6 +706,68 @@ public class OpenSearchLoggerUsageChecker {
                 return value1;
             }
             return super.ternaryOperation(insnNode, value1, value2, value3);
+        }
+    }
+
+    /**
+     * Tracks which stack/local values are statically known to be {@link Throwable} instances. This is needed because
+     * Log4j2's multi-parameter logger methods (e.g. {@code debug(String, Object, Object)}) type a trailing throwable
+     * argument as {@link Object}, so the throwable cannot be recognized from the method descriptor alone.
+     */
+    private static final class ThrowableInterpreter extends BasicInterpreter {
+        private static final Map<String, Boolean> THROWABLE_CACHE = new ConcurrentHashMap<>();
+
+        private final ClassLoader classLoader;
+
+        ThrowableInterpreter(ClassLoader classLoader) {
+            super(Opcodes.ASM7);
+            this.classLoader = classLoader == null ? ThrowableInterpreter.class.getClassLoader() : classLoader;
+        }
+
+        @Override
+        public BasicValue newValue(Type type) {
+            if (type != null && type.getSort() == Type.OBJECT && isThrowable(type)) {
+                return new ThrowableBasicValue(type);
+            }
+            return super.newValue(type);
+        }
+
+        @Override
+        public BasicValue merge(BasicValue value1, BasicValue value2) {
+            if (value1.equals(value2)) {
+                return value1;
+            }
+            if (value1 instanceof ThrowableBasicValue && value2 instanceof ThrowableBasicValue) {
+                // Both branches yield a throwable, but possibly of different concrete types: keep tracking it as a
+                // throwable using the common Throwable supertype.
+                return new ThrowableBasicValue(THROWABLE_CLASS);
+            }
+            Type type1 = value1.getType();
+            Type type2 = value2.getType();
+            if (isReference(type1) && isReference(type2)) {
+                // Different reference types (at least one of which is not a throwable) merge to a plain object
+                // reference, mirroring the default BasicInterpreter behavior of normalizing references to Object.
+                return BasicValue.REFERENCE_VALUE;
+            }
+            return super.merge(value1, value2);
+        }
+
+        private static boolean isReference(Type type) {
+            return type != null && (type.getSort() == Type.OBJECT || type.getSort() == Type.ARRAY);
+        }
+
+        private boolean isThrowable(Type type) {
+            return THROWABLE_CACHE.computeIfAbsent(type.getClassName(), className -> {
+                try {
+                    Class<?> clazz = Class.forName(className, false, classLoader);
+                    return Throwable.class.isAssignableFrom(clazz);
+                } catch (Throwable t) {
+                    // If the class (or one of its supertypes) cannot be resolved on the checker's class path we
+                    // conservatively treat it as not a throwable. This keeps the previous, stricter behavior for
+                    // those cases rather than risking a false positive.
+                    return false;
+                }
+            });
         }
     }
 }

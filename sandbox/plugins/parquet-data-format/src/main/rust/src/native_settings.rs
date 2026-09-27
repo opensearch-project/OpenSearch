@@ -31,6 +31,11 @@ pub struct NativeSettings {
     pub sort_columns: Vec<String>,
     pub reverse_sorts: Vec<bool>,
     pub nulls_first: Vec<bool>,
+    /// Parallel with `sort_columns`: `true` selects the MAX element of a
+    /// multi-value (LIST) field, `false` selects MIN. Derived from
+    /// `index.sort.mode` (defaulting to MIN for ASC and MAX for DESC) on the
+    /// Java side. Scalar fields ignore this.
+    pub max_sort_modes: Vec<bool>,
     pub sort_in_memory_threshold_bytes: Option<u64>,
     pub merge_batch_size: Option<usize>,
     pub row_group_max_rows: Option<usize>,
@@ -82,11 +87,14 @@ impl NativeSettings {
     }
 
     pub fn has_field_configs(&self) -> bool {
-        self.field_configs.as_ref().map_or(false, |configs| !configs.is_empty())
+        self.field_configs
+            .as_ref()
+            .map_or(false, |configs| !configs.is_empty())
     }
 
     pub fn get_sort_in_memory_threshold_bytes(&self) -> u64 {
-        self.sort_in_memory_threshold_bytes.unwrap_or(32 * 1024 * 1024)
+        self.sort_in_memory_threshold_bytes
+            .unwrap_or(32 * 1024 * 1024)
     }
 
     pub fn get_merge_batch_size(&self) -> usize {
@@ -144,12 +152,15 @@ mod tests {
         use std::collections::HashMap;
 
         let mut field_configs = HashMap::new();
-        field_configs.insert("timestamp".to_string(), FieldConfig {
-            compression_type: Some("SNAPPY".to_string()),
-            compression_level: None,
-            encoding_type: None,
-            ..Default::default()
-        });
+        field_configs.insert(
+            "timestamp".to_string(),
+            FieldConfig {
+                compression_type: Some("SNAPPY".to_string()),
+                compression_level: None,
+                encoding_type: None,
+                ..Default::default()
+            },
+        );
         let config = NativeSettings {
             compression_type: Some("ZSTD".to_string()),
             field_configs: Some(field_configs),

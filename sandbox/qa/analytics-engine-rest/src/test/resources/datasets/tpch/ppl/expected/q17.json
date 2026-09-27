@@ -1,0 +1,15 @@
+{
+  "schema" : [
+    {
+      "name" : "avg_yearly",
+      "type" : "double"
+    }
+  ],
+  "total" : 1,
+  "datarows" : [
+    [
+      null
+    ]
+  ],
+  "size" : 1
+}

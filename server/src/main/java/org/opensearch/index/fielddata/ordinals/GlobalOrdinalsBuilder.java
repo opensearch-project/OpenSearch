@@ -107,7 +107,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, cancellableSubs, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
-        breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
+        breakerService.getBreaker(CircuitBreaker.FIELDDATA).addEstimateBytesAndMaybeBreak(memorySizeInBytes, indexFieldData.getFieldName());
 
         if (logger.isDebugEnabled()) {
             logger.debug(

@@ -30,9 +30,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, Float64Array, Int64Array, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, Float64Array, Int64Array, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::plan_err;
 use datafusion::error::{DataFusionError, Result};
@@ -120,7 +118,12 @@ impl ScalarUDFImpl for WidthBucketUdf {
                 builder.append_null();
                 continue;
             }
-            match calculate(value.value(i), num_bins.value(i), range.value(i), max_value.value(i)) {
+            match calculate(
+                value.value(i),
+                num_bins.value(i),
+                range.value(i),
+                max_value.value(i),
+            ) {
                 Some(s) => builder.append_value(&s),
                 None => builder.append_null(),
             }
@@ -358,10 +361,18 @@ mod tests {
             config_options: Arc::new(Default::default()),
         };
         let out = udf.invoke_with_args(args).unwrap();
-        let ColumnarValue::Array(a) = out else { panic!("expected array") };
+        let ColumnarValue::Array(a) = out else {
+            panic!("expected array")
+        };
         let s = a.as_string::<i32>();
         (0..n)
-            .map(|i| if s.is_null(i) { None } else { Some(s.value(i).to_string()) })
+            .map(|i| {
+                if s.is_null(i) {
+                    None
+                } else {
+                    Some(s.value(i).to_string())
+                }
+            })
             .collect()
     }
 
@@ -416,14 +427,21 @@ mod tests {
     fn coerce_types_rejects_string_in_value_slot() {
         let udf = WidthBucketUdf::new();
         assert!(udf
-            .coerce_types(&[DataType::Utf8, DataType::Int64, DataType::Float64, DataType::Float64])
+            .coerce_types(&[
+                DataType::Utf8,
+                DataType::Int64,
+                DataType::Float64,
+                DataType::Float64
+            ])
             .is_err());
     }
 
     #[test]
     fn coerce_types_rejects_wrong_arity() {
         let udf = WidthBucketUdf::new();
-        assert!(udf.coerce_types(&[DataType::Int64, DataType::Int64, DataType::Int64]).is_err());
+        assert!(udf
+            .coerce_types(&[DataType::Int64, DataType::Int64, DataType::Int64])
+            .is_err());
     }
 
     #[test]

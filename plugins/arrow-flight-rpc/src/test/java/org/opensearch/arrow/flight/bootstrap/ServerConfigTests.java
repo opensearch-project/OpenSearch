@@ -88,7 +88,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
         assertFalse(ServerConfig.ARROW_ENABLE_DEBUG_ALLOCATOR.get(defaultSettings));
         assertFalse(ServerConfig.ARROW_SSL_ENABLE.get(defaultSettings));
         assertEquals(TimeValue.timeValueSeconds(60), ServerConfig.FLIGHT_READY_TIMEOUT.get(defaultSettings));
-        assertEquals(64L * 1024 * 1024, ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(defaultSettings).getBytes());
+        assertEquals(512L * 1024, ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(defaultSettings).getBytes());
     }
 
     public void testBackpressureSettingsParse() {
@@ -137,7 +137,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
 
     public void testOutboundBufferThresholdBounds() {
         Settings tooLow = Settings.builder()
-            .put(ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.getKey(), new ByteSizeValue(512, ByteSizeUnit.KB))
+            .put(ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.getKey(), new ByteSizeValue(64, ByteSizeUnit.KB))
             .build();
         expectThrows(IllegalArgumentException.class, () -> ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(tooLow));
 

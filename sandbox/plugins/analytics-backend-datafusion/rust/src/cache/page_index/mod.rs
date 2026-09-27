@@ -72,14 +72,14 @@
 //! [`read_columns_indexes`]/[`read_offset_indexes`] (the only public subset
 //! decoders). Migrate to `ParquetMetaDataOptions` when it grows a page-index knob.
 
-pub mod cache_store;
 pub mod cache_keys;
-pub mod page_index_io;
+pub mod cache_store;
 pub mod column_schema_resolver;
+pub mod page_index_io;
 
-use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
 use crate::cache::eviction_policy::CacheEvictionPolicy;
 use cache_keys::{CiCellKey, OiCellKey, OiColumn};
+use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
 
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use once_cell::sync::Lazy;
@@ -124,19 +124,21 @@ pub fn set_whole_region_fetch_enabled(enabled: bool) {
 }
 
 pub use cache_store::ScopedCacheStats;
-pub use page_index_io::load_scoped_page_index_cols;
 pub use column_schema_resolver::{
-    resolve_predicate_parquet_columns,
-    resolve_predicate_parquet_columns_pair,
+    resolve_predicate_parquet_columns, resolve_predicate_parquet_columns_pair,
 };
+pub use page_index_io::load_scoped_page_index_cols;
 
 // Process-global caches
 
 pub(crate) static COLUMN_INDEX_CACHE: Lazy<BoundedCache<CiCellKey, ColumnIndexMetaData>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+    Lazy::new(|| {
+        BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo)
+    });
 
-pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> = Lazy::new(|| {
+    BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo)
+});
 
 /// Set the ColumnIndex cache's byte budget. Called from startup wiring with the
 /// configured limit. Idempotent; shrinking evicts immediately. Zero ignored.
@@ -182,15 +184,16 @@ pub fn evict_file_from_scoped_cache(file_path: &str) {
     OFFSET_INDEX_CACHE.evict_by_prefix(file_path);
 }
 
-/// Crate-wide guard so every test that touches the process-global caches mutually
-/// excludes (distinct fixtures alone aren't enough — the `InMemory` path is always
-/// "data.parquet"). Shared (not per-module) so all cache users serialize.
-#[cfg(test)]
-pub(crate) static SCOPED_CACHE_TEST_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+// Every test that touches the caches above must hold `crate::test_process_globals::lock` for its
+// whole body — distinct fixtures alone aren't enough, since the `InMemory` path is always
+// "data.parquet" and the hit/miss counters are process-wide whatever the key is. That lock is not
+// specific to these caches on purpose: a doc-values cursor open inserts here *and* reads the
+// runtime manager and the global `RuntimeEnv` registration, so one lock covers all of it.
 
 /// Clear both caches AND restore the default limit on each.
 #[cfg(test)]
 pub(crate) fn clear_scoped_cache_for_test() {
+    crate::test_process_globals::assert_held("the scoped page-index caches");
     COLUMN_INDEX_CACHE.clear_keep_limit();
     COLUMN_INDEX_CACHE.set_limit(DEFAULT_SCOPED_CACHE_LIMIT);
     OFFSET_INDEX_CACHE.clear_keep_limit();

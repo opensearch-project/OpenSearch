@@ -229,7 +229,10 @@ mod tests {
         let arr = arr.as_any().downcast_ref::<BooleanArray>().unwrap();
         assert!(!arr.is_null(1), "NULL input must produce FALSE, not NULL");
         assert!(arr.value(0));
-        assert!(!arr.value(1), "NULL input → FALSE (legacy JsonUtils.isValidJson)");
+        assert!(
+            !arr.value(1),
+            "NULL input → FALSE (legacy JsonUtils.isValidJson)"
+        );
         assert!(!arr.value(2));
         assert!(arr.value(3));
         // Empty string is VALID per the legacy Jackson contract (see empty_and_whitespace_are_valid).

@@ -29,9 +29,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, Float64Array, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, Float64Array, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::plan_err;
 use datafusion::error::{DataFusionError, Result};
@@ -154,10 +152,7 @@ fn format_range(bin_start: f64, bin_end: f64, span: f64) -> String {
         format!("{}-{}", bin_start as i64, bin_end as i64)
     } else {
         let decimals = decimal_places_for(span);
-        format!(
-            "{:.*}-{:.*}",
-            decimals, bin_start, decimals, bin_end
-        )
+        format!("{:.*}-{:.*}", decimals, bin_start, decimals, bin_end)
     }
 }
 
@@ -307,10 +302,18 @@ mod tests {
             config_options: Arc::new(Default::default()),
         };
         let out = udf.invoke_with_args(args).unwrap();
-        let ColumnarValue::Array(a) = out else { panic!("expected array") };
+        let ColumnarValue::Array(a) = out else {
+            panic!("expected array")
+        };
         let s = a.as_string::<i32>();
         (0..n)
-            .map(|i| if s.is_null(i) { None } else { Some(s.value(i).to_string()) })
+            .map(|i| {
+                if s.is_null(i) {
+                    None
+                } else {
+                    Some(s.value(i).to_string())
+                }
+            })
             .collect()
     }
 

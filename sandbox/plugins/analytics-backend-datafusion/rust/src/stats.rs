@@ -220,7 +220,6 @@ pub fn pack_runtime_metrics(_monitor: &RuntimeMonitor, handle: &Handle) -> Runti
     }
 }
 
-
 /// Snapshot a `TaskMonitor` and return a populated `TaskMonitorRepr`.
 ///
 /// | Field                        | Source                          |
@@ -332,8 +331,8 @@ pub fn pack_cache_stats(mgr: &CustomCacheManager) -> CacheStatsRepr {
 mod tests {
     use super::*;
     use crate::task_monitors::{
-        coordinator_reduce_monitor, query_execution_monitor,
-        stream_next_monitor, plan_setup_monitor,
+        coordinator_reduce_monitor, plan_setup_monitor, query_execution_monitor,
+        stream_next_monitor,
     };
 
     #[test]
@@ -385,7 +384,11 @@ mod tests {
         assert_eq!(result, 42);
 
         let tm = pack_task_monitor(monitor);
-        assert!(tm.total_poll_duration_ms >= 0, "total_poll_duration should be >= 0, got {}", tm.total_poll_duration_ms);
+        assert!(
+            tm.total_poll_duration_ms >= 0,
+            "total_poll_duration should be >= 0, got {}",
+            tm.total_poll_duration_ms
+        );
     }
 
     #[tokio::test]
@@ -418,11 +421,23 @@ mod tests {
         };
 
         assert_eq!(layout::BUFFER_BYTE_SIZE, 680);
-        assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
-        assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
+        assert!(
+            buf.io_runtime.workers_count > 0,
+            "IO runtime workers_count should be > 0, got {}",
+            buf.io_runtime.workers_count
+        );
+        assert!(
+            buf.fragment_executor_gate.max_permits > 0,
+            "fragment_executor_gate max_permits should be > 0, got {}",
+            buf.fragment_executor_gate.max_permits
+        );
 
         if mgr.cpu_monitor.is_some() {
-            assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);
+            assert!(
+                buf.cpu_runtime.workers_count > 0,
+                "CPU runtime workers_count should be > 0, got {}",
+                buf.cpu_runtime.workers_count
+            );
         }
 
         mgr.cpu_executor.shutdown();
@@ -458,8 +473,8 @@ mod tests {
     fn test_pack_cache_stats_reflects_underlying_counters() {
         use std::sync::Arc;
 
-        use datafusion::execution::cache::DefaultFilesMetadataCache;
         use datafusion::execution::cache::CacheAccessor;
+        use datafusion::execution::cache::DefaultFilesMetadataCache;
         use object_store::path::Path;
 
         use crate::cache::MutexFileMetadataCache;
@@ -467,9 +482,9 @@ mod tests {
         use crate::eviction_policy::PolicyType;
         use crate::statistics_cache::CustomStatisticsCache;
 
-        let metadata_cache = Arc::new(MutexFileMetadataCache::new(
-            DefaultFilesMetadataCache::new(50 * 1024 * 1024),
-        ));
+        let metadata_cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+            50 * 1024 * 1024,
+        )));
         let stats_cache = Arc::new(CustomStatisticsCache::new(
             PolicyType::Lru,
             10 * 1024 * 1024,
@@ -482,7 +497,9 @@ mod tests {
             assert!(metadata_cache.get(&p).is_none());
             assert!(stats_cache.get(&p).is_none());
         }
-        assert!(metadata_cache.get(&Path::from("/test/missing/extra.parquet")).is_none());
+        assert!(metadata_cache
+            .get(&Path::from("/test/missing/extra.parquet"))
+            .is_none());
 
         let mut mgr = CustomCacheManager::new();
         mgr.set_file_metadata_cache(metadata_cache);

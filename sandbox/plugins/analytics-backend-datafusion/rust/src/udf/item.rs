@@ -29,9 +29,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, MapArray, StringArray, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, MapArray, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -92,16 +90,11 @@ impl ScalarUDFImpl for ItemUdf {
         // canonicalises to Utf8 so column-valued keys (string view, large
         // string) work uniformly.
         if !matches!(arg_types[0], DataType::Map(_, _)) {
-            return plan_err!(
-                "item: arg 0 must be a Map type, got {:?}",
-                arg_types[0]
-            );
+            return plan_err!("item: arg 0 must be a Map type, got {:?}", arg_types[0]);
         }
         let key_target = match arg_types[1] {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
-            ref other => return plan_err!(
-                "item: arg 1 must be a string key, got {other:?}"
-            ),
+            ref other => return plan_err!("item: arg 1 must be a string key, got {other:?}"),
         };
         Ok(vec![arg_types[0].clone(), key_target])
     }
@@ -113,13 +106,12 @@ impl ScalarUDFImpl for ItemUdf {
         let n = args.number_rows;
 
         let map_arr = args.args[0].clone().into_array(n)?;
-        let map = map_arr
-            .as_any()
-            .downcast_ref::<MapArray>()
-            .ok_or_else(|| DataFusionError::Internal(format!(
+        let map = map_arr.as_any().downcast_ref::<MapArray>().ok_or_else(|| {
+            DataFusionError::Internal(format!(
                 "item: arg 0 expected MapArray, got {:?}",
                 map_arr.data_type(),
-            )))?;
+            ))
+        })?;
 
         // Fast-path the common case: literal key (every PPL parse → ITEM call
         // hits this, since the named-group identifier is a string literal).
@@ -160,16 +152,12 @@ impl ScalarUDFImpl for ItemUdf {
                 .column(0)
                 .as_any()
                 .downcast_ref::<StringArray>()
-                .ok_or_else(|| DataFusionError::Internal(
-                    "item: map keys are not Utf8".into(),
-                ))?;
+                .ok_or_else(|| DataFusionError::Internal("item: map keys are not Utf8".into()))?;
             let values = entries
                 .column(1)
                 .as_any()
                 .downcast_ref::<StringArray>()
-                .ok_or_else(|| DataFusionError::Internal(
-                    "item: map values are not Utf8".into(),
-                ))?;
+                .ok_or_else(|| DataFusionError::Internal("item: map values are not Utf8".into()))?;
 
             let mut found = false;
             for j in 0..entries.len() {
@@ -261,21 +249,30 @@ mod tests {
     #[test]
     fn returns_value_for_present_key() {
         let map = build_map(vec![Some(vec![("a", "1"), ("b", "2")])]);
-        let out = run(map, ColumnarValue::Scalar(ScalarValue::Utf8(Some("a".into()))));
+        let out = run(
+            map,
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some("a".into()))),
+        );
         assert_eq!(out.value(0), "1");
     }
 
     #[test]
     fn returns_null_for_absent_key() {
         let map = build_map(vec![Some(vec![("a", "1")])]);
-        let out = run(map, ColumnarValue::Scalar(ScalarValue::Utf8(Some("missing".into()))));
+        let out = run(
+            map,
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some("missing".into()))),
+        );
         assert!(out.is_null(0));
     }
 
     #[test]
     fn returns_null_for_null_map_cell() {
         let map = build_map(vec![None]);
-        let out = run(map, ColumnarValue::Scalar(ScalarValue::Utf8(Some("a".into()))));
+        let out = run(
+            map,
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some("a".into()))),
+        );
         assert!(out.is_null(0));
     }
 
@@ -335,9 +332,7 @@ mod tests {
             false,
         ));
         let map_dt = DataType::Map(entries, false);
-        let err = udf
-            .coerce_types(&[map_dt, DataType::Int32])
-            .unwrap_err();
+        let err = udf.coerce_types(&[map_dt, DataType::Int32]).unwrap_err();
         assert!(err.to_string().contains("must be a string key"));
     }
 }

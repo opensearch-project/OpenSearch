@@ -57,6 +57,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -101,7 +102,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -115,6 +116,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final Version indexCreatedVersion;
 
         public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+            this(name, ignoreMalformedByDefault, indexCreatedVersion, Settings.EMPTY);
+        }
+
+        public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion, Settings settings) {
             super(name);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
@@ -124,6 +129,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         Builder nullValue(String nullValue) {
@@ -183,7 +189,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated(), c.getSettings());
     });
 
     @Override
@@ -606,7 +612,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     private final Version indexCreatedVersion;
 
     private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
