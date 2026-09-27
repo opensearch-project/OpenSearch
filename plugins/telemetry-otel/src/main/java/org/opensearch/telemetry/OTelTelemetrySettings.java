@@ -11,6 +11,7 @@ package org.opensearch.telemetry;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.secure_sm.AccessController;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
@@ -132,6 +133,21 @@ public final class OTelTelemetrySettings {
                 });
             } catch (ClassNotFoundException ex) {
                 throw new IllegalStateException("Unable to load sampler class: " + sampler, ex);
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * OTel resource service.name
+     */
+    public static final Setting<String> OTEL_SERVICE_NAME_SETTING = Setting.simpleString(
+        "telemetry.otel.service.name",
+        "OpenSearch",
+        value -> {
+            if (Strings.hasText(value) == false) {
+                throw new IllegalArgumentException("telemetry.otel.service.name must be a non-empty string");
             }
         },
         Setting.Property.NodeScope,
