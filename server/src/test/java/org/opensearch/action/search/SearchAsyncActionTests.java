@@ -163,7 +163,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
 
             @Override
@@ -288,7 +289,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
 
             @Override
@@ -412,7 +414,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                 request,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -541,7 +544,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                 request,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -660,7 +664,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             @Override
             protected void executePhaseOnShard(
