@@ -8,8 +8,10 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -18,6 +20,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
@@ -29,20 +32,124 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
         handler = new TranslogTransferMetadataHandler();
     }
 
+    /**
+     * Tests the readContent method of the TranslogTransferMetadataHandler, which reads the TranslogTransferMetadata
+     * from the provided IndexInput.
+     *
+     * @throws IOException if there is an error reading the metadata from the IndexInput
+     */
     public void testReadContent() throws IOException {
         TranslogTransferMetadata expectedMetadata = getTestMetadata();
 
         // Operation: Read expected metadata from source input stream.
-        IndexInput indexInput = new ByteArrayIndexInput("metadata file", getTestMetadataBytes());
+        IndexInput indexInput = new ByteArrayIndexInput("metadata file", getTestMetadataBytes(expectedMetadata));
         TranslogTransferMetadata actualMetadata = handler.readContent(indexInput);
 
         // Verification: Compare actual metadata read from the source input stream.
         assertEquals(expectedMetadata, actualMetadata);
     }
 
-    public void testWriteContent() throws IOException {
-        TranslogTransferMetadata expectedMetadata = getTestMetadata();
+    /**
+     * Tests the readContent method of the TranslogTransferMetadataHandler, which reads the TranslogTransferMetadata
+     * that includes the generation-to-checksum map from the provided IndexInput.
+     *
+     * @throws IOException if there is an error reading the metadata from the IndexInput
+     */
+    public void testReadContentForMetadataWithgenerationToChecksumMap() throws IOException {
+        TranslogTransferMetadata expectedMetadata = getTestMetadataWithGenerationToChecksumMap();
 
+        // Operation: Read expected metadata from source input stream.
+        IndexInput indexInput = new ByteArrayIndexInput("metadata file", getTestMetadataBytes(expectedMetadata));
+        TranslogTransferMetadata actualMetadata = handler.readContent(indexInput);
+
+        // Verification: Compare actual metadata read from the source input stream.
+        assertEquals(expectedMetadata, actualMetadata);
+    }
+
+    /**
+     * Tests the writeContent method of the TranslogTransferMetadataHandler, which writes the provided
+     * TranslogTransferMetadata to the OutputStreamIndexOutput.
+     *
+     * @throws IOException if there is an error writing the metadata to the OutputStreamIndexOutput
+     */
+    public void testWriteContent() throws IOException {
+        verifyWriteContent(getTestMetadata());
+    }
+
+    /**
+     * Tests the writeContent method of the TranslogTransferMetadataHandler, which writes the provided
+     * TranslogTransferMetadata that includes the generation-to-checksum map to the OutputStreamIndexOutput.
+     *
+     * @throws IOException if there is an error writing the metadata to the OutputStreamIndexOutput
+     */
+    public void testWriteContentWithGeneratonToChecksumMap() throws IOException {
+        verifyWriteContent(getTestMetadataWithGenerationToChecksumMap());
+    }
+
+    /**
+     * Metadata written by a node that predates the generation-to-checksum map ends with the primary-term map,
+     * followed only by the codec footer. Read through the same versioned wrapper the transfer manager uses, it
+     * must yield an empty checksum map rather than misinterpreting the footer bytes.
+     */
+    public void testReadLegacyMetadataThroughCodecWrapperYieldsEmptyChecksumMap() throws IOException {
+        TranslogTransferMetadata legacy = getTestMetadata();
+        BytesStreamOutput output = new BytesStreamOutput();
+        try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+            CodecUtil.writeHeader(indexOutput, TranslogTransferMetadata.METADATA_CODEC, TranslogTransferMetadata.CURRENT_VERSION);
+            indexOutput.writeLong(legacy.getPrimaryTerm());
+            indexOutput.writeLong(legacy.getGeneration());
+            indexOutput.writeLong(legacy.getMinTranslogGeneration());
+            indexOutput.writeMapOfStrings(legacy.getGenerationToPrimaryTermMapper());
+            CodecUtil.writeFooter(indexOutput);
+        }
+
+        TranslogTransferMetadata actual = codecWrapper().readStream(
+            new ByteArrayIndexInput("metadata file", BytesReference.toBytes(output.bytes()))
+        );
+        assertEquals(legacy, actual);
+        assertEquals(legacy.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+        assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+    }
+
+    /**
+     * Full round trip through the versioned codec wrapper, with and without checksum entries, must preserve both maps.
+     */
+    public void testCodecWrapperRoundTripPreservesChecksumMap() throws IOException {
+        for (TranslogTransferMetadata expected : List.of(getTestMetadata(), getTestMetadataWithGenerationToChecksumMap())) {
+            BytesStreamOutput output = new BytesStreamOutput();
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+                codecWrapper().writeStream(indexOutput, expected);
+            }
+            TranslogTransferMetadata actual = codecWrapper().readStream(
+                new ByteArrayIndexInput("metadata file", BytesReference.toBytes(output.bytes()))
+            );
+            assertEquals(expected, actual);
+            assertEquals(expected.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+            Map<String, String> expectedChecksums = expected.getGenerationToChecksumMapper() == null
+                ? Map.of()
+                : expected.getGenerationToChecksumMapper();
+            assertEquals(expectedChecksums, actual.getGenerationToChecksumMapper());
+        }
+    }
+
+    private static VersionedCodecStreamWrapper<TranslogTransferMetadata> codecWrapper() {
+        return new VersionedCodecStreamWrapper<>(
+            new TranslogTransferMetadataHandlerFactory(),
+            TranslogTransferMetadata.CURRENT_VERSION,
+            TranslogTransferMetadata.CURRENT_VERSION,
+            TranslogTransferMetadata.METADATA_CODEC
+        );
+    }
+
+    /**
+     * Verifies the writeContent method of the TranslogTransferMetadataHandler by writing the provided
+     * TranslogTransferMetadata to an OutputStreamIndexOutput, and then reading it back and comparing it
+     * to the original metadata.
+     *
+     * @param expectedMetadata the expected TranslogTransferMetadata to be written and verified
+     * @throws IOException if there is an error writing or reading the metadata
+     */
+    private void verifyWriteContent(TranslogTransferMetadata expectedMetadata) throws IOException {
         // Operation: Write expected metadata to the target output stream.
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput actualMetadataStream = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
@@ -55,9 +162,11 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
         long generation = indexInput.readLong();
         long minTranslogGeneration = indexInput.readLong();
         Map<String, String> generationToPrimaryTermMapper = indexInput.readMapOfStrings();
+        Map<String, String> generationToChecksumMapper = indexInput.readMapOfStrings();
         int count = generationToPrimaryTermMapper.size();
         TranslogTransferMetadata actualMetadata = new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, count);
         actualMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        actualMetadata.setGenerationToChecksumMapper(generationToChecksumMapper);
         assertEquals(expectedMetadata, actualMetadata);
     }
 
@@ -76,18 +185,36 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
         return metadata;
     }
 
-    private byte[] getTestMetadataBytes() throws IOException {
+    private TranslogTransferMetadata getTestMetadataWithGenerationToChecksumMap() {
         TranslogTransferMetadata metadata = getTestMetadata();
+        Map<String, String> generationToChecksumMapper = Map.of(
+            String.valueOf(300),
+            String.valueOf(1234),
+            String.valueOf(400),
+            String.valueOf(4567)
+        );
+        metadata.setGenerationToChecksumMapper(generationToChecksumMapper);
+        return metadata;
+    }
 
+    /**
+     * Creates a byte array representation of the provided TranslogTransferMetadata instance, which includes
+     * the primary term, generation, minimum translog generation, generation-to-primary term mapping, and
+     * generation-to-checksum mapping (if available).
+     *
+     * @param metadata the TranslogTransferMetadata instance to be converted to a byte array
+     * @return the byte array representation of the TranslogTransferMetadata
+     * @throws IOException if there is an error writing the metadata to the byte array
+     */
+    private byte[] getTestMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
-        indexOutput.writeLong(metadata.getPrimaryTerm());
-        indexOutput.writeLong(metadata.getGeneration());
-        indexOutput.writeLong(metadata.getMinTranslogGeneration());
-        Map<String, String> generationToPrimaryTermMapper = metadata.getGenerationToPrimaryTermMapper();
-        indexOutput.writeMapOfStrings(generationToPrimaryTermMapper);
-        indexOutput.close();
-
+        try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+            indexOutput.writeLong(metadata.getPrimaryTerm());
+            indexOutput.writeLong(metadata.getGeneration());
+            indexOutput.writeLong(metadata.getMinTranslogGeneration());
+            indexOutput.writeMapOfStrings(metadata.getGenerationToPrimaryTermMapper());
+            if (metadata.getGenerationToChecksumMapper() != null) indexOutput.writeMapOfStrings(metadata.getGenerationToChecksumMapper());
+        }
         return BytesReference.toBytes(output.bytes());
     }
 }

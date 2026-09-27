@@ -32,6 +32,7 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -392,6 +393,15 @@ public class TranslogTransferManager {
     }
 
     /**
+     * Marks a translog or checkpoint file as present locally without downloading it, so that the file transfer
+     * tracker treats it exactly like a downloaded file: it is not re-uploaded on the next sync and is eligible
+     * for the usual remote clean-up bookkeeping.
+     */
+    public void markFileAsDownloaded(String filename) {
+        fileTransferTracker.add(filename, true);
+    }
+
+    /**
      * Process the provided metadata and tries to recover translog.ckp file to the FS.
      */
     private void recoverCkpFileUsingMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
@@ -415,8 +425,8 @@ public class TranslogTransferManager {
 
     private Map<String, String> downloadToFS(String fileName, Path location, String primaryTerm, boolean withMetadata) throws IOException {
         Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
+        // downloadToFS method will be called only when we want to download the file.
+        // Therefore, we delete the file if it exists.
         deleteFileIfExists(filePath);
 
         Map<String, String> metadata = null;
@@ -571,8 +581,24 @@ public class TranslogTransferManager {
                     snapshot -> String.valueOf(snapshot.getPrimaryTerm())
                 )
             );
+
+        // Advertise the content checksum of every generation that carries a footer, so a downloader holding the
+        // same bytes locally can skip fetching them. Footer-less generations are simply absent from the map.
+        Map<String, String> generationChecksumMap = transferSnapshot.getTranslogFileSnapshots()
+            .stream()
+            .filter(snapshot -> snapshot instanceof TranslogFileSnapshot)
+            .map(snapshot -> (TranslogFileSnapshot) snapshot)
+            .filter(snapshot -> snapshot.getTranslogContentChecksum() != null)
+            .collect(
+                Collectors.toMap(
+                    snapshot -> String.valueOf(snapshot.getGeneration()),
+                    snapshot -> String.valueOf(snapshot.getTranslogContentChecksum())
+                )
+            );
+
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+        translogTransferMetadata.setGenerationToChecksumMapper(new HashMap<>(generationChecksumMap));
 
         return new TransferFileSnapshot(
             translogTransferMetadata.getFileName(),

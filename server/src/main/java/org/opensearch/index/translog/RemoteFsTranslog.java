@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -279,20 +280,44 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 Files.createDirectories(location);
             }
 
-            // Delete translog files on local before downloading from remote
+            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            Map<String, String> generationToChecksumMapper = translogMetadata.getGenerationToChecksumMapper() != null
+                ? translogMetadata.getGenerationToChecksumMapper()
+                : Map.of();
+            long maxGeneration = translogMetadata.getGeneration();
+            long minGeneration = translogMetadata.getMinTranslogGeneration();
+
+            // Only generations inside the remote range can be reused; everything else (including translog.ckp,
+            // which is re-derived below, and any file that is not a translog or checkpoint file) is removed.
             for (Path file : FileSystemUtils.files(location)) {
-                Files.delete(file);
+                try {
+                    long generation = parseIdFromFileName(file.getFileName().toString(), STRICT_TLOG_OR_CKP_PATTERN);
+                    if (generation < minGeneration || generation > maxGeneration) {
+                        Files.delete(file);
+                    }
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    Files.delete(file);
+                }
             }
 
-            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
-            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+            int skipped = 0;
+            for (long i = maxGeneration; i >= minGeneration; i--) {
                 String generation = Long.toString(i);
+                if (isLocalGenerationCurrent(location, i, generationToChecksumMapper.get(generation), logger)) {
+                    // The same bytes are already on disk: make the tracker aware of them exactly as if they had
+                    // been downloaded, so they are neither re-uploaded on the next sync nor fetched again.
+                    translogTransferManager.markFileAsDownloaded(Translog.getFilename(i));
+                    translogTransferManager.markFileAsDownloaded(Translog.getCommitCheckpointFileName(i));
+                    skipped++;
+                    continue;
+                }
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
             logger.info(
-                "Downloaded translog and checkpoint files from={} to={}",
+                "Downloaded translog and checkpoint files from={} to={}, generations already present locally={}",
                 translogMetadata.getMinTranslogGeneration(),
-                translogMetadata.getGeneration()
+                translogMetadata.getGeneration(),
+                skipped
             );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
@@ -322,6 +347,58 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             }
         }
         logger.debug("downloadOnce execution completed");
+    }
+
+    /**
+     * Decides whether generation {@code generation} can be served from the local translog directory instead of
+     * being downloaded again. The local copy is reused only when all of the following hold:
+     * <ul>
+     *   <li>the remote metadata advertises a content checksum for the generation (older uploads do not)</li>
+     *   <li>both the {@code .tlog} and the {@code .ckp} file are present locally</li>
+     *   <li>the local checkpoint passes its own CRC and belongs to this generation</li>
+     *   <li>the local translog carries a {@link TranslogFooter} whose checksum equals the advertised one</li>
+     * </ul>
+     * Any failure to establish this - including a truncated file, a missing footer or an I/O error - falls back to
+     * downloading, which is exactly what happens today.
+     */
+    // Visible for testing
+    static boolean isLocalGenerationCurrent(Path location, long generation, String expectedChecksum, Logger logger) {
+        if (expectedChecksum == null) {
+            return false;
+        }
+        Path translogPath = location.resolve(Translog.getFilename(generation));
+        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
+        if (Files.isRegularFile(translogPath) == false || Files.isRegularFile(checkpointPath) == false) {
+            return false;
+        }
+        try {
+            Checkpoint checkpoint = Checkpoint.read(checkpointPath);
+            if (checkpoint.generation != generation) {
+                logger.debug(
+                    "local checkpoint file {} belongs to generation {}, expected {}; downloading",
+                    checkpointPath.getFileName(),
+                    checkpoint.generation,
+                    generation
+                );
+                return false;
+            }
+            Long localChecksum = TranslogFooter.readChecksum(translogPath, checkpoint.offset);
+            boolean current = localChecksum != null && localChecksum == Long.parseLong(expectedChecksum);
+            if (current) {
+                logger.debug("local translog generation {} matches remote checksum {}; skipping download", generation, expectedChecksum);
+            } else {
+                logger.debug(
+                    "local translog generation {} has checksum {} but remote advertises {}; downloading",
+                    generation,
+                    localChecksum,
+                    expectedChecksum
+                );
+            }
+            return current;
+        } catch (IOException | NumberFormatException e) {
+            logger.debug(() -> new ParameterizedMessage("unable to reconcile local translog generation {}; downloading", generation), e);
+            return false;
+        }
     }
 
     private static boolean isEmptyTranslog(Checkpoint checkpoint) {

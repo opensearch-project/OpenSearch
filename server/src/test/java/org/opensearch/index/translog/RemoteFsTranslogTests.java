@@ -10,6 +10,7 @@ package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
@@ -19,6 +20,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -27,6 +29,7 @@ import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.io.Channels;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
@@ -83,7 +86,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -103,14 +108,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -119,6 +128,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
@@ -1686,12 +1697,29 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
-            final Checkpoint writerCheckpoint = writer.getCheckpoint();
+            final Long expectedContentChecksum;
+            {
+                // The footer carries the checksum of header + operations, i.e. of everything the writer has
+                // synced so far; capture it before closeIntoReader folds the footer bytes into the writer's checksum.
+                final Checkpoint syncedCheckpoint = writer.getCheckpoint();
+                expectedContentChecksum = Long.valueOf(checksumOf(writer.path(), syncedCheckpoint.offset));
+            }
             TranslogReader reader = writer.closeIntoReader();
+            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             try {
+                // The footer must live past the checkpoint offset so that pre-footer readers never see it.
+                assertEquals(writerCheckpoint.offset + TranslogFooter.footerLength(), Files.size(reader.path()));
+                assertEquals(writerCheckpoint.offset, reader.sizeInBytes());
+                assertEquals(expectedContentChecksum, reader.getTranslogContentChecksum());
+                assertEquals(Long.valueOf(checksumOf(writer.path(), Files.size(writer.path()))), reader.getTranslogChecksum());
+
                 if (randomBoolean()) {
                     reader.close();
                     reader = translog.openReader(reader.path(), writerCheckpoint);
+                    // A re-opened reader recovers the content checksum from the footer but cannot know the
+                    // whole-file checksum.
+                    assertEquals(expectedContentChecksum, reader.getTranslogContentChecksum());
+                    assertNull(reader.getTranslogChecksum());
                 }
                 for (int i = 0; i < numOps; i++) {
                     final ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1700,6 +1728,27 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                     final int value = buffer.getInt();
                     assertEquals(i, value);
                 }
+
+                // Reading at or past the checkpoint offset is EOF: the footer is not addressable through the reader.
+                final TranslogReader finalReader = reader;
+                assertThrows(
+                    EOFException.class,
+                    () -> finalReader.readBytes(ByteBuffer.allocate(4), finalReader.getFirstOperationOffset() + numOps * 4)
+                );
+                assertThrows(
+                    EOFException.class,
+                    () -> finalReader.readBytes(ByteBuffer.allocate(8), finalReader.getFirstOperationOffset() + numOps * 4 - 4)
+                );
+
+                // Validate the raw footer bytes.
+                ByteBuffer footerBuffer = ByteBuffer.allocate(TranslogFooter.footerLength());
+                Channels.readFromFileChannelWithEofException(reader.channel, writerCheckpoint.offset, footerBuffer);
+                footerBuffer.flip();
+                assertEquals(CodecUtil.FOOTER_MAGIC, footerBuffer.getInt());
+                assertEquals(TranslogFooter.CHECKSUM_ALGORITHM_CRC32, footerBuffer.getInt());
+                assertEquals(expectedContentChecksum.longValue(), footerBuffer.getLong());
+                assertEquals(expectedContentChecksum, TranslogFooter.readChecksum(reader.path(), writerCheckpoint.offset));
+
                 final Checkpoint readerCheckpoint = reader.getCheckpoint();
                 assertThat(readerCheckpoint, equalTo(writerCheckpoint));
             } finally {
@@ -1708,13 +1757,23 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    /** CRC32 of the first {@code length} bytes of {@code path}, the algorithm used by {@link TranslogCheckedContainer}. */
+    private static long checksumOf(Path path, long length) throws IOException {
+        byte[] bytes = Files.readAllBytes(path);
+        CRC32 crc = new CRC32();
+        crc.update(bytes, 0, Math.toIntExact(length));
+        return crc.getValue();
+    }
+
     public void testDownloadWithRetries() throws IOException {
         long generation = 1, primaryTerm = 1;
         Path location = createTempDir();
         TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(primaryTerm, generation, generation, 1);
         Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        Map<String, String> generationToChecksumMapper = new HashMap<>();
         generationToPrimaryTermMapper.put(String.valueOf(generation), String.valueOf(primaryTerm));
         translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        translogTransferMetadata.setGenerationToChecksumMapper(generationToChecksumMapper);
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
@@ -1822,6 +1881,246 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Path[] filesPostSecondDownload = FileSystemUtils.files(location);
 
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
+    }
+
+    /**
+     * Writes a closed translog generation (header + a few operation bytes + footer) and its checkpoint file at
+     * {@code location}, exactly as {@link TranslogWriter#closeIntoReader()} would leave them. Returns the
+     * content checksum that ended up in the footer.
+     */
+    private long createTranslogGeneration(Path location, long generation) throws IOException {
+        return createTranslogGeneration(location, generation, true);
+    }
+
+    private long createTranslogGeneration(Path location, long generation, boolean withFooter) throws IOException {
+        Path translogPath = location.resolve(Translog.getFilename(generation));
+        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
+        Files.createFile(translogPath);
+        try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+            TranslogHeader header = new TranslogHeader(UUIDs.randomBase64UUID(), 1);
+            header.write(channel, true);
+            byte[] operationBytes = randomByteArrayOfLength(randomIntBetween(4, 64));
+            channel.write(ByteBuffer.wrap(operationBytes));
+            long offset = channel.position();
+            long contentChecksum = checksumOf(translogPath, offset);
+            if (withFooter) {
+                TranslogFooter.write(channel, contentChecksum, true);
+            }
+            Checkpoint checkpoint = new Checkpoint(offset, 1, generation, 0, 0, 0, generation, SequenceNumbers.NO_OPS_PERFORMED);
+            Checkpoint.write(FileChannel::open, checkpointPath, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+            return contentChecksum;
+        }
+    }
+
+    private TranslogTransferManager mockTransferManagerFor(TranslogTransferMetadata metadata) throws IOException {
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        when(mockTransfer.readMetadata(0)).thenReturn(metadata);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(mock(RemoteTranslogTransferTracker.class));
+        return mockTransfer;
+    }
+
+    private static TranslogTransferMetadata metadataFor(long minGeneration, long maxGeneration, Map<Long, Long> checksums) {
+        TranslogTransferMetadata metadata = new TranslogTransferMetadata(
+            1,
+            maxGeneration,
+            minGeneration,
+            Math.toIntExact(maxGeneration - minGeneration + 1)
+        );
+        Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        for (long g = minGeneration; g <= maxGeneration; g++) {
+            generationToPrimaryTermMapper.put(String.valueOf(g), "1");
+        }
+        Map<String, String> generationToChecksumMapper = new HashMap<>();
+        checksums.forEach((g, c) -> generationToChecksumMapper.put(String.valueOf(g), String.valueOf(c)));
+        metadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        metadata.setGenerationToChecksumMapper(generationToChecksumMapper);
+        return metadata;
+    }
+
+    /**
+     * A generation whose local footer checksum matches the one advertised in the remote metadata is not downloaded
+     * again, but is still registered with the transfer tracker as if it had been.
+     */
+    public void testIncrementalDownloadSkipsMatchingGeneration() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 1);
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 1, Map.of(1L, checksum)));
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
+        verify(mockTransfer).markFileAsDownloaded(Translog.getFilename(1));
+        verify(mockTransfer).markFileAsDownloaded(Translog.getCommitCheckpointFileName(1));
+        // translog.ckp is re-derived from the latest generation's checkpoint.
+        assertTrue(Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
+    }
+
+    /**
+     * Only the generations missing locally are downloaded; the one already present is kept.
+     */
+    public void testIncrementalDownloadFetchesOnlyMissingGenerations() throws IOException {
+        Path location = createTempDir();
+        long checksum1 = createTranslogGeneration(location, 1);
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 2, Map.of(1L, checksum1, 2L, 5678L)));
+        AtomicLong downloadCounter = new AtomicLong();
+        doAnswer(invocation -> {
+            downloadCounter.incrementAndGet();
+            createTranslogGeneration(location, 2);
+            return true;
+        }).when(mockTransfer).downloadTranslog("1", "2", location);
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        assertEquals(1, downloadCounter.get());
+        verify(mockTransfer, times(0)).downloadTranslog("1", "1", location);
+        verify(mockTransfer).markFileAsDownloaded(Translog.getFilename(1));
+    }
+
+    /**
+     * Every way in which the local copy can fail to prove it is identical to the remote one must fall back to a
+     * download: checksum mismatch, footer-less file, missing checkpoint, checkpoint for a different generation,
+     * or a remote that does not advertise a checksum for the generation at all.
+     */
+    public void testIncrementalDownloadFallsBackWhenLocalStateCannotBeTrusted() throws IOException {
+        // Checksum mismatch (e.g. a stale generation left behind by an earlier incarnation of the shard).
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1);
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum + 1), logger));
+            assertTrue(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
+        }
+        // Local generation written before footers existed.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, false);
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
+        }
+        // Remote does not know the checksum (metadata uploaded by an older node).
+        {
+            Path location = createTempDir();
+            createTranslogGeneration(location, 1);
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, null, logger));
+        }
+        // Checkpoint file missing.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
+        }
+        // Checkpoint file belongs to another generation.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            createTranslogGeneration(location, 2);
+            Files.move(
+                location.resolve(Translog.getCommitCheckpointFileName(2)),
+                location.resolve(Translog.getCommitCheckpointFileName(1))
+            );
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
+        }
+        // Translog file truncated after the checkpoint was written.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1);
+            Path translogPath = location.resolve(Translog.getFilename(1));
+            try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+                channel.truncate(Files.size(translogPath) - 1);
+            }
+            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
+        }
+    }
+
+    /**
+     * Files outside the remote generation range, and files that are not translog files at all, are removed before
+     * the download reconciles the remaining generations.
+     */
+    public void testIncrementalDownloadRemovesGenerationsOutsideRemoteRange() throws IOException {
+        Path location = createTempDir();
+        createTranslogGeneration(location, 1);
+        long checksum2 = createTranslogGeneration(location, 2);
+        createTranslogGeneration(location, 3);
+        Files.createFile(location.resolve("unrelated.tmp"));
+        Files.createFile(location.resolve(Translog.CHECKPOINT_FILE_NAME));
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
+        Set<String> remaining = Arrays.stream(FileSystemUtils.files(location))
+            .map(p -> p.getFileName().toString())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(Translog.getFilename(2), Translog.getCommitCheckpointFileName(2), Translog.CHECKPOINT_FILE_NAME), remaining);
+    }
+
+    /**
+     * End to end against the real (filesystem backed) transfer manager: generations uploaded by this translog are
+     * downloaded once into a fresh directory, and a second download of the same remote state fetches nothing but
+     * the metadata. Corrupting one local generation makes exactly that generation download again.
+     */
+    public void testRepeatedDownloadReusesLocalGenerations() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        int numOps = randomIntBetween(2, 6);
+        for (int i = 0; i < numOps; i++) {
+            addToTranslogAndListAndUpload(
+                translog,
+                ops,
+                new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { (byte) i })
+            );
+        }
+        TranslogTransferManager manager = Mockito.spy(translog.translogTransferManager);
+        TranslogTransferMetadata remoteMetadata = manager.readMetadata();
+        long minGeneration = remoteMetadata.getMinTranslogGeneration();
+        long maxGeneration = remoteMetadata.getGeneration();
+        int remoteGenerations = Math.toIntExact(maxGeneration - minGeneration + 1);
+        // Every generation closed by a writer carries a footer and therefore advertises a checksum. The only
+        // exception is the initial empty generation laid down by Translog.createEmptyTranslog, which is written
+        // without a writer and is re-downloaded every time (it is header-only, a few dozen bytes).
+        Set<String> withChecksum = remoteMetadata.getGenerationToChecksumMapper().keySet();
+        Set<String> withoutChecksum = new HashSet<>();
+        for (long g = minGeneration; g <= maxGeneration; g++) {
+            if (withChecksum.contains(String.valueOf(g)) == false) {
+                withoutChecksum.add(String.valueOf(g));
+            }
+        }
+        assertThat(withoutChecksum, anyOf(empty(), contains(String.valueOf(minGeneration))));
+        assertFalse(withChecksum.isEmpty());
+
+        Path location = createTempDir();
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(remoteGenerations)).downloadTranslog(any(), any(), any());
+        Map<String, byte[]> contentAfterFirst = new HashMap<>();
+        for (Path file : FileSystemUtils.files(location)) {
+            contentAfterFirst.put(file.getFileName().toString(), Files.readAllBytes(file));
+        }
+
+        // Same remote state, same local directory: only footer-less generations are fetched again, files are untouched.
+        Mockito.clearInvocations(manager);
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(withoutChecksum.size())).downloadTranslog(any(), any(), any());
+        for (String generation : withChecksum) {
+            verify(manager, times(0)).downloadTranslog(any(), Mockito.eq(generation), any());
+        }
+        for (Path file : FileSystemUtils.files(location)) {
+            assertArrayEquals(
+                file.getFileName().toString(),
+                contentAfterFirst.get(file.getFileName().toString()),
+                Files.readAllBytes(file)
+            );
+        }
+
+        // Damage one local generation's footer checksum: that generation is re-downloaded, and it comes back intact.
+        String damaged = randomFrom(new ArrayList<>(withChecksum));
+        Path damagedPath = location.resolve(Translog.getFilename(Long.parseLong(damaged)));
+        byte[] damagedBytes = Files.readAllBytes(damagedPath);
+        damagedBytes[damagedBytes.length - 1] ^= 0x1;
+        Files.write(damagedPath, damagedBytes);
+        Mockito.clearInvocations(manager);
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(withoutChecksum.size() + 1)).downloadTranslog(any(), any(), any());
+        verify(manager).downloadTranslog(any(), Mockito.eq(damaged), any());
+        assertArrayEquals(contentAfterFirst.get(damagedPath.getFileName().toString()), Files.readAllBytes(damagedPath));
     }
 
     public void testSyncWithGlobalCheckpointUpdate() throws IOException {
