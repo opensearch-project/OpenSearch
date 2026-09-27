@@ -4,7 +4,7 @@ The ingestion-fs plugin enables pull-based ingestion from the local file system 
 
 ## Overview
 
-This plugin implements a custom ingestion source for the [pull-based ingestion framework](https://docs.opensearch.org/docs/latest/api-reference/document-apis/pull-based-ingestion/). It allows OpenSearch to ingest documents from `.ndjson` files on the file system.
+This plugin implements a custom ingestion source for the [pull-based ingestion framework](https://docs.opensearch.org/latest/api-reference/document-apis/pull-based-ingestion/). It allows OpenSearch to ingest documents from `.ndjson` files on the file system.
 
 Each shard-specific file is expected to follow the path:
 ```
@@ -15,7 +15,7 @@ ${base_directory}/${stream}/${shard_id}.ndjson
 
 ### 1. Prepare test data
 
-Create the `ndjson` files with sample data following the format mentioned [here](https://docs.opensearch.org/docs/latest/api-reference/document-apis/pull-based-ingestion/).
+Create the `ndjson` files with sample data following the format mentioned [here](https://docs.opensearch.org/latest/api-reference/document-apis/pull-based-ingestion/).
 For example, create a file `${base_directory}/test-stream/0.ndjson` with data
 
 ```
