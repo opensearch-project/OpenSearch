@@ -515,6 +515,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (sr.source() == null) {
                     rewriteListener.onResponse(sr.source());
                 } else {
+                    searchRequestContext.setRewriteStartNanos(System.nanoTime());
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
                         searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
@@ -543,13 +544,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestContext searchRequestContext
     ) {
         return ActionListener.wrap(source -> {
+            final long rewriteEndNanos = System.nanoTime();
+            if (searchRequestContext.isRewriteStarted()) {
+                searchRequestContext.recordCoordinatorEvent(
+                    CoordinatorLatencyEventName.QUERY_REWRITE.getName(),
+                    searchRequestContext.getRewriteStartNanos(),
+                    rewriteEndNanos
+                );
+            }
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null. this way we catch
                 // situations when source is rewritten to null due to a bug
                 searchRequest.source(source);
             }
+            final long indexResolutionStartNanos = System.nanoTime();
             final ClusterState clusterState = clusterService.state();
             final OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);
+            searchRequestContext.recordCoordinatorEvent(
+                CoordinatorLatencyEventName.INDEX_RESOLUTION.getName(),
+                indexResolutionStartNanos,
+                System.nanoTime()
+            );
             final SearchContextId searchContext = requestedIndices.searchContextId;
             final Map<String, OriginalIndices> remoteClusterIndices = requestedIndices.remoteClusterIndices;
             OriginalIndices localIndices = requestedIndices.localOriginalIndices;
