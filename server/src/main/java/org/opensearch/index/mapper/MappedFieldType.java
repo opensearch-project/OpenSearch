@@ -57,6 +57,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -110,6 +111,13 @@ public abstract class MappedFieldType {
     private boolean eagerGlobalOrdinals;
     private MultiValueState multiValueState = MultiValueState.AUTO;
     private boolean multiValueSupported;
+    /**
+     * Snapshot of {@link FeatureFlags#PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING} taken at
+     * construction. Feature flags are fixed at node startup, before any mapper exists, so reading the
+     * flag once here keeps {@link #canPromoteToMultiValue()} to two field reads. Tests that toggle the
+     * flag via {@code FeatureFlags.TestUtils.with} must create the mapper inside the toggled block.
+     */
+    private final boolean multiValueAutoPromoteSupported;
 
     /**
      * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
@@ -133,6 +141,7 @@ public abstract class MappedFieldType {
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
+        multiValueAutoPromoteSupported = FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING);
     }
 
     /**
@@ -526,10 +535,16 @@ public abstract class MappedFieldType {
         this.multiValueState = Objects.requireNonNull(multiValueState);
     }
 
-    /** Whether an additional value may trigger an automatic mapping promotion. */
+    /**
+     * Whether an additional value may trigger an automatic mapping promotion: the field is still
+     * {@link MultiValueState#AUTO} and the promotion flag was enabled when this field type was built.
+     *
+     * <p>Only consulted off the common indexing path: when a second value arrives for a non-LIST
+     * field, on an empty array, or while validating a mapping merge.
+     */
     @ExperimentalApi
-    public boolean isMultiValueAutoPromotionEnabled() {
-        return multiValueState == MultiValueState.AUTO;
+    public boolean canPromoteToMultiValue() {
+        return multiValueAutoPromoteSupported && multiValueState == MultiValueState.AUTO;
     }
 
     /**

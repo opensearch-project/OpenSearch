@@ -40,6 +40,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -128,10 +129,21 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
-    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    /** Name of the columnar multi-value mapping parameter shared by scalar leaf mappers. */
+    public static final String MULTI_VALUE_PARAMETER = "multi_value";
+
+    /**
+     * Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers.
+     *
+     * <p>An omitted parameter is {@link MappedFieldType.MultiValueState#AUTO}: it behaves as a scalar
+     * column (multiple values are rejected) unless
+     * {@link FeatureFlags#PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG} is enabled, and it is
+     * never serialized. Keeping it distinct from an explicit {@code false} lets dynamic mapping infer
+     * {@code true} for array values while still honouring a template that pinned the field scalar.
+     */
     protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
         return new Parameter<>(
-            "multi_value",
+            MULTI_VALUE_PARAMETER,
             true,
             () -> MappedFieldType.MultiValueState.AUTO,
             (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
@@ -145,7 +157,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         })
             .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
             .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
-            .setMergeValidator((previous, next) -> previous == MappedFieldType.MultiValueState.AUTO || previous == next);
+            .setMergeValidator(
+                (previous, next) -> previous == next
+                    || (previous == MappedFieldType.MultiValueState.AUTO
+                        && FeatureFlags.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING))
+            );
     }
 
     /**
@@ -157,9 +173,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         if (fieldType.isMultiValued() == false
             && fieldType.isMultiValueSupported()
             && context.documentInput().getFieldCount(fieldType.name()) > 0) {
-            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+            if (fieldType.canPromoteToMultiValue() == false) {
                 throw new MapperParsingException(
-                    "Field [" + fieldType.name() + "] is locked scalar by [multi_value: false] and cannot accept multiple values"
+                    "Field [" + fieldType.name() + "] cannot accept multiple values: " + multiValueRejectionReason(fieldType)
                 );
             }
             addMultiValueMappingUpdate(context);
@@ -177,13 +193,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
             );
         }
-        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+        if (fieldType().canPromoteToMultiValue() == false) {
             throw new MapperParsingException(
-                "Field [" + fieldType().name() + "] is locked scalar by [multi_value: false] and cannot promote"
+                "Field [" + fieldType().name() + "] cannot promote to multi-valued: " + multiValueRejectionReason(fieldType())
             );
         }
         Builder updateBuilder = getMergeBuilder();
-        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        updateBuilder.setParameterValue(MULTI_VALUE_PARAMETER, MappedFieldType.MultiValueState.LIST);
         ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
         if (update.fieldType().isMultiValued() == false) {
             throw new IllegalStateException(
@@ -191,6 +207,15 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             );
         }
         context.addDynamicMapper(update);
+    }
+
+    private static String multiValueRejectionReason(MappedFieldType fieldType) {
+        if (fieldType.multiValueState() == MappedFieldType.MultiValueState.AUTO) {
+            return "automatic promotion is disabled; declare [multi_value: true] when creating the field mapping or enable ["
+                + FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG
+                + "]";
+        }
+        return "the field is locked scalar by [multi_value: false]";
     }
 
     @Override
@@ -1049,6 +1074,20 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
             return DEPRECATED_PARAMS.contains(propName);
+        }
+
+        /**
+         * Whether {@code multi_value} was set explicitly on this builder, for example by a matching
+         * dynamic template. {@code false} when it was omitted or when the mapper does not expose the
+         * parameter at all, so callers can treat "absent" and "unpinned" alike.
+         */
+        public boolean multiValueConfigured() {
+            for (Parameter<?> parameter : getParameters()) {
+                if (MULTI_VALUE_PARAMETER.equals(parameter.name)) {
+                    return parameter.isConfigured();
+                }
+            }
+            return false;
         }
     }
 

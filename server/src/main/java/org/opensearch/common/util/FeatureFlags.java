@@ -85,6 +85,19 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates automatic scalar-to-LIST promotion for Parquet keyword fields whose mapping omits
+     * {@code multi_value}. Explicit {@code multi_value} mappings are unaffected.
+     */
+    public static final String PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX
+        + "pluggable.dataformat.multivalue.auto_promotion.enabled";
+
+    public static final Setting<Boolean> PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG,
         false,
@@ -172,6 +185,10 @@ public class FeatureFlags {
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(
+                    PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING,
+                    PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY)
+                );
                 put(SNAPSHOT_STRICT_VERSION_PARSING_SETTING, SNAPSHOT_STRICT_VERSION_PARSING_SETTING.getDefault(Settings.EMPTY));
                 put(SNAPSHOT_RESILIENCE_SETTING, SNAPSHOT_RESILIENCE_SETTING.getDefault(Settings.EMPTY));
             }

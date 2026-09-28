@@ -10,6 +10,7 @@ package org.opensearch.parquet.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
@@ -78,13 +79,20 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             return;
         }
         if (existing.isMultiValued() == false) {
-            if (fieldType.isMultiValueSupported() && fieldType.isMultiValueAutoPromotionEnabled()) {
+            if (fieldType.isMultiValueSupported() && fieldType.canPromoteToMultiValue()) {
                 existing.promoteToMultiValued(value);
                 return;
             }
-            String reason = fieldType.isMultiValueSupported()
-                ? "the field is locked scalar by [multi_value: false]"
-                : "the field type does not support automatic multi-value promotion";
+            String reason;
+            if (fieldType.isMultiValueSupported() == false) {
+                reason = "the field type does not support automatic multi-value promotion";
+            } else if (fieldType.multiValueState() == MappedFieldType.MultiValueState.AUTO) {
+                reason = "automatic promotion is disabled; declare [multi_value: true] when creating the field mapping or enable ["
+                    + FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG
+                    + "]";
+            } else {
+                reason = "the field is locked scalar by [multi_value: false]";
+            }
             throw new MapperParsingException(
                 "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]: " + reason
             );

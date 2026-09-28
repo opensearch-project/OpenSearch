@@ -34,6 +34,19 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertFalse(testFlagsImpl.isEnabled(TEST_FLAG));
     }
 
+    public void testParquetMultiValueAutoPromotionDisabledByDefault() {
+        FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
+        assertFalse(testFlagsImpl.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG));
+    }
+
+    public void testParquetMultiValueAutoPromotionCanBeEnabledFromSettings() {
+        FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
+        testFlagsImpl.initializeFeatureFlags(
+            Settings.builder().put(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG, true).build()
+        );
+        assertTrue(testFlagsImpl.isEnabled(FeatureFlags.PARQUET_MULTI_VALUE_AUTO_PROMOTION_EXPERIMENTAL_FLAG));
+    }
+
     public void testFeatureFlagFromSettings() {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
         testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, true).build());
