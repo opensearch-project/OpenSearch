@@ -414,12 +414,52 @@ class FlightClientChannel implements TcpChannel {
                 }
             };
 
-            if (ThreadPool.Names.SAME.equals(executor)) {
+            dispatch(executor, task);
+        });
+    }
+
+    /**
+     * Runs a stream callback on the handler's declared executor, falling back to this thread when
+     * that executor cannot run it.
+     *
+     * <p>The fallback is not defensive politeness: {@code task} carries the request's only terminal
+     * callback, so losing it leaves the caller with no completion at all — no response, no failure,
+     * and a stream that is never closed, which then costs the channel a full {@code streamCloseTimeout}
+     * at shutdown and reports the stream's Arrow buffers as leaked. Two ways a named executor loses
+     * it, both silent:
+     *
+     * <ul>
+     *   <li>The scaling pools install {@code OpenSearchExecutors.ForceQueuePolicy}, which on rejection
+     *       {@code put}s onto the work queue instead of throwing. Once the pool is shut down (node
+     *       shutdown, or a test terminating its {@link ThreadPool}) {@code execute} rejects, the policy
+     *       queues, and no worker will ever take the task.</li>
+     *   <li>Anything thrown here is swallowed: we run inside a {@link CompletableFuture} completion
+     *       callback whose result nobody observes.</li>
+     * </ul>
+     *
+     * <p>Running inline costs the isolation the named executor was chosen for — for consumers that
+     * declare a pool specifically to keep native calls off this virtual thread (see the analytics
+     * stream-drain pool), that isolation is what prevents a carrier-pinning deadlock. That is the
+     * right trade only because it applies when the pool is already gone, i.e. when the node is going
+     * down and the correct outcome is to fail the query promptly rather than to hang.
+     */
+    private void dispatch(String executor, Runnable task) {
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            task.run();
+            return;
+        }
+        try {
+            var pool = threadPool.executor(executor);
+            if (pool.isShutdown()) {
+                logger.warn("executor [{}] is shut down; running stream callback inline", executor);
                 task.run();
             } else {
-                threadPool.executor(executor).execute(task);
+                pool.execute(task);
             }
-        });
+        } catch (Exception e) {
+            logFailure("Failed to dispatch stream callback to executor [" + executor + "]", e);
+            task.run();
+        }
     }
 
     private void cleanupStreamResponse(StreamTransportResponse<?> streamResponse) {
@@ -491,13 +531,8 @@ class FlightClientChannel implements TcpChannel {
             streamException = new StreamException(StreamErrorCode.INTERNAL, "Stream processing failed", exception);
         }
 
-        String executor = handler.executor();
-
-        if (ThreadPool.Names.SAME.equals(executor)) {
-            safeHandleException(handler, streamException);
-        } else {
-            threadPool.executor(executor).execute(() -> safeHandleException(handler, streamException));
-        }
+        // Inline fallback matters most here: this *is* the terminal callback. See dispatch().
+        dispatch(handler.executor(), () -> safeHandleException(handler, streamException));
     }
 
     private void safeHandleException(TransportResponseHandler<?> handler, StreamException exception) {

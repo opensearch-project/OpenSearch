@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * {@link StageTask} variant for coordinator-local execution. The body is a
  * {@link Consumer} of the scheduler's per-task {@link ActionListener}: the body
  * is responsible for firing the listener (success or failure) when its work
- * completes. {@link LocalTaskRunner} runs the body on the per-query virtual-thread
+ * completes. {@link LocalTaskRunner} runs the body on the per-query local-task
  * executor and wraps the listener single-fire so a body that fires-then-throws
  * doesn't double-fire.
  *

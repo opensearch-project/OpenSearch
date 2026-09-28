@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * payload its transport needs: {@code ShardStageTask} an
  * {@link org.opensearch.analytics.planner.dag.ExecutionTarget} (routing key for
  * shard-fragment dispatch), {@link LocalStageTask} a {@link Runnable} body executed on
- * the per-query virtual-thread executor.
+ * the per-query local-task executor.
  *
  * <p>Per-attempt state and timestamps are common to all variants and live on this base.
  *

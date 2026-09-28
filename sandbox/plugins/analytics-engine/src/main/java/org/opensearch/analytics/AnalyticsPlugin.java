@@ -56,6 +56,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -73,6 +74,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -108,6 +110,32 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     // so the thread pool isn't the throughput bottleneck.
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
+
+    public static final String STREAM_THREAD_POOL_NAME = "analytics_stream";
+
+    // Consumer-side stream drains MUST run on platform threads, never virtual ones.
+    //
+    // A drain feeds each batch into the native reduce sink, and the Arrow C Data Interface
+    // invokes its release callbacks synchronously on whichever thread drops an exported array.
+    // That leaves a native frame on the caller's stack, which PINS a virtual thread to its
+    // carrier. A pinned virtual thread that then blocks on a Netty allocator lock holds that
+    // carrier for good; with one carrier per CPU, the thread holding the lock becomes
+    // unschedulable and the node deadlocks — every carrier pinned, 0% CPU, no progress ever.
+    //
+    // Scaling with an effectively unbounded max, because a queued drain is not a delayed drain —
+    // it is a stalled one. Each drain holds its Flight stream open for the stream's whole life, and
+    // a consumer (shuffle reduce, broadcast build) generally needs batches from *every* producer to
+    // make progress. A drain waiting for a thread therefore blocks the drains that already have one,
+    // so this pool must never be the thing that bounds how many streams may be in flight.
+    //
+    // The cost is real and paid per in-flight stream: one platform thread and its -Xss1m stack.
+    // What bounds that is upstream of here — PendingExecutions caps concurrent shard requests per
+    // node per query (analytics.query.max_concurrent_shard_requests_per_node), so a single query's
+    // streams are bounded by that times the number of target nodes. Concurrency *across* queries is
+    // not capped today; that belongs in admission control, not in a queue that can deadlock.
+    private static final int STREAM_POOL_CORE = 0;
+    private static final int STREAM_POOL_MAX = 100_000;
+    private static final TimeValue STREAM_POOL_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
 
     // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
     // queries share the coordinator allocator with no per-query cap.
@@ -354,7 +382,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         int poolSize = schedulerPoolSize();
         return List.of(
             new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"),
-            new FixedExecutorBuilder(settings, REDUCE_THREAD_POOL_NAME, REDUCE_POOL_SIZE, REDUCE_QUEUE_SIZE, "analytics_reduce")
+            new FixedExecutorBuilder(settings, REDUCE_THREAD_POOL_NAME, REDUCE_POOL_SIZE, REDUCE_QUEUE_SIZE, "analytics_reduce"),
+            new ScalingExecutorBuilder(STREAM_THREAD_POOL_NAME, STREAM_POOL_CORE, STREAM_POOL_MAX, STREAM_POOL_KEEP_ALIVE)
         );
     }
 
