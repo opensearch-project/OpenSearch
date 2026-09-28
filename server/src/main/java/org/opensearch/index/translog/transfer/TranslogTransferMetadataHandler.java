@@ -60,15 +60,16 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         // guards the legacy-tail case.)
         //
         // Because the map is inferred rather than tagged, what is read is validated before it is trusted: every
-        // key must be a generation the primary-term map knows, every value must be a checksum, and nothing but
-        // the codec footer may follow. The map only ever lets a download be skipped, so on any doubt it is dropped
-        // and every generation is downloaded, which is the pre-existing behaviour.
-        metadata.setGenerationToChecksumMapper(readChecksumMapIfPresent(indexInput, generationToPrimaryTermMapper));
+        // key must be a generation inside this metadata's own range that the primary-term map also knows, every
+        // value must be a checksum, and nothing but the codec footer may follow. The map only ever lets a download
+        // be skipped, so on any doubt it is dropped and every generation is downloaded, which is the pre-existing
+        // behaviour.
+        metadata.setGenerationToChecksumMapper(readChecksumMapIfPresent(indexInput, metadata));
 
         return metadata;
     }
 
-    private static Map<String, String> readChecksumMapIfPresent(IndexInput indexInput, Map<String, String> generationToPrimaryTermMapper)
+    private static Map<String, String> readChecksumMapIfPresent(IndexInput indexInput, TranslogTransferMetadata metadata)
         throws IOException {
         if (indexInput.length() - indexInput.getFilePointer() <= CodecUtil.footerLength()) {
             return Map.of();
@@ -83,8 +84,9 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
             );
             return Map.of();
         }
+        Map<String, String> generationToPrimaryTermMapper = metadata.getGenerationToPrimaryTermMapper();
         for (Map.Entry<String, String> entry : generationToChecksumMapper.entrySet()) {
-            if (generationToPrimaryTermMapper.containsKey(entry.getKey()) == false || isLong(entry.getValue()) == false) {
+            if (isKnownGeneration(entry.getKey(), metadata, generationToPrimaryTermMapper) == false || isLong(entry.getValue()) == false) {
                 logger.warn(
                     "ignoring generation-to-checksum map in translog metadata [{}]: entry [{}={}] is not a known generation and checksum",
                     indexInput,
@@ -95,6 +97,18 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
             }
         }
         return generationToChecksumMapper;
+    }
+
+    private static boolean isKnownGeneration(
+        String key,
+        TranslogTransferMetadata metadata,
+        Map<String, String> generationToPrimaryTermMapper
+    ) {
+        if (isLong(key) == false || generationToPrimaryTermMapper.containsKey(key) == false) {
+            return false;
+        }
+        long generation = Long.parseLong(key);
+        return generation >= metadata.getMinTranslogGeneration() && generation <= metadata.getGeneration();
     }
 
     private static boolean isLong(String value) {

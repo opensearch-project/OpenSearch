@@ -1981,6 +1981,33 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     /**
+     * A stale top-level translog.ckp is not deleted up front; it survives the download and is replaced with the
+     * latest generation's checkpoint at the end, so the directory is never left without one if the download fails.
+     */
+    public void testStaleTopLevelCheckpointSurvivesDownloadAndIsReplaced() throws IOException {
+        Path location = createTempDir();
+        createTranslogGeneration(location, 1);
+        long checksum2 = createTranslogGeneration(location, 2);
+        byte[] staleCheckpoint = randomByteArrayOfLength(randomIntBetween(8, 32));
+        Files.write(location.resolve(Translog.CHECKPOINT_FILE_NAME), staleCheckpoint);
+
+        // A failing download leaves the stale checkpoint where it was.
+        TranslogTransferManager failing = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(failing.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenThrow(new IOException("boom"));
+        expectThrows(IOException.class, () -> RemoteFsTranslog.download(failing, location, logger, false, 0));
+        assertArrayEquals(staleCheckpoint, Files.readAllBytes(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
+
+        // A successful one replaces it with the latest generation's checkpoint.
+        TranslogTransferManager succeeding = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(succeeding.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenReturn(false);
+        RemoteFsTranslog.download(succeeding, location, logger, false, 0);
+        assertArrayEquals(
+            Files.readAllBytes(location.resolve(Translog.getCommitCheckpointFileName(2))),
+            Files.readAllBytes(location.resolve(Translog.CHECKPOINT_FILE_NAME))
+        );
+    }
+
+    /**
      * Files outside the remote generation range, and files that are not translog files at all, are removed before
      * the download reconciles the remaining generations.
      */

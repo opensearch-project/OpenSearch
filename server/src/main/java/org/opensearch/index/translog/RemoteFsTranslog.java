@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -298,21 +299,23 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             }
 
             // Only generations inside the remote range can be reused; everything else is removed, as the unconditional
-            // wipe this replaces did for every file. That includes translog.ckp: a stale top-level checkpoint may name
-            // a generation from a previous remote state, so it is always deleted here and recreated from the latest
-            // generation's checkpoint at the end of this method (which is also why that copy needs no
-            // REPLACE_EXISTING). There is no early return in between; an exception aborts the download, and with it
-            // the engine open, so a shard never runs without translog.ckp.
+            // wipe this replaces did for every file. translog.ckp is the exception: a stale one may name a generation
+            // from a previous remote state, but it is left in place until the download has succeeded and then
+            // overwritten from the latest generation's checkpoint at the end of this method, so the directory is
+            // never without a top-level checkpoint for longer than that final copy. Any exception before then aborts
+            // the download, and with it the engine open.
             for (Path file : FileSystemUtils.files(location)) {
+                String fileName = file.getFileName().toString();
+                if (Translog.CHECKPOINT_FILE_NAME.equals(fileName)) {
+                    continue;
+                }
                 try {
-                    long generation = parseIdFromFileName(file.getFileName().toString(), STRICT_TLOG_OR_CKP_PATTERN);
+                    long generation = parseIdFromFileName(fileName, STRICT_TLOG_OR_CKP_PATTERN);
                     if (generation < minGeneration || generation > maxGeneration) {
                         Files.delete(file);
                     }
                 } catch (IllegalStateException | IllegalArgumentException e) {
-                    if (Translog.CHECKPOINT_FILE_NAME.equals(file.getFileName().toString()) == false) {
-                        logger.debug("deleting non-generation file [{}] from translog directory before download", file.getFileName());
-                    }
+                    logger.debug("deleting non-generation file [{}] from translog directory before download", fileName);
                     Files.delete(file);
                 }
             }
@@ -343,10 +346,12 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 
             // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
-            // existence of translog.ckp file work in the same way
+            // existence of translog.ckp file work in the same way. Any stale translog.ckp kept through the download
+            // is replaced here.
             Files.copy(
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
-                location.resolve(Translog.CHECKPOINT_FILE_NAME)
+                location.resolve(Translog.CHECKPOINT_FILE_NAME),
+                StandardCopyOption.REPLACE_EXISTING
             );
         } else {
             // When code flow reaches this block, it means we don't have any translog files uploaded to remote store.

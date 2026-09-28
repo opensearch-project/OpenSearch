@@ -113,22 +113,36 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
 
     /**
      * The trailing map is inferred from the remaining byte count, so what is read is validated before it is trusted.
-     * An entry whose key is not a generation the primary-term map knows, or whose value is not a checksum, means the
-     * bytes were not written as a checksum map; the map is dropped and every generation is downloaded, rather than
-     * the metadata being misread.
+     * An entry whose key is not a generation inside this metadata's own range [min, max] that the primary-term map
+     * also knows, or whose value is not a checksum, means the bytes were not written as a checksum map; the map is
+     * dropped and every generation is downloaded, rather than the metadata being misread.
      */
     public void testImplausibleTrailingMapIsDroppedRatherThanTrusted() throws IOException {
+        // Fixture range is [300, 500] with primary-term entries for 300, 400 and 500.
         TranslogTransferMetadata base = getTestMetadata();
+        assertEquals(300, base.getMinTranslogGeneration());
+        assertEquals(500, base.getGeneration());
         Map<String, String> unknownGeneration = Map.of("300", "1234", "999", "5678");
+        Map<String, String> nonNumericKey = Map.of("300", "1234", "abc", "5678");
         Map<String, String> nonNumericChecksum = Map.of("300", "1234", "400", "not-a-checksum");
-        for (Map<String, String> implausible : List.of(unknownGeneration, nonNumericChecksum)) {
+        for (Map<String, String> implausible : List.of(unknownGeneration, nonNumericKey, nonNumericChecksum)) {
             TranslogTransferMetadata actual = codecWrapper().readStream(
                 new ByteArrayIndexInput("metadata file", writeThroughCodec(base, implausible, new byte[0]))
             );
             assertEquals(base.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
             assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
         }
-        // The same entries with a valid key set are accepted, so the rejection above is about content, not shape.
+        // A key the primary-term map lists but that lies outside [min, max] is rejected too: the range is the
+        // metadata's own statement of what it covers, and the maps must agree with it.
+        TranslogTransferMetadata inconsistent = new TranslogTransferMetadata(3, 500, 300, 4);
+        Map<String, String> primaryTerms = new HashMap<>(base.getGenerationToPrimaryTermMapper());
+        primaryTerms.put("200", "1");
+        inconsistent.setGenerationToPrimaryTermMapper(primaryTerms);
+        TranslogTransferMetadata actual = codecWrapper().readStream(
+            new ByteArrayIndexInput("metadata file", writeThroughCodec(inconsistent, Map.of("200", "1234", "300", "5678"), new byte[0]))
+        );
+        assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+        // The same entries with valid keys inside the range are accepted, so the rejections above are about content.
         TranslogTransferMetadata accepted = codecWrapper().readStream(
             new ByteArrayIndexInput("metadata file", writeThroughCodec(base, Map.of("300", "1234", "400", "5678"), new byte[0]))
         );
