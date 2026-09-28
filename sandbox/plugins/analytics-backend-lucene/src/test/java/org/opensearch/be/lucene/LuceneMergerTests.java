@@ -28,6 +28,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -45,6 +46,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
 
@@ -413,6 +415,38 @@ public class LuceneMergerTests extends OpenSearchTestCase {
             assertNull(liveDocs.packedBits(2L));
         }
         assertNull("close() must have released the prepared state", writer.takePreparedMerge(gen));
+    }
+
+    /**
+     * A prepared merge must register its source segments as merging. Lucene's only protection against
+     * dropping a segment out from under a running merge is {@code mergingSegments.contains(info)} in
+     * {@code IndexWriter.dropDeletedSegment}, and a composite merge holds its sources for as long as the
+     * primary format takes to merge — so without registration a concurrent delete that empties a source
+     * segment drops it, and the failure cleanup then NPEs in {@code ReadersAndUpdates.dropMergingUpdates}.
+     */
+    @AwaitsFix(bugUrl = "MergeIndexWriter.prepareMerge hand-sets OneMerge.registerDone to satisfy _mergeInit's assert, "
+        + "which makes IndexWriter.registerMerge return before mergingSegments.add")
+    public void testPrepareMergeRegistersSourceSegmentsAsMerging() throws IOException {
+        writeSegment(writer, 1L, 0, 3);
+        writeSegment(writer, 2L, 3, 2);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        List<SegmentCommitInfo> sources = writer.liveSegmentCommitInfos();
+        assertEquals("fixture must produce two source segments", 2, sources.size());
+
+        long gen = 99L;
+        MergeInput input = MergeInput.builder().segments(buildSegments(sources)).newWriterGeneration(gen).build();
+        try (MergePreparation preparation = merger.prepareMerge(input)) {
+            assertNotSame(MergePreparation.EMPTY, preparation);
+            Set<SegmentCommitInfo> merging = writer.getMergingSegments();
+            for (SegmentCommitInfo source : sources) {
+                assertTrue(
+                    "source segment " + source.info.name + " must be registered as merging, got " + merging,
+                    merging.contains(source)
+                );
+            }
+        }
     }
 
     /** merge() consumes the OneMerge prepared by prepareMerge — no fresh OneMerge is created. */

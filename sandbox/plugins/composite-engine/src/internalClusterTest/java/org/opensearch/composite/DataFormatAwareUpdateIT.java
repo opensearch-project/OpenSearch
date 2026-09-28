@@ -48,6 +48,11 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -339,6 +344,66 @@ public class DataFormatAwareUpdateIT extends AbstractCompositeEngineIT {
         assertTrue(realtime.isExists());
         assertEquals("v_new", name(realtime));
         assertEquals(2, value(realtime));
+    }
+
+    /**
+     * Many threads incrementing one document. There is no script support on this engine, so the
+     * read-modify-write is done in the test with {@code if_seq_no}/{@code if_primary_term} and a retry on
+     * conflict. The total is exact only if the engine never lets two writers win the same sequence number.
+     */
+    public void testConcurrentCompareAndSwapUpdatesToOneDocument() throws Exception {
+        createManualRefreshIndex();
+        assertEquals(DocWriteResponse.Result.CREATED, indexDoc("k1", "counter", 0).getResult());
+
+        int threads = 8;
+        int incrementsPerThread = 25;
+        int maxRetries = 50;
+
+        AtomicInteger conflicts = new AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        List<Future<?>> workers = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            workers.add(pool.submit(() -> {
+                for (int i = 0; i < incrementsPerThread; i++) {
+                    boolean written = false;
+                    for (int attempt = 0; attempt < maxRetries && written == false; attempt++) {
+                        GetResponse current = client().prepareGet(INDEX, "k1").setRealtime(true).get();
+                        try {
+                            client().prepareIndex(INDEX)
+                                .setId("k1")
+                                .setSource(NAME, "counter", VALUE, value(current) + 1)
+                                .setIfSeqNo(current.getSeqNo())
+                                .setIfPrimaryTerm(current.getPrimaryTerm())
+                                .get();
+                            written = true;
+                        } catch (VersionConflictEngineException conflict) {
+                            conflicts.incrementAndGet();
+                        }
+                    }
+                    assertTrue("an increment lost all " + maxRetries + " of its attempts", written);
+                }
+            }));
+        }
+        for (Future<?> worker : workers) {
+            worker.get(120, TimeUnit.SECONDS);
+        }
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
+
+        int expected = threads * incrementsPerThread;
+        assertEquals(
+            "every compare-and-swap increment must be accounted for",
+            expected,
+            value(client().prepareGet(INDEX, "k1").setRealtime(true).get())
+        );
+
+        refreshIndex(INDEX);
+        assertEquals(
+            "the published row must carry the same total",
+            expected,
+            value(client().prepareGet(INDEX, "k1").setRealtime(false).get())
+        );
+        assertTrue("the run never actually contended, so it proved nothing", conflicts.get() > 0);
     }
 
     private DeleteResponse deleteDoc(String id) {

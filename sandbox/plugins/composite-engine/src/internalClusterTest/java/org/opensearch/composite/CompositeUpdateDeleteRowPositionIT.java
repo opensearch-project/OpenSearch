@@ -13,11 +13,13 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.parquet.ParquetSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.IntPredicate;
 
 import static org.opensearch.composite.CompositeUpdateDeleteInvariants.ParquetRow;
 import static org.opensearch.composite.CompositeUpdateDeleteInvariants.assertHiddenRowStillPresent;
@@ -40,6 +42,11 @@ import static org.opensearch.composite.CompositeUpdateDeleteInvariants.liveRows;
 public class CompositeUpdateDeleteRowPositionIT extends AbstractCompositeEngineIT {
 
     private static final String INDEX = "row_position_test";
+
+    /** Small enough that {@link #RENUMBERING_DOCS} documents already span several row groups. */
+    private static final int ROWS_PER_ROW_GROUP = 8;
+    private static final int RENUMBERING_DOCS = 40;
+    private static final int DOCS_PER_GENERATION = RENUMBERING_DOCS / 2;
 
     /**
      * Id to the {@code _seq_no} of the version that should currently be reachable.
@@ -231,6 +238,71 @@ public class CompositeUpdateDeleteRowPositionIT extends AbstractCompositeEngineI
         assertTrue("the random mix performed no operations, so it checked nothing", totalWrites > 0);
     }
 
+    // ── Row renumbering at row-group boundaries ──
+
+    /**
+     * A merge renumbers surviving rows a row group at a time, so these variants pick the deleted
+     * positions adversarially rather than the deleted proportion, to catch an off-by-one at a boundary.
+     */
+    public void testRowsRenumberedWhenTheFirstRowOfEveryRowGroupIsDeleted() throws Exception {
+        runRenumberingVariant("first row of every row group", i -> rowGroupOffset(i) == 0);
+    }
+
+    public void testRowsRenumberedWhenTheLastRowOfEveryRowGroupIsDeleted() throws Exception {
+        runRenumberingVariant("last row of every row group", i -> rowGroupOffset(i) == ROWS_PER_ROW_GROUP - 1);
+    }
+
+    public void testRowsRenumberedWhenDeletesStraddleARowGroupBoundary() throws Exception {
+        runRenumberingVariant("deletes straddling a row group boundary", i -> {
+            int offset = rowGroupOffset(i);
+            return offset == 0 || offset == ROWS_PER_ROW_GROUP - 1;
+        });
+    }
+
+    public void testRowsRenumberedWhenEveryRowButOneIsDeleted() throws Exception {
+        runRenumberingVariant("every row but the first", i -> i > 0);
+    }
+
+    public void testRowsRenumberedWhenARandomHalfIsDeleted() throws Exception {
+        runRenumberingVariant("a random half", i -> randomBoolean());
+    }
+
+    public void testRowsRenumberedWhenAContiguousBlockInTheMiddleIsDeleted() throws Exception {
+        // Straddles the generation boundary as well as a row group boundary.
+        runRenumberingVariant("a contiguous block in the middle", i -> i >= 14 && i < 26);
+    }
+
+    /** Position of a document inside its generation's current row group. */
+    private static int rowGroupOffset(int writeIndex) {
+        return (writeIndex % DOCS_PER_GENERATION) % ROWS_PER_ROW_GROUP;
+    }
+
+    /** Writes two generations, deletes the positions the predicate selects, then force merges. */
+    private void runRenumberingVariant(String context, IntPredicate deleteAt) throws IOException {
+        createMutableIndexWithSmallRowGroups();
+
+        for (int i = 0; i < RENUMBERING_DOCS; i++) {
+            indexDoc("k" + i, "v" + i, i);
+            if (i == DOCS_PER_GENERATION - 1) {
+                publish();
+            }
+        }
+        publish();
+        assertInvariants(context + ", before the deletes");
+
+        for (int i = 0; i < RENUMBERING_DOCS; i++) {
+            if (deleteAt.test(i)) {
+                deleteDoc("k" + i);
+            }
+        }
+        publish();
+        assertInvariants(context + ", after the deletes");
+
+        client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
+        publish();
+        assertInvariants(context + ", after the merge");
+    }
+
     // ── Index recipes ──
 
     /**
@@ -239,6 +311,11 @@ public class CompositeUpdateDeleteRowPositionIT extends AbstractCompositeEngineI
      */
     private void createMutableIndex() {
         createMutableIndex(Settings.builder());
+    }
+
+    /** The same index with small parquet row groups, for the renumbering variants. */
+    private void createMutableIndexWithSmallRowGroups() {
+        createMutableIndex(Settings.builder().put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), ROWS_PER_ROW_GROUP));
     }
 
     /** The same index with a sort, so rows are physically reordered when a generation flushes. */
