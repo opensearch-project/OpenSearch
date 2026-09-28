@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -125,7 +127,7 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
         tcpChannel.close();
 
         verify(span, times(1)).addEvent("The TransportChannel was closed without sending the response");
-        verify(span, times(1)).setError(null);
+        verify(span, never()).setError(any());
         verify(span, times(1)).endSpan();
         assertEquals(0, tcpChannel.numberOfCloseListeners());
     }

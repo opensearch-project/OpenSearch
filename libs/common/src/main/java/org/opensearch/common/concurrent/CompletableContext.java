@@ -51,17 +51,8 @@ public class CompletableContext<T> {
     private final CompletableFuture<T> completableFuture = new CompletableFuture<>();
     private final Set<BiConsumer<T, ? super Exception>> removableListeners = ConcurrentHashMap.newKeySet();
 
-    private volatile T result;
-    private volatile Exception failure;
-    private volatile boolean completed;
-
     public CompletableContext() {
-        completableFuture.whenComplete((v, t) -> {
-            result = v;
-            failure = (Exception) t;
-            completed = true;
-            notifyRemovableListeners();
-        });
+        completableFuture.whenComplete((v, t) -> notifyRemovableListeners());
     }
 
     public void addListener(BiConsumer<T, ? super Exception> listener) {
@@ -103,7 +94,7 @@ public class CompletableContext<T> {
      */
     public void addRemovableListener(BiConsumer<T, ? super Exception> listener) {
         removableListeners.add(listener);
-        if (completed) {
+        if (completableFuture.isDone()) {
             notifyRemovableListeners();
         }
     }
@@ -128,6 +119,18 @@ public class CompletableContext<T> {
     }
 
     private void notifyRemovableListeners() {
+        // only reached once the future is done, so resultNow / exceptionNow do not throw
+        final T result;
+        final Exception failure;
+        if (completableFuture.isCompletedExceptionally()) {
+            final Throwable t = completableFuture.exceptionNow();
+            assert !(t instanceof Error) : "Cannot be error";
+            result = null;
+            failure = (Exception) t;
+        } else {
+            result = completableFuture.resultNow();
+            failure = null;
+        }
         for (BiConsumer<T, ? super Exception> listener : removableListeners) {
             // whoever takes the listener out of the set owns notifying it, so a listener that is added or removed
             // while this context is completing is notified exactly once, or not at all once it has been removed

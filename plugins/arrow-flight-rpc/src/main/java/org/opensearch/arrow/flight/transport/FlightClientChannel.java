@@ -541,12 +541,10 @@ class FlightClientChannel implements TcpChannel {
             return;
         }
         if (closeFuture.isCompletedExceptionally()) {
-            closeFuture.handle((result, ex) -> {
-                listener.accept(null, ex instanceof Exception exception ? exception : new Exception(ex));
-                return null;
-            });
+            final Throwable ex = closeFuture.exceptionNow();
+            listener.accept(null, ex instanceof Exception exception ? exception : new Exception(ex));
         } else {
-            listener.accept(null, null);
+            listener.accept(closeFuture.resultNow(), null);
         }
     }
 

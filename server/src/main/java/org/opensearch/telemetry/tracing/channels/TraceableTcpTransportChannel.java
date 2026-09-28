@@ -44,9 +44,12 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         this.tracer = tracer;
         this.closeListener = (unused, e) -> {
             span.addEvent("The TransportChannel was closed without sending the response");
-            span.setError(e);
+            if (e != null) {
+                span.setError(e);
+            }
             span.endSpan();
         };
+        delegate.getChannel().addCloseListener(closeListener);
     }
 
     /**
@@ -59,9 +62,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      */
     public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer) {
         if (tracer.isRecording() == true) {
-            final TraceableTcpTransportChannel channel = new TraceableTcpTransportChannel(delegate, span, tracer);
-            delegate.getChannel().addCloseListener(channel.closeListener);
-            return channel;
+            return new TraceableTcpTransportChannel(delegate, span, tracer);
         } else {
             return delegate;
         }
