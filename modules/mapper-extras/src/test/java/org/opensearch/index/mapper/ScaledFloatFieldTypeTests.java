@@ -51,11 +51,15 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
@@ -68,7 +72,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue = Math.round(value * ft.getScalingFactor());
         Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
         Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("scaled_float", scaledValue), dvQuery);
-        assertEquals(query, ft.termQuery(value, null));
+        assertEquals(query, ft.termQuery(value, MOCK_QSC));
     }
 
     public void testTermsQuery() {
@@ -80,7 +84,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
-        assertEquals(LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
+        assertEquals(
+            LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2),
+            ft.termsQuery(Arrays.asList(value1, value2), MOCK_QSC)
+        );
     }
 
     public void testRangeQuery() throws IOException {
@@ -342,5 +349,42 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         Query termsQuery = ft.termsQuery(Arrays.asList(largeValue, otherValue), MOCK_QSC);
         assertEquals("Terms query should find both documents", 2, searcher.count(termsQuery));
         IOUtils.close(reader, dir);
+    }
+
+    /**
+     * On a pluggable-dataformat index the scaled_float mapper delegates to
+     * {@code NumberType.LONG} with {@code isEffectiveSearchable(context)} so the point-side of
+     * {@link IndexOrDocValuesQuery} is dropped. The Lucene secondary writes no BKD on such
+     * indices; keeping the point side would let the cost-based dispatch inside
+     * {@link IndexOrDocValuesQuery} pick an empty {@code PointValues} and return zero hits.
+     */
+    public void testTermQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100.0);
+        Query query = ft.termQuery(13.5, mockPluggableDataFormatContext());
+        Query expected = SortedNumericDocValuesField.newSlowRangeQuery("scaled_float", 1350L, 1350L);
+        assertEquals(expected, query);
+    }
+
+    /** Terms queries route to the DV-only branch on pluggable-dataformat indices. */
+    public void testTermsQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100.0);
+        Query query = ft.termsQuery(Arrays.asList(1.0, 2.0), mockPluggableDataFormatContext());
+        Query expected = SortedNumericDocValuesField.newSlowSetQuery("scaled_float", 100L, 200L);
+        assertEquals(expected, query);
+    }
+
+    /** Range queries route to the DV-only branch on pluggable-dataformat indices. */
+    public void testRangeQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100.0);
+        Query query = ft.rangeQuery(1.0, 10.0, true, true, mockPluggableDataFormatContext());
+        Query expected = SortedNumericDocValuesField.newSlowRangeQuery("scaled_float", 100L, 1000L);
+        assertEquals(expected, query);
+    }
+
+    /** A {@link QueryShardContext} mock that reports the pluggable-dataformat gate as enabled. */
+    private static QueryShardContext mockPluggableDataFormatContext() {
+        QueryShardContext ctx = mock(QueryShardContext.class);
+        when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
+        return ctx;
     }
 }

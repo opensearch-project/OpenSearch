@@ -51,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -328,6 +329,53 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertEquals(SHARD_ID, searchLookup.shardId());
     }
 
+    /**
+     * When the index-level setting is on AND the pluggable-dataformat feature flag is on,
+     * the gate is on. Mapper-layer callers use this to route numeric/date queries down the
+     * doc-values branch.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIsPluggableDataFormatEnabledWhenIndexSettingAndFeatureFlagOn() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .build();
+        QueryShardContext context = queryShardContextWithIndexSettings(settings);
+        assertTrue(context.isPluggableDataFormatEnabled());
+    }
+
+    /**
+     * Default state: neither the index-level setting nor the feature flag is on. This is what
+     * every non-Mustang index sees — BKD fast path is preserved.
+     */
+    public void testIsPluggableDataFormatEnabledWhenNeitherFlagIsOn() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        QueryShardContext context = queryShardContextWithIndexSettings(settings);
+        assertFalse(context.isPluggableDataFormatEnabled());
+    }
+
+    /**
+     * The index-level setting alone is not enough — the feature flag must also be on for the
+     * gate to activate. Verifies the two conditions are combined (AND, not OR).
+     */
+    public void testIsPluggableDataFormatEnabledWhenOnlyIndexSettingIsOn() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .build();
+        // Feature flag intentionally NOT enabled → gate must remain off.
+        QueryShardContext context = queryShardContextWithIndexSettings(settings);
+        assertFalse(context.isPluggableDataFormatEnabled());
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
@@ -479,4 +527,33 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Builds a minimal {@link QueryShardContext} for a hypothetical index with the given
+     * {@link Settings}, wiring in real {@link IndexSettings}. Used by the pluggable-dataformat
+     * gate tests where the value of {@link QueryShardContext#isPluggableDataFormatEnabled()}
+     * depends on both the index-level setting and the node-level feature flag.
+     */
+    private static QueryShardContext queryShardContextWithIndexSettings(Settings settings) {
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        return new QueryShardContext(
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null
+        );
+    }
 }

@@ -565,7 +565,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             && values.size() == 1
             && values.get(0) instanceof BytesArray bytesArray
             && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType numberFieldType) {
-            return numberFieldType.bitmapQuery(bytesArray);
+            return numberFieldType.bitmapQuery(bytesArray, context);
         }
         return fieldType.termsQuery(values, context);
     }
