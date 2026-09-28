@@ -147,8 +147,16 @@ public class RestShardsAction extends AbstractListAction {
      * Canonical names and aliases for shard columns that are derivable purely from cluster state
      * (ShardRouting + DiscoveryNodes + UnassignedInfo). These do NOT require a per-shard
      * IndicesStats broadcast.
+     *
+     * INVARIANT: every entry here must be a real column name or alias defined in
+     * {@link #getTableWithHeader(RestRequest)} AND must be derivable purely from cluster state /
+     * routing (i.e. it must NOT require the IndicesStats fan-out). If a routing-only column is added
+     * to the table but not added here, it silently falls out of the fast path (a performance
+     * regression, not a correctness bug). The guard test
+     * {@code RestShardsActionTests#testRoutingOnlyColumnsAreValidTableColumns} fails loudly if any
+     * entry here stops matching a real table column/alias, catching typos, renames and removals.
      */
-    private static final Set<String> ROUTING_ONLY_COLUMNS = Set.of(
+    static final Set<String> ROUTING_ONLY_COLUMNS = Set.of(
         // index
         "index",
         "i",

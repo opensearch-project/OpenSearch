@@ -217,9 +217,18 @@ public class RestTable {
 
         // Apply the limit parameter (if positive). Applied after sort so `?s=field:desc&limit=N`
         // yields the top-N rows by the sort key. This also caps unsummarized responses.
-        int limit = request.paramAsInt("limit", -1);
-        if (limit > 0 && rowOrder.size() > limit) {
-            rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
+        //
+        // Scope: only for NON-paginated responses. On paginated _list/* endpoints the response is a
+        // single page and carries a next_token cursor that already advances by the full page size;
+        // truncating the rendered rows here would silently drop the rows between `limit` and the page
+        // boundary while the cursor skips right over them (unrecoverable data loss across pages), and
+        // the sort would only be a within-page sort rather than a true global top-N. So when the table
+        // is paginated we leave `limit` unapplied and let pagination (size / next_token) govern.
+        if (table.getPageToken() == null) {
+            int limit = request.paramAsInt("limit", -1);
+            if (limit > 0 && rowOrder.size() > limit) {
+                rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
+            }
         }
         return rowOrder;
     }

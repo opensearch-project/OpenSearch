@@ -56,9 +56,11 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -241,6 +243,40 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         // A malformed direction-only sort token forces the conservative slow path.
         req.params().put("s", ":desc");
         assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    /**
+     * Guards {@link RestShardsAction#ROUTING_ONLY_COLUMNS} against silent drift: every entry must
+     * resolve to a real column name or alias in the shards table. If a column is renamed or removed
+     * (or an entry is mistyped) the stale entry would silently take the slow path forever; this test
+     * turns that into a loud failure. See the INVARIANT note on ROUTING_ONLY_COLUMNS.
+     */
+    public void testRoutingOnlyColumnsAreValidTableColumns() {
+        final RestShardsAction action = new RestShardsAction();
+        final Table table = action.getTableWithHeader(new FakeRestRequest());
+
+        final Set<String> validNames = new HashSet<>();
+        for (Table.Cell header : table.getHeaders()) {
+            validNames.add(header.value.toString());
+            final String aliases = header.attr.get("alias");
+            if (aliases != null) {
+                for (String alias : aliases.split(",")) {
+                    final String trimmed = alias.trim();
+                    if (trimmed.isEmpty() == false) {
+                        validNames.add(trimmed);
+                    }
+                }
+            }
+        }
+
+        for (String routingOnly : RestShardsAction.ROUTING_ONLY_COLUMNS) {
+            assertTrue(
+                "ROUTING_ONLY_COLUMNS entry ["
+                    + routingOnly
+                    + "] does not match any _cat/shards column name or alias; update the set or the table header so they stay in sync",
+                validNames.contains(routingOnly)
+            );
+        }
     }
 
     private void assertTable(Table table) {

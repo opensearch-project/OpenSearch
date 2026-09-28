@@ -324,6 +324,27 @@ public class RestTableTests extends OpenSearchTestCase {
         assertThat(rowOrder.size(), equalTo(3));
     }
 
+    public void testLimitNotAppliedToPaginatedTable() {
+        // On a paginated (_list/*) response the page carries a next_token cursor that advances by the
+        // full page. Applying `limit` here would silently drop rows between `limit` and the page
+        // boundary while the cursor skips over them, so `limit` must be ignored when a page token is set.
+        Table table = buildSimpleSortableTable(new PageToken("next", "entities"));
+        restRequest.params().put("limit", "2");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertThat("limit must not truncate a paginated response", rowOrder.size(), equalTo(3));
+    }
+
+    public void testLimitWithSortNotAppliedToPaginatedTable() {
+        // Even combined with a sort, `limit` stays unapplied on a paginated table: the sort here would
+        // only be a within-page sort, not a true global top-N, so truncating would be misleading.
+        Table table = buildSimpleSortableTable(new PageToken("next", "entities"));
+        restRequest.params().put("s", "compare:desc");
+        restRequest.params().put("limit", "2");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        // All rows retained; only the ORDER reflects the sort. Values [3,1,2] at [0,1,2] => desc [0,2,1].
+        assertEquals(Arrays.asList(0, 2, 1), rowOrder);
+    }
+
     public void testLimitZeroOrNegativeIsIgnored() {
         Table table = buildSimpleSortableTable();
         // limit=0 and any negative value are treated as "no limit" (only positive values apply).
@@ -440,7 +461,11 @@ public class RestTableTests extends OpenSearchTestCase {
     }
 
     private Table buildSimpleSortableTable() {
-        Table table = new Table();
+        return buildSimpleSortableTable(null);
+    }
+
+    private Table buildSimpleSortableTable(PageToken pageToken) {
+        Table table = pageToken == null ? new Table() : new Table(pageToken);
         table.startHeaders();
         table.addCell("compare");
         table.endHeaders();
