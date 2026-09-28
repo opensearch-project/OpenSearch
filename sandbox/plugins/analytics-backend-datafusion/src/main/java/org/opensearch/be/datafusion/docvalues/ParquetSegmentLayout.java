@@ -8,8 +8,11 @@
 
 package org.opensearch.be.datafusion.docvalues;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentReadState;
 import org.opensearch.be.datafusion.docvalues.bridge.ParquetColumnReader;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,32 +21,27 @@ import java.nio.file.Path;
  * Resolves the Parquet file that backs a Lucene segment's Parquet-resident doc values, and the store
  * its bytes must be read through.
  *
- * <p>Segments reach this codec with their Parquet path stamped onto the segment as
- * {@link #PARQUET_FILE_ATTRIBUTE}; this class is the read-side half, reading that stamped path back.
- * The stamping side ships with the composite-engine integration. Only the stamped path identifies
- * the segment's file.
+ * <p>The backing file is no longer stamped onto the segment. The server used to write the resolved path
+ * (and, on a warm shard, the native store pointer) onto {@code SegmentInfo} attributes; that stamping
+ * has been removed and the plugin now owns the mapping. Segments reach this codec carrying only their
+ * {@link #WRITER_GENERATION_ATTRIBUTE}, which is the correlation key: {@link #resolve} looks the segment's
+ * generation up in the per-shard {@link ParquetSegmentBindings} that {@code DatafusionReaderManager}
+ * populates from each refreshed catalog snapshot.
  *
- * <p>A shard tiered to warm keeps no local copy of its Parquet files, so the engine also stamps the
- * native object store to read them through as {@link #PARQUET_STORE_ATTRIBUTE}. The stamped path is
- * still the identity of the file either way: the shard's native file registry is keyed by that same
- * absolute path.
+ * <p>A shard tiered to warm keeps no local copy of its Parquet files, so the binding also carries the
+ * native object store the bytes must be read through. The file's identity is the same either way: the
+ * shard's native file registry is keyed by that same absolute path.
  */
 public final class ParquetSegmentLayout {
 
-    /** {@code SegmentInfo} attribute key holding the absolute Parquet file path for the segment. */
-    public static final String PARQUET_FILE_ATTRIBUTE = "parquet.docvalues.file";
-
-    /**
-     * {@code SegmentInfo} attribute key holding the native object-store pointer the Parquet file is read
-     * through, as a decimal string. Absent for a shard whose Parquet files are on local disk.
-     */
-    public static final String PARQUET_STORE_ATTRIBUTE = "parquet.docvalues.store_ptr";
+    private static final Logger logger = LogManager.getLogger(ParquetSegmentLayout.class);
 
     /**
      * {@code SegmentInfo} attribute key holding the writer generation stamped onto the segment, as a
      * decimal string. The literal matches {@code LuceneWriter.WRITER_GENERATION_ATTRIBUTE} in the
      * analytics-backend-lucene plugin, which is plugin-private; the writer stamps the same generation
-     * into the Parquet footer, so the two agree for the file written alongside a segment.
+     * into the Parquet footer, so the two agree for the file written alongside a segment. This is the
+     * correlation key {@link #resolve} uses to look a segment's Parquet binding up.
      */
     public static final String WRITER_GENERATION_ATTRIBUTE = "writer_generation";
 
@@ -63,40 +61,41 @@ public final class ParquetSegmentLayout {
 
     /**
      * Returns where {@code state}'s segment reads its Parquet doc values from, or {@code null} if the
-     * segment carries no stamped path, or carries a local path that no longer exists.
+     * segment carries no parseable {@link #WRITER_GENERATION_ATTRIBUTE}, no binding is registered for that
+     * generation on {@code shardId}, or the binding names a local path that no longer exists.
      *
-     * <p>The existence check applies only to a local file. A remote file is not probed: it is not
-     * expected on this node's disk at all, and the store reports a genuinely missing object on the first
-     * read.
+     * <p>The generation is looked up in {@code bindings}, which {@code DatafusionReaderManager} populated
+     * from the catalog snapshot on refresh. The existence check applies only to a local file. A remote
+     * file is not probed: it is not expected on this node's disk at all, and the store reports a genuinely
+     * missing object on the first read.
      */
-    public static ParquetSource resolve(SegmentReadState state) {
-        String attr = state.segmentInfo.getAttribute(PARQUET_FILE_ATTRIBUTE);
-        if (attr == null || attr.isEmpty()) {
+    public static ParquetSource resolve(SegmentReadState state, ShardId shardId, ParquetSegmentBindings bindings) {
+        String genAttr = state.segmentInfo.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+        if (genAttr == null || genAttr.isEmpty()) {
+            logger.debug(
+                "segment {} carries no {} attribute; serving no Parquet doc values",
+                state.segmentInfo.name,
+                WRITER_GENERATION_ATTRIBUTE
+            );
             return null;
         }
-        long storePointer = storePointer(state);
-        Path path = Path.of(attr);
+        final long generation;
+        try {
+            generation = Long.parseLong(genAttr);
+        } catch (NumberFormatException e) {
+            logger.debug("segment {} has unparseable {} attribute '{}'", state.segmentInfo.name, WRITER_GENERATION_ATTRIBUTE, genAttr);
+            return null;
+        }
+        ParquetSegmentBindings.Binding binding = bindings.resolve(shardId, generation);
+        if (binding == null) {
+            logger.debug("no Parquet binding for shard {} generation {}", shardId, generation);
+            return null;
+        }
+        long storePointer = binding.storePointer();
+        Path path = binding.parquetFile();
         if (storePointer == ParquetColumnReader.LOCAL_STORE && Files.exists(path) == false) {
             return null;
         }
         return new ParquetSource(path, storePointer);
-    }
-
-    /**
-     * Returns the stamped native store pointer, or {@link ParquetColumnReader#LOCAL_STORE} when none is
-     * stamped. An unparseable or non-positive value is treated as absent (local read); if the file is not
-     * local {@link #resolve} then serves no Parquet doc values for that segment.
-     */
-    private static long storePointer(SegmentReadState state) {
-        String attr = state.segmentInfo.getAttribute(PARQUET_STORE_ATTRIBUTE);
-        if (attr == null || attr.isEmpty()) {
-            return ParquetColumnReader.LOCAL_STORE;
-        }
-        try {
-            long pointer = Long.parseLong(attr);
-            return pointer > 0 ? pointer : ParquetColumnReader.LOCAL_STORE;
-        } catch (NumberFormatException e) {
-            return ParquetColumnReader.LOCAL_STORE;
-        }
     }
 }

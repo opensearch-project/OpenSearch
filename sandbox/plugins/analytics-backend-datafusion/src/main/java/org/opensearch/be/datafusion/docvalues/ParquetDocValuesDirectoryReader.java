@@ -8,9 +8,13 @@
 
 package org.opensearch.be.datafusion.docvalues;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,24 +34,41 @@ import java.io.UncheckedIOException;
  */
 public final class ParquetDocValuesDirectoryReader extends FilterDirectoryReader {
 
+    private static final Logger logger = LogManager.getLogger(ParquetDocValuesDirectoryReader.class);
+
     private final ParquetSegmentResourceCache cache;
+    private final ShardId shardId;
     private final CursorRegistry requestCursors;
 
-    private ParquetDocValuesDirectoryReader(DirectoryReader in, ParquetSegmentResourceCache cache, CursorRegistry requestCursors)
-        throws IOException {
-        super(in, new ParquetSubReaderWrapper(cache, requestCursors));
+    private ParquetDocValuesDirectoryReader(
+        DirectoryReader in,
+        ParquetSegmentResourceCache cache,
+        ShardId shardId,
+        CursorRegistry requestCursors
+    ) throws IOException {
+        super(in, new ParquetSubReaderWrapper(cache, shardId, requestCursors));
         this.cache = cache;
+        this.shardId = shardId;
         this.requestCursors = requestCursors;
     }
 
     /** Wraps {@code in} so Parquet-resident doc values are visible to query and aggregation code. */
     public static DirectoryReader wrap(DirectoryReader in, ParquetSegmentResourceCache cache) throws IOException {
-        return new ParquetDocValuesDirectoryReader(in, cache, new CursorRegistry());
+        // The server wraps the raw reader in an OpenSearchDirectoryReader (carrying the ShardId) before
+        // the reader-wrapper chain runs (see DataFormatAwareSearcherSupport), so the shard context is
+        // available here. Without it there is no shard to resolve Parquet bindings against, so pass the
+        // reader through untouched rather than guess.
+        OpenSearchDirectoryReader osReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(in);
+        if (osReader == null) {
+            logger.debug("no OpenSearchDirectoryReader in the wrap chain; serving no Parquet doc values");
+            return in;
+        }
+        return new ParquetDocValuesDirectoryReader(in, cache, osReader.shardId(), new CursorRegistry());
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new ParquetDocValuesDirectoryReader(in, cache, new CursorRegistry());
+        return new ParquetDocValuesDirectoryReader(in, cache, shardId, new CursorRegistry());
     }
 
     @Override
@@ -67,17 +88,19 @@ public final class ParquetDocValuesDirectoryReader extends FilterDirectoryReader
     /** Per-leaf wrapper that swaps in {@link ParquetDocValuesLeafReader} when the core has Parquet resources. */
     private static final class ParquetSubReaderWrapper extends SubReaderWrapper {
         private final ParquetSegmentResourceCache cache;
+        private final ShardId shardId;
         private final CursorRegistry requestCursors;
 
-        private ParquetSubReaderWrapper(ParquetSegmentResourceCache cache, CursorRegistry requestCursors) {
+        private ParquetSubReaderWrapper(ParquetSegmentResourceCache cache, ShardId shardId, CursorRegistry requestCursors) {
             this.cache = cache;
+            this.shardId = shardId;
             this.requestCursors = requestCursors;
         }
 
         @Override
         public LeafReader wrap(LeafReader reader) {
             try {
-                ParquetSegmentResources resources = cache.resourcesFor(reader);
+                ParquetSegmentResources resources = cache.resourcesFor(reader, shardId);
                 if (resources.isAbsent()) {
                     return reader;
                 }

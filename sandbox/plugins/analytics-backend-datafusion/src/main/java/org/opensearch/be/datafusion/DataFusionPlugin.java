@@ -23,6 +23,7 @@ import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.docvalues.ParquetDocValuesDirectoryReader;
+import org.opensearch.be.datafusion.docvalues.ParquetSegmentBindings;
 import org.opensearch.be.datafusion.docvalues.ParquetSegmentResourceCache;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -499,6 +500,16 @@ public class DataFusionPlugin extends Plugin
     private volatile CircuitBreaker datafusionBreaker;
 
     /**
+     * One node-level registry mapping each shard's segment generations to their Parquet doc-values backing
+     * files. The server no longer stamps those paths onto {@code SegmentInfo}; instead
+     * {@link DatafusionReaderManager} populates this registry on refresh and the Parquet doc-values codec
+     * (via {@link ParquetSegmentResourceCache}) resolves against it at reader-wrap time. Constructor-injected
+     * into both so the two sides share one instance; it is keyed by {@code ShardId}, so a single node-level
+     * instance correctly serves every shard.
+     */
+    private final ParquetSegmentBindings parquetSegmentBindings = new ParquetSegmentBindings();
+
+    /**
      * Creates the DataFusion plugin.
      */
     public DataFusionPlugin() {}
@@ -809,7 +820,7 @@ public class DataFusionPlugin extends Plugin
             if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
                 return null;
             }
-            ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(indexService.mapperService());
+            ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(indexService.mapperService(), parquetSegmentBindings);
             return reader -> ParquetDocValuesDirectoryReader.wrap(reader, cache);
         });
     }
@@ -995,7 +1006,8 @@ public class DataFusionPlugin extends Plugin
             dataFusionService,
             dataformatAwareStoreHandle,
             sortFields,
-            sortOrders
+            sortOrders,
+            parquetSegmentBindings
         );
     }
 

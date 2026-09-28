@@ -943,7 +943,7 @@ public class ParquetDocValuesFormatTests extends DataFusionBackedTestCase {
 
         Directory dir = newDirectory();
         IndexWriter writer = singleDocWriter(dir);
-        ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(null);
+        ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(null, new ParquetSegmentBindings());
         DirectoryReader reader = DirectoryReader.open(dir);
         try {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -979,7 +979,7 @@ public class ParquetDocValuesFormatTests extends DataFusionBackedTestCase {
 
         Directory dir = newDirectory();
         IndexWriter writer = singleDocWriter(dir);
-        ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(null);
+        ParquetSegmentResourceCache cache = new ParquetSegmentResourceCache(null, new ParquetSegmentBindings());
         DirectoryReader reader = DirectoryReader.open(dir);
         try {
             LeafReader leaf = reader.leaves().get(0).reader();

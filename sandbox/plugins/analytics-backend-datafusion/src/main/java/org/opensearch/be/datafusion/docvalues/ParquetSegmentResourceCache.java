@@ -21,6 +21,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 
@@ -50,18 +51,21 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ParquetSegmentResourceCache {
 
     private final MapperService mapperService;
+    private final ParquetSegmentBindings bindings;
     private final Map<IndexReader.CacheKey, ParquetSegmentResources> resourceByCore = new ConcurrentHashMap<>();
     private final Object buildLock = new Object();
 
-    public ParquetSegmentResourceCache(MapperService mapperService) {
+    public ParquetSegmentResourceCache(MapperService mapperService, ParquetSegmentBindings bindings) {
         this.mapperService = mapperService;
+        this.bindings = bindings;
     }
 
     /**
      * The resources for {@code in}'s segment core, building them on first use. Returns
-     * {@link ParquetSegmentResources#ABSENT} when the core serves no Parquet doc values.
+     * {@link ParquetSegmentResources#ABSENT} when the core serves no Parquet doc values. {@code shardId}
+     * scopes the {@link ParquetSegmentBindings} lookup that resolves the segment's Parquet file.
      */
-    ParquetSegmentResources resourcesFor(LeafReader in) throws IOException {
+    ParquetSegmentResources resourcesFor(LeafReader in, ShardId shardId) throws IOException {
         IndexReader.CacheHelper coreHelper = in.getCoreCacheHelper();
         if (coreHelper != null) {
             ParquetSegmentResources cached = resourceByCore.get(coreHelper.getKey());
@@ -76,11 +80,11 @@ public final class ParquetSegmentResourceCache {
                     return cached;
                 }
             }
-            return build(in, coreHelper);
+            return build(in, coreHelper, shardId);
         }
     }
 
-    private ParquetSegmentResources build(LeafReader in, IndexReader.CacheHelper coreHelper) throws IOException {
+    private ParquetSegmentResources build(LeafReader in, IndexReader.CacheHelper coreHelper, ShardId shardId) throws IOException {
         SegmentReader segmentReader;
         try {
             segmentReader = Lucene.segmentReader(in);
@@ -103,7 +107,10 @@ public final class ParquetSegmentResourceCache {
             IOContext.DEFAULT
         );
 
-        if (ParquetSegmentLayout.resolve(state) == null) {
+        // Resolve the segment's Parquet backing file once, from the per-shard binding registry, and
+        // reuse it for the producer below so resolution is not repeated.
+        ParquetSegmentLayout.ParquetSource resolved = ParquetSegmentLayout.resolve(state, shardId, bindings);
+        if (resolved == null) {
             return cacheAbsent(coreHelper, key);
         }
 
@@ -143,7 +150,7 @@ public final class ParquetSegmentResourceCache {
             return cacheAbsent(coreHelper, key);
         }
 
-        ParquetDocValuesProducer producer = new ParquetDocValuesProducer(state, mapperService);
+        ParquetDocValuesProducer producer = new ParquetDocValuesProducer(state, resolved, mapperService);
         FieldInfos combinedFieldInfos = new FieldInfos(combined.toArray(new FieldInfo[0]));
         ParquetSegmentResources built = new ParquetSegmentResources(producer, parquetFields, combinedFieldInfos);
         resourceByCore.put(key, built);

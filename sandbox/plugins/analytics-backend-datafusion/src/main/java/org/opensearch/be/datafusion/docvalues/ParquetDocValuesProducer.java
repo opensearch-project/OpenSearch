@@ -34,11 +34,11 @@ import java.util.Locale;
  * Read-only {@link DocValuesProducer} that serves single-valued numeric doc values from a Parquet
  * file through Lucene's DocValues iterator API.
  *
- * <p>The constructor resolves the backing file, gates once on the stamped format version, and verifies
- * the footer's writer generation equals the segment's {@code writer_generation} attribute, but opens no
- * cursor. It also captures the store those bytes come from: a hot shard's Parquet files are on local
- * disk, while a shard tiered to warm keeps them only in the remote object store, reachable through the
- * native store the engine stamped on the segment.
+ * <p>The constructor takes the already-resolved backing file, gates once on the stamped format version,
+ * and verifies the footer's writer generation equals the segment's {@code writer_generation} attribute,
+ * but opens no cursor. It also captures the store those bytes come from: a hot shard's Parquet files are
+ * on local disk, while a shard tiered to warm keeps them only in the remote object store, reachable
+ * through the native store recorded in the per-shard binding.
  *
  * <p>One producer is cached per segment core by {@link ParquetSegmentResourceCache} and shared
  * across requests; it is closed by the core's closed-listener, not per request. Each
@@ -86,18 +86,21 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     private volatile boolean closed;
 
     /**
+     * @param resolved      the segment's already-resolved Parquet backing file and store, produced by
+     *                      {@link ParquetSegmentResourceCache} from the per-shard
+     *                      {@link ParquetSegmentBindings}; must not be {@code null}
      * @param mapperService resolves OpenSearch mapping types for DV-type validation (may be
      *                      {@code null} only in low-level tests that bypass type validation)
      * @throws IOException if the backing Parquet file for the segment cannot be resolved, its stamped
      *                     format version is unsupported, or its footer writer generation does not equal
      *                     the segment's {@code writer_generation} attribute
      */
-    public ParquetDocValuesProducer(SegmentReadState state, MapperService mapperService) throws IOException {
+    public ParquetDocValuesProducer(SegmentReadState state, ParquetSegmentLayout.ParquetSource resolved, MapperService mapperService)
+        throws IOException {
         this.mapperService = mapperService;
         this.indexSettings = mapperService == null ? Settings.EMPTY : mapperService.getIndexSettings().getSettings();
         this.maxDoc = state.segmentInfo.maxDoc();
 
-        ParquetSegmentLayout.ParquetSource resolved = ParquetSegmentLayout.resolve(state);
         if (resolved == null) {
             throw new IOException(
                 String.format(
