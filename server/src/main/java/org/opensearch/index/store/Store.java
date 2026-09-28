@@ -756,9 +756,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * Creates a verifying input that expects a Lucene codec footer. Exposed so that
+     * {@link FormatChecksumStrategy} implementations outside this package can opt into footer semantics.
+     */
+    public static VerifyingIndexInput newLuceneVerifyingIndexInput(IndexInput input) {
+        return new VerifyingIndexInput(input);
+    }
+
     public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetadata metadata) throws IOException {
         assert metadata.writtenBy() != null;
-        return new VerifyingIndexInput(directory().openInput(filename, context));
+        final IndexInput input = directory().openInput(filename, context);
+        boolean success = false;
+        try {
+            // Mirror createVerifyingOutput: each data format verifies with its own algorithm. Lucene reads its
+            // codec footer; formats without one, such as Parquet, digest the whole file and compare against the
+            // checksum recorded in the store metadata.
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            final IndexInput verifying = dfasd != null ? dfasd.createVerifyingInput(metadata, input) : new VerifyingIndexInput(input);
+            success = true;
+            return verifying;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(input);
+            }
+        }
     }
 
     public static void verify(IndexInput input) throws IOException {
@@ -1943,7 +1965,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @opensearch.internal
      */
-    static class VerifyingIndexInput extends ChecksumIndexInput {
+    @ExperimentalApi
+    public static class VerifyingIndexInput extends ChecksumIndexInput {
+        /** Width of the 64-bit checksum Lucene stores at the tail of a codec footer. */
+        private static final int FOOTER_CHECKSUM_LENGTH = 8;
+
         private final IndexInput input;
         private final Checksum digest;
         private final long checksumPosition;
@@ -1955,10 +1981,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         VerifyingIndexInput(IndexInput input, Checksum digest) {
+            this(input, digest, input.length() - FOOTER_CHECKSUM_LENGTH);
+        }
+
+        /**
+         * @param checksumPosition offset at which the trailing stored checksum begins. Pass
+         *                         {@code input.length()} for formats that carry no trailing checksum, so that
+         *                         every byte of the file feeds the digest.
+         */
+        VerifyingIndexInput(IndexInput input, Checksum digest, long checksumPosition) {
             super("VerifyingIndexInput(" + input + ")");
             this.input = input;
             this.digest = digest;
-            checksumPosition = input.length() - 8;
+            this.checksumPosition = checksumPosition;
+        }
+
+        /** Number of bytes of this input that have fed the digest. */
+        protected final long verifiedPosition() {
+            return verifiedPosition;
         }
 
         @Override
@@ -2074,6 +2114,51 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             );
         }
 
+    }
+
+    /**
+     * Verifying input for data formats that do not carry a Lucene codec footer, such as Parquet.
+     * <p>
+     * {@link VerifyingIndexInput} treats the last eight bytes of the file as the expected checksum and digests
+     * only the bytes before them. A Parquet file has no such trailer, so applying that layout both digests the
+     * wrong byte range and reads real data as the expected value. This input instead digests every byte and
+     * compares the result against the checksum the format registered in the store metadata, mirroring what
+     * {@link DataFormatVerifyingIndexOutput} does on the write side.
+     *
+     * @opensearch.internal
+     */
+    public static class DataFormatVerifyingIndexInput extends VerifyingIndexInput {
+
+        private final StoreFileMetadata metadata;
+
+        public DataFormatVerifyingIndexInput(StoreFileMetadata metadata, IndexInput input) {
+            // checksumPosition == length: there is no trailing checksum, so every byte feeds the digest.
+            super(input, new BufferedChecksum(new CRC32()), input.length());
+            this.metadata = metadata;
+        }
+
+        @Override
+        public long verify() throws CorruptIndexException, IOException {
+            if (length() != metadata.length()) {
+                throw new CorruptIndexException(
+                    "verification failed: length [" + length() + "] does not match expected length [" + metadata.length() + "]",
+                    this
+                );
+            }
+            // Guard against verifying a partially consumed input, which would digest only a prefix of the file.
+            if (verifiedPosition() != length()) {
+                throw new CorruptIndexException(
+                    "verification failed: only [" + verifiedPosition() + "] of [" + length() + "] bytes were read",
+                    this
+                );
+            }
+            final long actualChecksum = getChecksum();
+            final String actual = Store.digestToString(actualChecksum);
+            if (metadata.checksum().equals(actual) == false) {
+                throw new CorruptIndexException("verification failed : calculated=" + actual + " expected=" + metadata.checksum(), this);
+            }
+            return actualChecksum;
+        }
     }
 
     public void deleteQuiet(String... files) {

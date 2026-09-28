@@ -45,4 +45,14 @@ public class LuceneChecksumHandler implements FormatChecksumStrategy {
     public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
         return new Store.LuceneVerifyingIndexOutput(metadata, output);
     }
+
+    /**
+     * Lucene files carry their checksum in the codec footer, so verification compares the digest of the file
+     * body against that trailer rather than against the store metadata.
+     */
+    @ExperimentalApi
+    @Override
+    public Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+        return Store.newLuceneVerifyingIndexInput(input);
+    }
 }
