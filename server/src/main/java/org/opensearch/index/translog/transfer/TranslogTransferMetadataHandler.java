@@ -29,6 +29,12 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
     private static final Logger logger = LogManager.getLogger(TranslogTransferMetadataHandler.class);
 
     /**
+     * Marker written immediately before the generation-to-checksum map. Its presence, not the number of bytes left
+     * before the codec footer, is what tells a reader the map is there. Visible for testing.
+     */
+    static final int CHECKSUM_MAP_MARKER = 0x434B534D; // "CKSM"
+
+    /**
      * Implements logic to read content from file input stream {@code indexInput} and parse into {@link TranslogTransferMetadata}
      *
      * @param indexInput file input stream
@@ -45,25 +51,19 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         TranslogTransferMetadata metadata = new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, count);
         metadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
 
-        // The generation-to-checksum map was appended to the format after the primary-term map. Metadata written
-        // before that ends right here, followed only by the codec footer, so its presence is decided by how many
-        // bytes remain rather than by probing for EOF. Older readers stop after the primary-term map and never
-        // look at the extra map, which keeps the file readable in both directions during a rolling upgrade.
+        // The generation-to-checksum map was appended to the version-1 layout after the primary-term map, preceded
+        // by CHECKSUM_MAP_MARKER. Metadata written before that ends right here, followed only by the codec footer.
+        // Older readers stop after the primary-term map and never look at the extra bytes, which keeps the file
+        // readable in both directions during a rolling upgrade; a version bump could not offer that, because the
+        // metadata stream wrapper in TranslogTransferManager accepts only [CURRENT_VERSION, CURRENT_VERSION].
         //
-        // FORMAT INVARIANT: this map must remain the LAST field of the version-1 layout. The remaining-byte check
-        // cannot distinguish it from any other trailing bytes, so appending a further field to version 1 would be
-        // read as (part of) this map by new nodes and would corrupt the layout for both sides. Any further field
-        // requires bumping TranslogTransferMetadata.CURRENT_VERSION with a reader-first rollout: the metadata
-        // stream wrapper in TranslogTransferManager accepts only [CURRENT_VERSION, CURRENT_VERSION], so a version
-        // written by an upgraded node is unreadable by an older one until that older release already accepts it.
-        // (TranslogTransferMetadataHandlerTests#testReadLegacyMetadataThroughCodecWrapperYieldsEmptyChecksumMap
-        // guards the legacy-tail case.)
-        //
-        // Because the map is inferred rather than tagged, what is read is validated before it is trusted: every
-        // key must be a generation inside this metadata's own range that the primary-term map also knows, every
-        // value must be a checksum, and nothing but the codec footer may follow. The map only ever lets a download
-        // be skipped, so on any doubt it is dropped and every generation is downloaded, which is the pre-existing
-        // behaviour.
+        // The marker makes the map's presence explicit: bytes that do not start with it are not a checksum map,
+        // whatever their length. Anything read is still validated before it is trusted (keys are generations inside
+        // this metadata's own range that the primary-term map knows, values are checksums, nothing but the codec
+        // footer follows). The map only ever lets a download be skipped, so on any doubt it is dropped and every
+        // generation is downloaded, which is the pre-existing behaviour. A field added to version 1 by mistake
+        // therefore cannot be misread as the map; it can only disable the optimisation on new readers, which
+        // TranslogTransferMetadataHandlerTests#testVersionOneLayoutEndsWithTheChecksumMap catches.
         metadata.setGenerationToChecksumMapper(readChecksumMapIfPresent(indexInput, metadata));
 
         return metadata;
@@ -72,6 +72,17 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
     private static Map<String, String> readChecksumMapIfPresent(IndexInput indexInput, TranslogTransferMetadata metadata)
         throws IOException {
         if (indexInput.length() - indexInput.getFilePointer() <= CodecUtil.footerLength()) {
+            // Written before the checksum map existed.
+            return Map.of();
+        }
+        int marker = indexInput.readInt();
+        if (marker != CHECKSUM_MAP_MARKER) {
+            logger.warn(
+                "ignoring trailing bytes in translog metadata [{}]: expected checksum map marker [{}] but found [{}]",
+                indexInput,
+                Integer.toHexString(CHECKSUM_MAP_MARKER),
+                Integer.toHexString(marker)
+            );
             return Map.of();
         }
         Map<String, String> generationToChecksumMapper = indexInput.readMapOfStrings();
@@ -136,9 +147,10 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         } else {
             indexOutput.writeMapOfStrings(new HashMap<>());
         }
-        // The generation-to-checksum map is always written last so that readers can detect its presence by the
-        // number of bytes left before the codec footer (see readContent). Do not append anything after it within
-        // this version; a new field needs a CURRENT_VERSION bump.
+        // The generation-to-checksum map is written last, announced by CHECKSUM_MAP_MARKER so that readers identify
+        // it explicitly (see readContent). Do not add fields to this version; a new field needs a CURRENT_VERSION
+        // bump with a reader-first rollout.
+        indexOutput.writeInt(CHECKSUM_MAP_MARKER);
         if (content.getGenerationToChecksumMapper() != null) {
             indexOutput.writeMapOfStrings(content.getGenerationToChecksumMapper());
         } else {

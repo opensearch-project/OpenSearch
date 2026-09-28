@@ -164,10 +164,21 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Writes {@code base} through the codec wrapper's header/footer with {@code checksums} appended as the trailing
-     * map and {@code extra} bytes placed between that map and the footer.
+     * The marker, not the byte count, announces the checksum map. Trailing bytes that do not start with it - a
+     * field someone appended to version 1, or a corrupted marker - are ignored and the map is dropped; the
+     * primary-term map and the rest of the metadata are unaffected.
      */
-    private static byte[] writeThroughCodec(TranslogTransferMetadata base, Map<String, String> checksums, byte[] extra) throws IOException {
+    public void testTrailingBytesWithoutMarkerAreNotReadAsChecksumMap() throws IOException {
+        TranslogTransferMetadata base = getTestMetadata();
+        Map<String, String> checksums = Map.of("300", "1234", "400", "5678");
+        // A well-formed map with a wrong marker in front of it.
+        int wrongMarker = randomValueOtherThan(TranslogTransferMetadataHandler.CHECKSUM_MAP_MARKER, OpenSearchTestCase::randomInt);
+        TranslogTransferMetadata actual = codecWrapper().readStream(
+            new ByteArrayIndexInput("metadata file", writeThroughCodec(base, wrongMarker, checksums, new byte[0]))
+        );
+        assertEquals(base.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+        assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+        // Arbitrary bytes where the marker would be, as an unrelated field appended to version 1 would leave them.
         BytesStreamOutput output = new BytesStreamOutput();
         try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
             CodecUtil.writeHeader(indexOutput, TranslogTransferMetadata.METADATA_CODEC, TranslogTransferMetadata.CURRENT_VERSION);
@@ -175,6 +186,33 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
             indexOutput.writeLong(base.getGeneration());
             indexOutput.writeLong(base.getMinTranslogGeneration());
             indexOutput.writeMapOfStrings(base.getGenerationToPrimaryTermMapper());
+            byte[] unrelated = randomByteArrayOfLength(randomIntBetween(1, 64));
+            indexOutput.writeBytes(unrelated, unrelated.length);
+            CodecUtil.writeFooter(indexOutput);
+        }
+        actual = codecWrapper().readStream(new ByteArrayIndexInput("metadata file", BytesReference.toBytes(output.bytes())));
+        assertEquals(base.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+        assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+    }
+
+    /**
+     * Writes {@code base} through the codec wrapper's header/footer with {@code checksums} appended as the trailing
+     * map (announced by the real marker) and {@code extra} bytes placed between that map and the footer.
+     */
+    private static byte[] writeThroughCodec(TranslogTransferMetadata base, Map<String, String> checksums, byte[] extra) throws IOException {
+        return writeThroughCodec(base, TranslogTransferMetadataHandler.CHECKSUM_MAP_MARKER, checksums, extra);
+    }
+
+    private static byte[] writeThroughCodec(TranslogTransferMetadata base, int marker, Map<String, String> checksums, byte[] extra)
+        throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+            CodecUtil.writeHeader(indexOutput, TranslogTransferMetadata.METADATA_CODEC, TranslogTransferMetadata.CURRENT_VERSION);
+            indexOutput.writeLong(base.getPrimaryTerm());
+            indexOutput.writeLong(base.getGeneration());
+            indexOutput.writeLong(base.getMinTranslogGeneration());
+            indexOutput.writeMapOfStrings(base.getGenerationToPrimaryTermMapper());
+            indexOutput.writeInt(marker);
             indexOutput.writeMapOfStrings(checksums);
             indexOutput.writeBytes(extra, extra.length);
             CodecUtil.writeFooter(indexOutput);
@@ -183,10 +221,10 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Pins the version-1 layout: header, three longs, primary-term map, checksum map, codec footer, and nothing
-     * else. The checksum map is detected by the byte count remaining before the footer, so a field appended within
-     * this version would be misread as (part of) the map by new readers while old readers would silently ignore it.
-     * If this test fails, the change needs a CURRENT_VERSION bump with a reader-first rollout, not a fix to the test.
+     * Pins the version-1 layout: header, three longs, primary-term map, checksum-map marker, checksum map, codec
+     * footer, and nothing else. A field added within this version can no longer be misread as the map (the marker
+     * would be missing), but it would silently disable the checksum map on new readers. If this test fails, the
+     * change needs a CURRENT_VERSION bump with a reader-first rollout, not a fix to the test.
      */
     public void testVersionOneLayoutEndsWithTheChecksumMap() throws IOException {
         for (TranslogTransferMetadata metadata : List.of(getTestMetadata(), getTestMetadataWithGenerationToChecksumMap())) {
@@ -205,7 +243,8 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
             indexInput.readLong();
             indexInput.readLong();
             indexInput.readMapOfStrings();
-            // A legacy writer stops here; anything a current writer adds must be exactly the checksum map.
+            // A legacy writer stops here; anything a current writer adds must be exactly the marked checksum map.
+            assertEquals(TranslogTransferMetadataHandler.CHECKSUM_MAP_MARKER, indexInput.readInt());
             Map<String, String> trailing = indexInput.readMapOfStrings();
             assertEquals(metadata.getGenerationToChecksumMapper() == null ? Map.of() : metadata.getGenerationToChecksumMapper(), trailing);
             assertEquals(
@@ -267,6 +306,7 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
         long generation = indexInput.readLong();
         long minTranslogGeneration = indexInput.readLong();
         Map<String, String> generationToPrimaryTermMapper = indexInput.readMapOfStrings();
+        assertEquals(TranslogTransferMetadataHandler.CHECKSUM_MAP_MARKER, indexInput.readInt());
         Map<String, String> generationToChecksumMapper = indexInput.readMapOfStrings();
         int count = generationToPrimaryTermMapper.size();
         TranslogTransferMetadata actualMetadata = new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, count);
@@ -318,7 +358,10 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
             indexOutput.writeLong(metadata.getGeneration());
             indexOutput.writeLong(metadata.getMinTranslogGeneration());
             indexOutput.writeMapOfStrings(metadata.getGenerationToPrimaryTermMapper());
-            if (metadata.getGenerationToChecksumMapper() != null) indexOutput.writeMapOfStrings(metadata.getGenerationToChecksumMapper());
+            if (metadata.getGenerationToChecksumMapper() != null) {
+                indexOutput.writeInt(TranslogTransferMetadataHandler.CHECKSUM_MAP_MARKER);
+                indexOutput.writeMapOfStrings(metadata.getGenerationToChecksumMapper());
+            }
         }
         return BytesReference.toBytes(output.bytes());
     }
