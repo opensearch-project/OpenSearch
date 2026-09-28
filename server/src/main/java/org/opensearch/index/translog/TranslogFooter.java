@@ -144,7 +144,8 @@ public final class TranslogFooter {
      *
      * @return the footer checksum, or {@code null} if the translog or its checkpoint file is missing, the checkpoint
      *         belongs to a different generation, or the translog carries no complete footer
-     * @throws IOException if either file cannot be read, including a checkpoint that fails its own CRC
+     * @throws IOException if either file cannot be read
+     * @throws TranslogCorruptedException if the checkpoint file fails its own header/CRC validation
      */
     public static Long readGenerationChecksum(Path location, long generation) throws IOException {
         Path translogPath = location.resolve(Translog.getFilename(generation));

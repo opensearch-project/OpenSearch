@@ -1009,6 +1009,22 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }
             assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
         }
+        // Checkpoint file corrupt (CRC no longer matches). Checkpoint.read throws the unchecked
+        // TranslogCorruptedException here, which must be treated as "cannot trust, download" rather than propagate
+        // and fail the engine open - the directory is no longer wiped before reconciliation, so a stale local
+        // checkpoint is a state the download now has to cope with.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 23, true);
+            Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(23));
+            byte[] bytes = Files.readAllBytes(checkpointPath);
+            bytes[bytes.length / 2] ^= 0x1;
+            Files.write(checkpointPath, bytes);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 23, String.valueOf(checksum)));
+            // And the full path downloads it, replacing the corrupt local files.
+            assertTrue(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
+            assertArrayEquals(ckpBytes, Files.readAllBytes(checkpointPath));
+        }
     }
 
     private long createTranslogGeneration(Path location, long generation, boolean withFooter) throws IOException {

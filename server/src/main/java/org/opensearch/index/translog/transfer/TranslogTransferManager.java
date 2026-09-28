@@ -30,6 +30,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogFooter;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -426,7 +427,10 @@ public class TranslogTransferManager {
                 );
             }
             return current;
-        } catch (IOException | NumberFormatException e) {
+        } catch (IOException | TranslogCorruptedException | NumberFormatException e) {
+            // TranslogCorruptedException is unchecked and is what Checkpoint.read throws for a checkpoint that fails
+            // its own CRC; a corrupt local checkpoint must fall back to a download like any other doubt. The
+            // download path deletes the local files before writing, so nothing stale survives it.
             logger.debug(() -> new ParameterizedMessage("unable to reconcile local translog generation {}; downloading", generation), e);
             return false;
         }
