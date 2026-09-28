@@ -31,6 +31,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -213,7 +214,10 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             df
         );
 
-        java.util.Optional<RelNode> rewritten = org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter.rewrite(sort);
+        java.util.Optional<RelNode> rewritten = org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter.rewrite(
+            sort,
+            buildContext("parquet", intFields())
+        );
         assertTrue("QTF must fire for Sort→Project→ER→Filter→Scan", rewritten.isPresent());
 
         // Walk FSI over every OpenSearchRelNode, mirroring DAGBuilder.cutAtLateMaterialization — must not throw.
@@ -271,12 +275,118 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         );
     }
 
-    public void testQtfDeclined_singleShard() {
-        // Single shard: CBO inserts no ExchangeReducer below the anchor (the scan's
-        // SOURCE(SINGLETON) already satisfies the parent Sort's demand). QTF's win comes from
-        // avoiding cross-node materialization of fetch-only columns through the gather; with
-        // no gather there's nothing to save, so the rewriter declines.
-        assertQtfDeclined("SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10", 1);
+    // ---- Single-shard gate: declines only when the index sort already serves the collation ----
+
+    public void testQtfFires_singleShard_unsortedIndex() {
+        // No index sort: the baseline scans every row's fetch-only columns, so QTF fires on one shard too.
+        assertQtfFired(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            1,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
+            Expect.erHasUgsi(false),
+            Expect.wrapperOutput("URL", "EventDate")
+        );
+    }
+
+    public void testQtfDeclined_singleShard_indexSortServesCollation() {
+        // Rows are read in index order and stop after K; a fetch round-trip only adds a stage.
+        assertQtfDeclined("SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10", 1, indexSort("EventDate", "asc"));
+        assertQtfDeclined("SELECT * FROM hits ORDER BY EventDate LIMIT 10", 1, indexSort("EventDate", "asc"));
+    }
+
+    public void testQtfDeclined_singleShard_indexSortReversed() {
+        // A fully reversed collation is served by reading the index backwards.
+        assertQtfDeclined("SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10", 1, indexSort("EventDate", "asc"));
+    }
+
+    public void testQtfDeclined_singleShard_collationIsPrefixOfIndexSort() {
+        assertQtfDeclined(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            1,
+            indexSort(List.of("EventDate", "CounterID"), List.of("asc", "desc"))
+        );
+    }
+
+    public void testQtfFires_singleShard_indexSortOnOtherField() {
+        assertQtfFired(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            1,
+            indexSort("CounterID", "asc"),
+            Expect.scanCols("EventDate"),
+            Expect.erHasUgsi(false)
+        );
+    }
+
+    public void testQtfFires_singleShard_secondaryIndexSortKeyOnly() {
+        // Only a prefix from the leading key is served; the on-disk order says nothing about CounterID alone.
+        assertQtfFired(
+            "SELECT URL FROM hits ORDER BY CounterID LIMIT 10",
+            1,
+            indexSort(List.of("EventDate", "CounterID"), List.of("asc", "asc")),
+            Expect.scanCols("CounterID"),
+            Expect.erHasUgsi(false)
+        );
+    }
+
+    public void testQtfFires_singleShard_collationLongerThanIndexSort() {
+        assertQtfFired(
+            "SELECT URL FROM hits ORDER BY EventDate, CounterID LIMIT 10",
+            1,
+            indexSort("EventDate", "asc"),
+            Expect.scanCols("CounterID", "EventDate"),
+            Expect.erHasUgsi(false)
+        );
+    }
+
+    public void testQtfFires_singleShard_mixedDirectionNotServed() {
+        // Only an exact or fully reversed prefix is served; ASC,DESC against ASC,ASC is neither.
+        assertQtfFired(
+            "SELECT URL FROM hits ORDER BY EventDate ASC, CounterID DESC LIMIT 10",
+            1,
+            indexSort(List.of("EventDate", "CounterID"), List.of("asc", "asc")),
+            Expect.erHasUgsi(false)
+        );
+    }
+
+    public void testQtfFires_singleShard_sortedButFilterColumnBelow() {
+        // The filter decodes CounterID for every row regardless of index order; QTF still saves URL.
+        assertQtfFired(
+            "SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10",
+            1,
+            indexSort("EventDate", "asc"),
+            Expect.scanCols("CounterID", "EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
+            Expect.erHasUgsi(false),
+            Expect.wrapperOutput("URL", "EventDate"),
+            Expect.outerProjectExprIndices(0, 1)
+        );
+    }
+
+    public void testQtfDeclined_singleShard_sortedFilterOnSortKeyOnly() {
+        // A filter on the sort key itself decodes nothing extra, so the gate still declines.
+        assertQtfDeclined(
+            "SELECT URL, CounterID FROM hits WHERE CounterID > 5 ORDER BY CounterID LIMIT 10",
+            1,
+            indexSort("CounterID", "asc")
+        );
+    }
+
+    public void testQtfFires_multiShard_indexSortIgnored() {
+        // With a reducer below the anchor the per-shard top-K still ships fetch-only columns for
+        // rows that lose the global merge, so the gate never applies.
+        assertQtfFired(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            indexSort("EventDate", "asc"),
+            Expect.scanCols("EventDate"),
+            Expect.erHasUgsi(true)
+        );
+    }
+
+    public void testQtfDeclined_singleShard_noFetchOnlyColumns() {
+        // Only the sort key is projected — nothing to fetch (shared skip predicate).
+        assertQtfDeclined("SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10", 1);
     }
 
     public void testQtfFires_descendingSort() {
@@ -488,7 +598,11 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
     // ── Composable assert API ──────────────────────────────────────────
 
     private void assertQtfFired(String sql, int shardCount, Expect... expectations) {
-        RelNode optimized = optimize(sql, shardCount);
+        assertQtfFired(sql, shardCount, Settings.EMPTY, expectations);
+    }
+
+    private void assertQtfFired(String sql, int shardCount, Settings indexSettings, Expect... expectations) {
+        RelNode optimized = optimize(sql, shardCount, indexSettings);
         String planText = RelOptUtil.toString(optimized);
         Inspector ctx = new Inspector(optimized);
         if (ctx.wrapper == null) {
@@ -500,7 +614,11 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
     }
 
     private void assertQtfDeclined(String sql, int shardCount) {
-        RelNode optimized = optimize(sql, shardCount);
+        assertQtfDeclined(sql, shardCount, Settings.EMPTY);
+    }
+
+    private void assertQtfDeclined(String sql, int shardCount, Settings indexSettings) {
+        RelNode optimized = optimize(sql, shardCount, indexSettings);
         Inspector ctx = new Inspector(optimized);
         if (ctx.wrapper != null) {
             fail("QTF should NOT have fired for SQL: " + sql + "\nPlan:\n" + RelOptUtil.toString(optimized));
@@ -757,12 +875,34 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         return out;
     }
 
+    private static Settings indexSort(String field, String order) {
+        return indexSort(List.of(field), List.of(order));
+    }
+
+    private static Settings indexSort(List<String> fields, List<String> orders) {
+        return Settings.builder().putList("index.sort.field", fields).putList("index.sort.order", orders).build();
+    }
+
     private RelNode optimize(String sql, int shardCount) {
-        return optimize(sql, shardCount, List.of(DATAFUSION, LUCENE));
+        return optimize(sql, shardCount, Settings.EMPTY);
+    }
+
+    private RelNode optimize(String sql, int shardCount, Settings indexSettings) {
+        return optimize(sql, shardCount, indexSettings, List.of(DATAFUSION, LUCENE));
     }
 
     private RelNode optimize(String sql, int shardCount, List<AnalyticsSearchBackendPlugin> backends) {
-        ClusterState state = SqlPlannerTestFixture.clusterStateWith(ClickBench.INDEX, ClickBench.BASIC_FIELDS, "parquet", shardCount);
+        return optimize(sql, shardCount, Settings.EMPTY, backends);
+    }
+
+    private RelNode optimize(String sql, int shardCount, Settings indexSettings, List<AnalyticsSearchBackendPlugin> backends) {
+        ClusterState state = SqlPlannerTestFixture.clusterStateWith(
+            ClickBench.INDEX,
+            ClickBench.BASIC_FIELDS,
+            "parquet",
+            shardCount,
+            indexSettings
+        );
         PlannerContext context = new PlannerContext(new CapabilityRegistry(backends, FieldStorageResolver::new), state, false);
         RelNode parsed = SqlPlannerTestFixture.parseSql(sql, state);
         return PlannerImpl.runAllOptimizations(parsed, context);
