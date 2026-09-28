@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -135,5 +136,26 @@ public final class TranslogFooter {
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             return readChecksum(channel, checkpointOffset);
         }
+    }
+
+    /**
+     * Reads the content checksum that generation {@code generation} in {@code location} advertises through its
+     * footer, locating the footer via the generation's own checkpoint file.
+     *
+     * @return the footer checksum, or {@code null} if the translog or its checkpoint file is missing, the checkpoint
+     *         belongs to a different generation, or the translog carries no complete footer
+     * @throws IOException if either file cannot be read, including a checkpoint that fails its own CRC
+     */
+    public static Long readGenerationChecksum(Path location, long generation) throws IOException {
+        Path translogPath = location.resolve(Translog.getFilename(generation));
+        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
+        if (Files.isRegularFile(translogPath) == false || Files.isRegularFile(checkpointPath) == false) {
+            return null;
+        }
+        Checkpoint checkpoint = Checkpoint.read(checkpointPath);
+        if (checkpoint.generation != generation) {
+            return null;
+        }
+        return readChecksum(translogPath, checkpoint.offset);
     }
 }

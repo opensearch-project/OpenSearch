@@ -27,6 +27,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
@@ -42,9 +43,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -871,6 +874,128 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
         assertTlogCkpDownloadStats();
+    }
+
+    /**
+     * A local generation whose footer checksum equals the advertised one is reused: nothing is fetched from the
+     * repository, and the tracker records both files exactly as a real download would.
+     */
+    public void testDownloadTranslogIfChangedReusesCurrentLocalGeneration() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 23, true);
+        byte[] before = Files.readAllBytes(location.resolve("translog-23.tlog"));
+
+        assertFalse(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
+
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), any(String.class));
+        verify(transferService, times(0)).downloadBlobWithMetadata(any(BlobPath.class), any(String.class));
+        assertArrayEquals(before, Files.readAllBytes(location.resolve("translog-23.tlog")));
+        assertTrue(tracker.uploaded("translog-23.tlog"));
+        assertTrue(tracker.uploaded("translog-23.ckp"));
+        assertNoDownloadStats(false);
+    }
+
+    /**
+     * When the local copy cannot be proven current the generation is downloaded, and nothing is registered with the
+     * tracker until that download has succeeded.
+     */
+    public void testDownloadTranslogIfChangedDownloadsWhenLocalGenerationIsNotCurrent() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 23, true);
+
+        assertTrue(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum + 1)));
+
+        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
+        assertArrayEquals(tlogBytes, Files.readAllBytes(location.resolve("translog-23.tlog")));
+        assertTrue(tracker.uploaded("translog-23.tlog"));
+        assertTrue(tracker.uploaded("translog-23.ckp"));
+        assertTlogCkpDownloadStats();
+    }
+
+    /**
+     * With checkpoint data carried as object metadata there is no remote {@code .ckp} object, so a reused
+     * generation registers only the {@code .tlog} - the same as {@code TranslogTransferManager#downloadTranslog} does in
+     * that mode.
+     */
+    public void testDownloadTranslogIfChangedInMetadataModeTracksOnlyTranslogFile() throws IOException {
+        TranslogTransferManager metadataModeManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 23, true);
+
+        assertFalse(metadataModeManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
+
+        assertTrue(tracker.uploaded("translog-23.tlog"));
+        assertFalse(tracker.uploaded("translog-23.ckp"));
+    }
+
+    /**
+     * Every way in which the local copy can fail to prove it is identical to the remote one must fall back to a
+     * download: checksum mismatch, footer-less file, missing checkpoint, checkpoint for a different generation,
+     * truncation, or a remote that does not advertise a checksum for the generation at all.
+     */
+    public void testIsLocalGenerationCurrentFallsBackWhenLocalStateCannotBeTrusted() throws IOException {
+        // Checksum mismatch (e.g. a stale generation left behind by an earlier incarnation of the shard).
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum + 1)));
+            assertTrue(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Local generation written before footers existed.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, false);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Remote does not know the checksum (metadata uploaded by an older node).
+        {
+            Path location = createTempDir();
+            createTranslogGeneration(location, 1, true);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, null));
+        }
+        // Checkpoint file missing.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Checkpoint file belongs to another generation.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            createTranslogGeneration(location, 2, true);
+            Files.move(
+                location.resolve(Translog.getCommitCheckpointFileName(2)),
+                location.resolve(Translog.getCommitCheckpointFileName(1))
+            );
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Translog file truncated after the checkpoint was written.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Path translogPath = location.resolve(Translog.getFilename(1));
+            try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+                channel.truncate(Files.size(translogPath) - 1);
+            }
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+    }
+
+    private long createTranslogGeneration(Path location, long generation, boolean withFooter) throws IOException {
+        return TestTranslog.createTranslogGeneration(random(), location, generation, withFooter);
     }
 
     public void testDeleteTranslogSuccess() throws Exception {

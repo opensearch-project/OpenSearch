@@ -30,6 +30,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogFooter;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -366,6 +367,71 @@ public class TranslogTransferManager {
         remoteTranslogTransferTracker.incrementTotalUploadsFailed();
     }
 
+    /**
+     * Makes generation {@code generation} available at {@code location}, downloading it only when the local copy
+     * cannot be proven identical to the remote one (see {@link #isLocalGenerationCurrent}). A reused local copy is
+     * registered with the file transfer tracker exactly as a downloaded one would be, so it is neither re-uploaded
+     * on the next sync nor fetched again. This is the only path that marks a file as present without downloading
+     * it: the verification and the tracker update are deliberately kept in one place so that the tracker can never
+     * be told about a generation whose content has not been checked.
+     *
+     * @param expectedChecksum the content checksum the remote metadata advertises for the generation, or
+     *                         {@code null} if it advertises none (in which case the generation is always downloaded)
+     * @return {@code true} if the generation was downloaded, {@code false} if the local copy was reused
+     */
+    public boolean downloadTranslogIfChanged(String primaryTerm, String generation, Path location, @Nullable String expectedChecksum)
+        throws IOException {
+        long gen = Long.parseLong(generation);
+        if (isLocalGenerationCurrent(location, gen, expectedChecksum)) {
+            // Mirror what downloadToFS / recoverCkpFileUsingMetadata register for a real download: the checkpoint
+            // file is only tracked as a remote object when it is uploaded as one.
+            fileTransferTracker.add(Translog.getFilename(gen), true);
+            if (isTranslogMetadataEnabled == false) {
+                fileTransferTracker.add(Translog.getCommitCheckpointFileName(gen), true);
+            }
+            return false;
+        }
+        downloadTranslog(primaryTerm, generation, location);
+        return true;
+    }
+
+    /**
+     * Decides whether generation {@code generation} can be served from the local translog directory instead of
+     * being downloaded again. The local copy is reused only when all of the following hold:
+     * <ul>
+     *   <li>the remote metadata advertises a content checksum for the generation (older uploads do not)</li>
+     *   <li>both the {@code .tlog} and the {@code .ckp} file are present locally</li>
+     *   <li>the local checkpoint passes its own CRC and belongs to this generation</li>
+     *   <li>the local translog carries a {@link TranslogFooter} whose checksum equals the advertised one</li>
+     * </ul>
+     * Any failure to establish this - including a truncated file, a missing footer or an I/O error - falls back to
+     * downloading, which is exactly what happens today.
+     */
+    // Visible for testing
+    boolean isLocalGenerationCurrent(Path location, long generation, @Nullable String expectedChecksum) {
+        if (expectedChecksum == null) {
+            return false;
+        }
+        try {
+            Long localChecksum = TranslogFooter.readGenerationChecksum(location, generation);
+            boolean current = localChecksum != null && localChecksum == Long.parseLong(expectedChecksum);
+            if (current) {
+                logger.debug("local translog generation {} matches remote checksum {}; skipping download", generation, expectedChecksum);
+            } else {
+                logger.debug(
+                    "local translog generation {} has checksum {} but remote advertises {}; downloading",
+                    generation,
+                    localChecksum,
+                    expectedChecksum
+                );
+            }
+            return current;
+        } catch (IOException | NumberFormatException e) {
+            logger.debug(() -> new ParameterizedMessage("unable to reconcile local translog generation {}; downloading", generation), e);
+            return false;
+        }
+    }
+
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
         logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
@@ -390,15 +456,6 @@ public class TranslogTransferManager {
             }
         }
         return true;
-    }
-
-    /**
-     * Marks a translog or checkpoint file as present locally without downloading it, so that the file transfer
-     * tracker treats it exactly like a downloaded file: it is not re-uploaded on the next sync and is eligible
-     * for the usual remote clean-up bookkeeping.
-     */
-    public void markFileAsDownloaded(String filename) {
-        fileTransferTracker.add(filename, true);
     }
 
     /**

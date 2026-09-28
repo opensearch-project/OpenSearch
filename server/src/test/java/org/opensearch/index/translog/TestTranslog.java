@@ -37,8 +37,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -58,6 +60,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.CRC32;
 
 import static org.opensearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 import static org.opensearch.index.translog.Translog.TRANSLOG_FILE_SUFFIX;
@@ -73,6 +76,35 @@ import static org.hamcrest.core.IsNot.not;
  */
 public class TestTranslog {
     private static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("^translog-(\\d+)\\.(tlog|ckp)$");
+
+    /**
+     * Writes a closed translog generation (header + a few operation bytes, optionally followed by a
+     * {@link TranslogFooter}) and its numbered checkpoint file at {@code location}, laid out exactly as
+     * {@link TranslogWriter#closeIntoReader()} leaves them for a remote-enabled translog. Returns the content
+     * checksum, i.e. the CRC32 over {@code [0, checkpoint.offset)} that the footer carries.
+     */
+    public static long createTranslogGeneration(Random random, Path location, long generation, boolean withFooter) throws IOException {
+        Path translogPath = location.resolve(Translog.getFilename(generation));
+        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
+        Files.createFile(translogPath);
+        try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+            TranslogHeader header = new TranslogHeader(UUIDs.randomBase64UUID(random), 1);
+            header.write(channel, true);
+            byte[] operationBytes = new byte[RandomNumbers.randomIntBetween(random, 4, 64)];
+            random.nextBytes(operationBytes);
+            channel.write(ByteBuffer.wrap(operationBytes));
+            long offset = channel.position();
+            CRC32 crc = new CRC32();
+            crc.update(Files.readAllBytes(translogPath), 0, Math.toIntExact(offset));
+            long contentChecksum = crc.getValue();
+            if (withFooter) {
+                TranslogFooter.write(channel, contentChecksum, true);
+            }
+            Checkpoint checkpoint = new Checkpoint(offset, 1, generation, 0, 0, 0, generation, SequenceNumbers.NO_OPS_PERFORMED);
+            Checkpoint.write(FileChannel::open, checkpointPath, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+            return contentChecksum;
+        }
+    }
 
     /**
      * Corrupts random translog file (translog-N.tlog or translog-N.ckp or translog.ckp) from the given translog directory, ignoring

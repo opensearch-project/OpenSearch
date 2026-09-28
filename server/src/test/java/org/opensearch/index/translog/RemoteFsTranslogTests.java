@@ -20,7 +20,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -86,7 +85,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1781,7 +1779,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
+        when(mockTransfer.downloadTranslogIfChanged(any(), any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
         TranslogTransferManager finalMockTransfer = mockTransfer;
         assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 
@@ -1791,7 +1789,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
         String msg = "File not found";
         Exception toThrow = randomBoolean() ? new NoSuchFileException(msg) : new FileNotFoundException(msg);
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(toThrow).thenReturn(true);
+        when(mockTransfer.downloadTranslogIfChanged(any(), any(), any(), any())).thenThrow(toThrow).thenReturn(true);
 
         AtomicLong downloadCounter = new AtomicLong();
         doAnswer(invocation -> {
@@ -1801,7 +1799,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 Files.createFile(location.resolve(Translog.getCommitCheckpointFileName(generation)));
             }
             return true;
-        }).when(mockTransfer).downloadTranslog(any(), any(), any());
+        }).when(mockTransfer).downloadTranslogIfChanged(any(), any(), any(), any());
 
         // no exception thrown
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
@@ -1889,27 +1887,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
      * content checksum that ended up in the footer.
      */
     private long createTranslogGeneration(Path location, long generation) throws IOException {
-        return createTranslogGeneration(location, generation, true);
-    }
-
-    private long createTranslogGeneration(Path location, long generation, boolean withFooter) throws IOException {
-        Path translogPath = location.resolve(Translog.getFilename(generation));
-        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
-        Files.createFile(translogPath);
-        try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
-            TranslogHeader header = new TranslogHeader(UUIDs.randomBase64UUID(), 1);
-            header.write(channel, true);
-            byte[] operationBytes = randomByteArrayOfLength(randomIntBetween(4, 64));
-            channel.write(ByteBuffer.wrap(operationBytes));
-            long offset = channel.position();
-            long contentChecksum = checksumOf(translogPath, offset);
-            if (withFooter) {
-                TranslogFooter.write(channel, contentChecksum, true);
-            }
-            Checkpoint checkpoint = new Checkpoint(offset, 1, generation, 0, 0, 0, generation, SequenceNumbers.NO_OPS_PERFORMED);
-            Checkpoint.write(FileChannel::open, checkpointPath, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-            return contentChecksum;
-        }
+        return TestTranslog.createTranslogGeneration(random(), location, generation, true);
     }
 
     private TranslogTransferManager mockTransferManagerFor(TranslogTransferMetadata metadata) throws IOException {
@@ -1938,98 +1916,47 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     /**
-     * A generation whose local footer checksum matches the one advertised in the remote metadata is not downloaded
-     * again, but is still registered with the transfer tracker as if it had been.
+     * The advertised checksum for each generation is handed to the transfer manager, which owns the decision to
+     * reuse the local copy; a generation it reports as reused is not downloaded and counts as skipped.
      */
     public void testIncrementalDownloadSkipsMatchingGeneration() throws IOException {
         Path location = createTempDir();
         long checksum = createTranslogGeneration(location, 1);
         TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 1, Map.of(1L, checksum)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum))).thenReturn(false);
 
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
 
+        verify(mockTransfer).downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum));
         verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
-        verify(mockTransfer).markFileAsDownloaded(Translog.getFilename(1));
-        verify(mockTransfer).markFileAsDownloaded(Translog.getCommitCheckpointFileName(1));
         // translog.ckp is re-derived from the latest generation's checkpoint.
         assertTrue(Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
     }
 
     /**
-     * Only the generations missing locally are downloaded; the one already present is kept.
+     * Only the generations the manager reports as downloaded are counted as such; the one already present is kept.
      */
     public void testIncrementalDownloadFetchesOnlyMissingGenerations() throws IOException {
         Path location = createTempDir();
         long checksum1 = createTranslogGeneration(location, 1);
         TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 2, Map.of(1L, checksum1, 2L, 5678L)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum1))).thenReturn(false);
         AtomicLong downloadCounter = new AtomicLong();
         doAnswer(invocation -> {
             downloadCounter.incrementAndGet();
             createTranslogGeneration(location, 2);
             return true;
-        }).when(mockTransfer).downloadTranslog("1", "2", location);
+        }).when(mockTransfer).downloadTranslogIfChanged("1", "2", location, "5678");
 
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
 
         assertEquals(1, downloadCounter.get());
-        verify(mockTransfer, times(0)).downloadTranslog("1", "1", location);
-        verify(mockTransfer).markFileAsDownloaded(Translog.getFilename(1));
-    }
-
-    /**
-     * Every way in which the local copy can fail to prove it is identical to the remote one must fall back to a
-     * download: checksum mismatch, footer-less file, missing checkpoint, checkpoint for a different generation,
-     * or a remote that does not advertise a checksum for the generation at all.
-     */
-    public void testIncrementalDownloadFallsBackWhenLocalStateCannotBeTrusted() throws IOException {
-        // Checksum mismatch (e.g. a stale generation left behind by an earlier incarnation of the shard).
-        {
-            Path location = createTempDir();
-            long checksum = createTranslogGeneration(location, 1);
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum + 1), logger));
-            assertTrue(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
-        }
-        // Local generation written before footers existed.
-        {
-            Path location = createTempDir();
-            long checksum = createTranslogGeneration(location, 1, false);
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
-        }
-        // Remote does not know the checksum (metadata uploaded by an older node).
-        {
-            Path location = createTempDir();
-            createTranslogGeneration(location, 1);
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, null, logger));
-        }
-        // Checkpoint file missing.
-        {
-            Path location = createTempDir();
-            long checksum = createTranslogGeneration(location, 1);
-            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
-        }
-        // Checkpoint file belongs to another generation.
-        {
-            Path location = createTempDir();
-            long checksum = createTranslogGeneration(location, 1);
-            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
-            createTranslogGeneration(location, 2);
-            Files.move(
-                location.resolve(Translog.getCommitCheckpointFileName(2)),
-                location.resolve(Translog.getCommitCheckpointFileName(1))
-            );
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
-        }
-        // Translog file truncated after the checkpoint was written.
-        {
-            Path location = createTempDir();
-            long checksum = createTranslogGeneration(location, 1);
-            Path translogPath = location.resolve(Translog.getFilename(1));
-            try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
-                channel.truncate(Files.size(translogPath) - 1);
-            }
-            assertFalse(RemoteFsTranslog.isLocalGenerationCurrent(location, 1, String.valueOf(checksum), logger));
-        }
+        verify(mockTransfer).downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum1));
+        verify(mockTransfer).downloadTranslogIfChanged("1", "2", location, "5678");
+        // A generation the remote does not advertise a checksum for is passed through with null.
+        TranslogTransferManager noChecksum = mockTransferManagerFor(metadataFor(1, 1, Map.of()));
+        RemoteFsTranslog.download(noChecksum, location, logger, false, 0);
+        verify(noChecksum).downloadTranslogIfChanged("1", "1", location, null);
     }
 
     /**
@@ -2044,9 +1971,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Files.createFile(location.resolve("unrelated.tmp"));
         Files.createFile(location.resolve(Translog.CHECKPOINT_FILE_NAME));
         TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenReturn(false);
 
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
 
+        verify(mockTransfer).downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2));
         verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
         Set<String> remaining = Arrays.stream(FileSystemUtils.files(location))
             .map(p -> p.getFileName().toString())
