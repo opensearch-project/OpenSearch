@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
@@ -59,7 +60,8 @@ public class PluggableFormatNestedSeamsTests extends MapperServiceTestCase {
             FieldScope fieldScope
         ) {
             recordedScopes.put(fieldType.name(), fieldScope);
-            fieldType.setCapabilityMap(Map.of());
+            Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
+            fieldType.setCapabilityMap(requested.isEmpty() ? Map.of() : Map.of(getDataFormat(), requested));
         }
     }
 

@@ -293,24 +293,27 @@ public class DataFormatRegistry {
      * @param fieldType the field type to assign capabilities to
      * @param indexSettings the index settings used to resolve the active plugin
      * @param fieldScope the field's mapping scope
+     * @return {@code true} if a data format plugin decided the assignment; {@code false} if the index names no
+     *         registered pluggable format, in which case the capability map is cleared
      */
-    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
+    public boolean assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName == null || dataformatName.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
-            return;
+            return false;
         }
         DataFormat format = dataFormats.get(dataformatName);
         if (format == null) {
             fieldType.setCapabilityMap(Map.of());
-            return;
+            return false;
         }
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
         if (plugin == null) {
             fieldType.setCapabilityMap(Map.of());
-            return;
+            return false;
         }
         plugin.assignCapabilities(fieldType, indexSettings, this, fieldScope);
+        return true;
     }
 
     /**

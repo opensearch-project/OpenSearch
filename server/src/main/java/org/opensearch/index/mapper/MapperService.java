@@ -579,6 +579,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             // compute the merged DocumentMapper
             DocumentMapper oldMapper = this.mapper;
+            // A stored index:false marker is accepted on recovery, and on an update only when it repeats the stored
+            // one (dynamic updates carry the parent nested object). Template layers are all author input.
+            if (reason != MergeReason.MAPPING_RECOVERY) {
+                mapper.rejectUnrecordedIndexMarkers(reason == MergeReason.INDEX_TEMPLATE ? null : oldMapper);
+            }
             if (oldMapper != null) {
                 newMapper = oldMapper.merge(mapper.mapping(), reason);
             } else {

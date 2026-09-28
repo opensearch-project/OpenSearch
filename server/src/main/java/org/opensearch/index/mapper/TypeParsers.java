@@ -159,6 +159,7 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("index")) {
                 builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
+                builder.indexExplicit = true;
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
                 builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));

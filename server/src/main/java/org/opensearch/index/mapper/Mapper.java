@@ -137,6 +137,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         protected T builder;
 
+        /** True when the parsed mapping spelled out {@code index}; copied onto the built {@link FieldMapper}. */
+        boolean indexExplicit;
+
         protected Builder(String name) {
             this.name = name;
         }

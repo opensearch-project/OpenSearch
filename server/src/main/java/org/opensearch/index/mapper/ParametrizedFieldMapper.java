@@ -229,7 +229,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name(), simpleName())));
     }
 
-    private static ContentPath parentPath(String name, String simpleName) {
+    /** Parent {@link ContentPath} of a field, from its full and simple names. */
+    static ContentPath parentPath(String name, String simpleName) {
         // Use simpleName to compute the parent path so that fields whose simpleName contains dots
         // (because of disable_objects) get the correct parent path
         int endPos = name.length() - simpleName.length() - 1;
@@ -980,6 +981,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             if (paramsMap.get("type") == null) {
                 fieldNode.remove("type");
             }
+            indexExplicit = fieldNode.containsKey("index");
 
             for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
