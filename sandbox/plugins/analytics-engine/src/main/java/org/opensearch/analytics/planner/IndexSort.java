@@ -41,10 +41,14 @@ public record IndexSort(List<Key> keys) {
         if (fields.isEmpty()) {
             return Optional.empty();
         }
-        // IndexSortConfig validates that an explicit order list matches the field list in length.
         List<SortOrder> orders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.exists(settings)
             ? IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings)
             : null;
+        // IndexSortConfig rejects a mismatched order list at index creation; treat one that slips
+        // through as "unknown sort" so callers fall back to the non-index-order plan.
+        if (orders != null && orders.size() != fields.size()) {
+            return Optional.empty();
+        }
         List<Key> keys = new ArrayList<>(fields.size());
         for (int i = 0; i < fields.size(); i++) {
             keys.add(new Key(fields.get(i), orders != null && orders.get(i) == SortOrder.DESC));

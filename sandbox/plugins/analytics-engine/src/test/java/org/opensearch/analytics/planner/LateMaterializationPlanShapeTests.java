@@ -389,6 +389,100 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         assertQtfDeclined("SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10", 1);
     }
 
+    /**
+     * Every rewrite shape must narrow the query phase identically on one shard and on many; the only
+     * plan difference is where {@code ___ugsi} is declared (the reducer, which only multi-shard has).
+     * Covers the above-anchor shapes the multi-shard tests exercise one by one.
+     */
+    public void testQtfFires_singleAndMultiShardProduceSameNarrowing() {
+        record Case(String sql, String[] scanCols, String[] above, String[] wrapperOut) {
+        }
+        List<Case> cases = List.of(
+            new Case(
+                "SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10",
+                new String[] { "EventDate" },
+                new String[] { "URL", "EventDate" },
+                new String[] { "URL", "EventDate" }
+            ),
+            new Case(
+                "SELECT URL, EventDate, CounterID FROM hits ORDER BY EventDate, CounterID LIMIT 10",
+                new String[] { "CounterID", "EventDate" },
+                new String[] { "URL", "EventDate", "CounterID" },
+                new String[] { "URL", "EventDate", "CounterID" }
+            ),
+            new Case(
+                "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10 OFFSET 5",
+                new String[] { "EventDate" },
+                new String[] { "URL", "EventDate" },
+                new String[] { "URL", "EventDate" }
+            ),
+            new Case(
+                "SELECT * FROM hits ORDER BY EventDate LIMIT 10",
+                new String[] { "EventDate" },
+                new String[] { "CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice" },
+                new String[] { "CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice" }
+            ),
+            new Case(
+                "SELECT URL || '-' || Title AS combined FROM hits ORDER BY EventDate LIMIT 10",
+                new String[] { "EventDate" },
+                new String[] { "URL", "Title" },
+                new String[] { "URL", "Title" }
+            ),
+            new Case(
+                "SELECT URL, CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10",
+                new String[] { "CounterID", "EventDate" },
+                new String[] { "URL", "CounterID" },
+                new String[] { "URL", "CounterID" }
+            ),
+            // Outer Sort above the anchor, as PPL's system limit emits (`... | sort x | head N` → Sort(fetch 10000)).
+            new Case(
+                "SELECT URL, EventDate FROM (SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10) AS sub"
+                    + " ORDER BY EventDate LIMIT 100",
+                new String[] { "EventDate" },
+                new String[] { "URL", "EventDate" },
+                new String[] { "URL", "EventDate" }
+            )
+        );
+        for (Case c : cases) {
+            for (int shards : new int[] { 1, 2 }) {
+                assertQtfFired(
+                    c.sql(),
+                    shards,
+                    Expect.scanCols(c.scanCols()),
+                    Expect.aboveAnchorPhysicalFields(c.above()),
+                    Expect.wrapperOutput(c.wrapperOut()),
+                    Expect.erHasUgsi(shards > 1)
+                );
+            }
+        }
+    }
+
+    /** The declines that do not depend on shard count hold on a single shard too. */
+    public void testQtfDeclined_singleShard_sharedDeclines() {
+        assertQtfDeclined("SELECT URL, EventDate FROM hits LIMIT 10", 1);
+        assertQtfDeclined("SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10", 1);
+        assertQtfDeclined("SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY CounterID LIMIT 10", 1);
+        assertQtfDeclined("SELECT CounterID, COUNT(*) AS c FROM hits GROUP BY CounterID ORDER BY c DESC LIMIT 10", 1);
+    }
+
+    public void testQtfDeclined_singleShard_multiKeyIndexSortFullyReversed() {
+        assertQtfDeclined(
+            "SELECT URL FROM hits ORDER BY EventDate DESC, CounterID ASC LIMIT 10",
+            1,
+            indexSort(List.of("EventDate", "CounterID"), List.of("asc", "desc"))
+        );
+    }
+
+    public void testQtfDeclined_singleShard_indexSortWithoutOrderIsAscending() {
+        // index.sort.field without index.sort.order means ASC; ORDER BY ... DESC is served by reading backwards,
+        // so the gate declines. Guards the "no order list" branch of IndexSort.of.
+        assertQtfDeclined(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10",
+            1,
+            Settings.builder().putList("index.sort.field", "EventDate").build()
+        );
+    }
+
     public void testQtfFires_descendingSort() {
         // DESC collation preserved through anchor rebuild.
         assertQtfFired(
