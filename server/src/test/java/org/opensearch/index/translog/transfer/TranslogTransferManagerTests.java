@@ -914,11 +914,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * With checkpoint data carried as object metadata there is no remote {@code .ckp} object, so a reused
-     * generation registers only the {@code .tlog} - the same as {@code TranslogTransferManager#downloadTranslog} does in
-     * that mode.
+     * With checkpoint data carried as object metadata there is no remote {@code .ckp} object, so a downloaded
+     * generation registers only the {@code .tlog} with the tracker. A reused generation must leave the tracker in
+     * exactly the same state, so callers that iterate tracked files see no difference between the two paths.
      */
-    public void testDownloadTranslogIfChangedInMetadataModeTracksOnlyTranslogFile() throws IOException {
+    public void testDownloadTranslogIfChangedInMetadataModeTracksSameFilesAsDownload() throws IOException {
         TranslogTransferManager metadataModeManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -929,13 +929,30 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             true
         );
-        Path location = createTempDir();
-        long checksum = createTranslogGeneration(location, 23, true);
+        // Reference: what a real metadata-mode download registers.
+        Path downloaded = createTempDir();
+        mockDownloadBlobWithMetadataResponse();
+        assertTrue(metadataModeManager.downloadTranslogIfChanged("12", "23", downloaded, null));
+        assertTrue(Files.exists(downloaded.resolve("translog-23.ckp")));
+        Set<String> afterDownload = tracker.allUploaded();
+        assertEquals(Set.of("translog-23.tlog"), afterDownload);
 
-        assertFalse(metadataModeManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
-
-        assertTrue(tracker.uploaded("translog-23.tlog"));
-        assertFalse(tracker.uploaded("translog-23.ckp"));
+        // A reused generation in a fresh tracker must register the very same set.
+        FileTransferTracker reuseTracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
+        TranslogTransferManager reuseManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            reuseTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+        Path reused = createTempDir();
+        long checksum = createTranslogGeneration(reused, 23, true);
+        assertFalse(reuseManager.downloadTranslogIfChanged("12", "23", reused, String.valueOf(checksum)));
+        assertEquals(afterDownload, reuseTracker.allUploaded());
     }
 
     /**

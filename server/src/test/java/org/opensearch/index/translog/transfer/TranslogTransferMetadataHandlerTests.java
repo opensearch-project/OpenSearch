@@ -169,6 +169,40 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
     }
 
     /**
+     * Pins the version-1 layout: header, three longs, primary-term map, checksum map, codec footer, and nothing
+     * else. The checksum map is detected by the byte count remaining before the footer, so a field appended within
+     * this version would be misread as (part of) the map by new readers while old readers would silently ignore it.
+     * If this test fails, the change needs a CURRENT_VERSION bump with a reader-first rollout, not a fix to the test.
+     */
+    public void testVersionOneLayoutEndsWithTheChecksumMap() throws IOException {
+        for (TranslogTransferMetadata metadata : List.of(getTestMetadata(), getTestMetadataWithGenerationToChecksumMap())) {
+            BytesStreamOutput output = new BytesStreamOutput();
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+                codecWrapper().writeStream(indexOutput, metadata);
+            }
+            IndexInput indexInput = new ByteArrayIndexInput("metadata file", BytesReference.toBytes(output.bytes()));
+            CodecUtil.checkHeader(
+                indexInput,
+                TranslogTransferMetadata.METADATA_CODEC,
+                TranslogTransferMetadata.CURRENT_VERSION,
+                TranslogTransferMetadata.CURRENT_VERSION
+            );
+            indexInput.readLong();
+            indexInput.readLong();
+            indexInput.readLong();
+            indexInput.readMapOfStrings();
+            // A legacy writer stops here; anything a current writer adds must be exactly the checksum map.
+            Map<String, String> trailing = indexInput.readMapOfStrings();
+            assertEquals(metadata.getGenerationToChecksumMapper() == null ? Map.of() : metadata.getGenerationToChecksumMapper(), trailing);
+            assertEquals(
+                "version-1 metadata must end with the checksum map followed only by the codec footer",
+                CodecUtil.footerLength(),
+                indexInput.length() - indexInput.getFilePointer()
+            );
+        }
+    }
+
+    /**
      * Full round trip through the versioned codec wrapper, with and without checksum entries, must preserve both maps.
      */
     public void testCodecWrapperRoundTripPreservesChecksumMap() throws IOException {
