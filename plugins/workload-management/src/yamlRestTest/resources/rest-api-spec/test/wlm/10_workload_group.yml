@@ -165,8 +165,8 @@
 ---
 "test throttling field on the WorkloadGroup API":
   - skip:
-      version: " - 3.8.99"
-      reason: "throttling was added to workload groups in 3.9"
+      version: " - 3.9.99"
+      reason: "throttling was added to workload groups in 3.10"
 
   - do:
       cluster.put_settings:

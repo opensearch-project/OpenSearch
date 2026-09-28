@@ -68,9 +68,9 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
 
     /**
      * Validates the throttling config on the node that accepted the request, before forwarding. {@code clusterManagerOperation}
-     * alone is not enough: forwarding to a pre-{@code V_3_9_0} manager strips the wire-gated {@code throttling} field before
+     * alone is not enough: forwarding to a pre-{@code V_3_10_0} manager strips the wire-gated {@code throttling} field before
      * the manager-side check sees it (and an older manager has no such check), yielding a 200 for a group persisted without
-     * throttling. Any node that can parse a {@code throttling} body is 3.9+, so checking here catches the pre-3.9 peer; the
+     * throttling. Any node that can parse a {@code throttling} body is 3.10+, so checking here catches the pre-3.10 peer; the
      * manager-side call stays authoritative.
      *
      * @param task task associated with the request

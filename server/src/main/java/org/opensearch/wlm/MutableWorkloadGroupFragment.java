@@ -118,9 +118,9 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         // reading a throttling bag that was never written would desync the stream for every field after it.
         // Decode "not on the wire" as null, not Settings.EMPTY: this class doubles as the partial update fragment, where
         // an empty bag is the explicit "clear all throttling" gesture, so EMPTY here would make any update routed
-        // through a pre-3.9 node silently wipe the group's throttling config. Null means "field absent, keep existing";
+        // through a pre-3.10 node silently wipe the group's throttling config. Null means "field absent, keep existing";
         // WorkloadGroup's constructor normalizes it to EMPTY for a full object.
-        if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
             throttling = Settings.readOptionalSettingsFromStream(in);
         } else {
             throttling = null;
@@ -303,8 +303,8 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             out.writeBoolean(false);
             out.writeMap(Map.of(), StreamOutput::writeString, StreamOutput::writeString);
         }
-        // Mirrors the read path: only 3.9+ peers expect a throttling bag on the wire.
-        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+        // Mirrors the read path: only 3.10+ peers expect a throttling bag on the wire.
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
             Settings.writeOptionalSettingsToStream(throttling, out);
         }
     }

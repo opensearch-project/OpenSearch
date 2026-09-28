@@ -798,7 +798,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testUpdateFromPreThrottlingPeerPreservesThrottling() throws IOException {
-        // A pre-3.9 node has no throttling field, so it writes none. Decoding "absent" as an empty bag would make
+        // A pre-3.10 node has no throttling field, so it writes none. Decoding "absent" as an empty bag would make
         // mergeSettings treat it as the explicit "clear all" gesture and silently delete the group's throttling on an
         // update that never mentioned throttling.
         MutableWorkloadGroupFragment update = new MutableWorkloadGroupFragment(
@@ -811,7 +811,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             update,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_8_0
+            Version.V_3_9_0
         );
 
         WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(throttledGroup(), asSeenByCurrentNode);
@@ -824,7 +824,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     public void testThrottlingIsDroppedWhenWrittenToPreThrottlingPeer() throws IOException {
         // This wire gate is why throttling must also be validated on the node that ACCEPTS a create/update, not only on the
         // elected cluster-manager. When the coordinator is not the manager the request is serialized at the manager's
-        // version, so forwarding to a pre-3.9 manager omits the throttling bag entirely; that manager runs older plugin code
+        // version, so forwarding to a pre-3.10 manager omits the throttling bag entirely; that manager runs older plugin code
         // with no such validation, persists a group without throttling and answers 200. The truncated stream stays
         // well-formed, which is precisely why the loss is silent rather than an error.
         MutableWorkloadGroupFragment withThrottling = new MutableWorkloadGroupFragment(
@@ -838,15 +838,15 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             withThrottling,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_8_0
+            Version.V_3_9_0
         );
-        assertNull("a pre-3.9 peer must not receive a throttling bag at all", asSeenByOldPeer.getThrottling());
+        assertNull("a pre-3.10 peer must not receive a throttling bag at all", asSeenByOldPeer.getThrottling());
 
         MutableWorkloadGroupFragment asSeenByCurrentPeer = copyWriteable(
             withThrottling,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_9_0
+            Version.V_3_10_0
         );
         assertEquals(Integer.valueOf(7), WorkloadGroupThrottleSettings.NODE_LIMIT.get(asSeenByCurrentPeer.getThrottling()));
     }

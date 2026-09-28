@@ -405,7 +405,7 @@ public class WorkloadGroupPersistenceService {
 
     /**
      * Rejects a throttling config the cluster cannot honour, which would otherwise return a 200 for a config that never
-     * takes effect: either a pre-{@link Version#V_3_9_0} node is present (throttling is wire-gated, so it is dropped when
+     * takes effect: either a pre-{@link Version#V_3_10_0} node is present (throttling is wire-gated, so it is dropped when
      * the request or cluster state crosses that node), or {@code by} keys on a principal but no principal attribute is
      * registered (no bucket can be resolved, so the limit always fails open). Called from the transport actions, not a
      * cluster-state applier, because throwing while applying cluster state wedges the cluster-manager.
@@ -419,10 +419,10 @@ public class WorkloadGroupPersistenceService {
             return;
         }
         Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(Version.V_3_9_0)) {
+        if (minNodeVersion.before(Version.V_3_10_0)) {
             throw new IllegalArgumentException(
                 "workload group throttling requires every node to be on "
-                    + Version.V_3_9_0
+                    + Version.V_3_10_0
                     + " or later, but the oldest node in the cluster is on "
                     + minNodeVersion
                     + ". The throttling config would be silently dropped; complete the upgrade first."

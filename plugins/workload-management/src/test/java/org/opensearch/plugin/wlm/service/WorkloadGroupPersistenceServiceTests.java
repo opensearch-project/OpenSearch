@@ -561,39 +561,39 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateThrottlingRejectsClusterWithAPreThrottlingNode() {
-        // The throttling field is gated on the wire, so a pre-3.9 node in the cluster means the config is dropped in
+        // The throttling field is gated on the wire, so a pre-3.10 node in the cluster means the config is dropped in
         // transit and the group silently comes back without it. Reject rather than return 200 for a no-op.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
                 throttling(null, 5),
-                clusterStateWithOldestNode(Version.V_3_8_0)
+                clusterStateWithOldestNode(Version.V_3_9_0)
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("requires every node to be on"));
-        assertTrue("the message must name the version actually found", e.getMessage().contains(Version.V_3_8_0.toString()));
+        assertTrue("the message must name the version actually found", e.getMessage().contains(Version.V_3_9_0.toString()));
     }
 
     public void testValidateThrottlingAcceptsWhenEveryNodeSupportsIt() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 5), clusterStateWithOldestNode(Version.V_3_9_0));
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 5), clusterStateWithOldestNode(Version.V_3_10_0));
     }
 
     public void testValidateThrottlingIgnoresAbsentAndEmptyConfig() {
         // Nothing to honour, so an old node in the cluster is not a problem: this is the shape of an update that does
         // not touch throttling at all, and of "throttling": null / {}.
-        ClusterState oldCluster = clusterStateWithOldestNode(Version.V_3_8_0);
+        ClusterState oldCluster = clusterStateWithOldestNode(Version.V_3_9_0);
         WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(null, oldCluster);
         WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(Settings.EMPTY, oldCluster);
     }
 
     public void testValidateThrottlingTreatsMissingByAsGroupScope() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9), clusterStateWithOldestNode(Version.V_3_9_0));
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9), clusterStateWithOldestNode(Version.V_3_10_0));
     }
 
     public void testValidateThrottlingTreatsNullByAsGroupScope() {
         Settings throttling = Settings.builder().putNull("by").put("node_limit", 9).build();
 
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling, clusterStateWithOldestNode(Version.V_3_9_0));
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling, clusterStateWithOldestNode(Version.V_3_10_0));
     }
 
     public void testUpdateValidationUsesMergedThrottlingConfig() {
@@ -609,7 +609,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             )
             .updatedAt(1690934400000L)
             .build();
-        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_9_0))
+        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_10_0))
             .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
             .build();
         UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(
@@ -636,7 +636,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             )
             .updatedAt(1690934400000L)
             .build();
-        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_9_0))
+        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_10_0))
             .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
             .build();
         UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(

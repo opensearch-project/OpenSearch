@@ -132,10 +132,10 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
             this.cancellations = in.readVLong();
-            // total_throttled arrives with throttling in 3.9, so it must be gated on that version and not on the
+            // total_throttled arrives with throttling in 3.10, so it must be gated on that version and not on the
             // older gate used by fields that already shipped: a 3.7/3.8 peer never writes it, and reading it anyway
             // would consume the resourceStats map header and desync everything after it.
-            if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
                 this.throttled = in.readVLong();
                 this.wouldThrottle = in.readVLong();
             }
@@ -202,7 +202,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.failures);
             out.writeVLong(statsHolder.cancellations);
             // version-gated to match the StreamInput ctor; read/write gates and order must stay in sync.
-            if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
                 out.writeVLong(statsHolder.throttled);
                 out.writeVLong(statsHolder.wouldThrottle);
             }
