@@ -38,6 +38,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -48,7 +50,11 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -58,8 +64,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -86,12 +94,23 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final Mapper.BuilderContext builderContext;
 
+        private final long newVersion;
+
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
-            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
+            this(builder, mapperService, null);
+        }
+
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
+            final IndexSettings is = mapperService.getIndexSettings();
+            final Settings indexSettings = is.getSettings();
+            final Consumer<MappedFieldType> assigner = dataFormatRegistry != null
+                ? fieldType -> dataFormatRegistry.assignCapabilities(fieldType, is)
+                : null;
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), assigner);
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
+            this.newVersion = existingMapper == null ? 1L : existingMapper.getVersion() + 1L;
             final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
@@ -106,6 +125,18 @@ public class DocumentMapper implements ToXContentFragment {
                     metadataMapper = existingMetadataMapper;
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            }
+        }
+
+        /**
+         * Recursively walks the mapper tree and assigns capability maps to all non-metadata field types.
+         */
+        private static void assignCapabilitiesRecursive(Mapper mapper, Mapper.BuilderContext context) {
+            if (mapper instanceof FieldMapper) {
+                context.assignCapabilities(((FieldMapper) mapper).fieldType());
+            }
+            for (Mapper child : mapper) {
+                assignCapabilitiesRecursive(child, context);
             }
         }
 
@@ -128,7 +159,7 @@ public class DocumentMapper implements ToXContentFragment {
                 metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                 meta
             );
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(mapperService, mapping, newVersion);
         }
     }
 
@@ -148,7 +179,13 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
+    private final long version;
+
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
+        this(mapperService, mapping, 1L);
+    }
+
+    public DocumentMapper(MapperService mapperService, Mapping mapping, long version) {
         this.mapperService = mapperService;
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
@@ -157,7 +194,11 @@ public class DocumentMapper implements ToXContentFragment {
         this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
+        this.fieldMappers = MappingLookup.fromMapping(
+            this.mapping,
+            indexAnalyzers.getDefaultIndexAnalyzer(),
+            mapperService.documentMapperParser()
+        );
 
         try {
             mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);
@@ -168,6 +209,7 @@ public class DocumentMapper implements ToXContentFragment {
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME,
             IdFieldMapper.NAME,
+            RoutingFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SeqNoFieldMapper.PRIMARY_TERM_NAME,
             SeqNoFieldMapper.TOMBSTONE_NAME
@@ -184,6 +226,25 @@ public class DocumentMapper implements ToXContentFragment {
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
             .toArray(MetadataFieldMapper[]::new);
+
+        // Assign capabilities for dynamically merged mappers that bypass the Builder path.
+        final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
+        if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
+            try {
+                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, FieldScope.ROOT);
+                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                    registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
+                }
+            } catch (UnsupportedOperationException e) {
+                // A field type that declares no search capability (e.g. geo_point) cannot be backed by a
+                // pluggable data format. Surface this as a MapperParsingException (400) rather than letting a
+                // raw UnsupportedOperationException escape as a NotSerializableExceptionWrapper (500) on the
+                // put-mapping path, which parses directly and bypasses the merge path's exception wrapping.
+                throw new MapperParsingException(e.getMessage(), e);
+            }
+        }
+
+        this.version = version;
     }
 
     public Mapping mapping() {
@@ -204,6 +265,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public CompressedXContent mappingSource() {
         return this.mappingSource;
+    }
+
+    public long getVersion() {
+        return this.version;
     }
 
     public RootObjectMapper root() {
@@ -250,8 +315,16 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(source, mapping.metadataMappers);
     }
 
+    public ParsedDocument parse(SourceToParse source, DocumentInput documentInput) throws MapperParsingException {
+        return documentParser.parseDocument(source, mapping.metadataMappers, documentInput);
+    }
+
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
+        return createDeleteTombstoneDoc(index, id, null);
+    }
+
+    public ParsedDocument createDeleteTombstoneDoc(String index, String id, @Nullable String routing) throws MapperParsingException {
+        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON, routing);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
@@ -309,9 +382,39 @@ public class DocumentMapper implements ToXContentFragment {
         }
     }
 
+    /**
+     * Recursively walks the mapper tree and assigns capability maps to all field types.
+     *
+     * @param fieldScope the mapper's current field scope; descendants of a nested
+     *                   {@link ObjectMapper} remain in {@link FieldScope#NESTED}
+     */
+    private void assignCapabilitiesRecursive(
+        Mapper mapper,
+        DataFormatRegistry registry,
+        IndexSettings indexSettings,
+        FieldScope fieldScope
+    ) {
+        if (mapper instanceof FieldMapper) {
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings, fieldScope);
+            // For derived source: keyword fields with ignore_above/normalizer use a separate
+            // rawValueFieldType to store the raw value for source reconstruction.
+            if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+                KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
+                if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
+                    registry.assignCapabilities(rawValueFieldType, indexSettings, fieldScope);
+                }
+            }
+        }
+        FieldScope childScope = fieldScope == FieldScope.NESTED
+            || (mapper instanceof ObjectMapper objectMapper && objectMapper.nested().isNested()) ? FieldScope.NESTED : FieldScope.ROOT;
+        for (Mapper child : mapper) {
+            assignCapabilitiesRecursive(child, registry, indexSettings, childScope);
+        }
+    }
+
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(mapperService, merged, this.version + 1L);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {
@@ -328,9 +431,39 @@ public class DocumentMapper implements ToXContentFragment {
                 );
             }
         }
+
+        // Indexing Sort with Nested Fields is only supported on & after Version 3.2.0
         if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            if (settings.getIndexVersionCreated().before(Version.V_3_2_0)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
+
+            /*
+             * Index sorting works for regular fields across documents that may contain nested objects,
+             * but sorting on fields inside nested objects is not supported. This validation checks
+             * the index sort configuration and throws an exception if any sort field is inside
+             * a nested object.
+             */
+            List<String> sortFields = settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING);
+            for (String sortField : sortFields) {
+                Mapper mapper = this.fieldMappers.getMapper(sortField);
+                if (mapper != null && mapper.name().contains(".")) {
+                    String parentPath = mapper.name().substring(0, mapper.name().lastIndexOf('.'));
+                    ObjectMapper nestedParent = objectMappers().get(parentPath);
+                    if (nestedParent != null && nestedParent.nested().isNested()) {
+                        throw new IllegalArgumentException(
+                            "index sorting on nested fields is not supported: "
+                                + "found nested sort field ["
+                                + sortField
+                                + "] in ["
+                                + settings.getIndex().getName()
+                                + "]"
+                        );
+                    }
+                }
+            }
         }
+
         if (checkLimits) {
             this.fieldMappers.checkLimits(settings);
         }

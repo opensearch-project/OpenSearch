@@ -9,13 +9,14 @@
 package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -26,15 +27,21 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.pollingingest.IngestionSettings;
+import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.opensearch.indices.pollingingest.StreamPoller.ResetState.RESET_BY_OFFSET;
+import static org.opensearch.indices.pollingingest.StreamPoller.ResetState.RESET_BY_TIMESTAMP;
 
 /**
  * Transport action for updating ingestion state on provided shards. Shard level failures are provided if there are
@@ -42,7 +49,7 @@ import java.util.stream.Collectors;
  *
  * <p>This is for internal use and will not be exposed to the user directly. </p>
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportUpdateIngestionStateAction extends TransportBroadcastByNodeAction<
     UpdateIngestionStateRequest,
@@ -76,9 +83,17 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, UpdateIngestionStateRequest request, String[] concreteIndices) {
-        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Set<String> allActiveIndexSet = new HashSet<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata != null && isAllActiveIngestionEnabled(indexMetadata)) {
+                allActiveIndexSet.add(index);
+            }
+        }
 
-        Predicate<ShardRouting> shardFilter = ShardRouting::primary;
+        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Predicate<ShardRouting> shardFilter = shardRouting -> shardRouting.primary()
+            || allActiveIndexSet.contains(shardRouting.getIndexName());
         if (shardSet.isEmpty() == false) {
             shardFilter = shardFilter.and(shardRouting -> shardSet.contains(shardRouting.shardId().getId()));
         }
@@ -131,14 +146,52 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
         }
 
         try {
+            // update shard pointer
+            if (request.getResetSettings() != null && request.getResetSettings().length > 0) {
+                ResumeIngestionRequest.ResetSettings resetSettings = getResetSettingsForShard(request, indexShard);
+                StreamPoller.ResetState resetState = getStreamPollerResetState(resetSettings);
+                String resetValue = resetSettings != null ? resetSettings.getValue() : null;
+                if (resetState != null && resetValue != null) {
+                    IngestionSettings ingestionSettings = IngestionSettings.builder()
+                        .setResetState(resetState)
+                        .setResetValue(resetValue)
+                        .build();
+                    indexShard.updateShardIngestionState(ingestionSettings);
+                }
+            }
+
+            // update ingestion state
             if (request.getIngestionPaused() != null) {
-                // update pause/resume state
-                indexShard.updateShardIngestionState(new IngestionStatus(request.getIngestionPaused()));
+                IngestionSettings ingestionSettings = IngestionSettings.builder().setIsPaused(request.getIngestionPaused()).build();
+                indexShard.updateShardIngestionState(ingestionSettings);
             }
 
             return indexShard.getIngestionState();
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());
         }
+    }
+
+    private StreamPoller.ResetState getStreamPollerResetState(ResumeIngestionRequest.ResetSettings resetSettings) {
+        if (resetSettings == null || resetSettings.getMode() == null) {
+            return null;
+        }
+
+        return switch (resetSettings.getMode()) {
+            case OFFSET -> RESET_BY_OFFSET;
+            case TIMESTAMP -> RESET_BY_TIMESTAMP;
+        };
+    }
+
+    private ResumeIngestionRequest.ResetSettings getResetSettingsForShard(UpdateIngestionStateRequest request, IndexShard indexShard) {
+        ResumeIngestionRequest.ResetSettings[] resetSettings = request.getResetSettings();
+        int targetShardId = indexShard.shardId().id();
+        return Arrays.stream(resetSettings).filter(setting -> setting.getShard() == targetShardId).findFirst().orElse(null);
+    }
+
+    private boolean isAllActiveIngestionEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.useIngestionSource()
+            && indexMetadata.getIngestionSource() != null
+            && indexMetadata.getIngestionSource().isAllActiveIngestionEnabled();
     }
 }

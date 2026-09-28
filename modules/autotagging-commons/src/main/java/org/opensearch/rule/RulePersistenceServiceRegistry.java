@@ -41,7 +41,7 @@ public class RulePersistenceServiceRegistry {
      */
     public RulePersistenceService getRulePersistenceService(FeatureType featureType) {
         if (!rulePersistenceServices.containsKey(featureType.getName())) {
-            throw new IllegalArgumentException("Unknown feature type: " + featureType.getName());
+            throw new IllegalArgumentException("Unknown feature type for persistence service: " + featureType.getName());
         }
         return rulePersistenceServices.get(featureType.getName());
     }

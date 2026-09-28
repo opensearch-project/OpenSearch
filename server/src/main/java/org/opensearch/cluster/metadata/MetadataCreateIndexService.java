@@ -84,6 +84,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -108,6 +109,7 @@ import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -155,6 +157,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -187,6 +190,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final List<IndexCreationValidator> indexCreationValidators = new ArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
@@ -227,9 +231,10 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
-        remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-            : null;
+        remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
+            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
+                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+                : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
@@ -247,6 +252,13 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException("provider already added");
         }
         this.indexSettingProviders.add(provider);
+    }
+
+    public void addIndexCreationValidator(IndexCreationValidator validator) {
+        if (validator == null) {
+            throw new IllegalArgumentException("validator must not be null");
+        }
+        indexCreationValidators.add(validator);
     }
 
     /**
@@ -530,7 +542,7 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
@@ -631,7 +643,8 @@ public class MetadataCreateIndexService {
     IndexMetadata buildAndValidateTemporaryIndexMetadata(
         final Settings aggregatedIndexSettings,
         final CreateIndexClusterStateUpdateRequest request,
-        final int routingNumShards
+        final int routingNumShards,
+        final ClusterState clusterState
     ) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
@@ -641,7 +654,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+        addRemoteStoreCustomMetadata(tmpImdBuilder, true, clusterState);
 
         if (request.context() != null) {
             tmpImdBuilder.context(request.context());
@@ -660,7 +673,9 @@ public class MetadataCreateIndexService {
      * @param tmpImdBuilder     index metadata builder.
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
-    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType, ClusterState clusterState) {
+
+        boolean isRestoreFromSnapshot = !assertNullOldType;
         if (remoteStoreCustomMetadataResolver == null) {
             return;
         }
@@ -674,6 +689,24 @@ public class MetadataCreateIndexService {
         // Determine if the ckp would be stored as translog metadata
         boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
+
+        Optional<DiscoveryNode> remoteNode = clusterState.nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStoreNode)
+            .findFirst();
+
+        String sseEnabledIndex = existingCustomData == null
+            ? null
+            : existingCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY);
+        if (isRestoreFromSnapshot && sseEnabledIndex != null) {
+            remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, sseEnabledIndex);
+        } else if (remoteNode.isPresent()
+            && !isRestoreFromSnapshot
+            && remoteStoreCustomMetadataResolver.isRemoteStoreRepoServerSideEncryptionEnabled()) {
+                remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, Boolean.toString(true));
+            }
 
         // Determine the path type for use using the remoteStorePathResolver.
         RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();
@@ -729,7 +762,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -794,7 +827,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -847,6 +880,10 @@ public class MetadataCreateIndexService {
 
         Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
         result.add(parsedRequestMappings);
+
+        // Apply disable_objects override logic to ensure template priority ordering is respected
+        applyDisableObjectsOverrides(result);
+
         return result;
     }
 
@@ -878,7 +915,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -938,6 +975,56 @@ public class MetadataCreateIndexService {
             }
         }
         return mappings;
+    }
+
+    /**
+     * Applies disable_objects override logic to a list of mappings.
+     * Later mappings in the list override earlier ones for the disable_objects setting,
+     * ensuring template priority ordering is respected.
+     *
+     * @param mappings List of mapping objects to process
+     */
+    static void applyDisableObjectsOverrides(List<Map<String, Object>> mappings) {
+        if (mappings == null || mappings.size() <= 1) {
+            return; // No overrides needed for null, empty, or single mapping
+        }
+
+        Object finalDisableObjectsValue = null;
+        boolean hasDisableObjects = false;
+
+        // Find the last (highest priority) disable_objects value
+        for (Map<String, Object> mapping : mappings) {
+            if (mapping == null) {
+                continue; // Skip null mappings
+            }
+
+            Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            if (docObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) docObj;
+                if (doc.containsKey("disable_objects")) {
+                    finalDisableObjectsValue = doc.get("disable_objects");
+                    hasDisableObjects = true;
+                }
+            }
+        }
+
+        // If we found a disable_objects value, apply it to all mappings that have a _doc section
+        if (hasDisableObjects) {
+            for (Map<String, Object> mapping : mappings) {
+                if (mapping == null) {
+                    continue; // Skip null mappings
+                }
+
+                Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+                if (docObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> doc = (Map<String, Object>) docObj;
+                    // Override with the final disable_objects value
+                    doc.put("disable_objects", finalDisableObjectsValue);
+                }
+            }
+        }
     }
 
     /**
@@ -1042,7 +1129,7 @@ public class MetadataCreateIndexService {
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false
             || indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, clusterSettings.get(DEFAULT_REPLICA_COUNT_SETTING));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -1056,6 +1143,7 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updatePluggableDataFormatSettings(indexSettingsBuilder, clusterSettings, request.index());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1072,6 +1160,9 @@ public class MetadataCreateIndexService {
 
         List<String> validationErrors = new ArrayList<>();
         validateIndexReplicationTypeSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(indexSettingsBuilder.build(), clusterSettings, request.index()).ifPresent(
+            validationErrors::add
+        );
         validateErrors(request.index(), validationErrors);
 
         Settings indexSettings = indexSettingsBuilder.build();
@@ -1106,6 +1197,79 @@ public class MetadataCreateIndexService {
                 );
             }
         }
+    }
+
+    /**
+     * Validates ingestion source settings for version compatibility and mapper settings correctness.
+     * In a mixed cluster, older nodes may not recognize newer mapper types (e.g., field_mapping),
+     * which would cause failures when those nodes try to initialize the ingestion engine.
+     * Also validates that mapper_settings keys are recognized for the configured mapper_type.
+     */
+    static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
+        // value (including [simple], the default) on mixed clusters where some nodes don't recognize the key.
+        // And in that case the index metadata replicated to older nodes would carry unknown settings.
+        // Also, older nodes would silently fall back to the default mapping while the user configured
+        // a different strategy (e.g., modulo), which might cause correctness issues.
+        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_7_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.source_partition_strategy requires all nodes in the cluster to be on version ["
+                        + Version.V_3_7_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+            // TODO: For source_partition_strategy=simple, surface a warning when numSourcePartitions > numShards
+            // (excess source partitions are silently never consumed) and an error when
+            // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
+            // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR
+            // (multi-partition consumer factory). The check will be wired here once available.
+        }
+
+        // Decoder settings validation. Both decoder_type and decoder_settings.* were introduced in V_3_8_0.
+        // Reject any explicit value (including the default "xcontent") on mixed clusters where some nodes
+        // do not recognise the setting key at all — they would fail to load the index metadata.
+        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)
+            || IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_8_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.decoder_type and index.ingestion_source.decoder_settings require all nodes "
+                        + "in the cluster to be on version ["
+                        + Version.V_3_8_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+        }
+
+        if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
+            return;
+        }
+
+        IngestionMessageMapper.MapperType mapperType = IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
+        Map<String, Object> mapperSettings = IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
+
+        // Version check for mixed cluster compatibility
+        if (mapperType == IngestionMessageMapper.MapperType.FIELD_MAPPING) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_6_0)) {
+                throw new IllegalArgumentException(
+                    "mapper_type [field_mapping] requires all nodes in the cluster to be on version ["
+                        + Version.V_3_6_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+        }
+
+        // Settings validation to the mapper
+        IngestionMessageMapper.validateSettings(mapperType, mapperSettings);
     }
 
     /**
@@ -1176,12 +1340,21 @@ public class MetadataCreateIndexService {
                 .findFirst();
 
             if (remoteNode.isPresent()) {
-                translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
-                if (segmentRepo != null && translogRepo != null) {
-                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
-                        .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
+                if (segmentRepo != null) {
+                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
+                    if (translogRepo != null) {
+                        settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                    } else if (isMigratingToRemoteStore(clusterSettings)) {
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationErrors(
+                            Collections.singletonList(
+                                "Cluster is migrating to remote store but remote translog is not configured, failing index creation"
+                            )
+                        );
+                        throw new IndexCreationException(indexName, validationException);
+                    }
                 } else {
                     ValidationException validationException = new ValidationException();
                     validationException.addValidationErrors(
@@ -1190,6 +1363,67 @@ public class MetadataCreateIndexService {
                     throw new IndexCreationException(indexName, validationException);
                 }
             }
+        }
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+    }
+
+    /**
+     * Stamps the dynamic cluster-level fencing default ({@code cluster.remote_store.fencing.enabled}) into the final
+     * per-index setting at creation time, for remote-store-backed indices that do not set it explicitly. The index
+     * setting is final because the fence is the primary's write witness: toggling it on a live index would leave a
+     * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
+     * in here means flipping the cluster setting only affects indices created afterwards.
+     */
+    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+        final Settings current = settingsBuilder.build();
+        // Read the raw value rather than going through INDEX_REMOTE_STORE_ENABLED_SETTING.get(). That setting carries a
+        // validator which cross-checks index.replication.type, and this helper also runs from snapshot restore's
+        // override-settings step - where restoring a remote-store snapshot onto a document-replication index is a
+        // combination the restore path itself must reject, with a SnapshotRestoreException. Validating it here instead
+        // would pre-empt that with an IllegalArgumentException from a read that only ever wanted a boolean. Deciding
+        // whether to stamp a default is not this method's place to validate the settings it is handed.
+        final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
+        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        if (remoteStoreEnabled
+            && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
+            && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+        }
+    }
+
+    /**
+     * Stamps the cluster-scope defaults for the pluggable data-format index settings into the
+     * index metadata at creation time when no explicit override is supplied. No-op when the
+     * pluggable data-format feature flag is disabled or the index matches the allowlist.
+     */
+    public static void updatePluggableDataFormatSettings(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return;
+        }
+
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return;
+        }
+
+        final Settings current = settingsBuilder.build();
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+            );
+        }
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         }
     }
 
@@ -1417,7 +1651,8 @@ public class MetadataCreateIndexService {
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        @Nullable IndexMetadata sourceMetadata,
+        List<IndexCreationValidator> indexCreationValidators
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
@@ -1428,6 +1663,10 @@ public class MetadataCreateIndexService {
 
         if (mapperService.isCompositeIndexPresent()) {
             CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
+        }
+
+        for (IndexCreationValidator validator : indexCreationValidators) {
+            validator.validate(mapperService, indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {
@@ -1461,12 +1700,14 @@ public class MetadataCreateIndexService {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
         validateContext(request);
+        validateIngestionSourceSettings(request.settings(), state);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(settings, clusterService.getClusterSettings(), indexName).ifPresent(validationErrors::add);
         validateErrors(indexName, validationErrors);
     }
 
@@ -1496,7 +1737,7 @@ public class MetadataCreateIndexService {
             // Apply aware replica balance validation only to non system indices
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
+                clusterService.getClusterSettings().get(DEFAULT_REPLICA_COUNT_SETTING)
             );
             int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
@@ -1570,6 +1811,71 @@ public class MetadataCreateIndexService {
             );
         }
         return Optional.empty();
+    }
+
+    /**
+     * Validates that {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} match the
+     * cluster-level defaults {@code cluster.pluggable.dataformat.enabled} and
+     * {@code cluster.pluggable.dataformat} when
+     * {@code cluster.restrict.pluggable.dataformat} is set to true.
+     *
+     * @param requestSettings settings resulting from merging request, templates, and cluster-level defaults
+     * @param clusterSettings cluster setting
+     * @param indexName name of the index being created
+     */
+    private static Optional<String> validatePluggableDataFormatSettings(
+        Settings requestSettings,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return Optional.empty();
+        }
+        if (clusterSettings.get(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING) == false) {
+            return Optional.empty();
+        }
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return Optional.empty();
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Returns {@code true} if the given index name matches any prefix in the
+     * {@code cluster.pluggable.dataformat.restrict.allowlist} setting, meaning it should bypass
+     * pluggable data-format default-stamping and restrict validation.
+     */
+    private static boolean isAllowedForPluggableDataFormat(String indexName, ClusterSettings clusterSettings) {
+        List<String> allowlist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST);
+        return allowlist.stream().anyMatch(indexName::startsWith);
     }
 
     /**
@@ -1857,9 +2163,10 @@ public class MetadataCreateIndexService {
     public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings) {
         // Get the setting value
         int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+        int indexRemoteCapablePrimaryShardsPerNode = INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
 
         // If default value (-1), no validation needed
-        if (indexPrimaryShardsPerNode == -1) {
+        if (indexPrimaryShardsPerNode == -1 && indexRemoteCapablePrimaryShardsPerNode == -1) {
             return;
         }
 
@@ -1867,7 +2174,11 @@ public class MetadataCreateIndexService {
         boolean isRemoteStoreEnabled = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings);
         if (!isRemoteStoreEnabled) {
             throw new IllegalArgumentException(
-                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+                "Setting ["
+                    + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] or ["
+                    + INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] can only be used with remote store enabled clusters"
             );
         }
     }

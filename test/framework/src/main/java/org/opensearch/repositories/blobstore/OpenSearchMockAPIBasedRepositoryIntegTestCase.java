@@ -156,6 +156,8 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
      * Test the snapshot and restore of an index which has large segments files.
      */
     public void testSnapshotWithLargeSegmentFiles() throws Exception {
+        ensureGreen();
+
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
         createIndex(
@@ -188,6 +190,8 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     }
 
     public void testRequestStats() throws Exception {
+        ensureGreen();
+
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
         createIndex(
@@ -277,14 +281,15 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         private final Map<String, AtomicInteger> requests;
 
         private final HttpHandler delegate;
-        private final int maxErrorsPerRequest;
+        private final double maxErrorsPercentage;
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
-        protected ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+        protected ErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
             this.requests = new ConcurrentHashMap<>();
             this.delegate = delegate;
-            this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+            this.maxErrorsPercentage = maxErrorsPercentage;
+            // We don't want to fail too often as it will cost too much time, which will lead to flaky tests
+            assert maxErrorsPercentage >= 0 && maxErrorsPercentage <= 0.25;
         }
 
         @Override
@@ -295,7 +300,9 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
 
                 final boolean canFailRequest = canFailRequest(exchange);
                 final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-                if (count >= maxErrorsPerRequest || canFailRequest == false) {
+                // We should not fail more than 3 times as the default max retry count is 3 (see SdkDefaultRetrySetting.maxAttempts), the
+                // request will fail when retry count > 3.
+                if (random().nextDouble() > maxErrorsPercentage || count >= 3 || canFailRequest == false) {
                     requests.remove(requestId);
                     delegate.handle(exchange);
                 } else {

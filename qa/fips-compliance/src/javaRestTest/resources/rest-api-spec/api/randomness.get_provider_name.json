@@ -1,0 +1,13 @@
+{
+  "randomness.get_provider_name": {
+    "methods": ["GET"],
+    "url": {
+      "paths": ["/_randomness/provider_name"]
+    },
+    "responses": {
+      "200": {
+        "description": "SecureRandom provider name"
+      }
+    }
+  }
+}

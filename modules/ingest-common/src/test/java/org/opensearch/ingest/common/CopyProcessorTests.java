@@ -48,7 +48,7 @@ public class CopyProcessorTests extends OpenSearchTestCase {
 
     public void testCopyWithIgnoreMissing() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = RandomDocumentPicks.randomNonExistingFieldName(random(), ingestDocument);
         Processor processor = createCopyProcessor("non-existing-field", targetFieldName, false, false, false);
         assertThrows(
             "source field [non-existing-field] doesn't exist",

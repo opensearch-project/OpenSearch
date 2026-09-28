@@ -11,6 +11,7 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
@@ -57,8 +58,11 @@ public class RemoteStoreUploadIndexPathIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 1));
         validateRemoteIndexPathFile(true);
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
-        FileSystemUtils.deleteSubDirectories(translogRepoPath);
-        FileSystemUtils.deleteSubDirectories(segmentRepoPath);
+        // Only clean remote-index-path dirs needed for subsequent case assertions.
+        // Translog data dirs are cleaned asynchronously by the REMOTE_PURGE thread pool
+        // and must not be deleted manually here to avoid a race (NoSuchFileException).
+        IOUtils.rm(translogRepoPath.resolve(RemoteIndexPath.DIR));
+        IOUtils.rm(segmentRepoPath.resolve(RemoteIndexPath.DIR));
 
         // Case 2 - Hashed_infix, we would not have the remote index path file created here.
         client(clusterManagerNode).admin()

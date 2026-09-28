@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "msg=\"(?<msgcontent>[^\"]+)\"" | fields msgcontent, service | where msgcontent is not null

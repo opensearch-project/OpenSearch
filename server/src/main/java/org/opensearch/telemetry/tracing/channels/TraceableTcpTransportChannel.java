@@ -95,6 +95,22 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         }
     }
 
+    public void sendResponseBatch(TransportResponse response) {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.sendResponseBatch(response);
+        } finally {
+            span.endSpan();
+        }
+    }
+
+    public void completeStream() {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.completeStream();
+        } finally {
+            span.endSpan();
+        }
+    }
+
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try (SpanScope scope = tracer.withSpanInScope(span)) {

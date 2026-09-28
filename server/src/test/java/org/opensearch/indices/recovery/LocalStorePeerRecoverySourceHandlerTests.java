@@ -38,7 +38,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
@@ -60,6 +59,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.IndexOutputOutputStream;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
@@ -78,6 +78,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -666,6 +668,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
         when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        when(shard.acquireSafeCatalogSnapshot()).thenReturn(mock(GatedCloseable.class));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
@@ -699,7 +702,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
             @Override
             void phase1(
-                IndexCommit snapshot,
+                CatalogSnapshot snapshot,
                 long startingSeqNo,
                 IntSupplier translogOps,
                 ActionListener<SendFileResult> listener,
@@ -767,6 +770,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
         when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        when(shard.acquireSafeCatalogSnapshot()).thenReturn(mock(GatedCloseable.class));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
@@ -800,7 +804,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
             @Override
             void phase1(
-                IndexCommit snapshot,
+                CatalogSnapshot snapshot,
                 long startingSeqNo,
                 IntSupplier translogOps,
                 ActionListener<SendFileResult> listener,
@@ -872,6 +876,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
         when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        when(shard.acquireSafeCatalogSnapshot()).thenReturn(mock(GatedCloseable.class));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
@@ -905,7 +910,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
             @Override
             void phase1(
-                IndexCommit snapshot,
+                CatalogSnapshot snapshot,
                 long startingSeqNo,
                 IntSupplier translogOps,
                 ActionListener<SendFileResult> listener,
@@ -1206,7 +1211,13 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
-            handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch), false);
+            handler.phase1(
+                new SegmentInfosCatalogSnapshot(Lucene.readSegmentInfos(DirectoryReader.listCommits(dir).get(0))),
+                0,
+                () -> 0,
+                new LatchedActionListener<>(phase1Listener, latch),
+                false
+            );
             latch.await();
             phase1Listener.result();
         } catch (Exception e) {

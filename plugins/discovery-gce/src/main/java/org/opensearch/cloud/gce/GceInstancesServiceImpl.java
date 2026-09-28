@@ -50,15 +50,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -82,6 +83,17 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         Property.NodeScope
     );
 
+    private static final Supplier<Boolean> inFipsMode = () -> {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    };
+
     private final String project;
     private final List<String> zones;
 
@@ -92,7 +104,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
+                InstanceList instanceList = AccessController.doPrivilegedChecked(() -> {
                     Compute.Instances.List list = client().instances().list(project, zoneId);
                     return list.execute();
                 });
@@ -100,7 +112,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                 return instanceList.isEmpty() || instanceList.getItems() == null
                     ? Collections.<Instance>emptyList()
                     : instanceList.getItems();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
@@ -170,7 +182,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
-        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
+        GenericUrl url = AccessController.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
 
         HttpTransport httpTransport = getGceHttpTransport();
         HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
@@ -178,7 +190,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             .setConnectTimeout(500)
             .setReadTimeout(500)
             .setHeaders(new HttpHeaders().set("Metadata-Flavor", "Google"));
-        HttpResponse response = Access.doPrivilegedIOException(() -> request.execute());
+        HttpResponse response = AccessController.doPrivilegedChecked(request::execute);
         return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
     }
 
@@ -191,7 +203,18 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                if (inFipsMode.get()) {
+                    var trustStore = KeyStore.getInstance("BCFKS");
+                    try (var in = getClass().getResourceAsStream("/google.bcfks")) {
+                        if (in == null) {
+                            throw new IllegalStateException("FIPS mode requires /google.bcfks to be present on the classpath");
+                        }
+                        trustStore.load(in, "notasecret".toCharArray());
+                    }
+                    gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(trustStore).build();
+                } else {
+                    gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                }
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
@@ -224,7 +247,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            Access.doPrivilegedIOException(credential::refreshToken);
+            AccessController.doPrivilegedChecked(credential::refreshToken);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

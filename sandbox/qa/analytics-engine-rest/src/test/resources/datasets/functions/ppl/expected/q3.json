@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    },
+    {
+      "name": "final_status",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "BOB",
+      "active",
+      "active"
+    ],
+    [
+      "ALICE",
+      "inactive",
+      "inactive"
+    ],
+    [
+      "BOB",
+      "pending",
+      "pending"
+    ],
+    [
+      "ALICE",
+      null,
+      "unknown"
+    ],
+    [
+      "BOB",
+      "active",
+      "active"
+    ],
+    [
+      "BOB",
+      "inactive",
+      "inactive"
+    ],
+    [
+      "CHARLIE",
+      "pending",
+      "pending"
+    ],
+    [
+      "CHARLIE",
+      null,
+      "unknown"
+    ],
+    [
+      "ALICE",
+      "active",
+      "active"
+    ],
+    [
+      "ALICE",
+      "inactive",
+      "inactive"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

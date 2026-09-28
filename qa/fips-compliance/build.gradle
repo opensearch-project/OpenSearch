@@ -1,0 +1,52 @@
+import org.opensearch.gradle.util.GradleUtils
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.opensearchplugin'
+
+configurations {
+  bcFips
+}
+
+opensearchplugin {
+  description = 'Test-only plugin to expose BCFIPS SecureRandom provider'
+  classname = 'org.opensearch.FipsSmokeTestPlugin'
+}
+
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+
+dependencies {
+  bcFips libs.bundles.bouncycastle
+}
+
+afterEvaluate {
+  testClusters {
+    // configure cluster to start in FIPS JVM
+    javaRestTest {
+      environment 'OPENSEARCH_FIPS_MODE', 'true'
+      keystorePassword 'notarealpasswordphrase'
+      extraConfigFile 'opensearch-fips-truststore.bcfks',
+          file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
+      systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/opensearch-fips-truststore.bcfks'
+      systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+      systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
+      systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+
+      configurations.bcFips.resolve().each { jarFile ->
+        extraJarFile jarFile
+      }
+    }
+  }
+}
+
+test.enabled = false

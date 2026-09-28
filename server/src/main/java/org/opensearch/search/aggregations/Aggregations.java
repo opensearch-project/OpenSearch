@@ -87,6 +87,10 @@ public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
         return Collections.unmodifiableList(aggregations);
     }
 
+    public final int subAggSize() {
+        return aggregations.size();
+    }
+
     /**
      * Returns the {@link Aggregation}s keyed by aggregation name.
      */

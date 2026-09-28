@@ -21,7 +21,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
@@ -44,23 +44,23 @@ import java.util.stream.Collectors;
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.cluster.metadata.WorkloadGroup.builder;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_NONE_EXISTED;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_TWO;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils._ID_ONE;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils._ID_TWO;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.assertEqualWorkloadGroups;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterSettings;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterSettingsSet;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterState;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.preparePersistenceServiceSetup;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupList;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupPersistenceService;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupTwo;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_NONE_EXISTED;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_TWO;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils._ID_ONE;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils._ID_TWO;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.assertEqualWorkloadGroups;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.clusterSettings;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.clusterSettingsSet;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.clusterState;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.preparePersistenceServiceSetup;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupList;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupPersistenceService;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupTwo;
 import static org.opensearch.plugin.wlm.action.WorkloadGroupActionTestUtils.updateWorkloadGroupRequest;
-import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.SOURCE;
+import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.WORKLOAD_GROUP_COUNT_SETTING_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -155,7 +155,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             .updatedAt(1690934400000L)
             .build();
         Metadata metadata = Metadata.builder().workloadGroups(Map.of(_ID_ONE, workloadGroupOne, _ID_TWO, workloadGroupTwo)).build();
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
@@ -174,7 +174,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests the invalid value of {@code node.workload_group.max_count}
      */
     public void testInvalidMaxWorkloadGroupCount() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
@@ -189,7 +189,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests the valid value of {@code node.workload_group.max_count}
      */
     public void testValidMaxSandboxCountSetting() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 100).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 100).build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings(), mock(ThreadPool.class));
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
@@ -209,7 +209,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
@@ -225,7 +225,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -252,7 +252,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         doAnswer(invocation -> {
@@ -275,23 +275,23 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroup workloadGroup = groups.get(0);
         List<WorkloadGroup> listOne = new ArrayList<>();
         List<WorkloadGroup> listTwo = new ArrayList<>();
-        listOne.add(WorkloadGroupTestUtils.workloadGroupOne);
+        listOne.add(WorkloadManagementTestUtils.workloadGroupOne);
         listTwo.add(workloadGroup);
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(listOne, listTwo, false);
+        WorkloadManagementTestUtils.assertEqualWorkloadGroups(listOne, listTwo, false);
     }
 
     /**
      * Tests getting all WorkloadGroups
      */
     public void testGetAllWorkloadGroups() {
-        assertEquals(2, WorkloadGroupTestUtils.clusterState().metadata().workloadGroups().size());
+        assertEquals(2, WorkloadManagementTestUtils.clusterState().metadata().workloadGroups().size());
         Collection<WorkloadGroup> groupsCollections = WorkloadGroupPersistenceService.getFromClusterStateMetadata(null, clusterState());
         List<WorkloadGroup> res = new ArrayList<>(groupsCollections);
         assertEquals(2, res.size());
         Set<String> currentNAME = res.stream().map(WorkloadGroup::getName).collect(Collectors.toSet());
-        assertTrue(currentNAME.contains(WorkloadGroupTestUtils.NAME_ONE));
-        assertTrue(currentNAME.contains(WorkloadGroupTestUtils.NAME_TWO));
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(WorkloadGroupTestUtils.workloadGroupList(), res, false);
+        assertTrue(currentNAME.contains(WorkloadManagementTestUtils.NAME_ONE));
+        assertTrue(currentNAME.contains(WorkloadManagementTestUtils.NAME_TWO));
+        WorkloadManagementTestUtils.assertEqualWorkloadGroups(WorkloadManagementTestUtils.workloadGroupList(), res, false);
     }
 
     /**
@@ -312,9 +312,9 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testMaxWorkloadGroupCount() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> WorkloadGroupTestUtils.workloadGroupPersistenceService().setMaxWorkloadGroupCount(-1)
+            () -> WorkloadManagementTestUtils.workloadGroupPersistenceService().setMaxWorkloadGroupCount(-1)
         );
-        WorkloadGroupPersistenceService workloadGroupPersistenceService = WorkloadGroupTestUtils.workloadGroupPersistenceService();
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = WorkloadManagementTestUtils.workloadGroupPersistenceService();
         workloadGroupPersistenceService.setMaxWorkloadGroupCount(50);
         assertEquals(50, workloadGroupPersistenceService.getMaxWorkloadGroupCount());
     }
@@ -353,7 +353,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         doAnswer(invocation -> {
@@ -467,7 +467,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         workloadGroupPersistenceService.updateInClusterStateMetadata(null, listener);
@@ -483,7 +483,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
@@ -514,7 +514,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
-            WorkloadGroupTestUtils.settings(),
+            WorkloadManagementTestUtils.settings(),
             clusterSettings()
         );
         UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(

@@ -117,23 +117,35 @@ public class TypeParsersTests extends OpenSearchTestCase {
         }
 
         {
+            String longKeyString = IntStream.range(0, TypeParsers.META_MAX_KEY_LENGTH + 1)
+                .mapToObj(Integer::toString)
+                .collect(Collectors.joining());
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", Collections.singletonMap("veryloooooooooooongkey", 3L))
+                () -> TypeParsers.parseMeta("foo", Collections.singletonMap(longKeyString, 3L))
             );
-            assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]", e.getMessage());
+            assertEquals(
+                "[meta] keys can't be longer than "
+                    + TypeParsers.META_MAX_KEY_LENGTH
+                    + " chars, but got ["
+                    + longKeyString
+                    + "] for field [foo]",
+                e.getMessage()
+            );
         }
 
         {
             Map<String, String> meta = new HashMap<>();
-            meta.put("foo1", "3");
-            meta.put("foo2", "3");
-            meta.put("foo3", "3");
-            meta.put("foo4", "3");
-            meta.put("foo5", "3");
-            meta.put("foo6", "3");
+            for (int i = 0; i < TypeParsers.META_MAX_ENTRIES; i++) {
+                meta.put("foo" + i, "someValue");
+            }
+            meta.put("extraKey", "someValue");
+            assertTrue(TypeParsers.META_MAX_ENTRIES < meta.size());
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", meta));
-            assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]", e.getMessage());
+            assertEquals(
+                "[meta] can't have more than " + TypeParsers.META_MAX_ENTRIES + " entries, but got " + meta.size() + " on field [foo]",
+                e.getMessage()
+            );
         }
 
         {
@@ -158,12 +170,17 @@ public class TypeParsersTests extends OpenSearchTestCase {
         }
 
         {
-            String longString = IntStream.range(0, 51).mapToObj(Integer::toString).collect(Collectors.joining());
+            String longString = IntStream.range(0, TypeParsers.META_MAX_VALUE_LENGTH + 1)
+                .mapToObj(Integer::toString)
+                .collect(Collectors.joining());
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
                 () -> TypeParsers.parseMeta("foo", Collections.singletonMap("foo", longString))
             );
-            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
+            assertThat(
+                e.getMessage(),
+                Matchers.startsWith("[meta] values can't be longer than " + TypeParsers.META_MAX_VALUE_LENGTH + " chars")
+            );
         }
     }
 }

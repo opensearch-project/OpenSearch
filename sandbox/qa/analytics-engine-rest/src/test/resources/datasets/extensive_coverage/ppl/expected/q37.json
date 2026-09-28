@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "rand_val",
+      "type": "double"
+    },
+    {
+      "name": "round_val",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      100.5,
+      "%%RAND%%",
+      100.5
+    ],
+    [
+      200.75,
+      "%%RAND%%",
+      200.8
+    ],
+    [
+      150.25,
+      "%%RAND%%",
+      150.3
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

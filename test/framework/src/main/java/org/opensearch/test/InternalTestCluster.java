@@ -40,6 +40,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -104,6 +105,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -114,6 +116,7 @@ import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeService;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
@@ -136,6 +139,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -509,7 +513,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
+        // Use LinkedHashSet so plugin iteration order matches the user's nodePlugins() declaration.
+        // Components from earlier plugins (e.g. those registered via PluginComponentRegistry) are
+        // visible to later plugins' createComponents() only when init order respects declared
+        // dependencies. HashSet here would make order JVM-allocation-hash dependent and lead to
+        // non-deterministic ITs (a sibling plugin's createComponents could run before the plugin
+        // it depends on, despite being listed first in nodePlugins()).
+        Set<Class<? extends Plugin>> plugins = new LinkedHashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
     }
@@ -799,6 +809,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Collection<PluginInfo> additionalNodePlugins = nodeConfigurationSource.additionalNodePlugins();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -813,7 +824,24 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+
+        List<PluginInfo> pluginInfos = plugins.stream()
+            .map(
+                p -> new PluginInfo(
+                    p.getName(),
+                    "classpath plugin",
+                    "NA",
+                    Version.CURRENT,
+                    "1.8",
+                    p.getName(),
+                    null,
+                    Collections.emptyList(),
+                    false
+                )
+            )
+            .collect(Collectors.toList());
+        pluginInfos.addAll(additionalNodePlugins);
+        MockNode node = new MockNode(settings, pluginInfos, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -1075,8 +1103,12 @@ public final class InternalTestCluster extends TestCluster {
                 .put(newSettings)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
-            Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins);
+            node = new MockNode(
+                finalSettings,
+                node.getClasspathPlugins(),
+                nodeConfigurationSource.nodeConfigPath((int) newIdSeed),
+                forbidPrivateIndexSettings
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {
@@ -1745,7 +1777,12 @@ public final class InternalTestCluster extends TestCluster {
                 throw new AssertionError("Tried to stop the only cluster-manager eligible shared node");
             }
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
+            FileCache fileCache = nodeAndClient.node().fileCache();
             stopNodesAndClient(nodeAndClient);
+            // Clear file cache to avoid file leaks during node stop
+            if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+                fileCache.clear();
+            }
         }
     }
 
@@ -1951,6 +1988,12 @@ public final class InternalTestCluster extends TestCluster {
     private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
         assert Thread.holdsLock(this);
         logger.info("Restarting node [{}] ", nodeAndClient.name);
+
+        FileCache fileCache = nodeAndClient.node().fileCache();
+        // Close IndexInput reference file to avoid file leaks during node restart
+        if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+            fileCache.closeIndexInputReferences();
+        }
 
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
@@ -2611,7 +2654,11 @@ public final class InternalTestCluster extends TestCluster {
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
-                assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
+                try {
+                    assertBusy(() -> assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L)));
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
@@ -2651,6 +2698,9 @@ public final class InternalTestCluster extends TestCluster {
                     false,
                     false,
                     false,
+                    false,
+                    false,
+                    false, // fileCacheDetailed
                     false,
                     false,
                     false,

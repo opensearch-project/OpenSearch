@@ -8,7 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentInfos;
+import org.opensearch.action.admin.indices.segments.IndexShardSegments;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -22,11 +26,13 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -243,5 +249,27 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
             return closeable.get();
         }
+    }
+
+    public static void waitForSegmentCount(String indexName, int segmentCount, Logger logger) throws Exception {
+        assertBusy(() -> {
+            Set<String> primarySegments = Sets.newHashSet();
+            Set<String> replicaSegments = Sets.newHashSet();
+            final IndicesSegmentResponse response = client().admin().indices().prepareSegments(indexName).get();
+            for (IndexShardSegments indexShardSegments : response.getIndices().get(indexName).getShards().values()) {
+                for (ShardSegments shardSegment : indexShardSegments.getShards()) {
+                    for (Segment segment : shardSegment.getSegments()) {
+                        if (shardSegment.getShardRouting().primary()) {
+                            primarySegments.add(segment.getName());
+                        } else {
+                            replicaSegments.add(segment.getName());
+                        }
+                    }
+                }
+            }
+            logger.info("primary segments: {}, replica segments: {}", primarySegments, replicaSegments);
+            assertEquals(segmentCount, primarySegments.size());
+            assertEquals(segmentCount, replicaSegments.size());
+        }, 1, TimeUnit.MINUTES);
     }
 }

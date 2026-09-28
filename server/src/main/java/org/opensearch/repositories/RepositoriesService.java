@@ -174,7 +174,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerOrUpdateRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+        final long startTimeNanos = System.nanoTime();
+        final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
+            listener,
+            () -> logger.info(
+                "put/update repository [{}] took [{}]",
+                request.name(),
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+            )
+        );
+
+        RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
             request.name(),
             request.type(),
             request.settings(),
@@ -188,7 +198,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
-            registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
+            registrationListener = ActionListener.delegateFailure(timedListener, (delegatedListener, clusterStateUpdateResponse) -> {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
                     verifyRepository(
@@ -203,17 +213,35 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             });
         } else {
-            registrationListener = listener;
+            registrationListener = timedListener;
         }
 
-        // Trying to create the new repository on cluster-manager to make sure it works
-        try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
-        } catch (Exception e) {
-            registrationListener.onFailure(e);
-            return;
+        Repository currentRepository = repositories.get(request.name());
+        boolean isReloadableSettings = currentRepository != null && currentRepository.isReloadableSettings(newRepositoryMetadata);
+
+        if (isReloadableSettings) {
+            // We are reloading the repository, so we need to preserve the old settings in the new repository metadata
+            Settings updatedSettings = Settings.builder()
+                .put(currentRepository.getMetadata().settings())
+                .put(newRepositoryMetadata.settings())
+                .build();
+            newRepositoryMetadata = new RepositoryMetadata(
+                newRepositoryMetadata.name(),
+                newRepositoryMetadata.type(),
+                updatedSettings,
+                newRepositoryMetadata.cryptoMetadata()
+            );
+        } else {
+            // Trying to create the new repository on cluster-manager to make sure it works
+            try {
+                closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            } catch (Exception e) {
+                registrationListener.onFailure(e);
+                return;
+            }
         }
 
+        final RepositoryMetadata finalRepositoryMetadata = newRepositoryMetadata;
         clusterService.submitStateUpdateTask(
             "put_repository [" + request.name() + "]",
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
@@ -224,7 +252,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
+                    if (isReloadableSettings == false) {
+                        ensureRepositoryNotInUse(currentState, request.name());
+                    }
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
@@ -245,17 +275,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
 
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                            RepositoryMetadata updatedRepositoryMetadata = newRepositoryMetadata;
+                            RepositoryMetadata updatedRepositoryMetadata = finalRepositoryMetadata;
                             if (isSystemRepositorySettingPresent(repositoryMetadata.settings())) {
                                 Settings updatedSettings = Settings.builder()
-                                    .put(newRepositoryMetadata.settings())
+                                    .put(finalRepositoryMetadata.settings())
                                     .put(SYSTEM_REPOSITORY_SETTING.getKey(), true)
                                     .build();
                                 updatedRepositoryMetadata = new RepositoryMetadata(
-                                    newRepositoryMetadata.name(),
-                                    newRepositoryMetadata.type(),
+                                    finalRepositoryMetadata.name(),
+                                    finalRepositoryMetadata.type(),
                                     updatedSettings,
-                                    newRepositoryMetadata.cryptoMetadata()
+                                    finalRepositoryMetadata.cryptoMetadata()
                                 );
                             }
                             if (repositoryMetadata.name().equals(updatedRepositoryMetadata.name())) {
@@ -321,9 +351,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param listener unregister repository listener
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        final long startTimeNanos = System.nanoTime();
+        final ActionListener<ClusterStateUpdateResponse> timedListener = ActionListener.runAfter(
+            listener,
+            () -> logger.info(
+                "delete repository [{}] took [{}]",
+                request.name(),
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+            )
+        );
         clusterService.submitStateUpdateTask(
             "delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, timedListener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -481,14 +520,25 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         if (previousMetadata.type().equals(repositoryMetadata.type()) == false
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
                             // Previous version is different from the version in settings
-                            if (repository.isSystemRepository() && repository.isReloadable()) {
+                            if ((repository.isSystemRepository() && repository.isReloadable())
+                                || repository.isReloadableSettings(repositoryMetadata)) {
                                 logger.debug(
                                     "updating repository [{}] in-place to use new metadata [{}]",
                                     repositoryMetadata.name(),
                                     repositoryMetadata
                                 );
                                 repository.validateMetadata(repositoryMetadata);
-                                repository.reload(repositoryMetadata);
+                                final long reloadStartTimeNanos = System.nanoTime();
+                                try {
+                                    repository.reload(repositoryMetadata);
+                                } finally {
+                                    logger.info(
+                                        "reloaded repository [{}][{}] in [{}]",
+                                        repositoryMetadata.type(),
+                                        repositoryMetadata.name(),
+                                        TimeValue.timeValueNanos(System.nanoTime() - reloadStartTimeNanos)
+                                    );
+                                }
                             } else {
                                 logger.debug("updating repository [{}]", repositoryMetadata.name());
                                 closeRepository(repository);
@@ -643,7 +693,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /** Closes the given repository. */
     public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
-        repository.close();
+        final long startTimeNanos = System.nanoTime();
+        try {
+            repository.close();
+        } finally {
+            logger.info(
+                "closed repository [{}][{}] in [{}]",
+                repository.getMetadata().type(),
+                repository.getMetadata().name(),
+                TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+            );
+        }
     }
 
     /**
@@ -664,8 +724,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         Repository repository = null;
         try {
-            repository = factory.create(repositoryMetadata, factories::get);
-            repository.start();
+            final long startTimeNanos = System.nanoTime();
+            try {
+                repository = factory.create(repositoryMetadata, factories::get);
+                repository.start();
+            } finally {
+                logger.info(
+                    "created repository [{}][{}] in [{}]",
+                    repositoryMetadata.type(),
+                    repositoryMetadata.name(),
+                    TimeValue.timeValueNanos(System.nanoTime() - startTimeNanos)
+                );
+            }
             return repository;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(repository);

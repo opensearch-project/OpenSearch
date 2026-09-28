@@ -204,6 +204,27 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
         assertRemoveCleaned(env);
     }
 
+    public void testLib() throws Exception {
+        createPlugin("fake");
+        Path libDir = env.pluginsDir().resolve("lib").resolve("fake");
+        Files.createDirectories(libDir);
+        Files.createFile(libDir.resolve("dep.jar"));
+        removePlugin("fake", home, randomBoolean());
+        assertFalse(Files.exists(env.pluginsDir().resolve("fake")));
+        assertFalse(Files.exists(libDir));
+        assertRemoveCleaned(env);
+    }
+
+    public void testLibNotDir() throws Exception {
+        createPlugin("fake");
+        Files.createDirectories(env.pluginsDir().resolve("lib"));
+        Files.createFile(env.pluginsDir().resolve("lib").resolve("fake"));
+        UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
+        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
+        assertTrue(Files.exists(env.pluginsDir().resolve("fake"))); // did not remove
+        assertRemoveCleaned(env);
+    }
+
     public void testConfigDirPreserved() throws Exception {
         createPlugin("fake");
         final Path configDir = env.configDir().resolve("fake");

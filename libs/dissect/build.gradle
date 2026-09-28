@@ -33,7 +33,7 @@ dependencies {
     exclude group: 'org.opensearch', module: 'opensearch-dissect'
   }
   testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 }
 

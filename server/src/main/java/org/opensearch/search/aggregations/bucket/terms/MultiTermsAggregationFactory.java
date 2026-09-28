@@ -24,6 +24,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,6 +49,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     private final Aggregator.SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final List<String> requestFields;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP), config -> {
@@ -116,6 +118,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
                 )
             )
             .collect(Collectors.toList());
+        this.requestFields = multiTermConfigs.stream().map(MultiTermsValuesSourceConfig::getFieldName).toList();
         this.formats = this.configs.stream().map(c -> c.v1().format()).collect(Collectors.toList());
         this.order = order;
         this.collectMode = collectMode;
@@ -138,14 +141,19 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
+        List<ValuesSource> rawValuesSources = configs.stream().map(config -> config.v1().getValuesSource()).toList();
+        long[] ordinalMaxOrds = resolveOrdinalMaxOrds(configs, searchContext, cardinality);
         return new MultiTermsAggregator(
             name,
             factories,
             showTermDocCountError,
+            rawValuesSources,
             configs.stream()
                 .map(config -> queryShardContext.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v1()).build(config))
                 .collect(Collectors.toList()),
+            this.getRequestFields(),
             configs.stream().map(c -> c.v1().format()).collect(Collectors.toList()),
             order,
             collectMode,
@@ -153,8 +161,48 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             searchContext,
             parent,
             cardinality,
-            metadata
+            metadata,
+            ordinalMaxOrds
         );
+    }
+
+    public List<String> getRequestFields() {
+        return requestFields;
+    }
+
+    /**
+     * Returns the per-field global-ordinal counts ({@code maxOrds}) to pack for the given configs when the
+     * ordinal path is eligible, or {@code null} to fall back to the default byte-key path. Falls back when a
+     * star-tree index is active, when any field is not backed by global ordinals, or when any field carries an
+     * {@code include}/{@code exclude} filter (those filters are applied by the per-field
+     * {@code InternalValuesSource} collectors, which the ordinal collection path bypasses). The actual
+     * {@link PackedOrdinalBucketOrds} is built inside the {@link MultiTermsAggregator} constructor from these
+     * counts, so a constructor that fails cannot leak the BigArrays-backed ords.
+     */
+    private static long[] resolveOrdinalMaxOrds(
+        List<Tuple<ValuesSourceConfig, IncludeExclude>> configs,
+        SearchContext searchContext,
+        CardinalityUpperBound cardinality
+    ) throws IOException {
+        // Star-tree path writes directly to BytesKeyedBucketOrds; skip ordinal path to avoid split storage.
+        if (StarTreeQueryHelper.getSupportedStarTree(searchContext.getQueryShardContext()) != null) {
+            return null;
+        }
+        long[] maxOrds = new long[configs.size()];
+        for (int i = 0; i < configs.size(); i++) {
+            Tuple<ValuesSourceConfig, IncludeExclude> config = configs.get(i);
+            // include/exclude is enforced by the byte-key InternalValuesSource collectors, which the
+            // ordinal path does not run; fall back so the filter is still honored.
+            if (config.v2() != null) {
+                return null;
+            }
+            ValuesSource vs = config.v1().getValuesSource();
+            if ((vs instanceof ValuesSource.Bytes.WithOrdinals) == false) {
+                return null;
+            }
+            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) vs).globalMaxOrd(searchContext.searcher());
+        }
+        return maxOrds;
     }
 
     @Override

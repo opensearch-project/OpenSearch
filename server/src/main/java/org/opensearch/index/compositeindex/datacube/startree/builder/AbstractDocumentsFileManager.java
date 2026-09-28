@@ -21,8 +21,10 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
+import org.opensearch.index.compositeindex.datacube.startree.utils.CompensatedSumType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeDocumentBitSetUtil;
 import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -120,6 +122,15 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
                 if (isAggregatedDoc) {
                     long val = NumericUtils.doubleToSortableLong(
                         starTreeDocument.metrics[i] == null ? 0.0 : (Double) starTreeDocument.metrics[i]
+                    );
+                    buffer.putLong(val);
+                } else {
+                    buffer.putLong(starTreeDocument.metrics[i] == null ? 0L : (Long) starTreeDocument.metrics[i]);
+                }
+            } else if (aggregatedValueType instanceof CompensatedSumType) {
+                if (isAggregatedDoc) {
+                    long val = NumericUtils.doubleToSortableLong(
+                        starTreeDocument.metrics[i] == null ? 0.0 : ((CompensatedSum) starTreeDocument.metrics[i]).value()
                     );
                     buffer.putLong(val);
                 } else {
@@ -228,6 +239,14 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
                 long val = input.readLong(offset);
                 if (isAggregatedDoc) {
                     metrics[i] = DOUBLE.toDoubleValue(val);
+                } else {
+                    metrics[i] = val;
+                }
+                offset += Long.BYTES;
+            } else if (aggregatedValueType instanceof CompensatedSumType) {
+                long val = input.readLong(offset);
+                if (isAggregatedDoc) {
+                    metrics[i] = new CompensatedSum(aggregatedValueType.toDoubleValue(val), 0);
                 } else {
                     metrics[i] = val;
                 }

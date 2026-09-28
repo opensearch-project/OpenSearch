@@ -1,0 +1,1 @@
+source=test_data | eval has_tag1 = exists(split(tags, ','), x -> x = 'tag1') | fields tags, has_tag1 | head 3

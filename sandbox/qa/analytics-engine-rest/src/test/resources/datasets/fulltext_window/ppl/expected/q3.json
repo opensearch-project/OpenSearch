@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "auth",
+      "Database connection refused",
+      500
+    ],
+    [
+      "payment",
+      "Database deadlock detected",
+      500
+    ],
+    [
+      "order",
+      "Database connection pool exhausted",
+      500
+    ],
+    [
+      "auth",
+      "Connection timeout while connecting to database",
+      500
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

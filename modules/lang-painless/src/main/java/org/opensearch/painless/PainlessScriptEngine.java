@@ -42,6 +42,7 @@ import org.opensearch.painless.symbol.ScriptScope;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
+import org.opensearch.secure_sm.AccessController;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -49,11 +50,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,20 +72,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
     public static final String NAME = "painless";
 
     /**
-     * Permissions context used during compilation.
-     */
-    private static final AccessControlContext COMPILATION_CONTEXT;
-
-    /*
-     * Setup the allowed permissions.
-     */
-    static {
-        final Permissions none = new Permissions();
-        none.setReadOnly();
-        COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, none) });
-    }
-
-    /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
      * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Map)}.
      */
@@ -108,10 +90,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
+        Map<List<Allowlist>, PainlessLookup> allowlistsToLookups = new HashMap<>();
 
         for (Map.Entry<ScriptContext<?>, List<Allowlist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(entry.getValue());
+            List<Allowlist> allowlists = List.copyOf(entry.getValue());
+            PainlessLookup lookup = allowlistsToLookups.computeIfAbsent(allowlists, PainlessLookupBuilder::buildFromAllowlists);
             contextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
@@ -144,12 +128,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         SpecialPermission.check();
 
         // Create our loader (which loads compiled code with no permissions).
-        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Loader run() {
-                return compiler.createLoader(getClass().getClassLoader());
-            }
-        });
+        final Loader loader = AccessController.doPrivileged(() -> compiler.createLoader(getClass().getClassLoader()));
 
         ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
 
@@ -451,14 +430,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
         final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
-            // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<ScriptScope>() {
-                @Override
-                public ScriptScope run() {
-                    String name = scriptName == null ? source : scriptName;
-                    return compiler.compile(loader, name, source, compilerSettings);
-                }
-            }, COMPILATION_CONTEXT);
+            return AccessController.doPrivileged(() -> {
+                String name = scriptName == null ? source : scriptName;
+                return compiler.compile(loader, name, source, compilerSettings);
+            });
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
             throw convertToScriptException(source, e);

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
@@ -95,15 +94,6 @@ public class VersionedCodecStreamWrapper<T> {
     private int checkHeader(IndexInput indexInput) throws IOException {
         // TODO Once versioning strategy is decided we'll add support for min/max supported versions
         return CodecUtil.checkHeader(indexInput, this.codec, minVersion, this.currentVersion);
-    }
-
-    /**
-     * Reads footer from file input stream containing checksum.
-     * The {@link IndexInput#getFilePointer()} should be at the footer start position.
-     * @param indexInput file input stream
-     */
-    private void checkFooter(ChecksumIndexInput indexInput) throws IOException {
-        CodecUtil.checkFooter(indexInput);
     }
 
     /**

@@ -248,6 +248,38 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long currentIOTime;
         final long previousIOTime;
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new DeviceStats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private DeviceStats(Builder builder) {
+            this.majorDeviceNumber = builder.majorDeviceNumber;
+            this.minorDeviceNumber = builder.minorDeviceNumber;
+            this.deviceName = builder.deviceName;
+            this.currentReadsCompleted = builder.currentReadsCompleted;
+            this.previousReadsCompleted = builder.previousReadsCompleted;
+            this.currentSectorsRead = builder.currentSectorsRead;
+            this.previousSectorsRead = builder.previousSectorsRead;
+            this.currentWritesCompleted = builder.currentWritesCompleted;
+            this.previousWritesCompleted = builder.previousWritesCompleted;
+            this.currentSectorsWritten = builder.currentSectorsWritten;
+            this.previousSectorsWritten = builder.previousSectorsWritten;
+            this.currentReadTime = builder.currentReadTime;
+            this.previousReadTime = builder.previousReadTime;
+            this.currentWriteTime = builder.currentWriteTime;
+            this.previousWriteTime = builder.previousWriteTime;
+            this.currentQueueSize = builder.currentQueueSize;
+            this.previousQueueSize = builder.previousQueueSize;
+            this.currentIOTime = builder.currentIOTime;
+            this.previousIOTime = builder.previousIOTime;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public DeviceStats(
             final int majorDeviceNumber,
             final int minorDeviceNumber,
@@ -285,6 +317,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             );
         }
 
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         private DeviceStats(
             final int majorDeviceNumber,
             final int minorDeviceNumber,
@@ -450,6 +487,109 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         public String getDeviceName() {
             return deviceName;
+        }
+
+        /**
+         * Builder for the {@link DeviceStats} class.
+         * Provides a fluent API for constructing a DeviceStats object.
+         */
+        public static class Builder {
+            private int majorDeviceNumber = 0;
+            private int minorDeviceNumber = 0;
+            private String deviceName = "";
+            private long currentReadsCompleted = 0;
+            private long previousReadsCompleted = 0;
+            private long currentSectorsWritten = 0;
+            private long previousSectorsWritten = 0;
+            private long currentSectorsRead = 0;
+            private long previousSectorsRead = 0;
+            private long currentWritesCompleted = 0;
+            private long previousWritesCompleted = 0;
+            private long currentReadTime = 0;
+            private long previousReadTime = 0;
+            private long currentWriteTime = 0;
+            private long previousWriteTime = 0;
+            private long currentQueueSize = 0;
+            private long previousQueueSize = 0;
+            private long currentIOTime = 0;
+            private long previousIOTime = 0;
+
+            public Builder() {}
+
+            public Builder majorDeviceNumber(int number) {
+                this.majorDeviceNumber = number;
+                return this;
+            }
+
+            public Builder minorDeviceNumber(int number) {
+                this.minorDeviceNumber = number;
+                return this;
+            }
+
+            public Builder deviceName(String name) {
+                this.deviceName = name;
+                return this;
+            }
+
+            public Builder currentReadsCompleted(long completed) {
+                this.currentReadsCompleted = completed;
+                return this;
+            }
+
+            public Builder currentSectorsRead(long read) {
+                this.currentSectorsRead = read;
+                return this;
+            }
+
+            public Builder currentWritesCompleted(long completed) {
+                this.currentWritesCompleted = completed;
+                return this;
+            }
+
+            public Builder currentSectorsWritten(long written) {
+                this.currentSectorsWritten = written;
+                return this;
+            }
+
+            public Builder currentReadTime(long time) {
+                this.currentReadTime = time;
+                return this;
+            }
+
+            public Builder currentWriteTime(long time) {
+                this.currentWriteTime = time;
+                return this;
+            }
+
+            public Builder currentQueueSize(long size) {
+                this.currentQueueSize = size;
+                return this;
+            }
+
+            public Builder currentIOTime(long time) {
+                this.currentIOTime = time;
+                return this;
+            }
+
+            public Builder previousDeviceStats(DeviceStats deviceStats) {
+                this.previousReadsCompleted = (deviceStats != null) ? deviceStats.currentReadsCompleted : -1;
+                this.previousWritesCompleted = (deviceStats != null) ? deviceStats.currentWritesCompleted : -1;
+                this.previousSectorsRead = (deviceStats != null) ? deviceStats.currentSectorsRead : -1;
+                this.previousSectorsWritten = (deviceStats != null) ? deviceStats.currentSectorsWritten : -1;
+                this.previousReadTime = (deviceStats != null) ? deviceStats.currentReadTime : -1;
+                this.previousWriteTime = (deviceStats != null) ? deviceStats.currentWriteTime : -1;
+                this.previousQueueSize = (deviceStats != null) ? deviceStats.currentQueueSize : -1;
+                this.previousIOTime = (deviceStats != null) ? deviceStats.currentIOTime : -1;
+                return this;
+            }
+
+            /**
+             * Creates a {@link DeviceStats} object from the builder's current state.
+             * @return A new DeviceStats instance.
+             */
+            public DeviceStats build() {
+                return new DeviceStats(this);
+            }
         }
 
         @Override

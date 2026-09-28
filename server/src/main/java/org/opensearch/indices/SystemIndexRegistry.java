@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -38,7 +39,10 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  */
 @ExperimentalApi
 public class SystemIndexRegistry {
-    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
+    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new UnrestrictedSystemIndexDescriptor(
+        TASK_INDEX + "*",
+        "Task Result Index"
+    );
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(TASK_INDEX_DESCRIPTOR)
@@ -59,6 +63,16 @@ public class SystemIndexRegistry {
         return indexExpressions.stream().filter(pattern -> Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, pattern)).collect(Collectors.toSet());
     }
 
+    public static Set<SystemIndexDescriptor> matchesSystemIndexDescriptor(Set<String> indexExpressions) {
+        return getAllDescriptors().stream()
+            .filter(descriptor -> indexExpressions.stream().anyMatch(pattern -> Regex.simpleMatch(descriptor.getIndexPattern(), pattern)))
+            .collect(Collectors.toSet());
+    }
+
+    public static boolean matchesSystemIndexPattern(String index) {
+        return Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, index);
+    }
+
     public static Set<String> matchesPluginSystemIndexPattern(String pluginClassName, Set<String> indexExpressions) {
         if (!SYSTEM_INDEX_DESCRIPTORS_MAP.containsKey(pluginClassName)) {
             return Collections.emptySet();
@@ -70,6 +84,19 @@ public class SystemIndexRegistry {
         return indexExpressions.stream()
             .filter(pattern -> Regex.simpleMatch(pluginSystemIndexPatterns, pattern))
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns a predicate that can be used to test if an index is registered as system index for the given plugin.
+     */
+    public static Predicate<String> getPluginSystemIndexPredicate(String pluginClassName) {
+        Collection<SystemIndexDescriptor> systemIndexDescriptors = SYSTEM_INDEX_DESCRIPTORS_MAP.get(pluginClassName);
+        if (systemIndexDescriptors == null || systemIndexDescriptors.isEmpty()) {
+            return index -> false;
+        } else {
+            return index -> systemIndexDescriptors.stream()
+                .anyMatch(systemIndexDescriptor -> Regex.simpleMatch(systemIndexDescriptor.getIndexPattern(), index));
+        }
     }
 
     static List<SystemIndexDescriptor> getAllDescriptors() {

@@ -1,0 +1,1 @@
+source=test_data | eval nullif_val = nullif(category, "A") | fields category, nullif_val | head 3

@@ -395,7 +395,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
-            newBuilder.minimumShouldMatch = minimumShouldMatch;
+            if (minimumShouldMatch != null) {
+                newBuilder.minimumShouldMatch = minimumShouldMatch;
+            }
             newBuilder.boost(boost());
             newBuilder.queryName(queryName());
             return newBuilder;
@@ -459,5 +461,4 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
     }
-
 }

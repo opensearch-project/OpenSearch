@@ -74,10 +74,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.flush.FlushStats;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -88,6 +88,8 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -475,7 +477,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, MapperService.SINGLE_MAPPING_NAME);
+        createIndexWithSimpleMappings("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -613,6 +615,66 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
     }
 
+    public void testPeriodicFlushIntervalDynamicUpdate() throws Exception {
+        final IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen();
+        final IndexShard shard = indexService.getShard(0);
+        // Periodic flush is disabled by default for a regular index, so no task is running.
+        assertNull(shard.getPeriodicFlushTask());
+
+        // Enable on a live index via the settings API: the task must start without an engine restart.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m"))
+        );
+        assertBusy(() -> {
+            IndexShard.AsyncShardFlushTask task = shard.getPeriodicFlushTask();
+            assertNotNull(task);
+            assertThat(task.getInterval(), equalTo(TimeValue.timeValueMinutes(1)));
+            assertTrue(task.isScheduled());
+        });
+        final IndexShard.AsyncShardFlushTask task = shard.getPeriodicFlushTask();
+
+        // Shorten the interval: the same task is rescheduled and starts firing flushes at the new cadence.
+        final long periodicBefore = shard.flushStats().getPeriodic();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "100ms"))
+        );
+        assertBusy(() -> {
+            assertSame(task, shard.getPeriodicFlushTask());
+            assertThat(task.getInterval(), equalTo(TimeValue.timeValueMillis(100)));
+        });
+        client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertThat(shard.flushStats().getPeriodic(), greaterThan(periodicBefore)));
+
+        // Disable: the task is closed and no further periodic flushes happen.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1"))
+        );
+        // A closed task never reschedules itself; once no periodic run is in flight either, the counter can no longer move.
+        assertBusy(() -> {
+            assertNull(shard.getPeriodicFlushTask());
+            assertTrue(task.isClosed());
+            assertFalse(task.isScheduled());
+            assertFalse(shard.isFlushOrRollRunning());
+        });
+        final long periodicAfterDisable = shard.flushStats().getPeriodic();
+        // Further indexing must not trigger a periodic flush now that the timer is gone.
+        client().prepareIndex("test").setId("2").setSource("{}", MediaTypeRegistry.JSON).setRefreshPolicy(IMMEDIATE).get();
+        assertThat(shard.flushStats().getPeriodic(), equalTo(periodicAfterDisable));
+    }
+
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
         createIndex("test");
         ensureGreen();
@@ -662,6 +724,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             wrapper,
             getInstanceFromNode(CircuitBreakerService.class),
             env.nodeId(),
+            getInstanceFromNode(ClusterService.class),
             listener
         );
         shardRef.set(newShard);
@@ -688,6 +751,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
         final String nodeId,
+        final ClusterService clusterService,
         final IndexingOperationListener... listeners
     ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
@@ -700,7 +764,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.cache(),
             indexService.mapperService(),
             indexService.similarityService(),
-            shard.getEngineFactory(),
+            shard.getIndexerFactory(),
             shard.getEngineConfigFactory(),
             indexService.getIndexEventListener(),
             wrapper,
@@ -726,7 +790,12 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             false,
             OpenSearchTestCase::randomBoolean,
             () -> indexService.getIndexSettings().getRefreshInterval(),
-            indexService.getRefreshMutex()
+            indexService.getRefreshMutex(),
+            clusterService.getClusterApplierService(),
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY,
+            Collections.emptyMap(),
+            null // TODO
         );
     }
 
@@ -806,7 +875,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
@@ -823,6 +892,38 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
             assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
+
+    public void testDeleteRoutingPreservedInChangesSnapshot() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb")
+            .put("index.soft_deletes.enabled", true)
+            .build();
+        IndexService indexService = createIndexWithSimpleMappings("index", settings);
+
+        String routing = "custom-routing-value";
+        client().prepareIndex("index").setId("1").setRouting(routing).setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareDelete("index", "1").setRouting(routing).get();
+
+        IndexShard shard = indexService.getShard(0);
+        try (
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, 1, true, randomBoolean());
+            Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
+        ) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+
+            for (List<Translog.Operation> ops : List.of(opsFromLucene, opsFromTranslog)) {
+                Translog.Operation deleteOp = ops.stream()
+                    .filter(op -> op.opType() == Translog.Operation.Type.DELETE)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected a delete operation"));
+                assertThat(((Translog.Delete) deleteOp).routing(), equalTo(routing));
+            }
         }
     }
 
@@ -846,7 +947,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
-            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+            assertThat(((EngineBackedIndexer) (indexShard.getIndexer())).getEngine(), instanceOf(NoOpEngine.class));
         }
     }
 

@@ -32,23 +32,40 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.index.termvectors.TermVectorsService;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collection;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -66,7 +83,10 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false), m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", false),
+            m -> assertFalse(((IpFieldMapper) m).ignoreMalformed().value())
+        );
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -207,5 +227,274 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        IpFieldMapper mapper = getMapper(copyTo, true, true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true, false);
+            String ip = "1.2.3.4";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(ip, true));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + ip + "\"" + "}", source);
+            }
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, true);
+            String ip = "1.2.3.4";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(ip, false));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + ip + "\"" + "}", source);
+            }
+        }
+    }
+
+    public void testWithContextAwareGroupingMapper() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            contextAwareGrouping("field").accept(b);
+            properties(x -> {
+                x.startObject("field");
+                minimalMapping(x);
+                b.endObject();
+            }).accept(b);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "127.0.0.1")));
+
+        // Assert date field
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.length);
+        IndexableField pointFieldAndDVField = fields[0];
+        assertEquals(1, pointFieldAndDVField.fieldType().pointIndexDimensionCount());
+        assertEquals(16, pointFieldAndDVField.fieldType().pointNumBytes());
+        assertFalse(pointFieldAndDVField.fieldType().stored());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))), pointFieldAndDVField.binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, pointFieldAndDVField.fieldType().docValuesType());
+
+        // Assert grouping criteria is correct
+        assertEquals("/127.0.0.1", doc.docs().getFirst().getGroupingCriteria());
+    }
+
+    private IpFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored) throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "ip").field("store", isStored).field("doc_values", hasDocValues))
+        );
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private Document createDocument(String value, boolean hasDocValues) {
+        InetAddress address = InetAddresses.forString(value);
+        Document doc = new Document();
+        if (hasDocValues) {
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef(InetAddressPoint.encode(address))));
+        } else {
+            doc.add(new StoredField(FIELD_NAME, new BytesRef(InetAddressPoint.encode(address))));
+        }
+        return doc;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIpValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, "192.168.1.1")), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME));
+        assertTrue("Expected ip field to be captured", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIpNullSkipped() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField(FIELD_NAME)), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME));
+        assertFalse("Expected no ip field to be captured for null value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: ip value
+        assertIpLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject()),
+            b -> b.field(FIELD_NAME, "192.168.1.1"),
+            FIELD_NAME,
+            true
+        );
+
+        // Scenario 2: null value — no field produced
+        assertIpLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject()),
+            b -> b.nullField(FIELD_NAME),
+            FIELD_NAME,
+            false
+        );
+    }
+
+    private void assertIpLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        boolean expectField
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+
+        if (!expectField) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertTrue("Pluggable path should capture field '" + fieldName + "'", pluggableHasField);
+        }
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MockDocValuesDataFormatPlugin());
+    }
+
+    private static Settings pluggableSettings() {
+        return Settings.builder()
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", MockDocValuesDataFormatPlugin.FORMAT_NAME)
+            .build();
+    }
+
+    /**
+     * On a pluggable-dataformat index no BKD points are written for ip fields, so {@code index}
+     * defaults to false and the field reports itself as not searchable — routing queries to the
+     * doc-values column instead of an empty point index.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultsIndexToFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /** An explicit {@code index: false} is accepted on a pluggable-dataformat index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatAcceptsExplicitIndexFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /**
+     * An explicit {@code index: true} cannot be honoured on a pluggable-dataformat index — no point
+     * index is written — so the mapping is rejected rather than silently producing a field whose
+     * queries match nothing.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRejectsExplicitIndexTrue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(pluggableSettings(), fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }))
+        );
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
+    }
+
+    /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
+    public void testNonPluggableDataFormatKeepsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isSearchable());
+
+        MapperService explicit = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        }));
+        assertTrue(explicit.fieldType("field").isSearchable());
+    }
+
+    /**
+     * A field added by a later mapping update also defaults to not-indexed, and the update leaves the
+     * value of the already-mapped field unchanged.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateDefaultsNewFieldToNotIndexed() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.endObject();
+        }));
+
+        assertFalse("newly added field should default to not-indexed", mapperService.fieldType("field2").isSearchable());
+        assertFalse("existing field's value should be preserved across the update", mapperService.fieldType("field").isSearchable());
+    }
+
+    /** A mapping update that sets index:true on a new field is rejected on a pluggable data format index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateRejectsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.field("index", true);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 }

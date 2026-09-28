@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = date_format(ts, 'yyyy/MM/dd') | sort id | fields id, r

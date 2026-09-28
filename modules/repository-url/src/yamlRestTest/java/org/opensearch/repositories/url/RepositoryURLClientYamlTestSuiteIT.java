@@ -55,7 +55,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
-import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
@@ -120,7 +119,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
         List<String> allowedUrls = (List<String>) XContentMapValues.extractValue("defaults.repositories.url.allowed_urls", clusterSettings);
         for (String allowedUrl : allowedUrls) {
             try {
-                InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
+                InetAddress inetAddress = InetAddress.getByName(URI.create(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
                     Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
                     createUrlRepositoryRequest.setEntity(buildRepositorySettings("url", Settings.builder().put("url", allowedUrl).build()));

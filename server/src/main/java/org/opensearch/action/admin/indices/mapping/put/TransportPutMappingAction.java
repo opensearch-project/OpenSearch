@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +46,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataMappingService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -68,7 +70,9 @@ import java.util.Optional;
  *
  * @opensearch.internal
  */
-public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
@@ -130,7 +134,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver).concreteIndicesAsArray();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
@@ -150,7 +154,16 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         }
     }
 
-    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+    @Override
+    public ResolvedIndices resolveIndices(PutMappingRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request, indexNameExpressionResolver));
+    }
+
+    static ResolvedIndices.Local.Concrete resolveIndices(
+        final ClusterState state,
+        PutMappingRequest request,
+        final IndexNameExpressionResolver iner
+    ) {
         if (request.getConcreteIndex() == null) {
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
@@ -165,12 +178,12 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
                         )
                     );
                 }
-                return indices.toArray(Index.EMPTY_ARRAY);
+                return ResolvedIndices.Local.Concrete.of(indices.toArray(Index.EMPTY_ARRAY));
             } else {
-                return iner.concreteIndices(state, request);
+                return iner.concreteResolvedIndices(state, request);
             }
         } else {
-            return new Index[] { request.getConcreteIndex() };
+            return ResolvedIndices.Local.Concrete.of(request.getConcreteIndex());
         }
     }
 

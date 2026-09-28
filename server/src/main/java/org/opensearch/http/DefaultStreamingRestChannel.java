@@ -18,9 +18,11 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.StreamingRestChannel;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,7 @@ class DefaultStreamingRestChannel extends DefaultRestChannel implements Streamin
     private final StreamingHttpChannel streamingHttpChannel;
     @Nullable
     private final HttpTracer tracerLog;
+    private final ThreadContext threadContext;
 
     DefaultStreamingRestChannel(
         StreamingHttpChannel streamingHttpChannel,
@@ -53,6 +56,7 @@ class DefaultStreamingRestChannel extends DefaultRestChannel implements Streamin
         super(streamingHttpChannel, httpRequest, request, bigArrays, settings, threadContext, corsHandler, tracerLog);
         this.streamingHttpChannel = streamingHttpChannel;
         this.tracerLog = tracerLog;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -92,7 +96,30 @@ class DefaultStreamingRestChannel extends DefaultRestChannel implements Streamin
 
     @Override
     public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
-        streamingHttpChannel.prepareResponse(status.getStatus(), headers);
+        final Map<String, List<String>> enriched = new HashMap<>(headers);
+
+        // Add all custom headers
+        final Map<String, List<String>> customHeaders = threadContext.getResponseHeaders();
+        if (customHeaders != null) {
+            for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
+                for (String headerValue : headerEntry.getValue()) {
+                    enriched.computeIfAbsent(headerEntry.getKey(), key -> new ArrayList<>()).add(headerValue);
+                }
+            }
+        }
+
+        final String opaque = request.header(X_OPAQUE_ID);
+        if (opaque != null) {
+            enriched.put(X_OPAQUE_ID, List.of(opaque));
+        }
+
+        streamingHttpChannel.prepareResponse(status.getStatus(), enriched);
+    }
+
+    @Override
+    public void sendResponse(RestResponse restResponse) {
+        prepareResponse(restResponse.status(), restResponse.getHeaders());
+        super.sendResponse(restResponse);
     }
 
     @Override

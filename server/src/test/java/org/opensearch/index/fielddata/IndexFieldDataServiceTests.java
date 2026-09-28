@@ -43,11 +43,14 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -58,6 +61,7 @@ import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
@@ -67,9 +71,12 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -80,6 +87,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -93,7 +104,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
@@ -125,6 +137,127 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedNumericIndexFieldData);
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
+    }
+
+    public void testIndexFieldDataCacheIsClearedAfterIndexRemoval() throws IOException, InterruptedException {
+        final IndexService indexService = createIndex("test");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        // copy the ifdService since we can set the listener only once.
+        final IndexFieldDataService ifdService = new IndexFieldDataService(
+            indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(),
+            indicesService.getCircuitBreakerService(),
+            indexService.mapperService(),
+            indexService.getThreadPool()
+        );
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc = new Document();
+        doc.add(new StringField("field_1", "thisisastring", Store.NO));
+        doc.add(new StringField("field_2", "thisisanotherstring", Store.NO));
+        writer.addDocument(doc);
+        final IndexReader reader = DirectoryReader.open(writer);
+        final AtomicInteger onCacheCalled = new AtomicInteger();
+        final AtomicInteger onRemovalCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
+        });
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, "test", () -> { throw new UnsupportedOperationException(); });
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, "test", () -> { throw new UnsupportedOperationException(); });
+        LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
+        LeafFieldData loadField1 = ifd1.load(leafReaderContext);
+        LeafFieldData loadField2 = ifd2.load(leafReaderContext);
+
+        // Force materialization so both hit the shared cache
+        loadField1.getBytesValues();
+        loadField2.getBytesValues();
+
+        assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
+
+        // Remove index
+        indicesService.removeIndex(
+            indexService.index(),
+            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED,
+            "Please delete!"
+        );
+
+        waitUntil(() -> indicesService.getIndicesFieldDataCache().getCache().count() == 0);
+
+        reader.close();
+        loadField1.close();
+        loadField2.close();
+        writer.close();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
+    }
+
+    public void testClosingSegmentInvalidatesEntries() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+            .build();
+        final IndexService indexService = createIndex("test", settings);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexFieldDataService ifdService = new IndexFieldDataService(
+            indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(),
+            indicesService.getCircuitBreakerService(),
+            indexService.mapperService(),
+            indexService.getThreadPool()
+        );
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc1 = new Document();
+        doc1.add(new StringField("field_1", "thisisastring", Store.NO));
+        writer.addDocument(doc1);
+        writer.flush();
+
+        Document doc2 = new Document();
+        doc2.add(new StringField("field_1", "stringstring", Store.NO));
+        writer.addDocument(doc2);
+        writer.flush();
+        IndexReader reader = DirectoryReader.open(writer);
+
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, "test", () -> { throw new UnsupportedOperationException(); });
+        List<LeafFieldData> loadFields = new ArrayList<>();
+        for (LeafReaderContext lrContext : reader.getContext().leaves()) {
+            loadFields.add(ifd.load(lrContext));
+        }
+        assertEquals(2, reader.getContext().leaves().size()); // Equivalent to asserting 2 segments made
+        assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
+
+        // Merge, assert both entries are gone after segments close
+        writer.forceMerge(1);
+
+        // Close and reopen reader so changes are visible, this calls onClosed() hook invalidating key
+        reader.close();
+        reader = DirectoryReader.open(writer);
+        assertBusy(() -> assertEquals(0, indicesService.getIndicesFieldDataCache().getCache().count()));
+
+        reader.close();
+        for (LeafFieldData loadField : loadFields) {
+            loadField.close();
+        }
+        writer.close();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testGetForFieldRuntimeField() {
@@ -134,7 +267,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
@@ -149,6 +283,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         SearchLookup searchLookup = new SearchLookup(null, null, shardId);
         ifdService.getForField(ft, "qualified", () -> searchLookup);
         assertSame(searchLookup, searchLookupSetOnce.get().get());
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testClearField() throws Exception {
@@ -159,7 +295,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
@@ -200,23 +337,25 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         ifdService.clearField("field_1");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 1);
 
         ifdService.clearField("field_1");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 1);
 
         ifdService.clearField("field_2");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(2, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 2);
 
         reader.close();
         loadField1.close();
         loadField2.close();
         writer.close();
         ifdService.clear();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testFieldDataCacheListener() throws Exception {
@@ -227,7 +366,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
@@ -273,8 +413,10 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         load.close();
         writer.close();
         assertEquals(1, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        assertBusy(() -> assertEquals(1, onRemovalCalled.get()));
         ifdService.clear();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testSetCacheListenerTwice() {
@@ -284,7 +426,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
@@ -315,17 +458,25 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         } catch (IllegalStateException ex) {
             // all well
         }
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
             IndexFieldDataService ifds = new IndexFieldDataService(
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache,
                 null,
-                null
+                null,
+                threadPool
             );
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
@@ -350,6 +501,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 false,
                 false,
                 false,
+                false,
                 null,
                 Collections.emptyMap()
             )
@@ -363,6 +515,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 "field",
                 NumberFieldMapper.NumberType.DOUBLE,
                 true,
+                false,
                 false,
                 false,
                 false,
@@ -382,6 +535,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 false,
                 false,
                 false,
+                false,
                 null,
                 Collections.emptyMap()
             )
@@ -391,5 +545,27 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
+    }
+
+    public void testSetShardIdentityResolverRejectsNull() {
+        ThreadPool threadPool = new TestThreadPool("test_set_resolver_null");
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
+            IndexFieldDataService ifds = new IndexFieldDataService(
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                cache,
+                null,
+                null,
+                threadPool
+            );
+            expectThrows(IllegalArgumentException.class, () -> ifds.setShardIdentityResolver(null));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 }

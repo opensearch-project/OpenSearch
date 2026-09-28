@@ -372,7 +372,15 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            throw new UnsupportedOperationException("Field type: " + CONTENT_TYPE + " is not supported for pluggable formats");
+        }
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -430,8 +438,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType);
-        context.doc().add(field);
+        context.doc().add(new Field(fieldType().name(), binaryValue, fieldType));
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
     }

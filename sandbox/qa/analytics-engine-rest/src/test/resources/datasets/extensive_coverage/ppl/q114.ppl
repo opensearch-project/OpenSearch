@@ -1,0 +1,1 @@
+source=test_data | eval today = current_date() | fields id, today | head 1

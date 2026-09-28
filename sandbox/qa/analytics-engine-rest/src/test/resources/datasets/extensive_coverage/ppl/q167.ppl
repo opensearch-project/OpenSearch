@@ -1,0 +1,1 @@
+source=test_data | eval product = multiply(value, 2) | fields value, product | head 3

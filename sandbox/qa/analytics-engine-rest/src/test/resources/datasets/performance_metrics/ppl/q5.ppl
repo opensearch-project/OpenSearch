@@ -1,0 +1,1 @@
+source=performance_metrics | where cpu_usage > 80 or memory_usage > 80 | stats count() as high_util_count by host, region

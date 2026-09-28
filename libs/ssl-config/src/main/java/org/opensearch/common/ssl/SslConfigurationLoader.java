@@ -40,14 +40,13 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
-import static org.opensearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
+import static org.opensearch.common.ssl.KeyStoreUtil.inferStoreType;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CIPHERS;
@@ -84,11 +83,10 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
  */
 public abstract class SslConfigurationLoader {
 
-    static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
-            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
-            : Arrays.asList("TLSv1.2", "TLSv1.1")
-    );
+    static final List<String> FIPS_APPROVED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
+    static final List<String> DEFAULT_PROTOCOLS = KeyStoreUtil.IN_FIPS_MODE
+        ? FIPS_APPROVED_PROTOCOLS
+        : List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
     private static final char[] EMPTY_PASSWORD = new char[0];
 
@@ -248,7 +246,11 @@ public abstract class SslConfigurationLoader {
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
-            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
+            final String storeType = resolveSetting(
+                TRUSTSTORE_TYPE,
+                Function.identity(),
+                inferStoreType(trustStorePath.toString().toLowerCase(Locale.ROOT))
+            );
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
         }
@@ -287,7 +289,11 @@ public abstract class SslConfigurationLoader {
             if (keyPassword.length == 0) {
                 keyPassword = storePassword;
             }
-            final String storeType = resolveSetting(KEYSTORE_TYPE, Function.identity(), inferKeyStoreType(keyStorePath));
+            final String storeType = resolveSetting(
+                KEYSTORE_TYPE,
+                Function.identity(),
+                inferStoreType(keyStorePath.toString().toLowerCase(Locale.ROOT))
+            );
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
             return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm);
         }

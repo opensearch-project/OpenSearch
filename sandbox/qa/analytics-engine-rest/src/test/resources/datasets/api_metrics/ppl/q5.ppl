@@ -1,0 +1,1 @@
+source=api_metrics | where method = 'GET' and status = 200 | eval response_time_sec = latency / 1000.0 | stats avg(response_time_sec) as avg_response_time, max(latency) as max_latency by endpoint

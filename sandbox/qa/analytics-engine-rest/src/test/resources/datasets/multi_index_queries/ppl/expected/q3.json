@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "client_ip",
+      "type": "ip"
+    },
+    {
+      "name": "event",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      39,
+      "10.0.0.50",
+      "login_attempt"
+    ],
+    [
+      16,
+      "10.0.0.100",
+      "access_denied"
+    ],
+    [
+      16,
+      "192.168.1.100",
+      "authentication_failure"
+    ],
+    [
+      16,
+      "192.168.1.150",
+      "access_denied"
+    ],
+    [
+      15,
+      "172.16.0.200",
+      "login_attempt"
+    ],
+    [
+      15,
+      "192.168.1.100",
+      "login_attempt"
+    ],
+    [
+      11,
+      "192.168.1.19",
+      "login_attempt"
+    ],
+    [
+      10,
+      "10.0.0.200",
+      "suspicious_activity"
+    ],
+    [
+      10,
+      "192.168.1.200",
+      "suspicious_activity"
+    ],
+    [
+      8,
+      "192.168.1.28",
+      "login_attempt"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

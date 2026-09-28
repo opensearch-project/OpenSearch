@@ -60,6 +60,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -69,6 +71,9 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
@@ -333,6 +338,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
 
     RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId);
 
+    void remoteStoreMetadata(RemoteStoreMetadataRequest request, ActionListener<RemoteStoreMetadataResponse> listener);
+
+    RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId);
+
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only
      * sampled for the node ids specified in the request. Nodes usage of the
@@ -430,6 +439,32 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Fetch a task by id.
      */
     GetTaskRequestBuilder prepareGetTask(TaskId taskId);
+
+    /**
+     * Delete a stored completed task result.
+     *
+     * @param request the request
+     * @return The result future
+     */
+    ActionFuture<AcknowledgedResponse> deleteTask(DeleteTaskRequest request);
+
+    /**
+     * Delete a stored completed task result.
+     *
+     * @param request the request
+     * @param listener A listener to be notified with the result
+     */
+    void deleteTask(DeleteTaskRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Delete a stored completed task result by id.
+     */
+    DeleteTaskRequestBuilder prepareDeleteTask(String taskId);
+
+    /**
+     * Delete a stored completed task result by id.
+     */
+    DeleteTaskRequestBuilder prepareDeleteTask(TaskId taskId);
 
     /**
      * Cancel tasks

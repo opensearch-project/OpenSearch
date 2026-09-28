@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.io.Streams;
@@ -65,7 +66,8 @@ public class RemoteClusterStateCustoms extends AbstractClusterMetadataWriteableB
         final String customType,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedWriteableRegistry namedWriteableRegistry
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final Version version
     ) {
         super(clusterUUID, compressor, null);
         this.blobName = blobName;
@@ -73,7 +75,8 @@ public class RemoteClusterStateCustoms extends AbstractClusterMetadataWriteableB
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterStateCustomsFormat = new ChecksumWritableBlobStoreFormat<>(
             "cluster-state-custom",
-            is -> readFrom(is, namedWriteableRegistry, customType)
+            is -> readFrom(is, namedWriteableRegistry, customType),
+            version
         );
     }
 

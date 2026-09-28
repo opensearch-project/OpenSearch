@@ -188,7 +188,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 TransportRequestOptions.Type.BULK,
                 TransportRequestOptions.Type.STATE,
                 TransportRequestOptions.Type.RECOVERY,
-                TransportRequestOptions.Type.PING
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.STREAM
             )
             .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
         return builder.build();

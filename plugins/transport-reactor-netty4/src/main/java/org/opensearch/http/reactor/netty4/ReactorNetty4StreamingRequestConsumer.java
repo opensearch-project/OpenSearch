@@ -24,9 +24,14 @@ class ReactorNetty4StreamingRequestConsumer<T extends HttpContent> implements Co
     private final ReactorNetty4StreamingResponseProducer sender;
     private final StreamingHttpChannel httpChannel;
 
-    ReactorNetty4StreamingRequestConsumer(HttpServerRequest request, HttpServerResponse response) {
+    ReactorNetty4StreamingRequestConsumer(
+        ReactorNetty4HttpServerTransport transport,
+        HttpServerRequest request,
+        HttpServerResponse response
+    ) {
         this.sender = new ReactorNetty4StreamingResponseProducer();
         this.httpChannel = new ReactorNetty4StreamingHttpChannel(request, response, sender);
+        transport.serverAcceptedChannel(httpChannel);
     }
 
     @Override

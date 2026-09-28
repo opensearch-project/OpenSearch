@@ -1,0 +1,1 @@
+source=test_data | eval dow = dayofweek(timestamp), doy = dayofyear(timestamp) | fields timestamp, dow, doy | head 3

@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -72,6 +73,8 @@ public class RoutingAllocation {
     private final RoutingNodes routingNodes;
 
     private final Metadata metadata;
+
+    private final Settings clusterSettings;
 
     private final RoutingTable routingTable;
 
@@ -117,9 +120,30 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, Settings.EMPTY);
+    }
+
+    /**
+     * Creates a new {@link RoutingAllocation}
+     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster
+     * @param clusterState cluster state before rerouting
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param nodeSettings node level settings to use as defaults for cluster scoped settings
+     */
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        Settings nodeSettings
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metadata = clusterState.metadata();
+        this.clusterSettings = Settings.builder().put(nodeSettings).put(metadata.settings()).build();
         this.routingTable = clusterState.routingTable();
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
@@ -166,6 +190,13 @@ public class RoutingAllocation {
      */
     public Metadata metadata() {
         return metadata;
+    }
+
+    /**
+     * Returns cluster scoped settings, including node-level defaults overridden by dynamic cluster-state settings.
+     */
+    public Settings clusterSettings() {
+        return clusterSettings;
     }
 
     /**

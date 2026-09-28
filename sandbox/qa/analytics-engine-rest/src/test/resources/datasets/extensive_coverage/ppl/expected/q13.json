@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "sub_text",
+      "type": "string"
+    },
+    {
+      "name": "trimmed",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "hello",
+      "hello world test"
+    ],
+    [
+      "sample data entry",
+      "sampl",
+      "sample data entry"
+    ],
+    [
+      "test example record",
+      "test ",
+      "test example record"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

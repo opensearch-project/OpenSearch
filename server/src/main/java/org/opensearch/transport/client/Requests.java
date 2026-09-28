@@ -628,6 +628,19 @@ public class Requests {
     }
 
     /**
+     * Creates a resume ingestion request given index name and reset settings
+     */
+    public static ResumeIngestionRequest resumeIngestionRequest(
+        String index,
+        int shard,
+        ResumeIngestionRequest.ResetSettings.ResetMode mode,
+        String value
+    ) {
+        ResumeIngestionRequest.ResetSettings resetSettings = new ResumeIngestionRequest.ResetSettings(shard, mode, value);
+        return new ResumeIngestionRequest(new String[] { index }, new ResumeIngestionRequest.ResetSettings[] { resetSettings });
+    }
+
+    /**
      * Creates a get ingestion state request given an index.
      */
     public static GetIngestionStateRequest getIngestionStateRequest(String index) {

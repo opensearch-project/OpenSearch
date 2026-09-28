@@ -8,6 +8,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -20,6 +21,7 @@ import java.util.Locale;
 /**
  * This class is to store tne IO Usage Stats and used to return in node stats API.
  */
+@ExperimentalApi
 public class IoUsageStats implements Writeable, ToXContentFragment {
 
     private double ioUtilisationPercent;

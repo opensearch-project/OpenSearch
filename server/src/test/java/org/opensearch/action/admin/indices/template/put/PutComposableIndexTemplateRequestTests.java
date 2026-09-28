@@ -47,6 +47,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<PutComposableIndexTemplateAction.Request> {
     @Override
@@ -82,6 +83,25 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("global composable templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
+    }
+
+    public void testPutGlobalTemplateWithoutInlineTemplateSucceeds() {
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), null, List.of("ct"), null, null, null, null);
+
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
+        request.indexTemplate(globalTemplate);
+
+        assertThat(request.validate(), is(nullValue()));
+    }
+
+    public void testPutGlobalTemplateWithoutSettingsSucceeds() {
+        Template template = new Template(null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null);
+
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
+        request.indexTemplate(globalTemplate);
+
+        assertThat(request.validate(), is(nullValue()));
     }
 
     public void testPutIndexTemplateV2RequestMustContainTemplate() {

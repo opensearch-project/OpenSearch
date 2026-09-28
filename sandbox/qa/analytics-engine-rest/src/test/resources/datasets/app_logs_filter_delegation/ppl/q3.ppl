@@ -1,0 +1,1 @@
+source = app_logs_filter_delegation | where match(message, 'exception') | stats count() as cnt

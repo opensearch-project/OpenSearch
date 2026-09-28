@@ -1,0 +1,1 @@
+source=%INDEX% | sort id | head 5 | table id, amount, category

@@ -1,0 +1,1 @@
+source=test_data | convert timeformat="%Y-%m-%d" ctime(timestamp) as date_str | fields timestamp, date_str | head 3

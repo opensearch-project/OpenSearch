@@ -48,6 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
@@ -61,7 +62,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
@@ -229,6 +232,56 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         assertThat(q, equalTo(expected));
+    }
+
+    public void testCaseInsensitiveWildcardQueryDeterminization() {
+        Term wildcardTerm = new Term("field", "test*");
+        Query result = AutomatonQueries.caseInsensitiveWildcardQuery(wildcardTerm, null);
+
+        assertNotNull(result);
+        assertTrue(((AutomatonQuery) result).getAutomaton().isDeterministic());
+    }
+
+    private String createComplexPattern(int repetitions, String basePattern) {
+        StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < repetitions; i++) {
+            pattern.append(basePattern);
+        }
+        return pattern.toString();
+    }
+
+    private String createExponentialPattern(int depth) {
+        StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            pattern.append("(");
+            for (int j = 0; j < 5; j++) {
+                pattern.append((char) ('a' + (i * 5 + j) % 26)).append("*");
+            }
+            pattern.append(")*");
+        }
+        return pattern.toString();
+    }
+
+    public void testCaseInsensitiveWildcardQueryTooComplexToDeterminize() {
+        String[] complexPatterns = {
+            createComplexPattern(200, "a*b*c*d*e*f*g*h*i*j*"),
+            createComplexPattern(150, "*[a-z]*[A-Z]*[0-9]*"),
+            createExponentialPattern(10) };
+
+        for (String pattern : complexPatterns) {
+            Term complexTerm = new Term("field", pattern);
+
+            try {
+                AutomatonQuery result = AutomatonQueries.caseInsensitiveWildcardQuery(complexTerm, null);
+                assertNotNull(result);
+                assertTrue(result.getAutomaton().isDeterministic());
+            } catch (RuntimeException e) {
+                assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+                assertThat(e.getMessage(), containsString("Wildcard query too complex to determinize for term:"));
+                assertThat(e.getMessage(), containsString(complexTerm.toString()));
+                return;
+            }
+        }
     }
 
     public void testFetchSourceValue() throws IOException {

@@ -14,12 +14,25 @@ setup:
                       "postings":
                         "type": "text"
                         "index_options": "offsets"
+                "another_text":
+                  "type": "text"
+                  "analyzer": "stop"
+                  "fields":
+                    "plain":
+                      "type": "text"
+                      "analyzer": "standard"
   - do:
       index:
         index: test
         id:    1
         body:
             "text" : "The quick brown fox is brown."
+  - do:
+      index:
+        index: test
+        id:    2
+        body:
+          "another_text" : "What jumps over the lazy dog?"
   - do:
       indices.refresh: {}
 
@@ -33,3 +46,17 @@ setup:
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+---
+"With matched_fields":
+  - skip:
+      version: " - 3.0.99"
+      reason: "matched_fields support for unified added in OpenSearch 3.1.0"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query : {"multi_match" : { "query" : "the dog", "fields" : [ "another_text", "another_text.plain"] } }
+          highlight : { "type" : "unified", "fields" : { "another_text" : { "matched_fields": [ "another_text.plain" ] } } }
+
+  # Here we want "the" (stopword ignored on another_text) to be highlighted thanks to matched_fields
+  - match: {hits.hits.0.highlight.another_text.0: "What jumps over <em>the</em> lazy <em>dog</em>?"}

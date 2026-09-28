@@ -9,9 +9,10 @@
 package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -24,9 +25,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * <p> This is for internal use only and will not be exposed to the user. </p>
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestionStateRequest> {
     private String[] index;
     private int[] shards;
@@ -34,6 +35,10 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
     // Following will be optional parameters and will be used to decide when to update shard ingestion state if non-null values are provided
     @Nullable
     private Boolean ingestionPaused;
+
+    // Optional reset settings to be applied before resuming ingestion.
+    @Nullable
+    private ResumeIngestionRequest.ResetSettings[] resetSettings;
 
     public UpdateIngestionStateRequest(String[] index, int[] shards) {
         super();
@@ -46,6 +51,7 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
         this.index = in.readStringArray();
         this.shards = in.readVIntArray();
         this.ingestionPaused = in.readOptionalBoolean();
+        this.resetSettings = in.readOptionalArray(ResumeIngestionRequest.ResetSettings::new, ResumeIngestionRequest.ResetSettings[]::new);
     }
 
     @Override
@@ -63,6 +69,7 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
         out.writeStringArray(index);
         out.writeVIntArray(shards);
         out.writeOptionalBoolean(ingestionPaused);
+        out.writeOptionalArray(resetSettings);
     }
 
     public String[] getIndex() {
@@ -83,5 +90,14 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
 
     public void setIngestionPaused(boolean ingestionPaused) {
         this.ingestionPaused = ingestionPaused;
+    }
+
+    @Nullable
+    public ResumeIngestionRequest.ResetSettings[] getResetSettings() {
+        return resetSettings;
+    }
+
+    public void setResetSettings(ResumeIngestionRequest.ResetSettings[] resetSettings) {
+        this.resetSettings = resetSettings;
     }
 }

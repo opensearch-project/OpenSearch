@@ -73,8 +73,8 @@ class GeoTileValuesSource extends LongValuesSource {
     protected void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
-        } else if (value instanceof Number) {
-            afterValue = ((Number) value).longValue();
+        } else if (value instanceof Number number) {
+            afterValue = number.longValue();
         } else {
             afterValue = GeoTileUtils.longEncode(value.toString());
         }

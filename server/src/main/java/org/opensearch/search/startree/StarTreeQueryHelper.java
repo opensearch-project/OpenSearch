@@ -22,13 +22,17 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +46,6 @@ import java.util.function.Consumer;
  * @opensearch.experimental
  */
 public class StarTreeQueryHelper {
-
-    private static StarTreeValues starTreeValues;
 
     /**
      * Checks if the search context can be supported by star-tree
@@ -59,10 +61,9 @@ public class StarTreeQueryHelper {
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
+        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader)) {
             return null;
         }
-        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
         return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
     }
 
@@ -224,6 +225,44 @@ public class StarTreeQueryHelper {
             dimensionFilterMap.put(dimensionToMerge, dimensionFiltersToMerge);
         }
         return new StarTreeFilter(dimensionFilterMap);
+    }
+
+    public static FixedBitSet getStarTreeResult(
+        StarTreeValues starTreeValues,
+        SearchContext context,
+        List<DimensionFilter> dimensionFiltersToMerge
+    ) throws IOException {
+        StarTreeFilter starTreeFilter = context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter();
+        for (DimensionFilter dimensionFilter : dimensionFiltersToMerge) {
+            starTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                starTreeFilter,
+                dimensionFilter.getMatchingDimension(),
+                List.of(dimensionFilter)
+            );
+        }
+
+        return StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context);
+    }
+
+    // TODO: Refactor to have a single method for collecting dimension filters
+    public static List<DimensionFilter> collectDimensionFilters(DimensionFilter initialDimensionFilter, Aggregator[] subAggregators) {
+        return collectDimensionFilters(List.of(initialDimensionFilter), subAggregators);
+    }
+
+    public static List<DimensionFilter> collectDimensionFilters(
+        List<DimensionFilter> initialDimensionFilters,
+        Aggregator[] subAggregators
+    ) {
+        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>(initialDimensionFilters);
+
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg instanceof StarTreePreComputeCollector collector) {
+                List<DimensionFilter> childFilters = collector.getDimensionFilters();
+                dimensionFiltersToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
+            }
+        }
+
+        return dimensionFiltersToMerge;
     }
 
 }

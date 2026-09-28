@@ -24,7 +24,13 @@ import java.util.stream.Collectors;
  * This class tracks resource usage per WorkloadGroup
  */
 public class WorkloadGroupResourceUsageTrackerService {
-    public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
+    // CPU + MEMORY only. NATIVE_MEMORY exists in {@link ResourceType} to flow duress
+    // signals through NodeDuressTrackers for search backpressure, but WLM has no
+    // per-workload-group native-memory accounting yet — adding it here would just run
+    // the no-op calculator and report zero usage.
+    // TODO: when WLM gains per-group native-memory accounting (real usage calculator
+    // and per-task hook), add ResourceType.NATIVE_MEMORY to this set.
+    public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.of(ResourceType.CPU, ResourceType.MEMORY);
     private final TaskResourceTrackingService taskResourceTrackingService;
 
     /**

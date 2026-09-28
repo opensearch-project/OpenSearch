@@ -62,6 +62,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
@@ -162,7 +163,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 
-        primary = newStartedShard(p -> newShard(shardRouting, indexSettings, new InternalEngineFactory()), true);
+        primary = newStartedShard(
+            p -> newShard(shardRouting, indexSettings, new EngineBackedIndexerFactory(new InternalEngineFactory())),
+            true
+        );
         for (int i = 0; i < 10; i++) {
             final String id = Integer.toString(i);
             indexDoc(primary, "_doc", id, "{\"value\":" + id + "}");

@@ -41,10 +41,12 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -58,6 +60,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -93,7 +97,7 @@ import static org.opensearch.action.support.TransportActions.isShardNotAvailable
  */
 public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
     FieldCapabilitiesIndexRequest,
-    FieldCapabilitiesIndexResponse> {
+    FieldCapabilitiesIndexResponse> implements TransportIndicesResolvingAction<FieldCapabilitiesIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportFieldCapabilitiesIndexAction.class);
 
@@ -144,7 +148,9 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
         }
         ShardId shardId = request.shardId();
-        MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        MapperService mapperService = indexService.mapperService();
+        IndexSettings indexSettings = indexService.getIndexSettings();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToFullName(field));
@@ -155,10 +161,18 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
                 if (indicesService.isMetadataField(field) || fieldPredicate.test(ft.name())) {
+                    // On a pluggable data format index, doc-values-backed fields can be searched, so
+                    // report searchability accordingly; otherwise use the plain indexed flag.
+                    boolean searchable;
+                    if (indexSettings.isPluggableDataFormatEnabled()) {
+                        searchable = ft.isSearchableViaDocValues(indexSettings);
+                    } else {
+                        searchable = ft.isSearchable();
+                    }
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),
-                        ft.isSearchable(),
+                        searchable,
                         ft.isAggregatable(),
                         ft.meta()
                     );
@@ -178,6 +192,12 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                     if (mapperService.fieldType(parentField) == null) {
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
+                        if (mapper == null) {
+                            // parentField is part of a literal dotted field name under a disable_objects=true parent
+                            // No ObjectMapper exists for this intermediate path so skip it and continue up the chain
+                            dotIndex = parentField.lastIndexOf('.');
+                            continue;
+                        }
                         String type = mapper.nested().isNested() ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
@@ -211,6 +231,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
 
     private ClusterBlockException checkRequestBlock(ClusterState state, String concreteIndex) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, concreteIndex);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(FieldCapabilitiesIndexRequest request) {
+        return ResolvedIndices.of(request.index());
     }
 
     /**

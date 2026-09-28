@@ -1,0 +1,137 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "text",
+        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
+      },
+      "droppedAttributesCount": {"type": "long"},
+      "flags": {"type": "long"},
+      "instrumentationScope": {
+        "properties": {
+          "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+          "version": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+        }
+      },
+      "log": {
+        "properties": {
+          "code": {
+            "properties": {
+              "filepath": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "function": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "lineno": {"type": "long"}
+            }
+          },
+          "db": {
+            "properties": {
+              "statement": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "system": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "exception": {
+            "properties": {
+              "message": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "stacktrace": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "type": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "http": {
+            "properties": {
+              "method": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "request_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "status_code": {"type": "long"},
+              "url": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "thread": {
+            "properties": {
+              "id": {"type": "long"},
+              "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          }
+        }
+      },
+      "observedTimestamp": {"type": "long"},
+      "resource": {
+        "properties": {
+          "cloud": {
+            "properties": {
+              "account": {
+                "properties": {
+                  "id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+                }
+              },
+              "availability_zone": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "provider": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "region": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "container": {
+            "properties": {
+              "id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "image": {
+                "properties": {
+                  "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+                }
+              }
+            }
+          },
+          "deployment": {
+            "properties": {
+              "environment": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "host": {
+            "properties": {
+              "id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "k8s": {
+            "properties": {
+              "deployment": {"properties": {"name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}},
+              "namespace": {"properties": {"name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}},
+              "node": {"properties": {"name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}},
+              "pod": {"properties": {"name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}}
+            }
+          },
+          "os": {
+            "properties": {
+              "type": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "process": {"properties": {"pid": {"type": "long"}}},
+          "service": {
+            "properties": {
+              "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "namespace": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+              "version": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+            }
+          },
+          "telemetry": {
+            "properties": {
+              "sdk": {
+                "properties": {
+                  "language": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+                  "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+                  "version": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+                }
+              }
+            }
+          }
+        }
+      },
+      "schemaUrl": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+      "serviceName": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+      "severityNumber": {"type": "long"},
+      "severityText": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+      "spanId": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+      "time": {"type": "long"},
+      "traceId": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}
+    }
+  }
+}

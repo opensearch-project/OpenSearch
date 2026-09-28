@@ -1,0 +1,161 @@
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00024", "app_id": "APP001", "decision": "approved", "net_audio": 0.57, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00009", "app_id": "APP003", "decision": "approved", "net_audio": 0.98, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00017", "app_id": "APP003", "decision": "approved", "net_audio": 0.78, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00007", "app_id": "APP001", "decision": "rejected", "net_audio": 0.71, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00024", "app_id": "APP003", "decision": "approved", "net_audio": 0.84, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00005", "app_id": "APP003", "decision": "pending", "net_audio": 0.94, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00001", "app_id": "APP003", "decision": "pending", "net_audio": 0.64, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00027", "app_id": "APP003", "decision": "approved", "net_audio": 0.78, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00012", "app_id": "APP002", "decision": "rejected", "net_audio": 0.99, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00021", "app_id": "APP003", "decision": "rejected", "net_audio": 0.71, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00025", "app_id": "APP002", "decision": "rejected", "net_audio": 0.77, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00009", "app_id": "APP003", "decision": "pending", "net_audio": 0.89, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00027", "app_id": "APP003", "decision": "approved", "net_audio": 0.89, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00011", "app_id": "APP003", "decision": "pending", "net_audio": 0.68, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00000", "app_id": "APP003", "decision": "pending", "net_audio": 0.81, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00009", "app_id": "APP003", "decision": "rejected", "net_audio": 0.93, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00024", "app_id": "APP002", "decision": "pending", "net_audio": 0.76, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00029", "app_id": "APP002", "decision": "approved", "net_audio": 0.68, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00003", "app_id": "APP002", "decision": "rejected", "net_audio": 0.84, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00000", "app_id": "APP003", "decision": "pending", "net_audio": 0.76, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00029", "app_id": "APP001", "decision": "pending", "net_audio": 0.6, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00010", "app_id": "APP003", "decision": "approved", "net_audio": 0.75, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00003", "app_id": "APP001", "decision": "approved", "net_audio": 0.64, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00016", "app_id": "APP001", "decision": "rejected", "net_audio": 0.64, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00020", "app_id": "APP003", "decision": "pending", "net_audio": 0.91, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00006", "app_id": "APP002", "decision": "approved", "net_audio": 0.71, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00024", "app_id": "APP001", "decision": "pending", "net_audio": 0.53, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00001", "app_id": "APP001", "decision": "rejected", "net_audio": 0.81, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00013", "app_id": "APP002", "decision": "pending", "net_audio": 0.91, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00029", "app_id": "APP003", "decision": "rejected", "net_audio": 0.86, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00003", "app_id": "APP001", "decision": "pending", "net_audio": 0.85, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00017", "app_id": "APP001", "decision": "rejected", "net_audio": 0.98, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00006", "app_id": "APP003", "decision": "approved", "net_audio": 0.98, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00000", "app_id": "APP001", "decision": "rejected", "net_audio": 0.81, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00017", "app_id": "APP002", "decision": "pending", "net_audio": 0.56, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00028", "app_id": "APP003", "decision": "pending", "net_audio": 0.88, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00011", "app_id": "APP002", "decision": "pending", "net_audio": 0.94, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00001", "app_id": "APP002", "decision": "approved", "net_audio": 0.85, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00023", "app_id": "APP001", "decision": "approved", "net_audio": 0.87, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00024", "app_id": "APP002", "decision": "approved", "net_audio": 0.86, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00026", "app_id": "APP003", "decision": "pending", "net_audio": 0.88, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00027", "app_id": "APP001", "decision": "rejected", "net_audio": 0.51, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00012", "app_id": "APP002", "decision": "approved", "net_audio": 0.72, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00003", "app_id": "APP003", "decision": "approved", "net_audio": 0.52, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00007", "app_id": "APP002", "decision": "approved", "net_audio": 0.81, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00016", "app_id": "APP001", "decision": "approved", "net_audio": 0.61, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00001", "app_id": "APP003", "decision": "pending", "net_audio": 0.94, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00005", "app_id": "APP002", "decision": "pending", "net_audio": 0.52, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00009", "app_id": "APP002", "decision": "pending", "net_audio": 0.72, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00016", "app_id": "APP002", "decision": "rejected", "net_audio": 0.74, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00016", "app_id": "APP001", "decision": "approved", "net_audio": 0.73, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00005", "app_id": "APP002", "decision": "pending", "net_audio": 0.56, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00011", "app_id": "APP003", "decision": "pending", "net_audio": 0.76, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00021", "app_id": "APP002", "decision": "pending", "net_audio": 0.98, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00004", "app_id": "APP001", "decision": "approved", "net_audio": 0.98, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00001", "app_id": "APP002", "decision": "approved", "net_audio": 0.61, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00013", "app_id": "APP002", "decision": "approved", "net_audio": 0.81, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00014", "app_id": "APP001", "decision": "rejected", "net_audio": 0.6, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00007", "app_id": "APP001", "decision": "rejected", "net_audio": 0.52, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00008", "app_id": "APP002", "decision": "approved", "net_audio": 0.64, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00012", "app_id": "APP003", "decision": "rejected", "net_audio": 0.94, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00018", "app_id": "APP001", "decision": "pending", "net_audio": 0.91, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00008", "app_id": "APP002", "decision": "rejected", "net_audio": 0.98, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00004", "app_id": "APP002", "decision": "pending", "net_audio": 0.64, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00016", "app_id": "APP002", "decision": "rejected", "net_audio": 0.78, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00018", "app_id": "APP002", "decision": "approved", "net_audio": 0.88, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00025", "app_id": "APP002", "decision": "rejected", "net_audio": 0.65, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00014", "app_id": "APP002", "decision": "pending", "net_audio": 0.97, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00028", "app_id": "APP002", "decision": "rejected", "net_audio": 0.91, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00012", "app_id": "APP003", "decision": "rejected", "net_audio": 0.93, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-3", "tracking_id": "VID00009", "app_id": "APP003", "decision": "approved", "net_audio": 0.61, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-1", "tracking_id": "VID00013", "app_id": "APP002", "decision": "pending", "net_audio": 0.63, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-4", "tracking_id": "VID00010", "app_id": "APP003", "decision": "pending", "net_audio": 0.65, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00029", "app_id": "APP001", "decision": "pending", "net_audio": 0.98, "verify_status": "verified"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00029", "app_id": "APP003", "decision": "pending", "net_audio": 0.96, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00011", "app_id": "APP001", "decision": "rejected", "net_audio": 0.89, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00022", "app_id": "APP001", "decision": "pending", "net_audio": 0.81, "verify_status": "suppressed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-5", "tracking_id": "VID00011", "app_id": "APP002", "decision": "approved", "net_audio": 0.84, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00022", "app_id": "APP002", "decision": "approved", "net_audio": 0.6, "verify_status": "failed"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "host": "MYVOICE-IVR-CLOUD-APP-PRODUCTION-2", "tracking_id": "VID00009", "app_id": "APP002", "decision": "pending", "net_audio": 0.94, "verify_status": "failed"}
+

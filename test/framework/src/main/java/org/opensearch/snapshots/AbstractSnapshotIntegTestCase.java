@@ -80,7 +80,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -105,6 +105,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.empty;
@@ -113,7 +114,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestCase {
+public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     protected final static String TEST_REMOTE_STORE_REPO_SUFFIX = "__rs";
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
@@ -124,6 +125,23 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         .put("thread_pool.snapshot.core", 5)
         .put("thread_pool.snapshot.max", 5)
         .build();
+
+    public AbstractSnapshotIntegTestCase(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    public AbstractSnapshotIntegTestCase() {
+        super(Settings.EMPTY);
+    }
+
+    /*
+    Disabling MockFSIndexStore plugin as the MockFSDirectoryFactory wraps the FSDirectory over a OpenSearchMockDirectoryWrapper which extends FilterDirectory (whereas FSDirectory extends BaseDirectory)
+    As a result of this wrapping the local directory of Composite Directory does not satisfy the assertion that local directory must be of type FSDirectory
+    */
+    @Override
+    protected boolean addMockIndexStorePlugin() {
+        return WRITABLE_WARM_INDEX_SETTING.get(settings) == false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -522,14 +540,19 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected Settings getRemoteStoreBackedIndexSettings() {
-        return Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            settingsBuilder.put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true);
+        }
+
+        return settingsBuilder.build();
     }
 
     protected Settings.Builder snapshotRepoSettingsForShallowCopy(Path path) {

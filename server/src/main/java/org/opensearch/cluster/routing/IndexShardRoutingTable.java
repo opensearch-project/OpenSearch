@@ -524,7 +524,10 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
         }
     }
 
-    private static List<ShardRouting> rankShardsAndUpdateStats(
+    /**
+     * Note that this method mutates the nodeSearchCounts map and calls adjustStats which modifies collector state.
+     */
+    public static List<ShardRouting> rankShardsAndUpdateStats(
         List<ShardRouting> shards,
         final ResponseCollectorService collector,
         final Map<String, Long> nodeSearchCounts
@@ -1216,7 +1219,8 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
                     }
                 });
             // is primary assigned
-            out.writeBoolean(indexShard.primaryShard().allocationId() != null);
+            ShardRouting primary = indexShard.primaryShard();
+            out.writeBoolean(primary != null && primary.allocationId() != null);
             out.writeVInt(indexShard.shards.size() - assignedShardCount.get());
         }
     }

@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.Weigher;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.AggregateRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -134,6 +136,24 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public void pin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).pin(key);
+    }
+
+    @Override
+    public void unpin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).unpin(key);
+    }
+
+    @Override
+    public Integer getRef(K key) {
+        if (key == null) throw new NullPointerException();
+        return segmentFor(key).getRef(key);
+    }
+
+    @Override
     public long prune() {
         long sum = 0L;
         for (RefCountedCache<K, V> cache : table) {
@@ -152,38 +172,63 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public CacheUsage usage() {
-        long usage = 0L;
-        long activeUsage = 0L;
+    public long usage() {
+        long totalUsage = 0L;
         for (RefCountedCache<K, V> cache : table) {
-            CacheUsage c = cache.usage();
-            usage += c.usage();
-            activeUsage += c.activeUsage();
+            IRefCountedCacheStats c = cache.stats();
+            totalUsage += c.usage();
+
         }
-        return new CacheUsage(usage, activeUsage);
+        return totalUsage;
     }
 
     @Override
-    public CacheStats stats() {
-        long hitCount = 0L;
-        long missCount = 0L;
-        long removeCount = 0L;
-        long removeWeight = 0L;
-        long replaceCount = 0L;
-        long evictionCount = 0L;
-        long evictionWeight = 0L;
-
+    public long activeUsage() {
+        long totalActiveUsage = 0L;
         for (RefCountedCache<K, V> cache : table) {
-            CacheStats c = cache.stats();
-            hitCount += c.hitCount();
-            missCount += c.missCount();
-            removeCount += c.removeCount();
-            removeWeight += c.removeWeight();
-            replaceCount += c.replaceCount();
-            evictionCount += c.evictionCount();
-            evictionWeight += c.evictionWeight();
+            IRefCountedCacheStats c = cache.stats();
+            totalActiveUsage += c.activeUsage();
         }
-        return new CacheStats(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+        return totalActiveUsage;
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        long totalPinnedUsage = 0L;
+        for (RefCountedCache<K, V> cache : table) {
+            IRefCountedCacheStats c = cache.stats();
+            totalPinnedUsage += c.pinnedUsage();
+        }
+        return totalPinnedUsage;
+    }
+
+    @Override
+    public IRefCountedCacheStats stats() {
+
+        final RefCountedCacheStats totalOverallCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalFullFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalBlockFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalPinnedFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        for (RefCountedCache<K, V> cache : table) {
+            AggregateRefCountedCacheStats aggregateStats = (AggregateRefCountedCacheStats) cache.stats();
+
+            totalOverallCacheStats.accumulate(aggregateStats.getOverallCacheStats());
+            totalFullFileCacheStats.accumulate(aggregateStats.getFullFileCacheStats());
+            totalBlockFileCacheStats.accumulate(aggregateStats.getBlockFileCacheStats());
+            totalPinnedFileCacheStats.accumulate(aggregateStats.getPinnedFileCacheStats());
+        }
+
+        return new AggregateRefCountedCacheStats(
+            totalOverallCacheStats,
+            totalFullFileCacheStats,
+            totalBlockFileCacheStats,
+            totalPinnedFileCacheStats
+        );
     }
 
     // To be used only for debugging purposes
@@ -196,6 +241,13 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
                 ((LRUCache<K, V>) cache).logCurrentState();
             }
             i++;
+        }
+    }
+
+    // To be used only in testing framework.
+    public void closeIndexInputReferences() {
+        for (RefCountedCache<K, V> cache : table) {
+            ((LRUCache<K, V>) cache).closeIndexInputReferences();
         }
     }
 

@@ -1,0 +1,1 @@
+source=test_data | eval rand_val = rand(), round_val = round(value, 1) | fields value, rand_val, round_val | head 3

@@ -33,6 +33,8 @@ import org.opensearch.gradle.Version
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask
 
+import java.util.function.Supplier
+
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
@@ -70,9 +72,18 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     systemProperty 'tests.is_old_cluster', 'false'
   }
 
-  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
+  def localBwcVersion = bwcVersion
+  def unreleasedInfo = BuildParams.bwcVersions.unreleasedInfo(localBwcVersion)
+  def versionFile = unreleasedInfo != null
+    ? project.file("${project.project(unreleasedInfo.gradleProjectPath).buildDir}/actual-bwc-version-${localBwcVersion}")
+    : null
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-    it.systemProperty 'tests.old_cluster_version', oldVersion
+    it.nonInputProperties.systemProperty('tests.old_cluster_version', {
+      if (versionFile != null && versionFile.exists()) {
+        return versionFile.text.trim()
+      }
+      return localBwcVersion.toString().minus('-SNAPSHOT')
+    } as Supplier<String>)
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")

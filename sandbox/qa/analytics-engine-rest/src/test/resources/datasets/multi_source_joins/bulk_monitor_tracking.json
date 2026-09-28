@@ -1,0 +1,441 @@
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 99, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 14, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 76, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 2, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 57, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 75, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 92, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 56, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 29, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 42, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 92, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 41, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 67, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 56, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 24, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 56, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": true, "call_count": 63, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 56, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 62, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 59, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 71, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 93, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 66, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 3, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 15, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 30, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 7, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 78, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 9, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 72, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 60, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 48, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 88, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 89, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 90, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 36, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 28, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 59, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 9, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 38, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": true, "call_count": 8, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 33, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 62, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 7, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 14, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": true, "call_count": 47, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 95, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 9, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": true, "call_count": 40, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 54, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 17, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 92, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 65, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 7, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 60, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 57, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 76, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 1, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 16, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 93, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 28, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 44, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 92, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 29, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 80, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 18, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": false, "monitor_fail": false, "call_count": 14, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 76, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": true, "call_count": 52, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 3, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 6, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 1, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 89, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 12, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 27, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 46, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 6, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 56, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 75, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": true, "call_count": 72, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 67, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 34, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": false, "call_count": 38, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 52, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 66, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 79, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 55, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": true, "monitor_fail": false, "call_count": 63, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 23, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 15, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "monitor_id": "MON002", "realm": "/retirement", "mock_update": true, "monitor_fail": false, "call_count": 89, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 57, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": false, "monitor_fail": true, "call_count": 80, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 67, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": true, "monitor_fail": true, "call_count": 91, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "monitor_id": "MON001", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 66, "status": "failure", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": true, "monitor_fail": true, "call_count": 8, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 31, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "monitor_id": "MON003", "realm": "/retirement", "mock_update": true, "monitor_fail": true, "call_count": 7, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 26, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 51, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 57, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 33, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 91, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 52, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 43, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 7, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 30, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 30, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 39, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 31, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 51, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 13, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 24, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 98, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "monitor_id": "MON001", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 54, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 20, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON001", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 21, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 57, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 84, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 57, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 34, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 16, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 8, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 56, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 10, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 76, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 64, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 71, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 93, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 46, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 35, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 54, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 58, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 59, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 89, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON002", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 92, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "monitor_id": "MON002", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 29, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 25, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 89, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 46, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 69, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 43, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 35, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 55, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 15, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 77, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 38, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 34, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 3, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 36, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 72, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 58, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 35, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON003", "realm": "/mybenefits", "mock_update": false, "monitor_fail": false, "call_count": 57, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 11, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 39, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON003", "realm": "/stockplan", "mock_update": false, "monitor_fail": false, "call_count": 22, "status": "success", "description": "Monitor tracking event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "monitor_id": "MON001", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 17, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 46, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON003", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 36, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 2, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 16, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 44, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "monitor_id": "MON003", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 30, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 24, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON001", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 37, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 25, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 2, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 34, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 19, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON003", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 25, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON003", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 19, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON001", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 48, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 26, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON001", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 8, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "monitor_id": "MON002", "realm": "realm1", "mock_update": false, "monitor_fail": false, "call_count": 37, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 44, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 47, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 6, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 28, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 8, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 49, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 21, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 25, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 42, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 11, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 15, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 49, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON002", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 34, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 4, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 40, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 48, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 6, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "monitor_id": "MON003", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 20, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON001", "realm": "realm2", "mock_update": false, "monitor_fail": false, "call_count": 10, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 5, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON003", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 41, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 41, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON003", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 4, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 31, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 19, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 10, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 45, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 43, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 35, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "monitor_id": "MON003", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 43, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 18, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 27, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 19, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 37, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 12, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 25, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "monitor_id": "MON002", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 16, "status": "success", "description": "Monitor event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "monitor_id": "MON001", "realm": "realm3", "mock_update": false, "monitor_fail": false, "call_count": 34, "status": "success", "description": "Monitor event"}
+

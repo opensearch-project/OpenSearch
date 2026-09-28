@@ -100,4 +100,11 @@ public class SortBuilders {
     public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, String... geohashes) {
         return new GeoDistanceSortBuilder(fieldName, geohashes);
     }
+
+    /**
+     * Constructs a new shard‐doc tiebreaker sort.
+     */
+    public static ShardDocSortBuilder shardDocSort() {
+        return new ShardDocSortBuilder();
+    }
 }

@@ -1,0 +1,201 @@
+{"index": {}}
+{"timestamp": "2026-05-14T11:40:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-0", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:41:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-1", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:42:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-2", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:43:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-3", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:44:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-4", "container_name": "init"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:45:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-5", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:46:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-6", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:47:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-7", "container_name": "sidecar"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:48:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-8", "container_name": "sidecar"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:49:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-9", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:50:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-10", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:51:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-11", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:52:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-12", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:53:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-13", "container_name": "sidecar"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:54:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-14", "container_name": "init"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:55:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-15", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:56:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-16", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:57:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-17", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:58:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-18", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:59:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-19", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:00:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-0", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:01:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-1", "container_name": "sidecar"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:02:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-2", "container_name": "sidecar"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:03:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-3", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:04:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-4", "container_name": "sidecar"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:05:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-5", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:06:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-6", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:07:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-7", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:08:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-8", "container_name": "sidecar"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:09:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-9", "container_name": "init"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:10:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-10", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:11:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-11", "container_name": "sidecar"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:12:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-12", "container_name": "sidecar"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:13:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-13", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:14:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-14", "container_name": "sidecar"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:15:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-15", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:16:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-16", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:17:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-17", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:18:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-18", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:19:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-19", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:20:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-0", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:21:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-1", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:22:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-2", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:23:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-3", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:24:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-4", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:25:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-5", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:26:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-6", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:27:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-7", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:28:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-8", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:29:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-9", "container_name": "sidecar"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:30:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-10", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:31:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-11", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:32:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-12", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:33:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-13", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:34:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-14", "container_name": "sidecar"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:35:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-15", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:36:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-16", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:37:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-17", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:38:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-18", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:39:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-19", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:40:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-0", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:41:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-1", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:42:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-2", "container_name": "app"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:43:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-3", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:44:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-4", "container_name": "init"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:45:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-5", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:46:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-6", "container_name": "sidecar"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:47:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-7", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:48:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-8", "container_name": "sidecar"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:49:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-9", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:50:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-10", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:51:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-11", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:52:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-12", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:53:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-13", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:54:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-14", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:55:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-15", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:56:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-16", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:57:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-17", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:58:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-18", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:59:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-19", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:00:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-0", "container_name": "sidecar"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:01:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-1", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:02:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-2", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:03:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-3", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:04:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-4", "container_name": "app"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:05:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-5", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:06:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-6", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:07:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-7", "container_name": "sidecar"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:08:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-8", "container_name": "app"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:09:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-9", "container_name": "init"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:10:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-10", "container_name": "init"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:11:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-11", "container_name": "init"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:12:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-12", "container_name": "init"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:13:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-13", "container_name": "init"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:14:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-14", "container_name": "sidecar"}, "message": "Normal operation"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:15:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-15", "container_name": "app"}, "message": "Health check passed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:16:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-16", "container_name": "app"}, "message": "Container ready"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:17:47.410", "cluster": {"name": "fdas-staging"}, "kubernetes": {"namespace": "staging", "pod_name": "pod-17", "container_name": "sidecar"}, "message": "Error: Pod failed to start"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:18:47.410", "cluster": {"name": "prod-cluster"}, "kubernetes": {"namespace": "default", "pod_name": "pod-18", "container_name": "sidecar"}, "message": "Warning: Resource limit exceeded"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:19:47.410", "cluster": {"name": "fdas-prod"}, "kubernetes": {"namespace": "production", "pod_name": "pod-19", "container_name": "init"}, "message": "Normal operation"}
+

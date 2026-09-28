@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "cpu",
+      "type": "double"
+    },
+    {
+      "name": "memory",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "host1",
+      "2026-05-20 10:03:00",
+      91.2,
+      92.5
+    ],
+    [
+      "host2",
+      "2026-05-20 10:03:00",
+      95.8,
+      96.3
+    ],
+    [
+      "host3",
+      "2026-05-20 10:04:00",
+      88.7,
+      90.5
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

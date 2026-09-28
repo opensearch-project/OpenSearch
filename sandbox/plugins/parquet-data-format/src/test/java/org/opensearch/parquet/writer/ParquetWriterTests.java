@@ -1,0 +1,283 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.parquet.writer;
+
+import org.apache.arrow.memory.OutOfMemoryException;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
+import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.WriterState;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetBaseTests;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ParquetWriterTests extends ParquetBaseTests {
+
+    private final ParquetDataFormat parquetFormat = new ParquetDataFormat();
+    private ArrowNativeAllocator nativeAllocator;
+    private ArrowBufferPool bufferPool;
+    private MappedFieldType idField;
+    private MappedFieldType nameField;
+    private MappedFieldType scoreField;
+    private Schema schema;
+    private ThreadPool threadPool;
+    private IndexSettings indexSettings;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        RustBridge.initLogger();
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
+        idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
+        nameField = new KeywordFieldMapper.KeywordFieldType("name");
+        scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
+        assignTestCapabilities(idField, parquetFormat);
+        assignTestCapabilities(nameField, parquetFormat);
+        assignTestCapabilities(scoreField, parquetFormat);
+        schema = buildSchema(List.of(idField, nameField, scoreField));
+        Settings indexSettingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(indexSettingsBuilder).build();
+        indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        Settings settings = Settings.builder().put("node.name", "parquetwriter-test").build();
+        threadPool = new ThreadPool(
+            settings,
+            new FixedExecutorBuilder(
+                settings,
+                ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME,
+                1,
+                -1,
+                "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME
+            )
+        );
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
+        super.tearDown();
+    }
+
+    public void testAddDocReturnsSuccess() throws Exception {
+        String filePath = createTempDir().resolve("success.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(idField, 1);
+        doc.addField(nameField, "alice");
+        doc.addField(scoreField, 100L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+        WriteResult result = writer.addDoc(doc);
+        assertTrue(result instanceof WriteResult.Success);
+        doc.close();
+        writer.flush(FlushInput.EMPTY);
+    }
+
+    public void testSingleDocumentFlush() throws Exception {
+        String filePath = createTempDir().resolve("single.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(idField, 42);
+        doc.addField(nameField, "bob");
+        doc.addField(scoreField, 500L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+        writer.addDoc(doc);
+        doc.close();
+
+        writer.flush(FlushInput.EMPTY);
+        assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
+    }
+
+    public void testMultipleDocumentsFlush() throws Exception {
+        String filePath = createTempDir().resolve("multi.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        for (int i = 0; i < 10; i++) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(idField, i);
+            doc.addField(nameField, "user_" + i);
+            doc.addField(scoreField, (long) (i * 100));
+            doc.setRowId("__row_id__", i);
+            writer.addDoc(doc);
+            doc.close();
+        }
+
+        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+        assertNotNull(fileInfos);
+        assertTrue(Files.exists(Path.of(filePath)));
+        assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
+    }
+
+    public void testFlushWithNoDocuments() throws Exception {
+        String filePath = createTempDir().resolve("empty.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testMappingTypeChangeRetiresWriterForSchemaFence() throws Exception {
+        String filePath = createTempDir().resolve("schema-fence.parquet").toString();
+        ParquetField keyword = ArrowFieldRegistry.getParquetField(nameField.typeName());
+        List<Field> promotedFields = new ArrayList<>();
+        promotedFields.add(ArrowFieldRegistry.getParquetField(idField.typeName()).toArrowField(idField.name(), false));
+        promotedFields.add(keyword.toArrowField(nameField.name(), true));
+        promotedFields.add(ArrowFieldRegistry.getParquetField(scoreField.typeName()).toArrowField(scoreField.name(), false));
+        promotedFields.addAll(metadataFields());
+        Schema promotedSchema = new Schema(promotedFields);
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> promotedSchema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        writer.updateMappingVersion(2L);
+
+        assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
+        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testAddDocReturnsFailureOnOutOfMemory() throws Exception {
+        String filePath = createTempDir().resolve("oom.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        // Constrain the ingest pool so that allocating Arrow buffers while populating the
+        // VectorSchemaRoot inside VSRManager.addDocument throws an Arrow OutOfMemoryException.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, 1L);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(idField, 1);
+        doc.addField(nameField, "alice");
+        doc.addField(scoreField, 100L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+
+        // addDoc must translate the OOM into a Failure result rather than propagating the throw.
+        WriteResult result = writer.addDoc(doc);
+        assertTrue("expected a Failure result but was: " + result, result instanceof WriteResult.Failure);
+        WriteResult.Failure failure = (WriteResult.Failure) result;
+        assertTrue(
+            "expected an Arrow OutOfMemoryException cause but was: " + failure.cause(),
+            failure.cause() instanceof OutOfMemoryException
+        );
+
+        doc.close();
+        // Relieve the limit before teardown so writer/allocator cleanup can proceed cleanly.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, Long.MAX_VALUE);
+        writer.close();
+    }
+
+    private Schema buildSchema(List<MappedFieldType> fieldTypes) {
+        List<Field> fields = new ArrayList<>();
+        for (MappedFieldType ft : fieldTypes) {
+            ParquetField pf = ArrowFieldRegistry.getParquetField(ft.typeName());
+            assertNotNull("No ParquetField registered for type: " + ft.typeName(), pf);
+            fields.add(new Field(ft.name(), pf.getFieldType(), null));
+        }
+        fields.addAll(metadataFields());
+        return new Schema(fields);
+    }
+}

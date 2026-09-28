@@ -89,7 +89,7 @@ public class Header {
         return requestId;
     }
 
-    byte getStatus() {
+    public byte getStatus() {
         return status;
     }
 
@@ -109,7 +109,7 @@ public class Header {
         return TransportStatus.isHandshake(status);
     }
 
-    boolean isCompressed() {
+    public boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
 
@@ -125,7 +125,7 @@ public class Header {
         return features;
     }
 
-    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
+    public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
         return headers;
     }
 

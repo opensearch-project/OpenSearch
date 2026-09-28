@@ -1,0 +1,1 @@
+source=test_data | eval ceil_val = ceiling(value) | fields value, ceil_val | head 3

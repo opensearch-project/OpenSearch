@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "exception_count",
+      "type": "bigint"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      7,
+      "login_attempt"
+    ],
+    [
+      6,
+      "authentication_failure"
+    ],
+    [
+      3,
+      "access_denied"
+    ],
+    [
+      1,
+      "privilege_escalation"
+    ],
+    [
+      1,
+      "suspicious_activity"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

@@ -116,6 +116,18 @@ final class Bootstrap {
         });
     }
 
+    /**
+     * Installs a process-wide serial filter that rejects all Java deserialization by default.
+     * Plugins that legitimately require Java serialization (e.g., security plugin's user attribute caching)
+     * can opt in by calling {@code ObjectInputStream.setObjectInputFilter()} on their specific stream,
+     * which overrides the JVM-wide filter for that stream.
+     * <p>
+     * Gated behind the {@code bootstrap.serial_filter} setting (disabled by default).
+     */
+    static void initializeSerialFilter() {
+        BootstrapSettings.initializeSerialFilter();
+    }
+
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
@@ -195,6 +207,15 @@ final class Bootstrap {
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
         );
+
+        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+        var fipsMode = System.getenv("OPENSEARCH_FIPS_MODE");
+
+        if ("FIPS-140-3".equals(cryptoStandard) || "true".equalsIgnoreCase(fipsMode)) {
+            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
+        }
 
         // initialize probes before the security manager is installed
         initializeProbes();

@@ -1,0 +1,27 @@
+source=app_logs_splunk 
+| where message like '%successfully processed%' 
+| grok message 'request %{NUMBER:request_id}' 
+| eval req_clean = trim(request_id) 
+| eval req_len = abs(floor(pow(2, 3))) 
+| fillnull value='0' req_clean 
+| stats count() as total_events, 
+        sum(req_len) as sum_vals, 
+        avg(req_len) as avg_vals, 
+        min(req_len) as min_vals, 
+        max(req_len) as max_vals, 
+        distinct_count(host) as unique_hosts, 
+        percentile(req_len, 50) as median_vals 
+        by span(timestamp, 10m) as time_window, host 
+| eventstats sum(total_events) as global_total 
+| eval event_rate = round(total_events / 10.0, 2) 
+| eval score_pct = round(avg_vals / 100.0, 3) 
+| eval normalized_score = round(score_pct * 100, 1) 
+| eval current_time = now() 
+| eval risk_level = if(normalized_score > 5, 'HIGH', 'LOW') 
+| eval score_band = floor(normalized_score) 
+| where total_events >= 1 
+| rename time_window as time_bucket, host as server_name 
+| dedup server_name 
+| fields time_bucket, server_name, total_events, avg_vals, event_rate, normalized_score, risk_level, score_band, global_total 
+| sort - normalized_score, - total_events 
+| head 20

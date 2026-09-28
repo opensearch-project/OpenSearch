@@ -38,6 +38,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.cli.EnvironmentAwareCommand;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.PluginsService;
@@ -98,11 +99,18 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
 
         // first make sure nothing extends this plugin
-        List<String> usedBy = PluginsService.findPluginsByDependency(env.pluginsDir(), pluginName);
+        Tuple<List<String>, List<String>> dependents = PluginsService.findPluginsByDependency(env.pluginsDir(), pluginName);
+        List<String> usedBy = dependents.v1();
+        List<String> optionallyExtendedBy = dependents.v2();
         if (usedBy.isEmpty() == false) {
             throw new UserException(
                 PLUGIN_STILL_USED,
                 "plugin [" + pluginName + "] cannot be removed" + " because it is extended by other plugins: " + usedBy
+            );
+        }
+        if (optionallyExtendedBy.isEmpty() == false) {
+            terminal.println(
+                "WARNING: Some features of " + optionallyExtendedBy + " may not function without the dependency [" + pluginName + "]."
             );
         }
 
@@ -121,6 +129,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             removing = env.pluginsDir().resolve(".removing-" + pluginDir.getFileName());
         }
 
+        // read shared library names before we start removing anything
         terminal.println("-> removing [" + pluginName + "]...");
         /*
          * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found, unless there's
@@ -150,7 +159,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
 
-        final Path pluginBinDir = env.binDir().resolve(pluginName);
+        final Path pluginBinDir = env.binDir().resolve(pluginDir.getFileName());
         if (Files.exists(pluginBinDir)) {
             if (!Files.isDirectory(pluginBinDir)) {
                 throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
@@ -160,6 +169,18 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
+        }
+
+        final Path pluginSharedLibDir = env.pluginsDir().resolve("lib").resolve(pluginDir.getFileName());
+        if (Files.exists(pluginSharedLibDir)) {
+            if (Files.isDirectory(pluginSharedLibDir) == false) {
+                throw new UserException(ExitCodes.IO_ERROR, "shared lib dir for " + pluginName + " is not a directory");
+            }
+            try (Stream<Path> paths = Files.list(pluginSharedLibDir)) {
+                pluginPaths.addAll(paths.collect(Collectors.toList()));
+            }
+            pluginPaths.add(pluginSharedLibDir);
+            terminal.println(VERBOSE, "removing [" + pluginSharedLibDir + "]");
         }
 
         if (Files.exists(pluginConfigDir)) {
@@ -209,5 +230,4 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         IOUtils.rm(pluginPaths.toArray(new Path[0]));
     }
-
 }

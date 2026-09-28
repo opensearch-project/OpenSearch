@@ -39,10 +39,10 @@ import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
+import org.opensearch.gradle.docker.DockerSupportService.DockerAvailability;
 import org.opensearch.gradle.docker.DockerSupportService.DockerComposeV2Availability;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.TestingConventionsTasks;
@@ -68,9 +68,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 
 public class TestFixturesPlugin implements Plugin<Project> {
@@ -78,15 +76,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
-
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
-        ? DOCKER_COMPOSE_BINARIES_WINDOWS
-        : DOCKER_COMPOSE_BINARIES_UNIX;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -145,12 +134,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 @Override
                 public void execute(Task task) {
                     task.dependsOn(buildFixture);
-                    configureServiceInfoForTask(
-                        task,
-                        project,
-                        false,
-                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                    );
+                    // Resolved here rather than inside the action: Task.extensions at execution time is
+                    // deprecated in Gradle 9.7 and fails in 10.
+                    ExtraPropertiesExtension taskExt = task.getExtensions().getByType(ExtraPropertiesExtension.class);
+                    configureServiceInfoForTask(task, project, false, taskExt::set);
                 }
             });
 
@@ -166,12 +153,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
             final Integer timeout = ext.has("dockerComposeHttpTimeout") ? (Integer) ext.get("dockerComposeHttpTimeout") : 120;
             composeExtension.getEnvironment().put("COMPOSE_HTTP_TIMEOUT", timeout);
 
-            Optional<String> dockerCompose = Arrays.asList(DOCKER_COMPOSE_BINARIES)
-                .stream()
-                .filter(path -> project.file(path).exists())
-                .findFirst();
+            final DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
+            if (dockerAvailability.isAvailable && dockerAvailability.isDockerComposeAvailable()) {
+                composeExtension.getExecutable().set(dockerAvailability.dockerComposeAvailability.getPath());
+            }
 
-            composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
             composeExtension.getUseDockerComposeV2()
                 .set(dockerSupport.get().getDockerAvailability().dockerComposeAvailability instanceof DockerComposeV2Availability);
 
@@ -208,16 +194,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 
-        tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
-            task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
-            task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
-            configureServiceInfoForTask(
-                task,
-                fixtureProject,
-                true,
-                (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
-            );
-        }));
+        tasks.withType(Test.class).configureEach(task -> {
+            // Resolved here rather than inside the action: Task.extensions at execution time is
+            // deprecated in Gradle 9.7 and fails in 10.
+            SystemPropertyCommandLineArgumentProvider nonInputProperties = task.getExtensions()
+                .getByType(SystemPropertyCommandLineArgumentProvider.class);
+            extension.fixtures.all(fixtureProject -> {
+                task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
+                task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
+                configureServiceInfoForTask(task, fixtureProject, true, nonInputProperties::systemProperty);
+            });
+        });
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {

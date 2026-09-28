@@ -39,6 +39,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -68,6 +69,8 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
 
     private static HttpServer httpServer;
 
+    private AwsEc2ServiceImpl ec2Service;
+
     @BeforeClass
     public static void startHttp() throws Exception {
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
@@ -86,6 +89,17 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
         registerContext.accept("/latest/meta-data/public-hostname", "165.168.10.3");
         registerContext.accept("/latest/meta-data/local-hostname", "10.10.10.5");
 
+        // IMDSv2: drain PUT body, echo TTL header, return a token
+        httpServer.createContext("/latest/api/token", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            final String ttl = exchange.getRequestHeaders().getFirst("x-aws-ec2-metadata-token-ttl-seconds");
+            final byte[] token = "test-token".getBytes(UTF_8);
+            exchange.getResponseHeaders().set("x-aws-ec2-metadata-token-ttl-seconds", ttl != null ? ttl : "21600");
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), token.length);
+            exchange.getResponseBody().write(token);
+            exchange.getResponseBody().close();
+        });
+
         httpServer.start();
     }
 
@@ -99,6 +113,13 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
                 "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
             )
         );
+        ec2Service = new AwsEc2ServiceImpl();
+        ec2Service.refreshAndClearCache(Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+    }
+
+    @After
+    public void teardownService() throws IOException {
+        ec2Service.close();
     }
 
     @AfterClass
@@ -127,10 +148,7 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
         try {
             resolveEc2("_ec2_", (InetAddress[]) null);
         } catch (IOException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("IOException caught when fetching InetAddress from [http://127.0.0.1//latest/meta-data/local-ipv4]")
-            );
+            assertThat(e.getMessage(), equalTo("IOException caught when fetching InetAddress for [ec2]"));
         }
     }
 
@@ -179,7 +197,7 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
     private InetAddress[] resolveEc2(String host, InetAddress... expected) throws IOException {
         Settings nodeSettings = Settings.builder().put("network.host", host).build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(ec2Service)));
 
         InetAddress[] addresses = networkService.resolveBindHostAddresses(
             NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY)
@@ -196,7 +214,7 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
      * network.host: _local_
      */
     public void testNetworkHostCoreLocal() throws IOException {
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(ec2Service)));
         InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
         assertThat(addresses, arrayContaining(networkService.resolveBindHostAddresses(new String[] { "_local_" })));
     }

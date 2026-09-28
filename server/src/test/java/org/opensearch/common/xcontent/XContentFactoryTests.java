@@ -32,9 +32,6 @@
 
 package org.opensearch.common.xcontent;
 
-import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
@@ -45,6 +42,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+
+import tools.jackson.dataformat.cbor.CBORConstants;
+import tools.jackson.dataformat.smile.SmileConstants;
 
 import static org.hamcrest.Matchers.equalTo;
 

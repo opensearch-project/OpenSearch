@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
@@ -60,10 +61,22 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RegexpQueryBuilder.class);
+
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_DETERMINIZE_WORK_LIMIT = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
+    /**
+     * Upper bound for {@code max_determinized_states}. The determinize work limit exists to cap the
+     * amount of work Lucene performs while determinizing a regexp automaton; allowing an arbitrarily
+     * large value (e.g. {@link Integer#MAX_VALUE}) effectively disables that safeguard and lets a
+     * crafted pattern exhaust the heap before Lucene ever throws {@code TooComplexToDeterminizeException}.
+     * This ceiling (100x the default) still permits legitimately complex expressions while keeping the
+     * safeguard effective. See CVE-2026-63136.
+     */
+    public static final int MAX_DETERMINIZE_WORK_LIMIT = 1_000_000;
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
@@ -109,7 +122,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         syntaxFlagsValue = in.readVInt();
-        maxDeterminizedStates = in.readVInt();
+        // Route through the setter so the CVE-2026-63136 bound is enforced on the transport
+        // deserialization path too, not just REST/XContent. Protects a patched data node from an
+        // unbounded value sent by an unpatched coordinating node in a mixed-version cluster.
+        maxDeterminizedStates(in.readVInt());
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
     }
@@ -176,6 +192,14 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
      * Sets the regexp maxDeterminizedStates.
      */
     public RegexpQueryBuilder maxDeterminizedStates(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] max_determinized_states cannot be negative but was [" + value + "]");
+        }
+        if (value > MAX_DETERMINIZE_WORK_LIMIT) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] max_determinized_states cannot exceed [" + MAX_DETERMINIZE_WORK_LIMIT + "] but was [" + value + "]"
+            );
+        }
         this.maxDeterminizedStates = value;
         return this;
     }
@@ -294,12 +318,25 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     + "] index level setting."
             );
         }
+
+        // Check if COMPLEMENT flag is being used
+        // The COMPLEMENT flag maps to Lucene's DEPRECATED_COMPLEMENT which is marked for removal in Lucene 11
+        // This deprecation warning helps users migrate their queries before the feature is completely removed
+        if ((syntaxFlagsValue & RegexpFlag.COMPLEMENT.value()) != 0) {
+            deprecationLogger.deprecate(
+                "regexp_complement_operator",
+                "The complement operator (~) for arbitrary patterns in regexp queries is deprecated and will be removed in a future version. "
+                    + "Consider rewriting your query to use character class negation [^...] or other query types."
+            );
+        }
+
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
-        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
+        // The hexadecimal for DEPRECATED_COMPLEMENT is 0x10000. The OR condition ensures COMPLEMENT ~ is preserved
+        int sanitisedSyntaxFlag = syntaxFlagsValue & (RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {

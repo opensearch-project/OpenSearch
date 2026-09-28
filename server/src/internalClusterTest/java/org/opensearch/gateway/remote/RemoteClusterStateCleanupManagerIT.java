@@ -34,9 +34,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT;
+import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_MAX_BATCHES_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.RETAINED_MANIFESTS;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.SKIP_CLEANUP_STATE_CHANGES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -292,6 +295,171 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
         return pathType.path(
             RemoteStorePathStrategy.PathInput.builder().basePath(baseMetadataPath.add(INDEX_ROUTING_TABLE)).indexUUID(indexUUID).build(),
             RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
+        );
+    }
+
+    public void testRemoteCleanupWithBatchSizeAs20() throws Exception {
+        performBatchedDeletionsGivenBatchSize(20);
+    }
+
+    public void testRemoteCleanupWithBatchSizeAs50() throws Exception {
+        performBatchedDeletionsGivenBatchSize(50);
+    }
+
+    public void testRemoteCleanupWithBatchSizeAs100() throws Exception {
+        performBatchedDeletionsGivenBatchSize(100);
+    }
+
+    private void performBatchedDeletionsGivenBatchSize(int batchSize) throws Exception {
+
+        int shardCount = randomIntBetween(1, 2);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 1;
+
+        initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
+        // To ensure we complete the cleanup entirely
+        int maxBatchesToAttempt = 20;
+
+        // disable auto cleanup as the test will trigger the deletion manually
+        ClusterUpdateSettingsResponse response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING.getKey(), -1)
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_MAX_BATCHES_SETTING.getKey(), maxBatchesToAttempt)
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING.getKey(), batchSize)
+            )
+            .get();
+        assertTrue(response.isAcknowledged());
+
+        updateClusterStateNTimes(50);
+
+        RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
+        BlobPath manifestContainerPath = getBaseMetadataPath(repository).add("manifest");
+
+        List<String> initialManifests = repository.blobStore()
+            .blobContainer(manifestContainerPath)
+            .listBlobsByPrefix("manifest")
+            .keySet()
+            .stream()
+            .sorted()
+            .collect(Collectors.toList());
+        assertTrue(initialManifests.size() >= 50);
+
+        List<String> last10Initial = initialManifests.subList(0, 10);
+
+        RemoteClusterStateCleanupManager cleanupManager = internalCluster().getClusterManagerNodeInstance(
+            RemoteClusterStateCleanupManager.class
+        );
+
+        long initialCleanupAttemptVersion = cleanupManager.getLastCleanupAttemptStateVersion();
+
+        // trigger deletion
+        cleanupManager.cleanUpStaleFiles();
+
+        // wait for completion
+        assertBusy(() -> { assertFalse(cleanupManager.isDeleteStaleMetadataRunning().get()); });
+
+        List<String> currentManifests = repository.blobStore()
+            .blobContainer(manifestContainerPath)
+            .listBlobsByPrefix("manifest")
+            .keySet()
+            .stream()
+            .sorted()
+            .collect(Collectors.toList());
+
+        // ensure cleanup is completed and successful
+        assertEquals("Last 10 manifest files should remain the same after cleanup", last10Initial, currentManifests);
+        // ensure we update the last successful cleanup attempt version once we update
+        assertNotEquals(
+            "lastCleanupAttemptStateVersion should be updated after successful cleanup",
+            initialCleanupAttemptVersion,
+            cleanupManager.getLastCleanupAttemptStateVersion()
+        );
+
+    }
+
+    public void testCleanupStopsAtMaxBatchesLimit() throws Exception {
+        int shardCount = randomIntBetween(1, 2);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 1;
+
+        initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
+
+        updateClusterStateNTimes(50);
+
+        RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
+        BlobPath manifestContainerPath = getBaseMetadataPath(repository).add("manifest");
+
+        // attempt only 1 batch to validate we stop after specified attempts
+        int maxBatchesToDelete = 1;
+        int batchSizePerDeletion = 30;
+
+        // disable auto cleanup as the test will trigger the deletion manually
+        ClusterUpdateSettingsResponse response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING.getKey(), -1)
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_MAX_BATCHES_SETTING.getKey(), maxBatchesToDelete)
+                    .put(REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING.getKey(), batchSizePerDeletion)
+            )
+            .get();
+        assertTrue(response.isAcknowledged());
+
+        List<String> initialManifests = repository.blobStore()
+            .blobContainer(manifestContainerPath)
+            .listBlobsByPrefix("manifest")
+            .keySet()
+            .stream()
+            .sorted()
+            .toList();
+
+        List<String> last10Initial = initialManifests.subList(0, RETAINED_MANIFESTS);
+        int expectedManifestsToBeDeleted = (batchSizePerDeletion - RETAINED_MANIFESTS) * maxBatchesToDelete;
+        List<String> expectedListAfterDeletionAttempt = initialManifests.subList(0, initialManifests.size() - expectedManifestsToBeDeleted);
+
+        RemoteClusterStateCleanupManager cleanupManager = internalCluster().getClusterManagerNodeInstance(
+            RemoteClusterStateCleanupManager.class
+        );
+        long initialCleanupAttemptVersion = cleanupManager.getLastCleanupAttemptStateVersion();
+
+        // trigger deletion
+        cleanupManager.cleanUpStaleFiles();
+
+        // wait for completion
+        assertBusy(() -> { assertFalse(cleanupManager.isDeleteStaleMetadataRunning().get()); });
+
+        List<String> currentManifests = repository.blobStore()
+            .blobContainer(manifestContainerPath)
+            .listBlobsByPrefix("manifest")
+            .keySet()
+            .stream()
+            .sorted()
+            .toList();
+
+        assertEquals(
+            "Last 10 manifest files should remain the same after cleanup",
+            last10Initial,
+            currentManifests.subList(0, RETAINED_MANIFESTS)
+        );
+
+        assertEquals(
+            "Cleanup should have stopped after specified batch limit",
+            expectedListAfterDeletionAttempt.size(),
+            currentManifests.size()
+        );
+
+        assertEquals(
+            "As cleanup batch size is exhausted, we should not update last successful cleanup attempt version",
+            cleanupManager.getLastCleanupAttemptStateVersion(),
+            initialCleanupAttemptVersion
         );
     }
 }

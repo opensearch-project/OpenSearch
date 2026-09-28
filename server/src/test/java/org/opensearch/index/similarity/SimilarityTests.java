@@ -102,7 +102,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("foo", settings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", settings, mapping).mapperService();
         assertThat(mapperService.fieldType("dummy").getTextSearchInfo().getSimilarity().get(), instanceOf(LegacyBM25Similarity.class));
     }
 
@@ -136,7 +136,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.b", 0.5f)
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(BM25Similarity.class));
 
         BM25Similarity similarity = (BM25Similarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
@@ -156,7 +156,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("foo", Settings.EMPTY, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", Settings.EMPTY, mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(BooleanSimilarity.class));
     }
 
@@ -178,7 +178,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.normalization", "h2")
             .put("index.similarity.my_similarity.normalization.h2.c", 3f)
             .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(DFRSimilarity.class));
 
         DFRSimilarity similarity = (DFRSimilarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
@@ -206,7 +206,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.normalization", "h2")
             .put("index.similarity.my_similarity.normalization.h2.c", 3f)
             .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(IBSimilarity.class));
 
         IBSimilarity similarity = (IBSimilarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
@@ -231,7 +231,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.type", "DFI")
             .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         MappedFieldType fieldType = mapperService.fieldType("field1");
 
         assertThat(fieldType.getTextSearchInfo().getSimilarity().get(), instanceOf(DFISimilarity.class));
@@ -255,7 +255,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.mu", 3000f)
             .build();
 
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(LMDirichletSimilarity.class));
 
         LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.fieldType("field1")
@@ -280,7 +280,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.type", "LMJelinekMercer")
             .put("index.similarity.my_similarity.lambda", 0.7f)
             .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(
             mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(),
             instanceOf(LMJelinekMercerSimilarity.class)

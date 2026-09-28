@@ -63,10 +63,12 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -542,9 +544,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 3; i++)
             docList.add(new Document());
 
-        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
-        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
-        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false, false));
         docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
@@ -577,9 +579,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 3; i++)
             docList.add(new Document());
 
-        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
-        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
-        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false, false));
         docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
         docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
@@ -662,7 +664,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         for (Number dataPoint : dataPoints) {
             Document doc = new Document();
-            List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false);
+            List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false, false);
             for (Field fld : fieldList)
                 doc.add(fld);
             docs.add(doc);
@@ -746,5 +748,56 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 fieldTypes
             )
         );
+    }
+
+    /**
+     * The intra-segment gate for range (no sub-agg): partition only when the filter-rewrite O(1) fast path can
+     * NOT apply upfront. Fast path applies for a searchable numeric field with non-overlapping ranges → do not
+     * partition (false). It declines for overlapping ranges → partition (true). With a sub-agg it always opts in.
+     */
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        // non-overlapping ranges, no sub-agg: fast path applies -> NOT intra-eligible
+        RangeAggregationBuilder nonOverlapping = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+            .addRange(0d, 5d)
+            .addRange(10d, 20d);
+        assertFalse(supportsIntraSegmentSearch(nonOverlapping));
+
+        // overlapping ranges, no sub-agg: fast path declines -> intra-eligible
+        RangeAggregationBuilder overlapping = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+            .addRange(0d, 12d)
+            .addRange(10d, 20d);
+        assertTrue(supportsIntraSegmentSearch(overlapping));
+
+        // sub-agg but fast path applies (non-overlapping): NOT intra-eligible (BKD walk would duplicate per partition)
+        RangeAggregationBuilder withSubFastPath = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+            .addRange(0d, 5d)
+            .addRange(10d, 20d)
+            .subAggregation(new AvgAggregationBuilder("avg").field(NUMBER_FIELD_NAME));
+        assertFalse(supportsIntraSegmentSearch(withSubFastPath));
+
+        // with a sub-aggregation AND fast path declines (overlapping ranges): intra-eligible (doc-by-doc parallelizes)
+        RangeAggregationBuilder withSubDeclines = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+            .addRange(0d, 12d)
+            .addRange(10d, 20d)
+            .subAggregation(new AvgAggregationBuilder("avg").field(NUMBER_FIELD_NAME));
+        assertTrue(supportsIntraSegmentSearch(withSubDeclines));
+    }
+
+    private boolean supportsIntraSegmentSearch(RangeAggregationBuilder builder) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(builder)
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldType)
+                            .getQueryShardContext(),
+                        null
+                    );
+                return factories.allFactoriesSupportIntraSegmentSearch();
+            }
+        }
     }
 }

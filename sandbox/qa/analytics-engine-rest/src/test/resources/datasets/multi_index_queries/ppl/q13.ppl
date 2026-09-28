@@ -1,0 +1,1 @@
+source=api_metrics | stats count(case(status_code < 400, 1)) as success_count, count(case(status_code >= 400, 1)) as error_count

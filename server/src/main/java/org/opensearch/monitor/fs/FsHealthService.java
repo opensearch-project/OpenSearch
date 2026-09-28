@@ -46,6 +46,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -55,6 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -74,6 +77,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
+    private final MetricsRegistry metricsRegistry;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
@@ -84,6 +88,9 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile TimeValue healthyTimeoutThreshold;
     private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    private final Counter fsHealthFailCounter;
+    private final List<Path> additionalHealthPaths;
+    private static final String COUNTER_METRICS_UNIT = "1";
 
     @Nullable
     private volatile Set<Path> unhealthyPaths;
@@ -115,7 +122,24 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.Dynamic
     );
 
-    public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
+    public FsHealthService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        NodeEnvironment nodeEnv,
+        MetricsRegistry metricsRegistry
+    ) {
+        this(settings, clusterSettings, threadPool, nodeEnv, metricsRegistry, List.of());
+    }
+
+    public FsHealthService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        NodeEnvironment nodeEnv,
+        MetricsRegistry metricsRegistry,
+        List<Path> additionalHealthPaths
+    ) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
@@ -123,6 +147,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.healthyTimeoutThreshold = HEALTHY_TIMEOUT_SETTING.get(settings);
         this.nodeEnv = nodeEnv;
+        this.metricsRegistry = metricsRegistry;
+        this.additionalHealthPaths = List.copyOf(additionalHealthPaths);
+        fsHealthFailCounter = metricsRegistry.createCounter(
+            "fsHealth.failure.count",
+            "Counter for number of times FS health check has failed",
+            COUNTER_METRICS_UNIT
+        );
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(HEALTHY_TIMEOUT_SETTING, this::setHealthyTimeoutThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -198,6 +229,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             } catch (Exception e) {
                 logger.error("health check failed", e);
             } finally {
+                emitMetric();
                 if (checkEnabled) {
                     boolean completed = checkInProgress.compareAndSet(true, false);
                     assert completed;
@@ -205,11 +237,27 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             }
         }
 
+        private void emitMetric() {
+            StatusInfo healthStatus = getHealth();
+            if (healthStatus.getStatus() == UNHEALTHY) {
+                fsHealthFailCounter.add(1.0);
+            }
+        }
+
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            Path[] paths = null;
+            Path[] paths;
             try {
-                paths = nodeEnv.nodeDataPaths();
+                Path[] dataPaths = nodeEnv.nodeDataPaths();
+                if (additionalHealthPaths.isEmpty()) {
+                    paths = dataPaths;
+                } else {
+                    paths = new Path[dataPaths.length + additionalHealthPaths.size()];
+                    System.arraycopy(dataPaths, 0, paths, 0, dataPaths.length);
+                    for (int i = 0; i < additionalHealthPaths.size(); i++) {
+                        paths[dataPaths.length + i] = additionalHealthPaths.get(i);
+                    }
+                }
             } catch (IllegalStateException e) {
                 logger.error("health check failed", e);
                 brokenLock = true;

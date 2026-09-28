@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.exception_message` like '%SocketTimeoutException%' or `exception.exception_message` like '%TimeoutException%' or `exception.exception_message` like '%timed out%' | stats count() as timeout_count by service_name, level

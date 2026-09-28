@@ -1,0 +1,1 @@
+source=%INDEX% | stats sum(price) as s by span(amount, 5) | where s > 50

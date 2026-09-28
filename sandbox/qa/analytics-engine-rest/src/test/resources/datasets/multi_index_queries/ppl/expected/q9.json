@@ -1,0 +1,76 @@
+{
+  "schema": [
+    {
+      "name": "event_count",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      59,
+      "asmith"
+    ],
+    [
+      58,
+      "bwilson"
+    ],
+    [
+      51,
+      "jdoe"
+    ],
+    [
+      46,
+      "admin"
+    ],
+    [
+      43,
+      "mjones"
+    ],
+    [
+      24,
+      "user1"
+    ],
+    [
+      23,
+      "user4"
+    ],
+    [
+      23,
+      "user6"
+    ],
+    [
+      22,
+      "user9"
+    ],
+    [
+      21,
+      "user2"
+    ],
+    [
+      20,
+      "user3"
+    ],
+    [
+      20,
+      "user5"
+    ],
+    [
+      17,
+      "user8"
+    ],
+    [
+      16,
+      "user7"
+    ],
+    [
+      14,
+      "user10"
+    ]
+  ],
+  "total": 15,
+  "size": 15
+}

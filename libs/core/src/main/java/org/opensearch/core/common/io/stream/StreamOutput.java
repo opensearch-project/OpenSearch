@@ -789,6 +789,8 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 27);
             o.writeSemverRange((SemverRange) v);
         });
+        // Have registered ScriptedAvg class with byte 28 in Streamables.java, so that we do not need the implementation reside in the
+        // server module
         WRITERS = Collections.unmodifiableMap(writers);
     }
 
@@ -995,105 +997,105 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(true);
             boolean writeCause = true;
             boolean writeMessage = true;
-            if (throwable instanceof CorruptIndexException) {
-                writeVInt(1);
-                writeOptionalString(((CorruptIndexException) throwable).getOriginalMessage());
-                writeOptionalString(((CorruptIndexException) throwable).getResourceDescription());
-                writeMessage = false;
-            } else if (throwable instanceof IndexFormatTooNewException) {
-                writeVInt(2);
-                writeOptionalString(((IndexFormatTooNewException) throwable).getResourceDescription());
-                writeInt(((IndexFormatTooNewException) throwable).getVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMinVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof IndexFormatTooOldException) {
-                writeVInt(3);
-                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
-                writeOptionalString(t.getResourceDescription());
-                if (t.getVersion() == null) {
-                    writeBoolean(false);
-                    writeOptionalString(t.getReason());
-                } else {
-                    writeBoolean(true);
-                    writeInt(t.getVersion());
-                    writeInt(t.getMinVersion());
-                    writeInt(t.getMaxVersion());
-                }
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof NullPointerException) {
-                writeVInt(4);
-                writeCause = false;
-            } else if (throwable instanceof NumberFormatException) {
-                writeVInt(5);
-                writeCause = false;
-            } else if (throwable instanceof IllegalArgumentException) {
-                writeVInt(6);
-            } else if (throwable instanceof AlreadyClosedException) {
-                writeVInt(7);
-            } else if (throwable instanceof EOFException) {
-                writeVInt(8);
-                writeCause = false;
-            } else if (throwable instanceof SecurityException) {
-                writeVInt(9);
-            } else if (throwable instanceof StringIndexOutOfBoundsException) {
-                writeVInt(10);
-                writeCause = false;
-            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
-                writeVInt(11);
-                writeCause = false;
-            } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(12);
-                writeCause = false;
-            } else if (throwable instanceof FileSystemException) {
-                writeVInt(13);
-                if (throwable instanceof NoSuchFileException) {
-                    writeVInt(0);
-                } else if (throwable instanceof NotDirectoryException) {
+            switch (throwable) {
+                case CorruptIndexException corruptEx -> {
                     writeVInt(1);
-                } else if (throwable instanceof DirectoryNotEmptyException) {
+                    writeOptionalString(corruptEx.getOriginalMessage());
+                    writeOptionalString(corruptEx.getResourceDescription());
+                    writeMessage = false;
+                }
+                case IndexFormatTooNewException tooNewEx -> {
                     writeVInt(2);
-                } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                    writeOptionalString(tooNewEx.getResourceDescription());
+                    writeInt(tooNewEx.getVersion());
+                    writeInt(tooNewEx.getMinVersion());
+                    writeInt(tooNewEx.getMaxVersion());
+                    writeMessage = false;
+                    writeCause = false;
+                }
+                case IndexFormatTooOldException t -> {
                     writeVInt(3);
-                } else if (throwable instanceof FileAlreadyExistsException) {
+                    writeOptionalString(t.getResourceDescription());
+                    if (t.getVersion() == null) {
+                        writeBoolean(false);
+                        writeOptionalString(t.getReason());
+                    } else {
+                        writeBoolean(true);
+                        writeInt(t.getVersion());
+                        writeInt(t.getMinVersion());
+                        writeInt(t.getMaxVersion());
+                    }
+                    writeMessage = false;
+                    writeCause = false;
+                }
+                case NullPointerException ignored -> {
                     writeVInt(4);
-                } else if (throwable instanceof AccessDeniedException) {
+                    writeCause = false;
+                }
+                case NumberFormatException ignored -> {
                     writeVInt(5);
-                } else if (throwable instanceof FileSystemLoopException) {
-                    writeVInt(6);
-                } else {
-                    writeVInt(7);
+                    writeCause = false;
                 }
-                writeOptionalString(((FileSystemException) throwable).getFile());
-                writeOptionalString(((FileSystemException) throwable).getOtherFile());
-                writeOptionalString(((FileSystemException) throwable).getReason());
-                writeCause = false;
-            } else if (throwable instanceof IllegalStateException) {
-                writeVInt(14);
-            } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(15);
-            } else if (throwable instanceof InterruptedException) {
-                writeVInt(16);
-                writeCause = false;
-            } else if (throwable instanceof IOException) {
-                writeVInt(17);
-            } else if (throwable instanceof OpenSearchRejectedExecutionException) {
-                writeVInt(18);
-                writeBoolean(((OpenSearchRejectedExecutionException) throwable).isExecutorShutdown());
-                writeCause = false;
-            } else {
-                final OpenSearchException ex;
-                if (throwable instanceof OpenSearchException && OpenSearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (OpenSearchException) throwable;
-                } else {
-                    ex = new NotSerializableExceptionWrapper(throwable);
+                case IllegalArgumentException ignored -> writeVInt(6);
+                case AlreadyClosedException ignored -> writeVInt(7);
+                case EOFException ignored -> {
+                    writeVInt(8);
+                    writeCause = false;
                 }
-                writeVInt(0);
-                writeVInt(OpenSearchException.getId(ex.getClass()));
-                ex.writeTo(this);
-                return;
+                case SecurityException ignored -> writeVInt(9);
+                case StringIndexOutOfBoundsException ignored -> {
+                    writeVInt(10);
+                    writeCause = false;
+                }
+                case ArrayIndexOutOfBoundsException ignored -> {
+                    writeVInt(11);
+                    writeCause = false;
+                }
+                case FileNotFoundException ignored -> {
+                    writeVInt(12);
+                    writeCause = false;
+                }
+                case FileSystemException fsEx -> {
+                    writeVInt(13);
+                    switch (throwable) {
+                        case NoSuchFileException ignored -> writeVInt(0);
+                        case NotDirectoryException ignored -> writeVInt(1);
+                        case DirectoryNotEmptyException ignored -> writeVInt(2);
+                        case AtomicMoveNotSupportedException ignored -> writeVInt(3);
+                        case FileAlreadyExistsException ignored -> writeVInt(4);
+                        case AccessDeniedException ignored -> writeVInt(5);
+                        case FileSystemLoopException ignored -> writeVInt(6);
+                        default -> writeVInt(7);
+                    }
+                    writeOptionalString(fsEx.getFile());
+                    writeOptionalString(fsEx.getOtherFile());
+                    writeOptionalString(fsEx.getReason());
+                    writeCause = false;
+                }
+                case IllegalStateException ignored -> writeVInt(14);
+                case LockObtainFailedException ignored -> writeVInt(15);
+                case InterruptedException ignored -> {
+                    writeVInt(16);
+                    writeCause = false;
+                }
+                case IOException ignored -> writeVInt(17);
+                case OpenSearchRejectedExecutionException rejectedEx -> {
+                    writeVInt(18);
+                    writeBoolean(rejectedEx.isExecutorShutdown());
+                    writeCause = false;
+                }
+                default -> {
+                    final OpenSearchException ex;
+                    if (throwable instanceof OpenSearchException osEx && OpenSearchException.isRegistered(throwable.getClass(), version)) {
+                        ex = osEx;
+                    } else {
+                        ex = new NotSerializableExceptionWrapper(throwable);
+                    }
+                    writeVInt(0);
+                    writeVInt(OpenSearchException.getId(ex.getClass()));
+                    ex.writeTo(this);
+                    return;
+                }
             }
             if (writeMessage) {
                 writeOptionalString(throwable.getMessage());

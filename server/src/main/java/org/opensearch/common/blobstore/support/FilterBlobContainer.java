@@ -32,10 +32,13 @@
 
 package org.opensearch.common.blobstore.support;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -92,6 +95,45 @@ public abstract class FilterBlobContainer implements BlobContainer {
     @Override
     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
+    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
+        return delegate.readBlobWithMetadata(blobName);
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
+    ) throws IOException {
+        delegate.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata);
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        delegate.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, cryptoMetadata);
+    }
+
+    @Override
+    public void writeBlobAtomicWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        @Nullable Map<String, String> metadata,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomicWithMetadata(blobName, inputStream, metadata, blobSize, failIfAlreadyExists);
     }
 
     @Override

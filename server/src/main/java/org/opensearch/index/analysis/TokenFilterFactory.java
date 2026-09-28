@@ -32,6 +32,7 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.opensearch.common.annotation.PublicApi;
@@ -87,6 +88,34 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Like {@link #getChainAwareTokenFilterFactory(TokenizerFactory, List, List, Function)},
+     * but also provides a resolver for analyzers that have already been constructed
+     * earlier in this index build (e.g., a {@code synonym_analyzer} referenced by name).
+     *
+     * <p><b>Example:</b> {@code SynonymTokenFilterFactory} can resolve the analyzer named by
+     * {@code synonym_analyzer} using {@code analyzersBuiltSoFar}.</p>
+     *
+     * The call {@code analyzersBuiltSoFar.apply(name)} returns an {@link org.apache.lucene.analysis.Analyzer}
+     *       if (and only if) that analyzer was already built in the current index build; it may return {@code null}.
+     *
+     * @param tokenizer             the TokenizerFactory for the preceding chain
+     * @param charFilters           any CharFilterFactories for the preceding chain
+     * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
+     * @param allFilters            access to previously defined TokenFilterFactories
+     * @param analyzersBuiltSoFar   {@code name -> Analyzer} for analyzers already built earlier in this index build (may return null)
+     * @since 3.3.0
+     */
+    default TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
+    ) {
+        return getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+    }
+
+    /**
      * Return a version of this TokenFilterFactory appropriate for synonym parsing
      * <p>
      * Filters that should not be applied to synonyms (for example, those that produce
@@ -120,4 +149,11 @@ public interface TokenFilterFactory {
             return tokenStream;
         }
     };
+
+    /**
+     * Reloads any cached resources held by this filter factory from their source.
+     * Called during analyzer reload when cache refresh is requested.
+     * Default implementation is a no-op.
+     */
+    default void reloadCachedResources() {}
 }

@@ -126,7 +126,7 @@ public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIn
                 // apis needed to access saved objects
                 new OpenSearchDashboardsWrappedRestHandler(new RestGetAction()),
                 new OpenSearchDashboardsWrappedRestHandler(new RestMultiGetAction(settings)),
-                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction(clusterSettings)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestBulkAction(settings)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestBulkStreamingAction(settings)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestDeleteAction()),

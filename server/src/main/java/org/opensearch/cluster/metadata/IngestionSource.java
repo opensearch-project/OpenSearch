@@ -8,24 +8,34 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class IngestionSource {
     private final String type;
     private final PointerInitReset pointerInitReset;
@@ -35,6 +45,14 @@ public class IngestionSource {
     private final int pollTimeout;
     private int numProcessorThreads;
     private int blockingQueueSize;
+    private final boolean allActiveIngestion;
+    private final TimeValue pointerBasedLagUpdateInterval;
+    private final IngestionMessageMapper.MapperType mapperType;
+    private final Map<String, Object> mapperSettings;
+    private final String decoderType;
+    private final Map<String, Object> decoderSettings;
+    private final WarmupConfig warmupConfig;
+    private final SourcePartitionStrategy sourcePartitionStrategy;
 
     private IngestionSource(
         String type,
@@ -44,7 +62,15 @@ public class IngestionSource {
         long maxPollSize,
         int pollTimeout,
         int numProcessorThreads,
-        int blockingQueueSize
+        int blockingQueueSize,
+        boolean allActiveIngestion,
+        TimeValue pointerBasedLagUpdateInterval,
+        IngestionMessageMapper.MapperType mapperType,
+        Map<String, Object> mapperSettings,
+        String decoderType,
+        Map<String, Object> decoderSettings,
+        WarmupConfig warmupConfig,
+        SourcePartitionStrategy sourcePartitionStrategy
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -54,6 +80,14 @@ public class IngestionSource {
         this.pollTimeout = pollTimeout;
         this.numProcessorThreads = numProcessorThreads;
         this.blockingQueueSize = blockingQueueSize;
+        this.allActiveIngestion = allActiveIngestion;
+        this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
+        this.mapperType = mapperType;
+        this.mapperSettings = mapperSettings != null ? Collections.unmodifiableMap(mapperSettings) : Collections.emptyMap();
+        this.decoderType = decoderType;
+        this.decoderSettings = decoderSettings != null ? Collections.unmodifiableMap(decoderSettings) : Collections.emptyMap();
+        this.warmupConfig = warmupConfig;
+        this.sourcePartitionStrategy = sourcePartitionStrategy;
     }
 
     public String getType() {
@@ -88,6 +122,38 @@ public class IngestionSource {
         return blockingQueueSize;
     }
 
+    public boolean isAllActiveIngestionEnabled() {
+        return allActiveIngestion;
+    }
+
+    public TimeValue getPointerBasedLagUpdateInterval() {
+        return pointerBasedLagUpdateInterval;
+    }
+
+    public IngestionMessageMapper.MapperType getMapperType() {
+        return mapperType;
+    }
+
+    public Map<String, Object> getMapperSettings() {
+        return mapperSettings;
+    }
+
+    public String getDecoderType() {
+        return decoderType;
+    }
+
+    public Map<String, Object> getDecoderSettings() {
+        return decoderSettings;
+    }
+
+    public WarmupConfig getWarmupConfig() {
+        return warmupConfig;
+    }
+
+    public SourcePartitionStrategy getSourcePartitionStrategy() {
+        return sourcePartitionStrategy;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -100,7 +166,15 @@ public class IngestionSource {
             && Objects.equals(maxPollSize, ingestionSource.maxPollSize)
             && Objects.equals(pollTimeout, ingestionSource.pollTimeout)
             && Objects.equals(numProcessorThreads, ingestionSource.numProcessorThreads)
-            && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize);
+            && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize)
+            && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion)
+            && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval)
+            && Objects.equals(mapperType, ingestionSource.mapperType)
+            && Objects.equals(mapperSettings, ingestionSource.mapperSettings)
+            && Objects.equals(decoderType, ingestionSource.decoderType)
+            && Objects.equals(decoderSettings, ingestionSource.decoderSettings)
+            && Objects.equals(warmupConfig, ingestionSource.warmupConfig)
+            && Objects.equals(sourcePartitionStrategy, ingestionSource.sourcePartitionStrategy);
     }
 
     @Override
@@ -113,7 +187,15 @@ public class IngestionSource {
             maxPollSize,
             pollTimeout,
             numProcessorThreads,
-            blockingQueueSize
+            blockingQueueSize,
+            allActiveIngestion,
+            pointerBasedLagUpdateInterval,
+            mapperType,
+            mapperSettings,
+            decoderType,
+            decoderSettings,
+            warmupConfig,
+            sourcePartitionStrategy
         );
     }
 
@@ -139,13 +221,65 @@ public class IngestionSource {
             + numProcessorThreads
             + ", blockingQueueSize="
             + blockingQueueSize
+            + ", allActiveIngestion="
+            + allActiveIngestion
+            + ", pointerBasedLagUpdateInterval="
+            + pointerBasedLagUpdateInterval
+            + ", mapperType='"
+            + mapperType
+            + '\''
+            + ", mapperSettings="
+            + mapperSettings
+            + ", decoderType='"
+            + decoderType
+            + '\''
+            + ", decoderSettings="
+            + decoderSettings
+            + ", warmupConfig="
+            + warmupConfig
+            + ", sourcePartitionStrategy='"
+            + sourcePartitionStrategy
+            + '\''
             + '}';
+    }
+
+    /**
+     * Strategy for mapping source stream partitions to OpenSearch shards.
+     */
+    @PublicApi(since = "3.7.0")
+    public enum SourcePartitionStrategy {
+        SIMPLE("simple"),
+        MODULO("modulo");
+
+        private final String name;
+
+        SourcePartitionStrategy(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public static SourcePartitionStrategy fromString(String name) {
+            for (SourcePartitionStrategy strategy : values()) {
+                if (strategy.getName().equalsIgnoreCase(name)) {
+                    return strategy;
+                }
+            }
+            throw new IllegalArgumentException("Unknown partition strategy: [" + name + "]. Valid values are [simple, modulo]");
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     /**
      * Class encapsulating the configuration of a pointer initialization.
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class PointerInitReset {
         private final StreamPoller.ResetState type;
         private final String value;
@@ -183,10 +317,25 @@ public class IngestionSource {
     }
 
     /**
+     * Record encapsulating the warmup configuration for pull-based ingestion.
+     * When warmup is enabled (timeout >= 0), shards will wait for lag to catch up before serving queries
+     * after node restart or shard relocation. A timeout of -1 means warmup is disabled.
+     */
+    @PublicApi(since = "3.6.0")
+    public record WarmupConfig(TimeValue timeout, long lagThreshold) {
+        /**
+         * Returns true if warmup is enabled (timeout >= 0).
+         */
+        public boolean isEnabled() {
+            return timeout.millis() >= 0;
+        }
+    }
+
+    /**
      * Builder for {@link IngestionSource}.
      *
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class Builder {
         private String type;
         private PointerInitReset pointerInitReset;
@@ -196,6 +345,18 @@ public class IngestionSource {
         private int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.getDefault(Settings.EMPTY);
         private int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.getDefault(Settings.EMPTY);
         private int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.getDefault(Settings.EMPTY);
+        private boolean allActiveIngestion = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getDefault(Settings.EMPTY);
+        private TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.getDefault(
+            Settings.EMPTY
+        );
+        private IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.getDefault(Settings.EMPTY);
+        private Map<String, Object> mapperSettings = new HashMap<>();
+        private String decoderType = INGESTION_SOURCE_DECODER_TYPE_SETTING.getDefault(Settings.EMPTY);
+        private Map<String, Object> decoderSettings = new HashMap<>();
+        private SourcePartitionStrategy sourcePartitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.getDefault(Settings.EMPTY);
+        // Warmup configuration
+        private TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
+        private long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -208,6 +369,17 @@ public class IngestionSource {
             this.errorStrategy = ingestionSource.errorStrategy;
             this.params = ingestionSource.params;
             this.blockingQueueSize = ingestionSource.blockingQueueSize;
+            this.allActiveIngestion = ingestionSource.allActiveIngestion;
+            this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
+            this.mapperType = ingestionSource.mapperType;
+            this.mapperSettings = new HashMap<>(ingestionSource.mapperSettings);
+            this.decoderType = ingestionSource.decoderType;
+            this.decoderSettings = new HashMap<>(ingestionSource.decoderSettings);
+            this.sourcePartitionStrategy = ingestionSource.sourcePartitionStrategy;
+            // Copy warmup config
+            WarmupConfig wc = ingestionSource.warmupConfig;
+            this.warmupTimeout = wc.timeout();
+            this.warmupLagThreshold = wc.lagThreshold();
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -250,7 +422,59 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setAllActiveIngestion(boolean allActiveIngestion) {
+            this.allActiveIngestion = allActiveIngestion;
+            return this;
+        }
+
+        public Builder setPointerBasedLagUpdateInterval(TimeValue pointerBasedLagUpdateInterval) {
+            this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
+            return this;
+        }
+
+        public Builder setMapperType(IngestionMessageMapper.MapperType mapperType) {
+            this.mapperType = mapperType;
+            return this;
+        }
+
+        public Builder setMapperSettings(Map<String, Object> mapperSettings) {
+            this.mapperSettings = mapperSettings;
+            return this;
+        }
+
+        public Builder setDecoderType(String decoderType) {
+            this.decoderType = decoderType;
+            return this;
+        }
+
+        public Builder setDecoderSettings(Map<String, Object> decoderSettings) {
+            this.decoderSettings = decoderSettings;
+            return this;
+        }
+
+        public Builder setSourcePartitionStrategy(SourcePartitionStrategy sourcePartitionStrategy) {
+            this.sourcePartitionStrategy = sourcePartitionStrategy;
+            return this;
+        }
+
+        public Builder setWarmupTimeout(TimeValue warmupTimeout) {
+            this.warmupTimeout = warmupTimeout;
+            return this;
+        }
+
+        public Builder setWarmupLagThreshold(long warmupLagThreshold) {
+            this.warmupLagThreshold = warmupLagThreshold;
+            return this;
+        }
+
+        public Builder setWarmupConfig(WarmupConfig warmupConfig) {
+            this.warmupTimeout = warmupConfig.timeout();
+            this.warmupLagThreshold = warmupConfig.lagThreshold();
+            return this;
+        }
+
         public IngestionSource build() {
+            WarmupConfig warmupConfig = new WarmupConfig(warmupTimeout, warmupLagThreshold);
             return new IngestionSource(
                 type,
                 pointerInitReset,
@@ -259,7 +483,15 @@ public class IngestionSource {
                 maxPollSize,
                 pollTimeout,
                 numProcessorThreads,
-                blockingQueueSize
+                blockingQueueSize,
+                allActiveIngestion,
+                pointerBasedLagUpdateInterval,
+                mapperType,
+                mapperSettings,
+                decoderType,
+                decoderSettings,
+                warmupConfig,
+                sourcePartitionStrategy
             );
         }
 

@@ -95,6 +95,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
+        // Set the search request pipeline
+        String pipeline = searchTemplateRequest.getSearchPipeline();
+        if (pipeline != null && !pipeline.isEmpty()) {
+            searchRequest.pipeline(pipeline);
+        }
         searchTemplateRequest.setRequest(searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));

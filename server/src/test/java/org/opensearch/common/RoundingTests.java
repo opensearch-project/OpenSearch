@@ -1142,6 +1142,90 @@ public class RoundingTests extends OpenSearchTestCase {
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
     }
 
+    public void testTimezoneFormats() {
+        // Test empty timezone (should default to UTC)
+        Rounding emptyTzRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build();
+        ZoneId emptyTz = ZoneOffset.UTC;
+        assertThat(emptyTzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T01:00:00.000Z"), emptyTz));
+        assertTrue(emptyTzRounding.isUTC());
+
+        // Test +00:00 timezone format
+        Rounding plusZeroZeroRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(ZoneOffset.of("+00:00")).build();
+        ZoneId plusZeroZeroTz = ZoneOffset.of("+00:00");
+        assertThat(plusZeroZeroRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T01:00:00.000Z"), plusZeroZeroTz));
+        assertTrue(plusZeroZeroRounding.isUTC());
+
+        // Test +8:00 timezone format
+        Rounding plusEightRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(ZoneOffset.of("+08:00")).build();
+        ZoneId plusEightTz = ZoneOffset.of("+08:00");
+        assertThat(plusEightRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T01:00:00.000Z"), plusEightTz));
+        assertFalse(plusEightRounding.isUTC());
+
+        // Test additional timezone formats for completeness
+        Rounding minusFiveRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(ZoneOffset.of("-05:00")).build();
+        ZoneId minusFiveTz = ZoneOffset.of("-05:00");
+        assertThat(minusFiveRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-02T05:00:00.000Z"), minusFiveTz));
+        assertFalse(minusFiveRounding.isUTC());
+
+        // Test with different datetime units
+        Rounding quarterUtcRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(ZoneOffset.of("+00:00")).build();
+        assertThat(quarterUtcRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-01-01T00:00:00.000Z"), plusZeroZeroTz));
+
+        Rounding quarterEightRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(ZoneOffset.of("+08:00")).build();
+        assertThat(quarterEightRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-01-01T00:00:00.000+08:00"), plusEightTz));
+    }
+
+    public void testIsUTC() {
+        // Test UTC timezone for TimeUnitRounding
+        Rounding utcUnitRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        assertTrue(utcUnitRounding.isUTC());
+
+        // Test UTC timezone for TimeIntervalRounding
+        Rounding utcIntervalRounding = Rounding.builder(TimeValue.timeValueHours(2)).build();
+        assertTrue(utcIntervalRounding.isUTC());
+
+        // Test non-UTC timezone for TimeUnitRounding
+        Rounding nonUtcUnitRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR)
+            .timeZone(ZoneId.of("America/New_York"))
+            .build();
+        assertFalse(nonUtcUnitRounding.isUTC());
+
+        // Test non-UTC timezone for TimeIntervalRounding
+        Rounding nonUtcIntervalRounding = Rounding.builder(TimeValue.timeValueHours(2)).timeZone(ZoneId.of("Europe/Berlin")).build();
+        assertFalse(nonUtcIntervalRounding.isUTC());
+
+        // Test UTC timezone with offset
+        Rounding utcWithOffsetRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH)
+            .timeZone(ZoneOffset.UTC)
+            .offset(3600000)
+            .build();
+        assertTrue(utcWithOffsetRounding.isUTC());
+
+        // Test non-UTC timezone with offset
+        Rounding nonUtcWithOffsetRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH)
+            .timeZone(ZoneId.of("Asia/Tokyo"))
+            .offset(3600000)
+            .build();
+        assertFalse(nonUtcWithOffsetRounding.isUTC());
+
+        // Test fixed offset timezones that are not UTC
+        Rounding fixedOffsetRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(ZoneOffset.ofHours(3)).build();
+        assertFalse(fixedOffsetRounding.isUTC());
+
+        // Test ZoneOffset.UTC specifically
+        Rounding zoneOffsetUtcRounding = Rounding.builder(Rounding.DateTimeUnit.SECOND_OF_MINUTE).timeZone(ZoneOffset.UTC).build();
+        assertTrue(zoneOffsetUtcRounding.isUTC());
+
+        // Test ZoneRegion aliases that normalized() converts to ZoneOffset.UTC
+        for (String utcAlias : new String[] { "UTC", "Etc/UTC", "+00:00", "Z" }) {
+            Rounding aliasUnitRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(ZoneId.of(utcAlias)).build();
+            assertTrue("isUTC() should be true for ZoneId.of(\"" + utcAlias + "\") TimeUnitRounding", aliasUnitRounding.isUTC());
+
+            Rounding aliasIntervalRounding = Rounding.builder(TimeValue.timeValueHours(2)).timeZone(ZoneId.of(utcAlias)).build();
+            assertTrue("isUTC() should be true for ZoneId.of(\"" + utcAlias + "\") TimeIntervalRounding", aliasIntervalRounding.isUTC());
+        }
+    }
+
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes, ZoneId tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);
         long millisPerMinute = 60_000;

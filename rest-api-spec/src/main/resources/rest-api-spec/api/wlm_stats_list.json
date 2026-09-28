@@ -1,0 +1,44 @@
+{
+  "wlm_stats_list": {
+    "stability": "experimental",
+    "documentation": {
+      "url": "https://docs.opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/workload-management/wlm-feature-overview/",
+      "description": "This API endpoint returns a list of WLM stats with pagination support."
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_list/wlm_stats",
+          "methods": ["GET"]
+        }
+      ]
+    },
+    "params": {
+      "size": {
+        "type": "int",
+        "required": false,
+        "description": "Number of results per page"
+      },
+      "next_token": {
+        "type": "string",
+        "required": false,
+        "description": "Pagination token for next page"
+      },
+      "sort": {
+        "type": "string",
+        "required": false,
+        "description": "Sort field"
+      },
+      "order": {
+        "type": "string",
+        "required": false,
+        "description": "Sort order (asc or desc)"
+      },
+      "v": {
+        "type": "boolean",
+        "required": false,
+        "description": "Whether to include headers"
+      }
+    }
+  }
+}

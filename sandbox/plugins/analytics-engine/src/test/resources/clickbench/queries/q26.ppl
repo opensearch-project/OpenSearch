@@ -1,0 +1,8 @@
+/*
+SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;
+*/
+source=hits
+| where SearchPhrase != ''
+| fields SearchPhrase
+| sort SearchPhrase
+| head 10

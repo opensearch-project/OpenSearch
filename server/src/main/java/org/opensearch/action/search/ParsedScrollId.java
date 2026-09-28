@@ -53,11 +53,13 @@ public class ParsedScrollId {
     private final String type;
 
     private final SearchContextIdForNode[] context;
+    private final String[] originalIndices;
 
-    ParsedScrollId(String source, String type, SearchContextIdForNode[] context) {
+    ParsedScrollId(String source, String type, SearchContextIdForNode[] context, String[] originalIndices) {
         this.source = source;
         this.type = type;
         this.context = context;
+        this.originalIndices = originalIndices;
     }
 
     public String getSource() {
@@ -70,6 +72,10 @@ public class ParsedScrollId {
 
     public SearchContextIdForNode[] getContext() {
         return context;
+    }
+
+    public String[] getOriginalIndices() {
+        return originalIndices;
     }
 
     public boolean hasLocalIndices() {

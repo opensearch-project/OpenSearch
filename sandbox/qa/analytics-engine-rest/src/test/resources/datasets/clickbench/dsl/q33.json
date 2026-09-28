@@ -1,0 +1,48 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "WatchID|ClientIP": {
+      "multi_terms": {
+        "terms": [
+          {
+            "field": "WatchID"
+          },
+          {
+            "field": "ClientIP"
+          }
+        ],
+        "size": 10,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "c": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      },
+      "aggregations": {
+        "sum(IsRefresh)": {
+          "sum": {
+            "field": "IsRefresh"
+          }
+        },
+        "avg(ResolutionWidth)": {
+          "avg": {
+            "field": "ResolutionWidth"
+          }
+        },
+        "c": {
+          "value_count": {
+            "field": "_index"
+          }
+        }
+      }
+    }
+  }
+}

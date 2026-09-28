@@ -1,0 +1,253 @@
+# Setup remains the same
+setup:
+  - do:
+      indices.create:
+        index: test_fetch_profile
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              numeric_field:
+                type: integer
+              date_field:
+                type: date
+              object_field:
+                type: nested
+                properties:
+                  nested_field:
+                    type: keyword
+              stored_field:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_fetch_profile
+        body: |
+          { "index": {} }
+          { "text_field": "Hello world", "numeric_field": 42, "date_field": "2023-01-01", "object_field": { "nested_field": "nested value" }, "stored_field": "stored value" }
+          { "index": {} }
+          { "text_field": "Another document", "numeric_field": 100, "date_field": "2023-02-01", "object_field": { "nested_field": "another nested" }, "stored_field": "another stored" }
+          { "index": {} }
+          { "text_field": "Third document with more text", "numeric_field": 200, "date_field": "2023-03-01", "object_field": { "nested_field": "third nested" }, "stored_field": "third stored" }
+
+---
+"Combined fetch sub-phases profiling":
+  - skip:
+      version: " - 3.2.99"
+      reason: "Inner hits fetch phase profiling was introduced in 3.3.0"
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          explain: true
+          version: true
+          seq_no_primary_term: true
+          track_scores: true
+          sort:
+            - numeric_field: { order: asc }
+          query:
+            bool:
+              must:
+                - match_all: {}
+              should:
+                - nested:
+                    path: "object_field"
+                    query:
+                      wildcard:
+                        "object_field.nested_field": "nested*"
+                    inner_hits: {}
+                - match:
+                    text_field:
+                      query: "document"
+                      _name: "my_query"
+          docvalue_fields:
+            - "numeric_field"
+          fields:
+            - "stored_field"
+          highlight:
+            fields:
+              "object_field.nested_field": {}
+
+  # 1. Verify fetch profile structure - should have main fetch + inner hits fetch
+  - length: { profile.shards.0.fetch: 2 }
+
+  # Main fetch profile
+  - match: { profile.shards.0.fetch.0.type: "fetch" }
+  - match: { profile.shards.0.fetch.0.description: "fetch" }
+  - is_true: profile.shards.0.fetch.0.time_in_nanos
+
+  # Inner hits fetch profile
+  - match: { profile.shards.0.fetch.1.type: "fetch_inner_hits[object_field]" }
+  - match: { profile.shards.0.fetch.1.description: "fetch_inner_hits[object_field]" }
+  - is_true: profile.shards.0.fetch.1.time_in_nanos
+
+  # 2. Verify detailed breakdown of the main fetch operation
+  - is_true: profile.shards.0.fetch.0.breakdown
+  - is_true: profile.shards.0.fetch.0.breakdown.load_stored_fields
+  - match: { profile.shards.0.fetch.0.breakdown.load_stored_fields_count: 3 }
+  - is_true: profile.shards.0.fetch.0.breakdown.load_source
+  - match: { profile.shards.0.fetch.0.breakdown.load_source_count: 3 }
+  - is_true: profile.shards.0.fetch.0.breakdown.get_next_reader
+  - match: { profile.shards.0.fetch.0.breakdown.get_next_reader_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.build_sub_phase_processors
+  - match: { profile.shards.0.fetch.0.breakdown.build_sub_phase_processors_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor
+  - match: { profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor_count: 1}
+
+  # 3. Verify inner hits fetch breakdown has all required fields (some may be 0)
+  - is_true: profile.shards.0.fetch.1.breakdown
+  - gte: { profile.shards.0.fetch.1.breakdown.load_stored_fields: 0 }
+  - gte: { profile.shards.0.fetch.1.breakdown.load_stored_fields_count: 0 }
+  - gte: { profile.shards.0.fetch.1.breakdown.load_source: 0 }
+  - gte: { profile.shards.0.fetch.1.breakdown.load_source_count: 0 }
+  - gte: { profile.shards.0.fetch.1.breakdown.get_next_reader: 0 }
+  - match: { profile.shards.0.fetch.1.breakdown.get_next_reader_count: 1 }
+  - gte: { profile.shards.0.fetch.1.breakdown.build_sub_phase_processors: 0 }
+  - match: { profile.shards.0.fetch.1.breakdown.build_sub_phase_processors_count: 1 }
+  - gte: { profile.shards.0.fetch.1.breakdown.create_stored_fields_visitor: 0 }
+  - match: { profile.shards.0.fetch.1.breakdown.create_stored_fields_visitor_count: 1 }
+
+  # 4. Verify all expected fetch sub-phases are present as children in main fetch
+  - length: { profile.shards.0.fetch.0.children: 9 }
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "ExplainPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchDocValuesPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchFieldsPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchVersionPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "SeqNoPrimaryTermPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "MatchedQueriesPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "HighlightPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchScorePhase"
+
+  # 5. Verify inner hits fetch has exactly 1 sub-phase (FetchSourcePhase)
+  - length: { profile.shards.0.fetch.1.children: 1 }
+  - match: { profile.shards.0.fetch.1.children.0.type: "FetchSourcePhase" }
+  - is_true: profile.shards.0.fetch.1.children.0.time_in_nanos
+  - is_true: profile.shards.0.fetch.1.children.0.breakdown
+  - is_true: profile.shards.0.fetch.1.children.0.breakdown.process
+  - gte: { profile.shards.0.fetch.1.children.0.breakdown.process_count: 1 }
+  - is_true: profile.shards.0.fetch.1.children.0.breakdown.set_next_reader
+  - match: { profile.shards.0.fetch.1.children.0.breakdown.set_next_reader_count: 1 }
+
+---
+"No source or empty fetch profiling":
+  - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
+
+  # Case 1: Test with _source: false, which removes FetchSourcePhase
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match_all: {}
+          _source: false
+          docvalue_fields:
+            - "numeric_field"
+
+  - is_true: profile.shards.0.fetch.0
+  - length: { profile.shards.0.fetch.0.children: 1 }
+  - match: { profile.shards.0.fetch.0.children.0.type: "FetchDocValuesPhase" }
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+
+  # Case 2: Test with size: 0, which results in an empty fetch profile
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          size: 0
+          aggs:
+            group_by_nested:
+              terms:
+                field: "object_field.nested_field"
+
+  - match: { profile.shards.0.fetch: [ ] }
+
+---
+"Top-hits aggregation profiling":
+  - skip:
+      version: " - 3.2.99"
+      reason: "Top-hits aggregation profiling was introduced in 3.3.0"
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match:
+              text_field: "document"
+          aggs:
+            top_hits_agg1:
+              top_hits:
+                size: 1
+            top_hits_agg2:
+              top_hits:
+                size: 1
+                sort:
+                  - numeric_field: { order: desc }
+
+  - length: { profile.shards.0.fetch: 3 }
+
+  - contains:
+      profile.shards.0.fetch:
+        type: "fetch"
+        description: "fetch"
+
+  - contains:
+      profile.shards.0.fetch:
+        type: "fetch_top_hits_aggregation[top_hits_agg1]"
+        description: "fetch_top_hits_aggregation[top_hits_agg1]"
+
+  - contains:
+      profile.shards.0.fetch:
+        type: "fetch_top_hits_aggregation[top_hits_agg2]"
+        description: "fetch_top_hits_aggregation[top_hits_agg2]"
+
+  - is_true: profile.shards.0.fetch.0.time_in_nanos
+  - is_true: profile.shards.0.fetch.0.breakdown
+  - is_true: profile.shards.0.fetch.1.time_in_nanos
+  - is_true: profile.shards.0.fetch.1.breakdown
+  - is_true: profile.shards.0.fetch.2.time_in_nanos
+  - is_true: profile.shards.0.fetch.2.breakdown
+
+  - length: { profile.shards.0.fetch.0.children: 1 }
+  - match: { profile.shards.0.fetch.0.children.0.type: "FetchSourcePhase" }
+  - length: { profile.shards.0.fetch.1.children: 1 }
+  - match: { profile.shards.0.fetch.1.children.0.type: "FetchSourcePhase" }
+  - length: { profile.shards.0.fetch.2.children: 1 }
+  - match: { profile.shards.0.fetch.2.children.0.type: "FetchSourcePhase" }

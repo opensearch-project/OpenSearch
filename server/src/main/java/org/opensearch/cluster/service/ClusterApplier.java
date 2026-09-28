@@ -65,6 +65,14 @@ public interface ClusterApplier {
     void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener);
 
     /**
+     * Returns the duration in milliseconds of the currently running cluster state application,
+     * or 0 if no application is in progress
+     */
+    default long getCurrentApplicationDurationMs() {
+        return 0;
+    }
+
+    /**
      * Listener for results of cluster state application
      *
      * @opensearch.api

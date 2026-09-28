@@ -74,6 +74,9 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -86,6 +89,10 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataAction;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
@@ -404,6 +411,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchScrollRequestBuilder;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
@@ -630,6 +638,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
         return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
+    }
+
+    @Override
+    public SearchRequestBuilder prepareStreamSearch(String... indices) {
+        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).setIndices(indices);
     }
 
     @Override
@@ -954,6 +967,24 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public void remoteStoreMetadata(
+            final RemoteStoreMetadataRequest request,
+            final ActionListener<RemoteStoreMetadataResponse> listener
+        ) {
+            execute(RemoteStoreMetadataAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId) {
+            RemoteStoreMetadataRequestBuilder builder = new RemoteStoreMetadataRequestBuilder(this, RemoteStoreMetadataAction.INSTANCE)
+                .setIndices(index);
+            if (shardId != null) {
+                builder.setShards(shardId);
+            }
+            return builder;
+        }
+
+        @Override
         public ActionFuture<NodesUsageResponse> nodesUsage(final NodesUsageRequest request) {
             return execute(NodesUsageAction.INSTANCE, request);
         }
@@ -1031,6 +1062,26 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetTaskRequestBuilder prepareGetTask(TaskId taskId) {
             return new GetTaskRequestBuilder(this, GetTaskAction.INSTANCE).setTaskId(taskId);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteTask(DeleteTaskRequest request) {
+            return execute(DeleteTaskAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteTask(DeleteTaskRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteTaskAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(String taskId) {
+            return prepareDeleteTask(new TaskId(taskId));
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(TaskId taskId) {
+            return new DeleteTaskRequestBuilder(this, DeleteTaskAction.INSTANCE).setTaskId(taskId);
         }
 
         @Override

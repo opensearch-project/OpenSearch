@@ -58,6 +58,25 @@ public interface SegmentReplicationSource {
     );
 
     /**
+     * Fetch the merged segment files.  Passes a listener that completes when files are stored locally.
+     *
+     * @param replicationId long - ID of the replication event.
+     * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
+     * @param filesToFetch  {@link List} List of files to fetch.
+     * @param indexShard    {@link IndexShard} Reference to the IndexShard.
+     * @param fileProgressTracker {@link BiConsumer} A consumer that updates the replication progress for shard files.
+     * @param listener      {@link ActionListener} Listener that completes with the list of files copied.
+     */
+    default void getMergedSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {};
+
+    /**
      * Get the source description
      */
     String getDescription();

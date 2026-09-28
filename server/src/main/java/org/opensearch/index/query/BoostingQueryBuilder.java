@@ -235,8 +235,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
-        if (positiveQuery instanceof MatchNoneQueryBuilder) {
-            return positiveQuery;
+        if (positiveQuery instanceof MatchNoneQueryBuilder matchNoneQueryBuilder) {
+            return matchNoneQueryBuilder;
         }
 
         QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);

@@ -401,14 +401,13 @@ public class ShardIndexingPressure extends IndexingPressure {
             IndexingPressurePerShardStats shardStats = new IndexingPressurePerShardStats(shardEntry.getValue(), isEnforcedMode);
             statsPerShard.put(shardEntry.getKey(), shardStats);
         }
-        return new ShardIndexingPressureStats(
-            statsPerShard,
-            memoryManager.getTotalNodeLimitsBreachedRejections(),
-            memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections(),
-            memoryManager.getTotalThroughputDegradationLimitsBreachedRejections(),
-            shardIndexingPressureSettings.isShardIndexingPressureEnabled(),
-            isEnforcedMode
-        );
+        return new ShardIndexingPressureStats.Builder().shardIndexingPressureStore(statsPerShard)
+            .totalNodeLimitsBreachedRejections(memoryManager.getTotalNodeLimitsBreachedRejections())
+            .totalLastSuccessfulRequestLimitsBreachedRejections(memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections())
+            .totalThroughputDegradationLimitsBreachedRejections(memoryManager.getTotalThroughputDegradationLimitsBreachedRejections())
+            .shardIndexingPressureEnabled(shardIndexingPressureSettings.isShardIndexingPressureEnabled())
+            .shardIndexingPressureEnforced(isEnforcedMode)
+            .build();
     }
 
     ShardIndexingPressureStats coldStats() {
@@ -419,25 +418,23 @@ public class ShardIndexingPressure extends IndexingPressure {
             IndexingPressurePerShardStats shardStats = new IndexingPressurePerShardStats(shardEntry.getValue(), isEnforcedMode);
             statsPerShard.put(shardEntry.getKey(), shardStats);
         }
-        return new ShardIndexingPressureStats(
-            statsPerShard,
-            memoryManager.getTotalNodeLimitsBreachedRejections(),
-            memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections(),
-            memoryManager.getTotalThroughputDegradationLimitsBreachedRejections(),
-            shardIndexingPressureSettings.isShardIndexingPressureEnabled(),
-            isEnforcedMode
-        );
+        return new ShardIndexingPressureStats.Builder().shardIndexingPressureStore(statsPerShard)
+            .totalNodeLimitsBreachedRejections(memoryManager.getTotalNodeLimitsBreachedRejections())
+            .totalLastSuccessfulRequestLimitsBreachedRejections(memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections())
+            .totalThroughputDegradationLimitsBreachedRejections(memoryManager.getTotalThroughputDegradationLimitsBreachedRejections())
+            .shardIndexingPressureEnabled(shardIndexingPressureSettings.isShardIndexingPressureEnabled())
+            .shardIndexingPressureEnforced(isEnforcedMode)
+            .build();
     }
 
     ShardIndexingPressureStats topStats() {
-        return new ShardIndexingPressureStats(
-            Collections.emptyMap(),
-            memoryManager.getTotalNodeLimitsBreachedRejections(),
-            memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections(),
-            memoryManager.getTotalThroughputDegradationLimitsBreachedRejections(),
-            shardIndexingPressureSettings.isShardIndexingPressureEnabled(),
-            shardIndexingPressureSettings.isShardIndexingPressureEnforced()
-        );
+        return new ShardIndexingPressureStats.Builder().shardIndexingPressureStore(Collections.emptyMap())
+            .totalNodeLimitsBreachedRejections(memoryManager.getTotalNodeLimitsBreachedRejections())
+            .totalLastSuccessfulRequestLimitsBreachedRejections(memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections())
+            .totalThroughputDegradationLimitsBreachedRejections(memoryManager.getTotalThroughputDegradationLimitsBreachedRejections())
+            .shardIndexingPressureEnabled(shardIndexingPressureSettings.isShardIndexingPressureEnabled())
+            .shardIndexingPressureEnforced(shardIndexingPressureSettings.isShardIndexingPressureEnforced())
+            .build();
     }
 
     ShardIndexingPressureTracker getShardIndexingPressureTracker(ShardId shardId) {

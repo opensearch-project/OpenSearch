@@ -66,6 +66,7 @@ import org.opensearch.transport.ClusterConnectionManager;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.RequestHandlerRegistry;
+import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -120,6 +121,7 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, version, threadPool, null, tracer);
     }
 
+    // TODO: we need to add support for mock version of StreamTransportService
     public static MockTransportService createNewService(
         Settings settings,
         Version version,
@@ -188,6 +190,8 @@ public final class MockTransportService extends TransportService {
     }
 
     private final Transport original;
+    @Nullable
+    private final StubbableTransport streamTransportStub;
 
     /**
      * Build the service.
@@ -237,12 +241,58 @@ public final class MockTransportService extends TransportService {
         Set<String> taskHeaders,
         Tracer tracer
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
+        this(
+            settings,
+            new StubbableTransport(transport),
+            null,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            tracer
+        );
+    }
+
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        @Nullable Transport streamTransport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders,
+        Tracer tracer
+    ) {
+        // streamTransport may already be a StubbableTransport when MockNode
+        // installed the wrapper via wrapStreamTransport — in that case we
+        // share the SAME instance so the streamTransportService and this
+        // MockTransportService see the same handler registry. Wrap only if
+        // it's a plain Transport (legacy callers that bypass the Node hook).
+        this(
+            settings,
+            new StubbableTransport(transport),
+            asStubbableStreamTransport(streamTransport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            tracer
+        );
+    }
+
+    private static StubbableTransport asStubbableStreamTransport(@Nullable Transport streamTransport) {
+        if (streamTransport == null) return null;
+        if (streamTransport instanceof StubbableTransport stubbable) return stubbable;
+        return new StubbableTransport(streamTransport);
     }
 
     private MockTransportService(
         Settings settings,
         StubbableTransport transport,
+        @Nullable StubbableTransport streamTransport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -253,6 +303,7 @@ public final class MockTransportService extends TransportService {
         super(
             settings,
             transport,
+            streamTransport,
             threadPool,
             interceptor,
             localNodeFactory,
@@ -262,6 +313,7 @@ public final class MockTransportService extends TransportService {
             tracer
         );
         this.original = transport.getDelegate();
+        this.streamTransportStub = streamTransport;
     }
 
     private static TransportAddress[] extractTransportAddresses(TransportService transportService) {
@@ -547,12 +599,32 @@ public final class MockTransportService extends TransportService {
 
     /**
      * Adds a new handling behavior that is used when the defined request is received.
+     *
+     * <p>When the streaming transport is in use (e.g. {@code FlightStreamPlugin}
+     * is loaded), {@code FragmentExecutionAction.NAME}-style handlers are
+     * registered on {@link StreamTransportService}'s underlying transport, not
+     * on the regular transport. We try the regular transport's registry first
+     * (production-typical actions); if no handler is registered there, we fall
+     * back to the streaming transport's registry. Either way, the behavior
+     * fires when the matching request arrives.
      */
     public <R extends TransportRequest> void addRequestHandlingBehavior(
         String actionName,
         StubbableTransport.RequestHandlingBehavior<R> handlingBehavior
     ) {
-        transport().addRequestHandlingBehavior(actionName, handlingBehavior);
+        StubbableTransport stub = transport();
+        if (stub.hasHandler(actionName)) {
+            stub.addRequestHandlingBehavior(actionName, handlingBehavior);
+            return;
+        }
+        if (streamTransportStub != null && streamTransportStub.hasHandler(actionName)) {
+            streamTransportStub.addRequestHandlingBehavior(actionName, handlingBehavior);
+            return;
+        }
+        // Defer to the regular transport's behavior (which throws with a
+        // useful message) so the caller error matches what they'd get
+        // pre-streaming.
+        stub.addRequestHandlingBehavior(actionName, handlingBehavior);
     }
 
     /**

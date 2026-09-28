@@ -37,6 +37,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -68,12 +70,13 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class NativeMessageHandler implements ProtocolMessageHandler {
 
     private static final Logger logger = LogManager.getLogger(NativeMessageHandler.class);
 
     private final ThreadPool threadPool;
-    private final NativeOutboundHandler outboundHandler;
+    private final ProtocolOutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
@@ -82,7 +85,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
 
     private final Tracer tracer;
 
-    NativeMessageHandler(
+    public NativeMessageHandler(
         String nodeName,
         Version version,
         String[] features,
@@ -98,13 +101,33 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         TransportKeepAlive keepAlive
     ) {
         this.threadPool = threadPool;
-        this.outboundHandler = new NativeOutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, outboundHandler);
+        this.outboundHandler = createNativeOutboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler
+        );
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handshaker = handshaker;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
         this.tracer = tracer;
         this.keepAlive = keepAlive;
+    }
+
+    protected ProtocolOutboundHandler createNativeOutboundHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        OutboundHandler outboundHandler
+    ) {
+        return new NativeOutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, outboundHandler);
     }
 
     // Empty stream constant to avoid instantiating a new stream for empty messages.
@@ -216,15 +239,13 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
                 assert message.isShortCircuit() == false;
                 final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                 assertRemoteVersion(stream, header.getVersion());
-                final TcpTransportChannel transportChannel = new TcpTransportChannel(
+                final TcpTransportChannel transportChannel = createTcpTransportChannel(
                     outboundHandler,
                     channel,
                     action,
                     requestId,
                     version,
-                    header.getFeatures(),
-                    header.isCompressed(),
-                    header.isHandshake(),
+                    header,
                     message.takeBreakerReleaseControl()
                 );
                 TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer);
@@ -246,15 +267,13 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
                     }
                 }
             } else {
-                final TcpTransportChannel transportChannel = new TcpTransportChannel(
+                final TcpTransportChannel transportChannel = createTcpTransportChannel(
                     outboundHandler,
                     channel,
                     action,
                     requestId,
                     version,
-                    header.getFeatures(),
-                    header.isCompressed(),
-                    header.isHandshake(),
+                    header,
                     message.takeBreakerReleaseControl()
                 );
                 TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer);
@@ -292,6 +311,28 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
             span.endSpan();
             throw e;
         }
+    }
+
+    protected TcpTransportChannel createTcpTransportChannel(
+        ProtocolOutboundHandler outboundHandler,
+        TcpChannel channel,
+        String action,
+        long requestId,
+        Version version,
+        Header header,
+        Releasable breakerRelease
+    ) {
+        return new TcpTransportChannel(
+            outboundHandler,
+            channel,
+            action,
+            requestId,
+            version,
+            header.getFeatures(),
+            header.isCompressed(),
+            header.isHandshake(),
+            breakerRelease
+        );
     }
 
     /**

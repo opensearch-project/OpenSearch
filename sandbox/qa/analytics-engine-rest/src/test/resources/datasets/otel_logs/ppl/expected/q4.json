@@ -1,0 +1,13 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "resource.cloud.region", "type": "string"}
+  ],
+  "datarows": [
+    [50, "us-east-1"],
+    [30, "eu-west-1"],
+    [20, "ap-south-1"]
+  ],
+  "total": 3,
+  "size": 3
+}

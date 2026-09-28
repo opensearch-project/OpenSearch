@@ -112,6 +112,17 @@ public final class QueryBuilders {
     }
 
     /**
+     * Creates a combined_fields query for the provided value across the given field names.
+     *
+     * @param value   The query value (to be analyzed).
+     * @param fields  The target field names.
+     * @return a {@link CombinedFieldsQueryBuilder} instance.
+     */
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object value, String... fields) {
+        return new CombinedFieldsQueryBuilder(value, fields);
+    }
+
+    /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
      * @param name The field name.

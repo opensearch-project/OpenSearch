@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -182,9 +181,5 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
                 index.addRecoveredBytesToFile(String.valueOf(i), recoveredFileSize);
             }
         }
-    }
-
-    private static String percent(float percent) {
-        return String.format(Locale.ROOT, "%1.1f%%", percent);
     }
 }

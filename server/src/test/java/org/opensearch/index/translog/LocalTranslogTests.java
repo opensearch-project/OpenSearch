@@ -222,7 +222,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             createTranslogDeletionPolicy(config.getIndexSettings()),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -233,7 +235,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             createTranslogDeletionPolicy(config.getIndexSettings()),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -269,7 +273,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> globalCheckpoint.get(),
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -471,9 +477,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(194L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(139L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -481,9 +487,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(231L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(176L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -491,9 +497,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(273L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(218L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -501,9 +507,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(273L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -513,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(328L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -521,9 +527,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.endObject();
                 assertEquals(
                     "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                        + 326
+                        + 328
                         + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                        + 271
+                        + 273
                         + ",\"earliest_last_modified_age\":"
                         + stats.getEarliestLastModifiedAge()
                         + ",\"remote_store\":{\"upload\":{"
@@ -540,7 +546,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -585,13 +591,12 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         final List<TranslogStats> statsList = new ArrayList<>(n);
         long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {
-            final TranslogStats stats = new TranslogStats(
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20)
-            );
+            final TranslogStats stats = new TranslogStats.Builder().numberOfOperations(randomIntBetween(1, 4096))
+                .translogSizeInBytes(randomIntBetween(1, 1 << 20))
+                .uncommittedOperations(randomIntBetween(1, 1 << 20))
+                .uncommittedSizeInBytes(randomIntBetween(1, 4096))
+                .earliestLastModifiedAge(randomIntBetween(1, 1 << 20))
+                .build();
             statsList.add(stats);
             total.add(stats);
             if (earliestLastModifiedAge > stats.getEarliestLastModifiedAge()) {
@@ -613,21 +618,61 @@ public class LocalTranslogTests extends OpenSearchTestCase {
     }
 
     public void testNegativeNumberOfOperations() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(-1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(-1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedOperations must be >= 0")));
     }
 
     public void testNegativeSizeInBytes() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(-1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(-1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedSizeInBytes must be >= 0")));
     }
 
     public void testOldestEntryInSeconds() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, 1, -1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(-1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("earliestLastModifiedAge must be >= 0")));
     }
 
@@ -1504,13 +1549,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             int initialWriteCalls = writeCalls.get();
@@ -1609,13 +1651,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             byte[] bytes = new byte[256];
@@ -1706,13 +1745,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
 
@@ -1812,7 +1848,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 translog.getDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             );
             assertEquals(
                 "lastCommitted must be 1 less than current",
@@ -1871,7 +1909,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1898,7 +1938,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -1960,7 +2002,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1988,7 +2032,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -2052,7 +2098,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertThat(
@@ -2078,7 +2126,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -2376,7 +2426,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 createTranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             );
             fail("translog doesn't belong to this UUID");
         } catch (TranslogCorruptedException ex) {
@@ -2388,7 +2440,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         try (Translog.Snapshot snapshot = this.translog.newSnapshot(randomLongBetween(0, firstUncommitted), Long.MAX_VALUE)) {
             for (int i = firstUncommitted; i < translogOperations; i++) {
@@ -2618,7 +2672,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertEquals(
@@ -2775,7 +2831,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     createTranslogDeletionPolicy(),
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 );
                 Translog.Snapshot snapshot = tlog.newSnapshot()
             ) {
@@ -2838,7 +2896,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
         // no trimming done yet, just recovered
@@ -2907,7 +2967,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             // we don't know when things broke exactly
@@ -2983,13 +3045,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
@@ -3130,7 +3189,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 createTranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             ) {
                 @Override
                 protected TranslogWriter createWriter(
@@ -3198,7 +3259,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 translog.getDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
@@ -3225,7 +3288,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertFalse(tlog.syncNeeded());
@@ -3247,7 +3312,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
@@ -3340,8 +3407,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     localCheckpointOfSafeCommit = failableTLog.getDeletionPolicy().getLocalCheckpointOfSafeCommit();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }
-            } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                // failed - that's ok, we didn't even create it
+            } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                // failed - that's ok, we didn't even create it or it was corrupted from partial writes
             } catch (IOException ex) {
                 assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
             }
@@ -3351,8 +3418,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
                     deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
-                } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // failed - that's ok, we didn't even create it
+                } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                    // failed - that's ok, we didn't even create it or it was corrupted from partial writes
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 }
@@ -3377,7 +3444,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 );
                 Translog.Snapshot snapshot = translog.newSnapshot(localCheckpointOfSafeCommit + 1, Long.MAX_VALUE)
             ) {
@@ -3472,7 +3541,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
         translog.rollGeneration();
@@ -3486,7 +3557,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -3539,6 +3612,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
+        String deleteRouting = wireVersion.onOrAfter(Version.V_3_9_0) ? "custom-routing" : null;
         Engine.Delete eDelete = new Engine.Delete(
             doc.id(),
             newUid(doc),
@@ -3549,7 +3623,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             Origin.PRIMARY,
             0,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            0,
+            deleteRouting
         );
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
@@ -3561,6 +3636,76 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         in.setVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
+        assertEquals(deleteRouting, serializedDelete.routing());
+    }
+
+    public void testDeleteRoutingBackwardCompatibility() throws Exception {
+        // Old version writes without routing, new version reads with routing=null
+        BytesStreamOutput out = new BytesStreamOutput();
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.V_3_9_0)
+        );
+        out.setVersion(oldVersion);
+        Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, "tenant-abc");
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(oldVersion);
+        Translog.Delete deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals(1, deserialized.seqNo());
+        assertNull("Routing must be null when written with old format", deserialized.routing());
+
+        // New version writes with routing, new version reads with routing preserved
+        out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        in = out.bytes().streamInput();
+        in.setVersion(Version.CURRENT);
+        deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals("tenant-abc", deserialized.routing());
+    }
+
+    public void testDeleteRoutingTranslogRoundTrip() throws Exception {
+        // Write deletes with and without routing to a real translog, read them back
+        Translog.Location loc1 = translog.add(new Translog.Delete("doc-1", 0, primaryTerm.get(), 1, "tenant-routing"));
+        Translog.Location loc2 = translog.add(new Translog.Delete("doc-2", 1, primaryTerm.get(), 1));
+
+        Translog.Delete readBack1 = (Translog.Delete) translog.readOperation(loc1);
+        assertNotNull(readBack1);
+        assertEquals("doc-1", readBack1.id());
+        assertEquals("tenant-routing", readBack1.routing());
+
+        Translog.Delete readBack2 = (Translog.Delete) translog.readOperation(loc2);
+        assertNotNull(readBack2);
+        assertEquals("doc-2", readBack2.id());
+        assertNull(readBack2.routing());
+
+        // Verify via snapshot as well
+        translog.rollGeneration();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            boolean foundRouted = false;
+            boolean foundUnrouted = false;
+            while ((op = snapshot.next()) != null) {
+                if (op instanceof Translog.Delete) {
+                    Translog.Delete del = (Translog.Delete) op;
+                    if ("doc-1".equals(del.id())) {
+                        assertEquals("tenant-routing", del.routing());
+                        foundRouted = true;
+                    } else if ("doc-2".equals(del.id())) {
+                        assertNull(del.routing());
+                        foundUnrouted = true;
+                    }
+                }
+            }
+            assertTrue("Should find delete with routing in snapshot", foundRouted);
+            assertTrue("Should find delete without routing in snapshot", foundUnrouted);
+        }
     }
 
     public void testRollGeneration() throws Exception {
@@ -3800,6 +3945,66 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSnapshotReadOperationForward() throws Exception {
+        Path tempDir = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING.getKey(), true)
+            .build();
+        final TranslogConfig forwardConfig = getTranslogConfig(tempDir, settings);
+
+        final String translogUUID = Translog.createEmptyTranslog(
+            forwardConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+
+        // Create a separate translog instance with forward reading enabled
+        try (
+            Translog forwardTranslog = new LocalTranslog(
+                forwardConfig,
+                translogUUID,
+                createTranslogDeletionPolicy(forwardConfig.getIndexSettings()),
+                () -> globalCheckpoint.get(),
+                primaryTerm::get,
+                getPersistedSeqNoConsumer(),
+                TranslogOperationHelper.DEFAULT,
+                null
+            )
+        ) {
+            final List<List<Translog.Operation>> views = new ArrayList<>();
+            views.add(new ArrayList<>());
+            final AtomicLong seqNo = new AtomicLong();
+
+            final int generations = randomIntBetween(2, 20);
+            for (int gen = 0; gen < generations; gen++) {
+                final int operations = randomIntBetween(1, 100);
+                for (int i = 0; i < operations; i++) {
+                    Translog.Index op = new Translog.Index(
+                        randomAlphaOfLength(10),
+                        seqNo.getAndIncrement(),
+                        primaryTerm.get(),
+                        new byte[] { 1 }
+                    );
+                    forwardTranslog.add(op);
+                    views.get(views.size() - 1).add(op);
+                }
+                if (frequently()) {
+                    forwardTranslog.rollGeneration();
+                    views.add(new ArrayList<>());
+                }
+            }
+            try (Translog.Snapshot snapshot = forwardTranslog.newSnapshot()) {
+                final List<Translog.Operation> expectedSeqNo = new ArrayList<>();
+                for (List<Translog.Operation> view : views) {
+                    expectedSeqNo.addAll(view);
+                }
+                assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));
+            }
+        }
+    }
+
     public void testSnapshotDedupOperations() throws Exception {
         final Map<Long, Translog.Operation> latestOperations = new HashMap<>();
         final int generations = between(2, 20);
@@ -3847,7 +4052,16 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 LongSupplier globalCheckpointSupplier,
                 LongSupplier primaryTermSupplier
             ) throws IOException {
-                super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, seqNo -> {});
+                super(
+                    config,
+                    translogUUID,
+                    deletionPolicy,
+                    globalCheckpointSupplier,
+                    primaryTermSupplier,
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
+                );
             }
 
             void callCloseDirectly() throws IOException {
@@ -3953,7 +4167,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     brokenTranslog.getDeletionPolicy(),
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 recoveredTranslog.rollGeneration();
@@ -3987,7 +4203,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 createTranslogDeletionPolicy(config.getIndexSettings()),
                 globalCheckpointSupplier,
                 primaryTerm::get,
-                persistedSeqNos::add
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             Thread[] threads = new Thread[between(2, 8)];
@@ -4068,13 +4286,10 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             createTranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void syncBeforeRollGeneration() {
                 // make it a noop like the old versions

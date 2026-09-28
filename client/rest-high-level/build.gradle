@@ -36,6 +36,7 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.rest-resources'
+apply from: "$rootDir/gradle/fips.gradle"
 
 base {
   group = 'org.opensearch.client'
@@ -66,6 +67,9 @@ dependencies {
   testImplementation "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testImplementation project(":rest-api-spec")
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -32,10 +32,12 @@
 
 package org.opensearch.node;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -50,6 +52,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -63,19 +67,23 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A node for testing which allows:
@@ -86,23 +94,20 @@ import java.util.function.Function;
  */
 public class MockNode extends Node {
 
-    private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final Collection<PluginInfo> classpathPlugins;
 
-    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
-    }
-
-    public MockNode(
-        final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
+    private MockNode(
+        final Environment environment,
+        final Collection<PluginInfo> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        this.classpathPlugins = classpathPlugins;
     }
 
     public MockNode(
         final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Collection<PluginInfo> classpathPlugins,
         final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
@@ -113,19 +118,32 @@ public class MockNode extends Node {
         );
     }
 
-    private MockNode(
-        final Environment environment,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
-    ) {
-        super(environment, classpathPlugins, forbidPrivateIndexSettings);
-        this.classpathPlugins = classpathPlugins;
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), null, () -> "mock_ node"),
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            true
+        );
     }
 
     /**
      * The classpath plugins this node was constructed with.
      */
-    public Collection<Class<? extends Plugin>> getClasspathPlugins() {
+    public Collection<PluginInfo> getClasspathPlugins() {
         return classpathPlugins;
     }
 
@@ -158,7 +176,9 @@ public class MockNode extends Node {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -173,7 +193,9 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 indexSearcherExecutor,
                 taskResourceTrackingService,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                pluginProfilers,
+                workloadGroupService
             );
         }
         return new MockSearchService(
@@ -186,7 +208,8 @@ public class MockNode extends Node {
             fetchPhase,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            workloadGroupService
         );
     }
 
@@ -199,9 +222,29 @@ public class MockNode extends Node {
     }
 
     @Override
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        if (streamTransport == null) return null;
+        // Only wrap when MockTransportService is actually in use; otherwise
+        // the regular transport stays unwrapped and we shouldn't wrap stream
+        // either (no one will look up the wrapped registry).
+        if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
+            return streamTransport;
+        }
+        // Same StubbableTransport used for the regular transport — both end
+        // up sharing the same stub-discovery semantics. Wrapping here means
+        // both this wrapped instance and the StreamTransportService Node
+        // builds will see the same wrapper, so handlers registered on
+        // StreamTransportService land in StubbableTransport's delegate
+        // request-handler registry — which addRequestHandlingBehavior can
+        // then see.
+        return new StubbableTransport(streamTransport);
+    }
+
+    @Override
     protected TransportService newTransportService(
         Settings settings,
         Transport transport,
+        @Nullable Transport streamTransport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -217,6 +260,7 @@ public class MockNode extends Node {
             return super.newTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,
@@ -228,6 +272,7 @@ public class MockNode extends Node {
             return new MockTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,

@@ -55,9 +55,7 @@ import org.apache.hc.core5.http.nio.HandlerFactory;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.reactor.IOReactorStatus;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.ResponseException;
@@ -158,18 +156,16 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
-        assertLookupRemoteVersion(LegacyESVersion.fromString("0.20.5"), "main/0_20_5.json");
-        assertLookupRemoteVersion(LegacyESVersion.fromString("0.90.13"), "main/0_90_13.json");
-        assertLookupRemoteVersion(LegacyESVersion.fromString("1.7.5"), "main/1_7_5.json");
-        assertLookupRemoteVersion(LegacyESVersion.fromId(2030399), "main/2_3_3.json");
-        // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
-        assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/5_0_0_alpha_3.json");
-        // V_5_0_0 since we no longer consider qualifier in Version
-        assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/with_unknown_fields.json");
-        assertLookupRemoteVersion(Version.fromId(1000099 ^ Version.MASK), "main/OpenSearch_1_0_0.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_0_20_5, "main/0_20_5.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_0_90_13, "main/0_90_13.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_1_7_5, "main/1_7_5.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_2_3_3, "main/2_3_3.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_5_0_0, "main/5_0_0_alpha_3.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_5_0_0, "main/with_unknown_fields.json");
+        assertLookupRemoteVersion(RemoteVersion.OPENSEARCH_1_0_0, "main/OpenSearch_1_0_0.json");
     }
 
-    private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
+    private void assertLookupRemoteVersion(RemoteVersion expected, String s) throws Exception {
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(wrapAsListener(v -> {
             assertEquals(expected, v);
@@ -513,7 +509,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     public void testNoContentTypeIsError() {
         RuntimeException e = expectListenerFailure(
             RuntimeException.class,
-            (RejectAwareActionListener<Version> listener) -> sourceWithMockedRemoteCall(false, null, "main/0_20_5.json")
+            (RejectAwareActionListener<RemoteVersion> listener) -> sourceWithMockedRemoteCall(false, null, "main/0_20_5.json")
                 .lookupRemoteVersion(listener)
         );
         assertEquals(e.getMessage(), "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
@@ -648,16 +644,16 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
 
         TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
             @Override
-            void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+            void lookupRemoteVersion(RejectAwareActionListener<RemoteVersion> listener) {
                 if (mockRemoteVersion) {
-                    listener.onResponse(Version.CURRENT);
+                    listener.onResponse(RemoteVersion.OPENSEARCH_3_1_0);
                 } else {
                     super.lookupRemoteVersion(listener);
                 }
             }
         };
         if (mockRemoteVersion) {
-            hitSource.remoteVersion = Version.CURRENT;
+            hitSource.remoteVersion = RemoteVersion.OPENSEARCH_3_1_0;
         }
         return hitSource;
     }

@@ -28,6 +28,7 @@
  * under the License.
  */
 
+import org.gradle.api.plugins.BasePluginExtension
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
 
@@ -46,7 +47,8 @@ import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
-import org.opensearch.gradle.CheckCompatibilityTask
+import groovy.xml.XmlParser;
+import groovy.util.Node;
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -54,7 +56,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "com.diffplug.spotless" version "8.10.1" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -66,10 +68,20 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+
+// Apply security setup if opensearch-security is in installedPlugins
+if (project.hasProperty('installedPlugins') &&
+    project.property('installedPlugins').toString().contains('opensearch-security')) {
+  apply from: 'gradle/security-setup.gradle'
+}
+
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "$rootDir/gradle/fips.gradle"
+}
 
 // common maven publishing configuration
 allprojects {
@@ -119,10 +131,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
-          credentials {
-            username = "$System.env.SONATYPE_USERNAME"
-            password = "$System.env.SONATYPE_PASSWORD"
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -207,7 +220,7 @@ tasks.register("verifyVersions") {
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
-    new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+    new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
       BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
@@ -233,26 +246,8 @@ tasks.register("verifyVersions") {
 
 boolean bwc_tests_enabled = true
 
-/* place an issue link here when committing bwc changes */
-String bwc_tests_disabled_issue = ""
-
-/* there's no existing MacOS release, therefore disable bcw tests */
-if (Os.isFamily(Os.FAMILY_MAC)) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
-}
-
-if (bwc_tests_enabled == false) {
-  if (bwc_tests_disabled_issue.isEmpty()) {
-    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
-  }
-  println "========================= WARNING ========================="
-  println "         Backwards compatibility tests are disabled!"
-  println "See ${bwc_tests_disabled_issue}"
-  println "==========================================================="
-}
 if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run in it's own check
   bwc_tests_enabled = false
 }
 
@@ -269,8 +264,8 @@ tasks.register("verifyBwcTestsEnabled") {
 }
 
 tasks.register("branchConsistency") {
-  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
-  group 'Verification'
+  description = 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group = 'Verification'
   dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
@@ -283,10 +278,7 @@ allprojects {
       memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
-    // See please https://bugs.openjdk.java.net/browse/JDK-8209058
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
-      compile.options.compilerArgs << '-Werror'
-    }
+    compile.options.compilerArgs << '-Werror'
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
     compile.options.compilerArgs << '-Xlint:classfile'
@@ -381,7 +373,13 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.base.archivesName
+          // `upstreamProject.base` is a bare property on another project, which falls back to an
+          // implicit lookup in its parent -- deprecated in Gradle 9.6 and an error in Gradle 10. Read
+          // the extension directly instead, and force the upstream project to be evaluated first the
+          // same way the shadowed branch above does: without that its base extension does not exist
+          // yet and the old code silently used the parent's archivesName.
+          project.evaluationDependsOn(upstreamProject.path)
+          String externalLinkName = upstreamProject.extensions.getByType(BasePluginExtension).archivesName.get()
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           String projectRelativePath = project.relativePath(upstreamProject.buildDir)
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
@@ -427,12 +425,27 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
-        task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        task.jvmArgs += [
+            "--add-modules=jdk.incubator.vector",
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
+            "--enable-native-access=ALL-UNNAMED",
+            // Disable ByteBuddy's Unsafe-based class injection path to avoid
+            // "sun.misc.Unsafe::objectFieldOffset has been called by ByteBuddy" JVM warnings on JDK 21+.
+            // ByteBuddy still falls back to Lookup/Reflection injection strategies.
+            "-Dnet.bytebuddy.safe=true"
+        ]
 
         // Add Java Agent for security sandboxing
         if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
-          dependsOn(project(':libs:agent-sm:agent').prepareAgent)
-          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+          dependsOn(project(':libs:agent-sm:agent').tasks.named('prepareAgent'))
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').tasks.named('jar').get().archiveFile.get()]
+        }
+        if (BuildParams.isInFipsJvm()) {
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }
@@ -458,11 +471,13 @@ gradle.projectsEvaluated {
   }
 
   dependencies {
+    // project(it.path), not the Project object: passing a Project as a dependency notation is
+    // deprecated and fails in Gradle 10.
     subprojects.findAll { it.pluginManager.hasPlugin('java') }.forEach {
-      testReportAggregation it
+      testReportAggregation project(it.path)
     }
     subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
-      jacocoAggregation it
+      jacocoAggregation project(it.path)
     }
   }
 }
@@ -624,13 +639,14 @@ allprojects {
 
 wrapper {
   distributionType = 'ALL'
+  def minimumGradleVersionFile = project(':build-tools').file('src/main/resources/minimumGradleVersion')
   doLast {
     def sha256Sum = new String(new URL(getDistributionUrl() + ".sha256").bytes)
     propertiesFile << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + "\n"
+    minimumGradleVersionFile.text = gradleVersion + "\n"
     println "Updated minimum Gradle Version"
   }
 }
@@ -717,7 +733,7 @@ reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
       testSuiteName = "test"
-    }
+     }
   }
 }
 
@@ -730,14 +746,3 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
   dependsOn tasks.named('testAggregateTestReport', TestReport)
 }
 
-tasks.register('checkCompatibility', CheckCompatibilityTask) {
-  description = 'Checks the compatibility with child components'
-}
-
-allprojects { project ->
-  project.afterEvaluate {
-    if (project.tasks.findByName('publishToMavenLocal')) {
-      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
-    }
-  }
-}

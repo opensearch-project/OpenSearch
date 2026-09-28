@@ -1,0 +1,22 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "sum(AdvEngineID)": {
+      "sum": {
+        "field": "AdvEngineID"
+      }
+    },
+    "count()": {
+      "value_count": {
+        "field": "_index"
+      }
+    },
+    "avg(ResolutionWidth)": {
+      "avg": {
+        "field": "ResolutionWidth"
+      }
+    }
+  }
+}

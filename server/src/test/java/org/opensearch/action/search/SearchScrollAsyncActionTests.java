@@ -298,7 +298,10 @@ public class SearchScrollAsyncActionTests extends OpenSearchTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalStateException[node [node2] is not available]", shardSearchFailures[0].reason());
+        assertEquals(
+            "IllegalArgumentException[scroll_id references node [node2] which was not found in the cluster]",
+            shardSearchFailures[0].reason()
+        );
 
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -478,7 +481,7 @@ public class SearchScrollAsyncActionTests extends OpenSearchTestCase {
     private static ParsedScrollId getParsedScrollId(SearchContextIdForNode... idsForNodes) {
         List<SearchContextIdForNode> searchContextIdForNodes = Arrays.asList(idsForNodes);
         Collections.shuffle(searchContextIdForNodes, random());
-        return new ParsedScrollId("", "test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]));
+        return new ParsedScrollId("", "test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]), new String[0]);
     }
 
     private ActionListener<SearchResponse> dummyListener() {

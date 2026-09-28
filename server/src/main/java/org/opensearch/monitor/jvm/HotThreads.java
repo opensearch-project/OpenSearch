@@ -34,6 +34,7 @@ package org.opensearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 
@@ -57,6 +58,28 @@ import java.util.function.ToLongFunction;
  * @opensearch.internal
  */
 public class HotThreads {
+
+    /**
+     * Absolute ceiling for the {@code snapshots} request parameter (and for the value
+     * {@link #MAX_HOT_THREADS_SNAPSHOTS_SETTING} may be configured to). {@link #innerDetect()} allocates a
+     * {@code ThreadInfo[snapshots][]} array up front, so this places a hard upper bound on the size of that
+     * allocation regardless of how the setting is configured.
+     */
+    public static final int MAX_HOT_THREADS_SNAPSHOTS_CEILING = 10000;
+
+    /**
+     * Maximum accepted value for the {@code snapshots} request parameter of the Hot Threads API. Requests
+     * asking for more snapshots than this are rejected with a 400 before any allocation happens. Dynamic so
+     * operators can tune it without a restart, but it can never exceed {@link #MAX_HOT_THREADS_SNAPSHOTS_CEILING}.
+     */
+    public static final Setting<Integer> MAX_HOT_THREADS_SNAPSHOTS_SETTING = Setting.intSetting(
+        "monitor.jvm.hot_threads.max_snapshots",
+        500,
+        1,
+        MAX_HOT_THREADS_SNAPSHOTS_CEILING,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Object mutex = new Object();
 
@@ -160,7 +183,7 @@ public class HotThreads {
         Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (Thread.currentThread().threadId() == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -176,7 +199,7 @@ public class HotThreads {
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (Thread.currentThread().threadId() == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);

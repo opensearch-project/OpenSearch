@@ -36,97 +36,48 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Transport request for a Single bulk item
  *
  * @opensearch.internal
  */
-public class BulkItemRequest implements Writeable, Accountable {
+public record BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemResponse primaryResponse) implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
-
-    private int id;
-    private DocWriteRequest<?> request;
-    private volatile BulkItemResponse primaryResponse;
 
     /**
      * @param shardId the shard id
      */
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequest(shardId, in);
+        this(in.readVInt(), DocWriteRequest.readDocumentRequest(shardId, in), readPrimaryResponse(shardId, in));
+    }
+
+    private static BulkItemResponse readPrimaryResponse(ShardId shardId, StreamInput in) throws IOException {
         if (in.readBoolean()) {
             if (shardId == null) {
-                primaryResponse = new BulkItemResponse(in);
+                return new BulkItemResponse(in);
             } else {
-                primaryResponse = new BulkItemResponse(shardId, in);
+                return new BulkItemResponse(shardId, in);
             }
         }
+        return null;
     }
 
     // NOTE: public for testing only
     public BulkItemRequest(int id, DocWriteRequest<?> request) {
-        this.id = id;
-        this.request = request;
-    }
-
-    public int id() {
-        return id;
-    }
-
-    public DocWriteRequest<?> request() {
-        return request;
+        this(id, request, null);
     }
 
     public String index() {
         assert request.indices().length == 1;
         return request.indices()[0];
-    }
-
-    BulkItemResponse getPrimaryResponse() {
-        return primaryResponse;
-    }
-
-    void setPrimaryResponse(BulkItemResponse primaryResponse) {
-        this.primaryResponse = primaryResponse;
-    }
-
-    /**
-     * Abort this request, and store a {@link org.opensearch.action.bulk.BulkItemResponse.Failure} response.
-     *
-     * @param index The concrete index that was resolved for this request
-     * @param cause The cause of the rejection (may not be null)
-     * @throws IllegalStateException If a response already exists for this request
-     */
-    public void abort(String index, Exception cause) {
-        if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.id(), Objects.requireNonNull(cause), true);
-            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
-        } else {
-            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["
-                + Strings.toString(MediaTypeRegistry.JSON, primaryResponse)
-                + "]; cause ["
-                + cause
-                + "]";
-            if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
-                primaryResponse.getFailure().getCause().addSuppressed(cause);
-            } else {
-                throw new IllegalStateException(
-                    "aborting item that with response [" + primaryResponse + "] that was previously processed",
-                    cause
-                );
-            }
-        }
     }
 
     @Override
@@ -139,7 +90,7 @@ public class BulkItemRequest implements Writeable, Accountable {
     public void writeThin(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
-        out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+        out.writeOptionalWriteable((o, resp) -> resp.writeThin(o), primaryResponse);
     }
 
     @Override

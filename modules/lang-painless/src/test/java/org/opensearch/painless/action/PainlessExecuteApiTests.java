@@ -89,7 +89,7 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
 
     public void testFilterExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "field", "type=long");
+        IndexService indexService = createIndexWithSimpleMappings("index", Settings.EMPTY, "field", "type=long");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
         contextSetup.setXContentType(MediaTypeRegistry.JSON);
@@ -120,7 +120,7 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
 
     public void testScoreExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+        IndexService indexService = createIndexWithSimpleMappings("index", Settings.EMPTY, "rank", "type=long", "text", "type=text");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",

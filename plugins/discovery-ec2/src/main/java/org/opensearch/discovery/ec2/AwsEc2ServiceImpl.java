@@ -41,6 +41,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.imds.Ec2MetadataClient;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
@@ -52,6 +53,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.LazyInitializable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -64,11 +66,23 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     private final AtomicReference<LazyInitializable<AmazonEc2ClientReference, OpenSearchException>> lazyClientReference =
         new AtomicReference<>();
 
+    private final AtomicReference<LazyInitializable<AmazonEc2MetadataClientReference, OpenSearchException>> lazyMetadataClientReference =
+        new AtomicReference<>();
+
+    private Ec2MetadataClient buildMetadataClient(Ec2ClientSettings clientSettings) {
+        AccessController.doPrivileged(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
+        return AccessController.doPrivileged(
+            () -> Ec2MetadataClient.builder()
+                .httpClient(ApacheHttpClient.builder().socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis)))
+                .build()
+        );
+    }
+
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
-        SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
+        AccessController.doPrivileged(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
-        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> buildProxyConfiguration(logger, clientSettings));
+        final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(() -> buildProxyConfiguration(logger, clientSettings));
         return buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
@@ -107,7 +121,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             builder.region(Region.of(region));
         }
 
-        return SocketAccess.doPrivileged(builder::build);
+        return AccessController.doPrivileged(builder::build);
     }
 
     protected String getFullEndpoint(String endpoint) {
@@ -185,10 +199,20 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         return clientReference.getOrCompute();
     }
 
+    @Override
+    public AmazonEc2MetadataClientReference metadataClient() {
+        final LazyInitializable<AmazonEc2MetadataClientReference, OpenSearchException> metadataClientReference =
+            this.lazyMetadataClientReference.get();
+        if (metadataClientReference == null) {
+            throw new IllegalStateException("Missing ec2 metadata client configs");
+        }
+        return metadataClientReference.getOrCompute();
+    }
+
     /**
-     * Refreshes the settings for the AmazonEC2 client. The new client will be build
-     * using these new settings. The old client is usable until released. On release it
-     * will be destroyed instead of being returned to the cache.
+     * Refreshes the settings for the AmazonEC2 client and the EC2 metadata client. The new
+     * clients will be built using these new settings. Old clients remain usable until released,
+     * at which point they are destroyed instead of being returned to the cache.
      */
     @Override
     public void refreshAndClearCache(Ec2ClientSettings clientSettings) {
@@ -201,6 +225,17 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         if (oldClient != null) {
             oldClient.reset();
         }
+
+        final LazyInitializable<AmazonEc2MetadataClientReference, OpenSearchException> newMetadataClient = new LazyInitializable<>(
+            () -> new AmazonEc2MetadataClientReference(buildMetadataClient(clientSettings)),
+            metadataClientReference -> metadataClientReference.incRef(),
+            metadataClientReference -> metadataClientReference.decRef()
+        );
+        final LazyInitializable<AmazonEc2MetadataClientReference, OpenSearchException> oldMetadataClient = this.lazyMetadataClientReference
+            .getAndSet(newMetadataClient);
+        if (oldMetadataClient != null) {
+            oldMetadataClient.reset();
+        }
     }
 
     @Override
@@ -208,6 +243,12 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         final LazyInitializable<AmazonEc2ClientReference, OpenSearchException> clientReference = this.lazyClientReference.getAndSet(null);
         if (clientReference != null) {
             clientReference.reset();
+        }
+
+        final LazyInitializable<AmazonEc2MetadataClientReference, OpenSearchException> metadataClientReference =
+            this.lazyMetadataClientReference.getAndSet(null);
+        if (metadataClientReference != null) {
+            metadataClientReference.reset();
         }
     }
 

@@ -8,6 +8,9 @@
 
 package org.opensearch.remotestore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
@@ -23,6 +26,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
@@ -30,6 +34,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
@@ -37,10 +42,12 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -60,6 +67,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +85,7 @@ import java.util.stream.Stream;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
@@ -89,8 +98,31 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@SuppressForbidden(reason = "Need to fix: https://github.com/opensearch-project/OpenSearch/issues/14324")
 public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
+
+    public RemoteRestoreSnapshotIT(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .build();
+    }
 
     private void assertDocsPresentInIndex(Client client, String indexName, int numOfDocs) {
         for (int i = 0; i < numOfDocs; i++) {
@@ -102,7 +134,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testRestoreOperationsShallowCopyEnabled() throws Exception {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        String primary = internalCluster().startDataOnlyNode();
+        String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -128,7 +160,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
         logger.info("--> snapshot");
 
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1, indexName2)));
@@ -200,7 +232,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
      */
     public void testRemoteStoreCustomDataOnIndexCreationAndRestore() {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -313,7 +345,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        String primary = internalCluster().startDataOnlyNode();
+        String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -339,7 +371,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
         logger.info("--> snapshot");
         SnapshotInfo snapshotInfo1 = createSnapshot(
             snapshotRepoName,
@@ -441,7 +473,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testRemoteRestoreIndexRestoredFromSnapshot() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startDataAndWarmNodes(2);
 
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -500,7 +532,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testSuccessfulIndexRestoredFromSnapshotWithUpdatedSetting() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startDataAndWarmNodes(2);
 
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -716,7 +748,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testInvalidRestoreRequestScenarios() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
         String index = "test-index";
         String snapshotRepo = "test-restore-snapshot-repo";
         String newRemoteStoreRepo = "test-new-rs-repo";
@@ -736,7 +768,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         indexDocuments(client, index, numDocsInIndex);
         ensureGreen(index);
 
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
         logger.info("--> snapshot");
 
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepo, snapshotName1, new ArrayList<>(List.of(index)));
@@ -896,8 +928,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testCreateSnapshotV2_Orphan_Timestamp_Cleanup() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -962,8 +994,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
     public void testMixedSnapshotCreationWithV2RepositorySetting() throws Exception {
 
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -1034,8 +1066,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1108,8 +1140,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1184,8 +1216,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testCreateSnapshotV2() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String indexName3 = "testindex3";
@@ -1254,8 +1286,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1302,8 +1334,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testCreateSnapshotV2WithIndexingLoad() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1370,8 +1402,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testCreateSnapshotV2WithShallowCopySettingDisabled() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1419,7 +1451,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
     public void testClusterManagerFailoverDuringSnapshotCreation() throws Exception {
 
         internalCluster().startClusterManagerOnlyNodes(3, pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -1493,8 +1525,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public void testConcurrentV1SnapshotAndV2RepoSettingUpdate() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
-        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
+        internalCluster().startDataAndWarmNodes(1, pinnedTimestampSettings());
         String snapshotRepoName = "test-create-snapshot-repo";
         String snapshotName1 = "test-create-snapshot-v1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();

@@ -18,7 +18,7 @@ public final class Ranges {
     byte[][] uppers; // exclusive
     int size;
     int byteLen;
-    static ArrayUtil.ByteArrayComparator comparator;
+    ArrayUtil.ByteArrayComparator comparator;
 
     Ranges(byte[][] lowers, byte[][] uppers) {
         this.lowers = lowers;
@@ -55,15 +55,15 @@ public final class Ranges {
         return i;
     }
 
-    public static int compareByteValue(byte[] value1, byte[] value2) {
+    public int compareByteValue(byte[] value1, byte[] value2) {
         return comparator.compare(value1, 0, value2, 0);
     }
 
-    public static boolean withinLowerBound(byte[] value, byte[] lowerBound) {
+    public boolean withinLowerBound(byte[] value, byte[] lowerBound) {
         return compareByteValue(value, lowerBound) >= 0;
     }
 
-    public static boolean withinUpperBound(byte[] value, byte[] upperBound) {
+    public boolean withinUpperBound(byte[] value, byte[] upperBound) {
         return compareByteValue(value, upperBound) < 0;
     }
 }

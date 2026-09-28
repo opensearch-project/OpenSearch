@@ -83,6 +83,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -154,6 +155,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -192,7 +194,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -478,10 +480,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         setRandomIndexTranslogSettings(random, builder);
 
         if (random.nextBoolean()) {
-            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
-        }
-
-        if (random.nextBoolean()) {
             builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), random.nextBoolean());
         }
 
@@ -504,20 +502,22 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
+    protected Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
                 TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
-        switch (random.nextInt(4)) {
-            case 3:
-                final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
-                final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
-                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
-                break;
+        int value = random.nextInt(4);
+        if (value == 3) {
+            final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
+            final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
+            builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
+            builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
+        }
+        if (value % 2 == 1) {
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
         }
 
         return builder;
@@ -1399,7 +1399,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
-            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
+            .setIndicesOptions(IndicesOptions.strictExpandOpenHiddenAndForbidClosed())
             .execute()
             .actionGet();
         assertNoFailures(actionGet);
@@ -1644,6 +1644,24 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         if (forceRefresh) {
             waitForReplication();
+        }
+    }
+
+    /**
+     * Indexes documents in bulk across the specified number of segments. Documents are evenly distributed
+     * across segments with a refresh between each batch to create segment boundaries. This is useful for
+     * tests that need multiple predefined segments for testing.
+     *
+     * @param builders   the documents to index
+     * @param numSegments the number of segments to create
+     */
+    public void indexBulkWithSegments(List<IndexRequestBuilder> builders, int numSegments) throws InterruptedException {
+        assert numSegments > 0 && numSegments <= builders.size() : "numSegments must be between 1 and builders.size()";
+        int batchSize = builders.size() / numSegments;
+        for (int seg = 0; seg < numSegments; seg++) {
+            int from = seg * batchSize;
+            int to = (seg == numSegments - 1) ? builders.size() : from + batchSize;
+            indexRandom(true, false, false, builders.subList(from, to));
         }
     }
 
@@ -1959,6 +1977,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
             .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
+            // Set the field data cache clean interval setting to 1s so assertBusy() can ensure cache is cleared post-test within its
+            // default 10s limit.
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
             .put(featureFlagSettings());
 
         // Enable tracer only when Telemetry Setting is enabled
@@ -2004,14 +2025,21 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return Collections.emptyList();
+    }
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            URI uri = URI.create("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(uri.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, uri.getPort()));
         }
         return new ExternalTestCluster(
             createTempDir(),
@@ -2124,6 +2152,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            public Collection<PluginInfo> additionalNodePlugins() {
+                return OpenSearchIntegTestCase.this.additionalNodePlugins();
             }
         };
     }
@@ -2404,10 +2437,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
     }
 
-    public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
-    }
-
     /**
      * On Debian 8 the "memory" subsystem is not mounted by default
      * when cgroups are enabled, and this confuses many versions of
@@ -2524,38 +2553,35 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         try {
             for (String index : indices) {
                 if (isSegmentReplicationEnabledForIndex(index)) {
-                    if (isInternalCluster()) {
+                    assertTrue("Unable to wait for replication with external test cluster", isInternalCluster());
+                    assertBusy(() -> {
                         IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
                         if (indexRoutingTable != null) {
-                            assertBusy(() -> {
-                                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                                    final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-                                    if (primaryRouting.state().toString().equals("STARTED")) {
-                                        if (isSegmentReplicationEnabledForIndex(index)) {
-                                            final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                            final IndexShard primaryShard = getIndexShard(primaryRouting, index);
-                                            for (ShardRouting replica : replicaRouting) {
-                                                if (replica.state().toString().equals("STARTED")) {
-                                                    IndexShard replicaShard = getIndexShard(replica, index);
-                                                    if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
-                                                        assertEquals(
-                                                            "replica shards haven't caught up with primary",
-                                                            getLatestSegmentInfoVersion(primaryShard),
-                                                            getLatestSegmentInfoVersion(replicaShard)
-                                                        );
-                                                    }
+                            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                                final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                                if (primaryRouting.state() == ShardRoutingState.STARTED) {
+                                    if (isSegmentReplicationEnabledForIndex(index)) {
+                                        final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                        final IndexShard primaryShard = getIndexShard(primaryRouting, index);
+                                        for (ShardRouting replica : replicaRouting) {
+                                            if (replica.state() == ShardRoutingState.STARTED) {
+                                                IndexShard replicaShard = getIndexShard(replica, index);
+                                                if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+                                                    assertEquals(
+                                                        "replica shards haven't caught up with primary",
+                                                        getLatestSegmentInfoVersion(primaryShard),
+                                                        getLatestSegmentInfoVersion(replicaShard)
+                                                    );
                                                 }
+                                            } else if (replica.state() == ShardRoutingState.INITIALIZING) {
+                                                fail("replica shard still INITIALIZING, not caught up with primary");
                                             }
                                         }
                                     }
                                 }
-                            }, 30, TimeUnit.SECONDS);
+                            }
                         }
-                    } else {
-                        throw new IllegalStateException(
-                            "Segment Replication is not supported for testing tests using External Test Cluster"
-                        );
-                    }
+                    }, 30, TimeUnit.SECONDS);
                 }
             }
         } catch (Exception e) {

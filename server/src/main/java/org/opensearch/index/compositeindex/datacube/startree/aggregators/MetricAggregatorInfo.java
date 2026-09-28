@@ -100,8 +100,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
         if (this == obj) {
             return true;
         }
-        if (obj instanceof MetricAggregatorInfo) {
-            MetricAggregatorInfo anotherPair = (MetricAggregatorInfo) obj;
+        if (obj instanceof MetricAggregatorInfo anotherPair) {
             return metricStat.equals(anotherPair.metricStat) && field.equals(anotherPair.field);
         }
         return false;

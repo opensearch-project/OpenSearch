@@ -440,6 +440,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 if (startOrd < 0) {
                     // The prefix is not an exact match in the ordinals (can skip equal length below)
                     startOrd = -1 - startOrd;
+                    // Check bounds before calling lookupOrd to avoid IndexOutOfBoundsException
+                    if (startOrd >= length) {
+                        continue;
+                    }
                     // Make sure that the term at startOrd starts with prefix
                     BytesRef startTerm = globalOrdinals.lookupOrd(startOrd);
                     if (startTerm.length <= prefix.length
@@ -453,8 +457,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                         )) {
                         continue;
                     }
-                }
-                if (startOrd >= length) {
+                } else if (startOrd >= length) {
+                    // Exact match found, but out of bounds
                     continue;
                 }
                 BytesRef next = nextBytesRef(prefix);

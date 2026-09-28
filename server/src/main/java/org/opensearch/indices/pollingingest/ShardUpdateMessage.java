@@ -15,7 +15,9 @@ import java.util.Map;
 
 /**
  * Holds the original message consumed from the streaming source, corresponding pointer and parsed payload map. This
- * will be used by the pull-based ingestion processor/writer threads to update the index.
+ * will be used by the pull-based ingestion processor/writer threads to update the index. The poller implementations
+ * will publish a version of ShardUpdateMessage into the blocking queue, which will then be processed by the message
+ * processors.
  */
 public record ShardUpdateMessage<T extends IngestionShardPointer, M extends Message>(T pointer, M originalMessage, Map<
     String,

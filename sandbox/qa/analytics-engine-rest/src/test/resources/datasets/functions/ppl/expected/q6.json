@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "float"
+    },
+    {
+      "name": "category",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "BOB",
+      -81.02,
+      "negative"
+    ],
+    [
+      "ALICE",
+      -97.8,
+      "negative"
+    ],
+    [
+      "BOB",
+      -68.24,
+      "negative"
+    ],
+    [
+      "ALICE",
+      71.98,
+      "positive"
+    ],
+    [
+      "BOB",
+      -45.08,
+      "negative"
+    ],
+    [
+      "BOB",
+      84.72,
+      "positive"
+    ],
+    [
+      "CHARLIE",
+      -22.58,
+      "negative"
+    ],
+    [
+      "CHARLIE",
+      86.27,
+      "positive"
+    ],
+    [
+      "ALICE",
+      -94.02,
+      "negative"
+    ],
+    [
+      "ALICE",
+      -74.35,
+      "negative"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

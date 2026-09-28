@@ -1,0 +1,1 @@
+source=%INDEX% | stats earliest(price, ts)

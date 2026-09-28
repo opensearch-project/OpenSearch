@@ -53,13 +53,13 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
 
     @Override
     public boolean isForceExecution() {
-        return original instanceof AbstractRunnable && ((AbstractRunnable) original).isForceExecution();
+        return original instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
     }
 
     @Override
     public void onRejection(final Exception e) {
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onRejection(e);
+        if (original instanceof AbstractRunnable abstractRunnable) {
+            abstractRunnable.onRejection(e);
         } else {
             ExceptionsHelper.reThrowIfNotNull(e);
         }
@@ -70,7 +70,7 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
         assert runnableTaskListener.get() != null : "Listener should be attached";
         Long taskId = threadContext.getTransient(TASK_ID);
         if (Objects.nonNull(taskId)) {
-            runnableTaskListener.get().taskExecutionStartedOnThread(taskId, currentThread().getId());
+            runnableTaskListener.get().taskExecutionStartedOnThread(taskId, currentThread().threadId());
         } else {
             logger.debug("Task Id not available in thread context. Skipping update. Thread Info: {}", Thread.currentThread());
         }
@@ -78,7 +78,7 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
             original.run();
         } finally {
             if (Objects.nonNull(taskId)) {
-                runnableTaskListener.get().taskExecutionFinishedOnThread(taskId, currentThread().getId());
+                runnableTaskListener.get().taskExecutionFinishedOnThread(taskId, currentThread().threadId());
             }
         }
     }

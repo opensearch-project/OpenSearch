@@ -191,7 +191,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public void merge(long thisBucket, AbstractHyperLogLogPlusPlus other, long otherBucket) {
         if (precision() != other.precision()) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException(
+                "Cannot merge HLL++ sketches with different precision: " + precision() + " vs " + other.precision()
+            );
         }
         hll.ensureCapacity(thisBucket + 1);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {

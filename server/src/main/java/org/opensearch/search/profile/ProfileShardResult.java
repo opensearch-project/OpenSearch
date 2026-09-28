@@ -32,11 +32,13 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 
 import java.io.IOException;
@@ -56,16 +58,33 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
+    private final FetchProfileShardResult fetchProfileResult;
+
     private NetworkTime networkTime;
 
     public ProfileShardResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
+        FetchProfileShardResult fetchProfileResult,
         NetworkTime networkTime
     ) {
         this.aggProfileShardResult = aggProfileShardResult;
+        this.fetchProfileResult = fetchProfileResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.networkTime = networkTime;
+    }
+
+    /**
+     * Constructor for backwards compatibility.
+     * @deprecated Use {@link #ProfileShardResult(List, AggregationProfileShardResult, FetchProfileShardResult, NetworkTime)} instead
+     */
+    @Deprecated
+    public ProfileShardResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        NetworkTime networkTime
+    ) {
+        this(queryProfileResults, aggProfileShardResult, new FetchProfileShardResult(Collections.emptyList()), networkTime);
     }
 
     public ProfileShardResult(StreamInput in) throws IOException {
@@ -77,6 +96,11 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            this.fetchProfileResult = new FetchProfileShardResult(in);
+        } else {
+            this.fetchProfileResult = new FetchProfileShardResult(Collections.emptyList());
+        }
         this.networkTime = new NetworkTime(in);
     }
 
@@ -87,6 +111,9 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            fetchProfileResult.writeTo(out);
+        }
         networkTime.writeTo(out);
     }
 
@@ -96,6 +123,10 @@ public class ProfileShardResult implements Writeable {
 
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
+    }
+
+    public FetchProfileShardResult getFetchProfileResult() {
+        return fetchProfileResult;
     }
 
     public NetworkTime getNetworkTime() {

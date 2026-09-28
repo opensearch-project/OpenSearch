@@ -276,7 +276,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultFieldParsing() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        String contentString = "{\n" + "    \"simple_query_string\" : {\n" + "      \"query\" : \"" + query + "\"" + "    }\n" + "}";
+        String contentString = String.format(Locale.ROOT, """
+            {
+                "simple_query_string" : {
+                  "query" : "%s"    }
+            }""", query);
         SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
@@ -393,23 +397,24 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"simple_query_string\" : {\n"
-            + "    \"query\" : \"\\\"fried eggs\\\" +(eggplant | potato) -frittata\",\n"
-            + "    \"fields\" : [ \"body^5.0\" ],\n"
-            + "    \"analyzer\" : \"snowball\",\n"
-            + "    \"flags\" : -1,\n"
-            + "    \"default_operator\" : \"and\",\n"
-            + "    \"lenient\" : false,\n"
-            + "    \"analyze_wildcard\" : false,\n"
-            + "    \"quote_field_suffix\" : \".quote\",\n"
-            + "    \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "    \"fuzzy_prefix_length\" : 1,\n"
-            + "    \"fuzzy_max_expansions\" : 5,\n"
-            + "    \"fuzzy_transpositions\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "simple_query_string" : {
+                "query" : "\\\"fried eggs\\\" +(eggplant | potato) -frittata",
+                "fields" : [ "body^5.0" ],
+                "analyzer" : "snowball",
+                "flags" : -1,
+                "default_operator" : "and",
+                "lenient" : false,
+                "analyze_wildcard" : false,
+                "quote_field_suffix" : ".quote",
+                "auto_generate_synonyms_phrase_query" : true,
+                "fuzzy_prefix_length" : 1,
+                "fuzzy_max_expansions" : 5,
+                "fuzzy_transpositions" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         SimpleQueryStringBuilder parsed = (SimpleQueryStringBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -472,6 +477,28 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query = new SimpleQueryStringBuilder("aBc~1").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
         expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "abc"), 1);
         assertEquals(expected, query);
+    }
+
+    public void testDeeplyNestedParensAreRejected() throws IOException {
+        // Guards against CVE-2026-63144: deeply nested parentheses drive one recursion frame per
+        // level in Lucene's SimpleQueryParser and overflow the JVM stack. The query must instead
+        // fail with a catchable IllegalArgumentException (surfaced to clients as HTTP 400).
+        int depth = 200_000;
+        String nested = "(".repeat(depth) + "a" + ")".repeat(depth);
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(nested).field(TEXT_FIELD_NAME);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("nests parentheses deeper than the limit"));
+
+        // Escaped parentheses and parentheses inside a quoted phrase do not count toward nesting
+        // depth, mirroring how Lucene tokenizes the input, so they must still parse successfully.
+        String escaped = "\\(".repeat(depth) + "a";
+        Query query = new SimpleQueryStringBuilder(escaped).field(TEXT_FIELD_NAME).toQuery(createShardContext());
+        assertNotNull(query);
+
+        // A modestly nested (well under the limit) query remains valid.
+        String shallow = "(".repeat(50) + "a" + ")".repeat(50);
+        query = new SimpleQueryStringBuilder(shallow).field(TEXT_FIELD_NAME).toQuery(createShardContext());
+        assertNotNull(query);
     }
 
     public void testAnalyzeWildcard() throws IOException {

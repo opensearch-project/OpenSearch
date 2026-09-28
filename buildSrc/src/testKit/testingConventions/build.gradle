@@ -18,10 +18,11 @@ allprojects {
   apply plugin: 'opensearch.build'
 
   repositories {
+    maven { url = uri("https://ci.opensearch.org/maven2/") }
     mavenCentral()
   }
   dependencies {
-    testImplementation "junit:junit:4.13.2"
+    testImplementation "junit:junit:${versions.junit}"
   }
 
   ext.licenseFile = file("$buildDir/dummy/license")

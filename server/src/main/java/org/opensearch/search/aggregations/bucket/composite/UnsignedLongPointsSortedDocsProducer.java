@@ -61,7 +61,7 @@ class UnsignedLongPointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (BigInteger) upperValue;
         }
-        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
+        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values) : null;
         Visitor visitor = new Visitor(
             context,
             queue,

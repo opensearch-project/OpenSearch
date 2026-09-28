@@ -44,6 +44,7 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.StreamNodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -124,7 +125,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final String nodeName;
 
     private NodeConnectionsService nodeConnectionsService;
+    private NodeConnectionsService streamNodeConnectionsService;
+
     private final ClusterManagerMetrics clusterManagerMetrics;
+
+    // application duration tracking
+    private static final long NOT_RUNNING = -1L;
+    private volatile long applicationStartTimeNanos = NOT_RUNNING;
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(nodeName, settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
@@ -157,6 +164,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         assert this.nodeConnectionsService == null : "nodeConnectionsService is already set";
         this.nodeConnectionsService = nodeConnectionsService;
+    }
+
+    public synchronized void setStreamNodeConnectionsService(StreamNodeConnectionsService streamNodeConnectionsService) {
+        assert this.streamNodeConnectionsService == null : "streamNodeConnectionsService is already set";
+        this.streamNodeConnectionsService = streamNodeConnectionsService;
     }
 
     @Override
@@ -382,6 +394,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), applyFunction, listener);
     }
 
+    public void updateClusterState(
+        final String source,
+        final Function<ClusterState, ClusterState> updateFunction,
+        final ClusterApplyListener listener
+    ) {
+        submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), updateFunction, listener);
+    }
+
     private void submitStateUpdateTask(
         final String source,
         final ClusterStateTaskConfig config,
@@ -452,7 +472,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             logger.debug("processing [{}]: ignoring, cluster applier service not started", task.source);
             return;
         }
-
+        this.applicationStartTimeNanos = System.nanoTime();
         logger.debug("processing [{}]: execute", task.source);
         final ClusterState previousClusterState = state.get();
 
@@ -476,6 +496,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 e
             );
             warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+            this.applicationStartTimeNanos = NOT_RUNNING;
             task.listener.onFailure(task.source, e);
             return;
         }
@@ -484,6 +505,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
             logger.debug("processing [{}]: took [{}] no change in cluster state", task.source, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+            this.applicationStartTimeNanos = NOT_RUNNING;
             task.listener.onSuccess(task.source);
         } else {
             if (logger.isTraceEnabled()) {
@@ -508,6 +530,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newClusterState.stateUUID()
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
+                this.applicationStartTimeNanos = NOT_RUNNING;
                 // Then we call the ClusterApplyListener of the task
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
@@ -539,6 +562,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
                 // continue we will retry with the same cluster state but that might not help.
                 assert applicationMayFail();
+                this.applicationStartTimeNanos = NOT_RUNNING;
                 task.listener.onFailure(task.source, e);
             }
         }
@@ -580,6 +604,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.debug("completed calling appliers of cluster state for version {}", newClusterState.version());
 
         nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        if (streamNodeConnectionsService != null) {
+            streamNodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        }
 
         assert newClusterState.coordinationMetadata()
             .getLastAcceptedConfiguration()
@@ -597,6 +624,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.debug("completed calling listeners of cluster state for version {}", newClusterState.version());
     }
 
+    public ClusterSettings clusterSettings() {
+        return clusterSettings;
+    }
+
     protected void connectToNodesAndWait(ClusterState newClusterState) {
         // can't wait for an ActionFuture on the cluster applier thread, but we do want to block the thread here, so use a CountDownLatch.
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -606,6 +637,16 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (InterruptedException e) {
             logger.debug("interrupted while connecting to nodes, continuing", e);
             Thread.currentThread().interrupt();
+        }
+        final CountDownLatch streamNodeLatch = new CountDownLatch(1);
+        if (streamNodeConnectionsService != null) {
+            streamNodeConnectionsService.connectToNodes(newClusterState.nodes(), streamNodeLatch::countDown);
+            try {
+                streamNodeLatch.await();
+            } catch (InterruptedException e) {
+                logger.debug("interrupted while connecting to nodes, continuing", e);
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -750,6 +791,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     // overridden by tests that need to check behaviour in the event of an application failure
     protected boolean applicationMayFail() {
         return false;
+    }
+
+    /**
+     * Returns the duration in milliseconds of the currently running cluster state application,
+     * or 0 if no application is in progress.
+     */
+    @Override
+    public long getCurrentApplicationDurationMs() {
+        long startNanos = this.applicationStartTimeNanos;
+        if (startNanos == NOT_RUNNING) {
+            return 0;
+        }
+        return TimeValue.nsecToMSec(System.nanoTime() - startNanos);
     }
 
     /**

@@ -33,6 +33,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.sandbox.search.DocValuesMultiRangeQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -224,24 +225,34 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
             dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
         );
-
-        // if the list includes a prefix query we fallback to a bool query
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", ipToByteRef("::2")), dvOnly.termsQuery(List.of("::2"), null));
         assertEquals(
-            new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(dvOnly.termQuery("::42", null), Occur.SHOULD)
-                    .add(dvOnly.termQuery("::2/16", null), Occur.SHOULD)
-                    .build()
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("::"),
+                ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+                true,
+                true
             ),
-            dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null)
+            dvOnly.termsQuery(List.of("::2/16"), null)
         );
+        // multirange handles both
+        DocValuesMultiRangeQuery.SortedSetStabbingBuilder expect = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder("field");
+        expect.add(ipToByteRef("::42"));
+        expect.add(ipToByteRef("::"), ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
+        assertEquals(expect.build(), dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null));
     }
 
     public void testDvVsPoint() {
         MappedFieldType indexOnly = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
         MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
         MappedFieldType indexDv = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
-        assertEquals("ignore DV", indexOnly.termsQuery(List.of("::2/16"), null), indexDv.termsQuery(List.of("::2/16"), null));
+        assertNotEquals("obey DocValues", indexOnly.termsQuery(List.of("::2/16"), null), indexDv.termsQuery(List.of("::2/16"), null));
         assertEquals(dvOnly.termQuery("::2/16", null), dvOnly.termsQuery(List.of("::2/16"), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(indexOnly.termsQuery(List.of("::2/16"), null), dvOnly.termsQuery(List.of("::2/16"), null)),
+            indexDv.termsQuery(List.of("::2/16"), null)
+        );
     }
 
     public void testRangeQuery() {

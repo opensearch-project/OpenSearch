@@ -1,0 +1,40 @@
+{"index": {}}
+{"timestamp": "2026-05-14T10:00:00Z", "user": "alice", "department": "Sales", "sales_amount": 1500.50, "region": "North", "product": "Laptop", "quantity": 2, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:15:00Z", "user": "bob", "department": "Sales", "sales_amount": 2300.75, "region": "South", "product": "Monitor", "quantity": 5, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:30:00Z", "user": "alice", "department": "Sales", "sales_amount": 800.00, "region": "North", "product": "Keyboard", "quantity": 10, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:00:00Z", "user": "charlie", "department": "Marketing", "sales_amount": 3200.00, "region": "East", "product": "Tablet", "quantity": 8, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:30:00Z", "user": "bob", "department": "Sales", "sales_amount": 1750.25, "region": "South", "product": "Mouse", "quantity": 20, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:00:00Z", "user": "diana", "department": "Engineering", "sales_amount": 4500.00, "region": "West", "product": "Server", "quantity": 1, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T12:30:00Z", "user": "alice", "department": "Sales", "sales_amount": 950.50, "region": "North", "product": "Webcam", "quantity": 3, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:00:00Z", "user": "charlie", "department": "Marketing", "sales_amount": 2100.00, "region": "East", "product": "Printer", "quantity": 2, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T13:30:00Z", "user": "eve", "department": "Engineering", "sales_amount": 5200.75, "region": "West", "product": "Workstation", "quantity": 2, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T14:00:00Z", "user": "bob", "department": "Sales", "sales_amount": 1200.00, "region": "South", "product": "Headset", "quantity": 15, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T14:30:00Z", "user": "diana", "department": "Engineering", "sales_amount": 3800.50, "region": "West", "product": "Router", "quantity": 4, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T15:00:00Z", "user": "alice", "department": "Sales", "sales_amount": 1100.25, "region": "North", "product": "Cable", "quantity": 50, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T15:30:00Z", "user": "frank", "department": null, "sales_amount": 2700.00, "region": null, "product": "Projector", "quantity": 1, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T16:00:00Z", "user": "charlie", "department": "Marketing", "sales_amount": 1850.75, "region": "East", "product": "Scanner", "quantity": 3, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T16:30:00Z", "user": "eve", "department": "Engineering", "sales_amount": 4100.00, "region": "West", "product": "Switch", "quantity": 6, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T17:00:00Z", "user": "bob", "department": "Sales", "sales_amount": 1450.50, "region": "South", "product": "Docking Station", "quantity": 4, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T17:30:00Z", "user": "grace", "department": null, "sales_amount": null, "region": "North", "product": "Adapter", "quantity": 25, "status": "pending"}
+{"index": {}}
+{"timestamp": "2026-05-14T18:00:00Z", "user": "diana", "department": "Engineering", "sales_amount": 3300.25, "region": "West", "product": "Firewall", "quantity": 2, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T18:30:00Z", "user": "alice", "department": "Sales", "sales_amount": 890.00, "region": "North", "product": "USB Drive", "quantity": 100, "status": "completed"}
+{"index": {}}
+{"timestamp": "2026-05-14T19:00:00Z", "user": "charlie", "department": "Marketing", "sales_amount": 2450.50, "region": "East", "product": "Camera", "quantity": 5, "status": "completed"}

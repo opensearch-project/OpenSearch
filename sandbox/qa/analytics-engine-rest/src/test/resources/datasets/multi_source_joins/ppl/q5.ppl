@@ -1,0 +1,1 @@
+source=voice_verification | where host like "MYVOICE-IVR-CLOUD-APP-PRODUCTION%" and verify_status!="suppressed" | dedup tracking_id | stats count() as verification_count by app_id, decision | sort - verification_count

@@ -1,0 +1,95 @@
+{
+  "schema": [
+    {
+      "name": "failed_logins",
+      "type": "bigint"
+    },
+    {
+      "name": "suspicious_events",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      13,
+      16,
+      "asmith"
+    ],
+    [
+      12,
+      4,
+      "jdoe"
+    ],
+    [
+      9,
+      0,
+      "user1"
+    ],
+    [
+      6,
+      0,
+      "user4"
+    ],
+    [
+      6,
+      0,
+      "user6"
+    ],
+    [
+      5,
+      1,
+      "admin"
+    ],
+    [
+      5,
+      0,
+      "user2"
+    ],
+    [
+      5,
+      0,
+      "user7"
+    ],
+    [
+      4,
+      12,
+      "bwilson"
+    ],
+    [
+      4,
+      0,
+      "user9"
+    ],
+    [
+      3,
+      0,
+      "user10"
+    ],
+    [
+      3,
+      0,
+      "user5"
+    ],
+    [
+      2,
+      0,
+      "user3"
+    ],
+    [
+      1,
+      5,
+      "mjones"
+    ],
+    [
+      1,
+      0,
+      "user8"
+    ]
+  ],
+  "total": 15,
+  "size": 15
+}

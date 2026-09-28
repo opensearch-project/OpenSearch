@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,7 +26,6 @@ import java.util.stream.Stream;
  */
 @SuppressWarnings("removal")
 public class AgentPolicy {
-    private static final Logger LOGGER = Logger.getLogger(AgentPolicy.class.getName());
     private static volatile Policy policy;
     private static volatile Set<String> trustedHosts;
     private static volatile Set<String> trustedFileSystems;
@@ -146,7 +144,6 @@ public class AgentPolicy {
             AgentPolicy.trustedHosts = Collections.unmodifiableSet(trustedHosts);
             AgentPolicy.trustedFileSystems = Collections.unmodifiableSet(trustedFileSystems);
             AgentPolicy.classesThatCanExit = classesThatCanExit;
-            LOGGER.info("Policy attached successfully: " + policy);
         } else {
             throw new SecurityException("The Policy has been set already: " + AgentPolicy.policy);
         }

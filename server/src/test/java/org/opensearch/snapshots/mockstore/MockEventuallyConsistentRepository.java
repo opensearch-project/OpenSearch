@@ -415,6 +415,18 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
+            public void writeBlobWithMetadata(
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists,
+                @Nullable Map<String, String> metadata,
+                @Nullable org.opensearch.cluster.metadata.CryptoMetadata cryptoMetadata
+            ) throws IOException {
+                writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+
+            @Override
             public void writeBlobAtomic(
                 final String blobName,
                 final InputStream inputStream,

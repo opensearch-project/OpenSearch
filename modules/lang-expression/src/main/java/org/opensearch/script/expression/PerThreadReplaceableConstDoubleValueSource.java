@@ -57,7 +57,7 @@ final class PerThreadReplaceableConstDoubleValueSource extends DoubleValuesSourc
 
     @Override
     public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-        return perThreadDoubleValues.computeIfAbsent(Thread.currentThread().getId(), threadId -> new ReplaceableConstDoubleValues());
+        return perThreadDoubleValues.computeIfAbsent(Thread.currentThread().threadId(), threadId -> new ReplaceableConstDoubleValues());
     }
 
     @Override
@@ -68,7 +68,7 @@ final class PerThreadReplaceableConstDoubleValueSource extends DoubleValuesSourc
     @Override
     public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) throws IOException {
         final ReplaceableConstDoubleValues currentFv = perThreadDoubleValues.computeIfAbsent(
-            Thread.currentThread().getId(),
+            Thread.currentThread().threadId(),
             threadId -> new ReplaceableConstDoubleValues()
         );
         if (currentFv.advanceExact(docId)) return Explanation.match((float) currentFv.doubleValue(), "ReplaceableConstDoubleValues");
@@ -87,7 +87,7 @@ final class PerThreadReplaceableConstDoubleValueSource extends DoubleValuesSourc
 
     public void setValue(double v) {
         final ReplaceableConstDoubleValues currentFv = perThreadDoubleValues.computeIfAbsent(
-            Thread.currentThread().getId(),
+            Thread.currentThread().threadId(),
             threadId -> new ReplaceableConstDoubleValues()
         );
         currentFv.setValue(v);

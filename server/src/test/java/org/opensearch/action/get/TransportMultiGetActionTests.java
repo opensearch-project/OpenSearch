@@ -41,6 +41,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.Preference;
@@ -317,7 +318,22 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
 
         // should fail since document replication enabled
         assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
+    }
 
+    public void testResolveIndices() {
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        multiGetRequest.add("index1", "1");
+        multiGetRequest.add("index2", "2");
+
+        transportAction = new TransportMultiGetAction(
+            transportService,
+            clusterService,
+            shardAction,
+            new ActionFilters(emptySet()),
+            new Resolver()
+        );
+
+        assertEquals(ResolvedIndices.of("index1", "index2"), transportAction.resolveIndices(multiGetRequest));
     }
 
     private static Task createTask() {

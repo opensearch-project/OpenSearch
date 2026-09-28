@@ -32,10 +32,6 @@
 
 package org.opensearch.client.sniff;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hc.core5.http.HttpEntity;
@@ -59,6 +55,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.core.json.JsonFactory;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
@@ -131,12 +131,12 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
             }
             List<Node> nodes = new ArrayList<>();
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
-                    if ("nodes".equals(parser.getCurrentName())) {
+                if (parser.currentToken() == JsonToken.START_OBJECT) {
+                    if ("nodes".equals(parser.currentName())) {
                         while (parser.nextToken() != JsonToken.END_OBJECT) {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
-                            String nodeId = parser.getCurrentName();
+                            String nodeId = parser.currentName();
                             Node node = readNode(nodeId, parser, scheme);
                             if (node != null) {
                                 nodes.add(node);
@@ -174,12 +174,12 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
 
         String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
-            if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
-                fieldName = parser.getCurrentName();
-            } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
+            if (parser.currentToken() == JsonToken.PROPERTY_NAME) {
+                fieldName = parser.currentName();
+            } else if (parser.currentToken() == JsonToken.START_OBJECT) {
                 if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
+                        if (parser.currentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.currentName())) {
                             String address = parser.getValueAsString();
                             String host;
                             URI publishAddressAsURI;
@@ -194,23 +194,23 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
                                 host = publishAddressAsURI.getHost();
                             }
                             publishedHost = new HttpHost(publishAddressAsURI.getScheme(), host, publishAddressAsURI.getPort());
-                        } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
+                        } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.currentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
                                 boundHosts.add(
                                     new HttpHost(boundAddressAsURI.getScheme(), boundAddressAsURI.getHost(), boundAddressAsURI.getPort())
                                 );
                             }
-                        } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
+                        } else if (parser.currentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
                         }
                     }
                 } else if ("attributes".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING) {
-                            String oldValue = protoAttributes.put(parser.getCurrentName(), parser.getValueAsString());
+                        if (parser.currentToken() == JsonToken.VALUE_STRING) {
+                            String oldValue = protoAttributes.put(parser.currentName(), parser.getValueAsString());
                             if (oldValue != null) {
-                                throw new IOException("repeated attribute key [" + parser.getCurrentName() + "]");
+                                throw new IOException("repeated attribute key [" + parser.currentName() + "]");
                             }
                         } else {
                             parser.skipChildren();

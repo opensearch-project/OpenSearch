@@ -780,6 +780,49 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 
+    public void testSystemCpuProbeCheck() throws NodeValidationException {
+        final Logger logger = mock(Logger.class);
+        final BootstrapCheck check = new BootstrapChecks.ProbesCheck() {
+            @Override
+            short getSystemCpuPercent() {
+                return -1;
+            }
+        };
+
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check), logger);
+        verify(logger).warn("The recent CPU usage is not available");
+    }
+
+    public void testProcessCpuProbeCheck() throws NodeValidationException {
+        final Logger logger = mock(Logger.class);
+        final BootstrapCheck check = new BootstrapChecks.ProbesCheck() {
+            @Override
+            short getProcessCpuPercent() {
+                return -1;
+            }
+        };
+
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check), logger);
+        verify(logger).warn("The recent process CPU usage is not available");
+    }
+
+    public void testProbesCheck() throws NodeValidationException {
+        final Logger logger = mock(Logger.class);
+        final BootstrapCheck check = new BootstrapChecks.ProbesCheck() {
+            @Override
+            short getSystemCpuPercent() {
+                return 0;
+            }
+
+            @Override
+            short getProcessCpuPercent() {
+                return 0;
+            }
+        };
+
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check), logger);
+    }
+
     public void testMultipleDataPathsForSearchNodeCheck() {
         Path path = PathUtils.get(createTempDir().toString());
         String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };

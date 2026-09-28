@@ -257,8 +257,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     query
                 );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+                query = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
@@ -299,6 +303,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testToQueryNumericField() throws IOException {
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
+        if (parsedQuery instanceof ApproximateScoreQuery) {
+            parsedQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
+        }
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -440,14 +447,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "        }\n"
             + "    }\n"
             + "}";
+
+        // TODO what else can we assert
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
-        parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
+
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
-        parsedQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateQuery.class));
-        // TODO what else can we assert
+
+        // Get the exact query from ApproximateScoreQuery (which should be DateRangeIncludingNowQuery)
+        ApproximateScoreQuery approximateScoreQuery = (ApproximateScoreQuery) parsedQuery;
+        Query exactQuery = approximateScoreQuery.getOriginalQuery();
+
+        // The exact query should be DateRangeIncludingNowQuery
+        assertThat(exactQuery, instanceOf(DateRangeIncludingNowQuery.class));
+
+        ApproximateQuery approximationQuery = approximateScoreQuery.getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximatePointRangeQuery.class));
 
         query = "{\n"
             + "    \"range\" : {\n"
@@ -483,6 +498,113 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         assertEquals(json, "2015-01-01 00:00:00", parsed.from());
         assertEquals(json, "now", parsed.to());
+    }
+
+    public void testInvalidUpperBound() throws IOException {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"from\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"lt\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"to\" : \"now\",\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"include_upper\" : true,\n"
+                + "      \"time_zone\" : \"+01:00\",\n"
+                + "      \"boost\" : 1.0\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"to\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"include_upper\" : true\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+    }
+
+    public void testInvalidLowerBound() {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"gte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"from\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json2 = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json2));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
     }
 
     public void testNamedQueryParsing() throws IOException {

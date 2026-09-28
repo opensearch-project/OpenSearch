@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
@@ -31,6 +32,7 @@ public class WriteContext {
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
     private final Map<String, String> metadata;
+    private final CryptoMetadata cryptoMetadata;
 
     /**
      * Construct a new WriteContext object
@@ -52,7 +54,8 @@ public class WriteContext {
         CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
         @Nullable Long expectedChecksum,
-        @Nullable Map<String, String> metadata
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
     ) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
@@ -63,6 +66,7 @@ public class WriteContext {
         this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
         this.expectedChecksum = expectedChecksum;
         this.metadata = metadata;
+        this.cryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -78,6 +82,7 @@ public class WriteContext {
         this.doRemoteDataIntegrityCheck = writeContext.doRemoteDataIntegrityCheck;
         this.expectedChecksum = writeContext.expectedChecksum;
         this.metadata = writeContext.metadata;
+        this.cryptoMetadata = writeContext.cryptoMetadata;
     }
 
     /**
@@ -145,6 +150,13 @@ public class WriteContext {
     }
 
     /**
+     * @return the CryptoMetadata for index-level encryption settings.
+     */
+    public CryptoMetadata getCryptoMetadata() {
+        return cryptoMetadata;
+    }
+
+    /**
      * Builder for {@link WriteContext}.
      *
      * @opensearch.internal
@@ -159,6 +171,7 @@ public class WriteContext {
         private boolean doRemoteDataIntegrityCheck;
         private Long expectedChecksum;
         private Map<String, String> metadata;
+        private CryptoMetadata cryptoMetadata;
 
         public Builder fileName(String fileName) {
             this.fileName = fileName;
@@ -205,6 +218,11 @@ public class WriteContext {
             return this;
         }
 
+        public Builder cryptoMetadata(CryptoMetadata cryptoMetadata) {
+            this.cryptoMetadata = cryptoMetadata;
+            return this;
+        }
+
         public WriteContext build() {
             return new WriteContext(
                 fileName,
@@ -215,7 +233,8 @@ public class WriteContext {
                 uploadFinalizer,
                 doRemoteDataIntegrityCheck,
                 expectedChecksum,
-                metadata
+                metadata,
+                cryptoMetadata
             );
         }
     }

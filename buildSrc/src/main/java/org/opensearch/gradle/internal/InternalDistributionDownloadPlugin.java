@@ -100,6 +100,10 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
+                if (BuildParams.buildUnreleasedFromSource() == false) {
+                    // Download pre-built SNAPSHOT artifacts instead of building from source
+                    return DistributionDependency.of(snapshotDependencyNotation(distribution));
+                }
                 if (distribution.getBundledJdk() == JavaPackageType.NONE) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
@@ -193,6 +197,16 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
         }
         return projectName;
+    }
+
+    /**
+     * Constructs a dependency notation that resolves an unreleased version from the snapshot artifact repository.
+     */
+    private static String snapshotDependencyNotation(OpenSearchDistribution distribution) {
+        return "opensearch-distribution-snapshot:opensearch:"
+            + distribution.getVersion()
+            + "-SNAPSHOT"
+            + distribution.classifierAndExtension();
     }
 
     private static class ProjectBasedDistributionDependency implements DistributionDependency {

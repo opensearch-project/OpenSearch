@@ -1,0 +1,4 @@
+/*
+SELECT COUNT(*) FROM hits;
+*/
+source=hits | stats count()

@@ -1,0 +1,1 @@
+source=test_data | eval pow_val = power(2, 3) | fields id, pow_val | head 1

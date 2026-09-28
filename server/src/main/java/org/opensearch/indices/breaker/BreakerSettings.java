@@ -36,6 +36,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+
+import java.util.function.Supplier;
 
 /**
  * Settings for a {@link CircuitBreaker}
@@ -88,6 +91,7 @@ public final class BreakerSettings {
     private final double overhead;
     private final CircuitBreaker.Type type;
     private final CircuitBreaker.Durability durability;
+    private final Supplier<CircuitBreakerStats> statsSupplier;
 
     public static BreakerSettings updateFromSettings(BreakerSettings defaultSettings, Settings currentSettings) {
         final String breakerName = defaultSettings.name;
@@ -117,15 +121,31 @@ public final class BreakerSettings {
     }
 
     public BreakerSettings(String name, long limitBytes, double overhead) {
-        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.PERMANENT);
+        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.PERMANENT, null);
     }
 
     public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type, CircuitBreaker.Durability durability) {
+        this(name, limitBytes, overhead, type, durability, null);
+    }
+
+    public BreakerSettings(
+        String name,
+        long limitBytes,
+        double overhead,
+        CircuitBreaker.Type type,
+        CircuitBreaker.Durability durability,
+        Supplier<CircuitBreakerStats> statsSupplier
+    ) {
         this.name = name;
         this.limitBytes = limitBytes;
         this.overhead = overhead;
         this.type = type;
         this.durability = durability;
+        this.statsSupplier = statsSupplier;
+    }
+
+    public Supplier<CircuitBreakerStats> getStatsSupplier() {
+        return statsSupplier;
     }
 
     public String getName() {

@@ -1,0 +1,1 @@
+source=sales_data | where status='completed' | stats sum(sales_amount) as total_sales by user | lookup user_lookup user | fields user, full_name, manager, total_sales | sort - total_sales

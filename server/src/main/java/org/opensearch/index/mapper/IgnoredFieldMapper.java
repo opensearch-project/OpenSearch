@@ -37,6 +37,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -99,6 +100,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         @Override

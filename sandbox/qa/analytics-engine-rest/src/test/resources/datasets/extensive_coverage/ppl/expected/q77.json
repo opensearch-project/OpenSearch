@@ -1,0 +1,75 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "avg_value",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      100.5,
+      null
+    ],
+    [
+      "B",
+      200.75,
+      null
+    ],
+    [
+      "A",
+      150.25,
+      null
+    ],
+    [
+      "C",
+      300.0,
+      null
+    ],
+    [
+      "B",
+      250.5,
+      null
+    ],
+    [
+      "A",
+      175.0,
+      null
+    ],
+    [
+      "C",
+      400.25,
+      null
+    ],
+    [
+      "B",
+      225.75,
+      null
+    ],
+    [
+      "A",
+      180.5,
+      null
+    ],
+    [
+      "C",
+      350.0,
+      null
+    ],
+    [
+      null,
+      null,
+      233.35
+    ]
+  ],
+  "total": 11,
+  "size": 11
+}

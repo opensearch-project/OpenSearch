@@ -31,7 +31,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
@@ -46,12 +49,17 @@ import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -60,6 +68,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -68,6 +77,20 @@ import static org.hamcrest.Matchers.sameInstance;
 public class StatsIT extends AbstractNumericTestCase {
     public StatsIT(Settings staticSettings) {
         super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "segment").build() },
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "force").build() },
+            new Object[] {
+                Settings.builder()
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "balanced")
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 1000)
+                    .build() }
+        );
     }
 
     @Override
@@ -389,5 +412,29 @@ public class StatsIT extends AbstractNumericTestCase {
             equalTo(2L)
         );
         internalCluster().wipeIndices("cache_test_idx");
+    }
+
+    public void testStatsWithIntraSegmentPartitioning() throws Exception {
+        createIndex("test_stats_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        try {
+            long expectedSum = 0;
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
+            for (int i = 0; i < 5000; i++) {
+                expectedSum += (i + 1);
+                builders.add(client().prepareIndex("test_stats_agg").setSource("value", i + 1));
+            }
+            indexBulkWithSegments(builders, 2);
+            indexRandomForConcurrentSearch("test_stats_agg");
+            SearchResponse response = client().prepareSearch("test_stats_agg").addAggregation(stats("stats").field("value")).get();
+            Stats statsAgg = response.getAggregations().get("stats");
+            assertThat(statsAgg, notNullValue());
+            assertThat(statsAgg.getCount(), equalTo(5000L));
+            assertThat(statsAgg.getMin(), closeTo(1.0, 0.1));
+            assertThat(statsAgg.getMax(), closeTo(5000.0, 0.1));
+            assertThat(statsAgg.getSum(), closeTo((double) expectedSum, 0.1));
+            assertThat(statsAgg.getAvg(), closeTo((double) expectedSum / 5000, 0.1));
+        } finally {
+            internalCluster().wipeIndices("test_stats_agg");
+        }
     }
 }

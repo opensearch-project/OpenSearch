@@ -86,6 +86,6 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.google.bucket"))
             .put("base_path", System.getProperty("test.google.base", "/"));
-        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "gcs", settings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "gcs", settings);
     }
 }

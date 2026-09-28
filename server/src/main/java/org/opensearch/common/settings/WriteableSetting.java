@@ -245,7 +245,8 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 if (fallback == null && parser instanceof Writeable) {
                     if (parser instanceof MemorySizeValueParser) {
-                        return Setting.memorySizeSetting(key, (ByteSizeValue) defaultValue, propertyArray);
+                        MemorySizeValueParser memorySizeParser = (MemorySizeValueParser) parser;
+                        return new Setting<>(key, (s) -> defaultValue.toString(), memorySizeParser, propertyArray);
                     } else {
                         ByteSizeValueParser byteSizeValueParser = (ByteSizeValueParser) parser;
                         return Setting.byteSizeSetting(

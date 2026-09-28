@@ -10,6 +10,7 @@ package org.opensearch.search.startree.filter.provider;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -21,15 +22,18 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -63,19 +67,10 @@ public interface DimensionFilterMapper {
     /**
      * Generates @{@link RangeMatchDimFilter} from Range query input.
      * @param mappedFieldType:
-     * @param rawLow:
-     * @param rawHigh:
-     * @param includeLow:
-     * @param includeHigh:
+     * @param rangeQuery:
      * @return :
      */
-    DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    );
+    DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery);
 
     /**
      * Called during conversion from parsedUserInput to segmentOrdinal for every segment.
@@ -133,6 +128,18 @@ public interface DimensionFilterMapper {
         return DimensionDataType.LONG::compare;
     }
 
+    default boolean resolveUsingSubDimension() {
+        return false;
+    }
+
+    default String getSubDimensionFieldEffective(String subDimensionField1, String subDimensionField2) {
+        return null;
+    }
+
+    default List<DimensionFilter> getFinalDimensionFilters(List<DimensionFilter> filters) {
+        return filters;
+    }
+
     /**
      * Singleton Factory for @{@link DimensionFilterMapper}
      */
@@ -156,11 +163,16 @@ public interface DimensionFilterMapper {
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
             new KeywordFieldMapper(),
             UNSIGNED_LONG.typeName(),
-            new UnsignedLongFieldMapperNumeric()
+            new UnsignedLongFieldMapperNumeric(),
+            org.opensearch.index.mapper.IpFieldMapper.CONTENT_TYPE,
+            new IpFieldMapper()
         );
 
-        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
+        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
             if (mappedFieldType != null) {
+                if (DateFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName())) {
+                    return new StarDateFieldMapper(searchContext);
+                }
                 return DIMENSION_FILTER_MAPPINGS.get(mappedFieldType.typeName());
             }
             return null;
@@ -204,27 +216,27 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
 
-        Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
-        Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
+        Long parsedLow = rangeQuery.from() == null
+            ? defaultMinimum()
+            : numberFieldType.numberType().parse(rangeQuery.from(), true).longValue();
+        Long parsedHigh = rangeQuery.to() == null
+            ? defaultMaximum()
+            : numberFieldType.numberType().parse(rangeQuery.to(), true).longValue();
 
         boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
-        if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
+        if ((lowerTermHasDecimalPart == false && rangeQuery.includeLower() == false)
+            || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
             if (parsedLow.equals(defaultMaximum())) {
                 return new MatchNoneFilter();
             }
             ++parsedLow;
         }
         boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
-        if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
+        if ((upperTermHasDecimalPart == false && rangeQuery.includeUpper() == false)
+            || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
             if (parsedHigh.equals(defaultMinimum())) {
                 return new MatchNoneFilter();
             }
@@ -318,26 +330,20 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
         Number l = Long.MIN_VALUE;
         Number u = Long.MAX_VALUE;
-        if (rawLow != null) {
-            l = numberFieldType.numberType().parse(rawLow, false);
-            if (includeLow == false) {
+        if (rangeQuery.from() != null) {
+            l = numberFieldType.numberType().parse(rangeQuery.from(), false);
+            if (rangeQuery.includeLower() == false) {
                 l = getNextHigh(l);
             }
             l = convertToDocValues(l);
         }
-        if (rawHigh != null) {
-            u = numberFieldType.numberType().parse(rawHigh, false);
-            if (includeHigh == false) {
+        if (rangeQuery.to() != null) {
+            u = numberFieldType.numberType().parse(rangeQuery.to(), false);
+            if (rangeQuery.includeUpper() == false) {
                 u = getNextLow(u);
             }
             u = convertToDocValues(u);
@@ -404,33 +410,27 @@ class DoubleFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 }
 
-class KeywordFieldMapper implements DimensionFilterMapper {
+abstract class OrdinalFieldMapper implements DimensionFilterMapper {
+
+    abstract Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) throws IllegalArgumentException;
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         List<Object> convertedValues = new ArrayList<>(rawValues.size());
         for (Object rawValue : rawValues) {
-            convertedValues.add(parseRawKeyword(mappedFieldType.name(), rawValue, keywordFieldType));
+            convertedValues.add(parseRawField(mappedFieldType.name(), rawValue, mappedFieldType));
         }
         return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
-        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         return new RangeMatchDimFilter(
             mappedFieldType.name(),
-            parseRawKeyword(mappedFieldType.name(), rawLow, keywordFieldType),
-            parseRawKeyword(mappedFieldType.name(), rawHigh, keywordFieldType),
-            includeLow,
-            includeHigh
+            parseRawField(mappedFieldType.name(), rangeQuery.from(), mappedFieldType),
+            parseRawField(mappedFieldType.name(), rangeQuery.to(), mappedFieldType),
+            rangeQuery.includeLower(),
+            rangeQuery.includeUpper()
         );
     }
 
@@ -488,8 +488,20 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         }
     }
 
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
+            throw new IllegalArgumentException("Expected BytesRef values for comparison");
+        }
+        return ((BytesRef) v1).compareTo((BytesRef) v2);
+    }
+}
+
+class KeywordFieldMapper extends OrdinalFieldMapper {
+
     // TODO : Think around making TermBasedFT#indexedValueForSearch() accessor public for reuse here.
-    private Object parseRawKeyword(String field, Object rawValue, KeywordFieldType keywordFieldType) {
+    Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) {
+        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         Object parsedValue = null;
         if (rawValue != null) {
             if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
@@ -503,13 +515,51 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         }
         return parsedValue;
     }
+}
 
-    @Override
-    public int compareValues(Object v1, Object v2) {
-        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
-            throw new IllegalArgumentException("Expected BytesRef values for keyword comparison");
+/**
+ * This class provides functionality to map IP address values for exact and range-based
+ * filtering within a Star-Tree index. It handles the conversion of IP address
+ * objects into sortable {@link BytesRef}.
+ */
+class IpFieldMapper extends OrdinalFieldMapper {
+
+    /**
+     * Parses a raw IP address value into a sortable {@link BytesRef}.
+     *
+     * This method handles various input types, including {@link InetAddress}, {@link BytesRef},
+     * and {@link String}, converting them into a binary representation using
+     * {@link InetAddressPoint#encode(InetAddress)}.
+     *
+     * @param field The name of the field being processed.
+     * @param rawValue The raw IP address value.
+     * @return A {@link BytesRef} representation of the IP address, or null if the input is null.
+     */
+    Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) throws IllegalArgumentException {
+        Object parsedValue = null;
+        if (rawValue != null) {
+            try {
+                switch (rawValue) {
+                    case InetAddress inetAddress -> {
+                        parsedValue = new BytesRef(InetAddressPoint.encode(inetAddress));
+                    }
+                    case BytesRef bytesRef -> {
+                        return bytesRef;
+                    }
+                    case String s -> {
+                        InetAddress addr = InetAddress.getByName(s);
+                        parsedValue = new BytesRef(InetAddressPoint.encode(addr));
+                    }
+                    default -> {
+                        throw new IllegalArgumentException(
+                            "Unsupported value type for IP field [" + field + "]: " + rawValue.getClass().getName()
+                        );
+                    }
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Failed to parse IP value for field [" + field + "]", e);
+            }
         }
-        return ((BytesRef) v1).compareTo((BytesRef) v2);
+        return parsedValue;
     }
-
 }

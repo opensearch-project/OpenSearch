@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -32,6 +33,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.FormatBlobRouter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,8 +43,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -67,7 +72,13 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
 
-    private final UnaryOperator<InputStream> downloadRateLimiter;
+    private final DownloadRateLimiterProvider downloadRateLimiterProvider;
+
+    /**
+     * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
+     */
+    protected final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -79,19 +90,22 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), null);
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
         UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
-        UnaryOperator<InputStream> downloadRateLimiter
+        UnaryOperator<InputStream> downloadRateLimiter,
+        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
+        Map<String, String> pendingDownloadMergedSegments
     ) {
         this.blobContainer = blobContainer;
         this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
-        this.downloadRateLimiter = downloadRateLimiter;
+        this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
     }
 
     /**
@@ -175,6 +189,22 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Removes multiple existing files in the directory in a batch operation.
+     *
+     * <p>This method will not throw an exception when a file doesn't exist and simply ignores missing files.
+     * This is consistent with the behavior of {@link #deleteFile(String)}.
+     *
+     * @param names the collection of filenames to delete.
+     * @throws IOException if the files exist but could not be deleted.
+     */
+    public void deleteFiles(List<String> names) throws IOException {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        blobContainer.deleteBlobsIgnoringIfNotExists(names);
+    }
+
+    /**
      * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
      * store.
      *
@@ -236,7 +266,8 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            UnaryOperator<InputStream> rateLimiter = downloadRateLimiterProvider.get(name);
+            return new RemoteIndexInput(name, rateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -249,6 +280,48 @@ public class RemoteDirectory extends Directory {
             logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
             throw e;
         }
+    }
+
+    /**
+     * Opens a stream that reads the existing file as multiple byte-range parts in parallel while presenting the
+     * bytes sequentially, and returns a {@link RemoteIndexInput} enclosing it. Parts ahead of the reader are
+     * prefetched on {@code executor} subject to the node-wide {@code permits} budget; see
+     * {@link ParallelPartInputStream} for the exact semantics.
+     *
+     * @param name       the name of an existing file
+     * @param fileLength file length
+     * @param context    desired {@link IOContext} context
+     * @param partSize   size of each byte-range part
+     * @param executor   executor on which prefetch tasks run
+     * @param permits    node-wide budget bounding the number of prefetched parts in flight
+     * @return the {@link RemoteIndexInput} enclosing the multi-part stream
+     */
+    public IndexInput openParallelInput(
+        String name,
+        long fileLength,
+        IOContext context,
+        long partSize,
+        Executor executor,
+        ParallelDownloadPermits permits
+    ) {
+        final InputStream inputStream = new ParallelPartInputStream(
+            getBlobContainerForBlob(name),
+            name,
+            fileLength,
+            partSize,
+            executor,
+            permits,
+            downloadRateLimiterProvider.get(name)
+        );
+        return new RemoteIndexInput(name, inputStream, fileLength);
+    }
+
+    /**
+     * Resolves the {@link BlobContainer} that holds the given blob. Subclasses that spread blobs across several
+     * containers override this.
+     */
+    protected BlobContainer getBlobContainerForBlob(String name) {
+        return blobContainer;
     }
 
     /**
@@ -354,6 +427,10 @@ public class RemoteDirectory extends Directory {
         blobContainer.delete();
     }
 
+    public Optional<FormatBlobRouter> getFormatBlobRouter() {
+        return Optional.empty();
+    }
+
     public boolean copyFrom(
         Directory from,
         String src,
@@ -361,11 +438,12 @@ public class RemoteDirectory extends Directory {
         IOContext context,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -374,83 +452,198 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
-    private void uploadBlob(
+    protected void uploadBlob(
         Directory from,
         String src,
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
+    ) throws Exception {
+        uploadBlob(from, src, remoteFileName, ioContext, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata, blobContainer);
+    }
+
+    protected void uploadBlob(
+        Directory from,
+        String src,
+        String remoteFileName,
+        IOContext ioContext,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata,
+        BlobContainer targetBlobContainer
     ) throws Exception {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
-        try (IndexInput indexInput = from.openInput(src, ioContext)) {
+        IndexInput indexInput = wrapWithLifecycleTracking(from.openInput(src, ioContext), src);
+        try {
             contentLength = indexInput.length();
-        }
-        boolean remoteIntegrityEnabled = false;
-        if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
-        }
-        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
-        RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
-        if (lowPriorityUpload) {
-            offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
-            );
-        } else {
-            offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
-            );
-        }
-        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-            src,
-            remoteFileName,
-            contentLength,
-            true,
-            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
-            offsetRangeInputStreamSupplier,
-            expectedChecksum,
-            remoteIntegrityEnabled
-        );
-        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
-            try {
-                postUploadRunner.run();
-                listener.onResponse(null);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
-                listener.onFailure(e);
+            boolean remoteIntegrityEnabled = false;
+            if (targetBlobContainer instanceof AsyncMultiStreamBlobContainer asyncContainer) {
+                remoteIntegrityEnabled = asyncContainer.remoteIntegrityCheckSupported();
             }
-        }, ex -> {
-            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
-            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
-            if (corruptIndexException != null) {
-                listener.onFailure(corruptIndexException);
-                return;
-            }
-            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
-            if (throwable != null) {
-                CorruptFileException corruptFileException = (CorruptFileException) throwable;
-                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
-                return;
-            }
-            listener.onFailure(ex);
-        });
+            lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
 
-        completionListener = ActionListener.runBefore(completionListener, () -> {
-            try {
-                remoteTransferContainer.close();
-            } catch (Exception e) {
-                logger.warn("Error occurred while closing streams", e);
-            }
-        });
+            offsetRangeInputStreamSupplier = createOffsetRangeInputStreamSupplier(indexInput, lowPriorityUpload);
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                src,
+                remoteFileName,
+                contentLength,
+                true,
+                lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+                offsetRangeInputStreamSupplier,
+                expectedChecksum,
+                remoteIntegrityEnabled,
+                null,
+                cryptoMetadata
+            );
+            ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
+                try {
+                    postUploadRunner.run();
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
+                    listener.onFailure(e);
+                }
+            }, ex -> {
+                logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
+                IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
+                if (corruptIndexException != null) {
+                    listener.onFailure(corruptIndexException);
+                    return;
+                }
+                Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
+                if (throwable != null) {
+                    CorruptFileException corruptFileException = (CorruptFileException) throwable;
+                    listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
+                    return;
+                }
+                listener.onFailure(ex);
+            });
 
-        WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+            completionListener = ActionListener.runBefore(completionListener, () -> {
+                try {
+                    remoteTransferContainer.close();
+                } catch (Exception e) {
+                    logger.warn("Error occurred while closing streams", e);
+                }
+            });
+
+            completionListener = ActionListener.runAfter(completionListener, () -> {
+                try {
+                    indexInput.close();
+                } catch (IOException e) {
+                    logger.warn("Error occurred while closing index input", e);
+                }
+            });
+
+            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            ((AsyncMultiStreamBlobContainer) targetBlobContainer).asyncBlobUpload(writeContext, completionListener);
+        } catch (Exception e) {
+            logger.warn("Exception while calling asyncBlobUpload, closing IndexInput to avoid leak");
+            indexInput.close();
+            throw e;
+        }
     }
 
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
+    /**
+     * Builds the per-part {@link RemoteTransferContainer.OffsetRangeInputStreamSupplier} used to feed the multipart
+     * upload, applying the appropriate rate limiter for the upload priority.
+     *
+     * <p>Each part is backed by an independent {@link IndexInput#slice(String, long, long)} of the master input rather
+     * than a {@link IndexInput#clone()}. This is intentional and must not be changed back to {@code clone()}:
+     * {@code MemorySegmentIndexInput.clone()} shares the master's {@code MemorySegment[]} array by reference, so when
+     * any one part's stream closes, {@code Arrays.fill(segments, null)} corrupts the shared array and every subsequent
+     * {@code provideStream()} for the other parts fails with {@code AlreadyClosedException}. {@code slice()} allocates
+     * an independent array copy (via {@code ArrayUtil.copyOfSubArray} in {@code buildSlice}) for each non-full-range
+     * slice, so closing one part only nullifies its own private copy. No extra mmap is created — each slice is just a
+     * new Java object pointing into the already-mapped region. See PR #22309.
+     *
+     * <p>Because the slice already starts at {@code position}, the returned stream reads from offset {@code 0}.
+     *
+     * @param indexInput        the master {@link IndexInput} for the file being uploaded
+     * @param lowPriorityUpload whether to apply the low-priority rate limiter
+     * @return a supplier that produces an independent, rate-limited stream for each requested part
+     */
+    protected RemoteTransferContainer.OffsetRangeInputStreamSupplier createOffsetRangeInputStreamSupplier(
+        IndexInput indexInput,
+        boolean lowPriorityUpload
+    ) {
+        UnaryOperator<OffsetRangeInputStream> rateLimiter = lowPriorityUpload ? lowPriorityUploadRateLimiter : uploadRateLimiter;
+        return (size, position) -> rateLimiter.apply(
+            new OffsetRangeIndexInputStream(indexInput.slice("part@" + position, position, size), size, 0)
+        );
+    }
+
+    /**
+     * Wraps the master {@link IndexInput} used for a multipart upload with lifecycle tracking that surfaces two
+     * classes of upload-path lifecycle bug:
+     *
+     * <ul>
+     *   <li><b>Double-close</b> — {@link #close()} being invoked more than once means two code paths are releasing
+     *       the same master input. The multipart upload defers the master close to the completion listener (fired
+     *       after publication completes); a second close indicates a leak or an errant close elsewhere.</li>
+     *   <li><b>Use-after-close</b> — a {@link #clone()} (which the part supplier reaches via {@code slice()}) attempted
+     *       after the master has been closed means the master was released before all parts finished, which must not
+     *       happen while parts are still being served.</li>
+     * </ul>
+     *
+     * <p>Both conditions are logged (not thrown) so a latent lifecycle bug is visible in logs without changing upload
+     * behavior. {@code clone()} delegates to the underlying input's {@code clone()} — <b>not</b> {@code super.clone()},
+     * which would inherit {@code Object.clone()} and produce a shallow {@link org.apache.lucene.store.FilterIndexInput}
+     * wrapper sharing the same delegate, causing a spurious double-close when that shallow copy is released. See PR
+     * #22309.
+     *
+     * @param rawIndexInput the freshly opened master {@link IndexInput}
+     * @param src           the source file name, for log context
+     * @return a tracking {@link IndexInput} that delegates to {@code rawIndexInput}
+     */
+    protected IndexInput wrapWithLifecycleTracking(IndexInput rawIndexInput, String src) {
+        final AtomicReference<Boolean> indexInputClosed = new AtomicReference<>(false);
+        return new org.apache.lucene.store.FilterIndexInput("tracked:" + src, rawIndexInput) {
+            @Override
+            public void close() throws IOException {
+                if (indexInputClosed.getAndSet(true)) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "IndexInput for [{}] closed a second time (double-close) on thread [{}]; "
+                                + "possible lifecycle bug in the upload path",
+                            src,
+                            Thread.currentThread().getName()
+                        )
+                    );
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("IndexInput.close() for [{}]", src));
+                }
+                super.close();
+            }
+
+            @Override
+            public IndexInput clone() {
+                if (indexInputClosed.get()) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "IndexInput.slice()/clone() attempted on already-closed IndexInput for [{}] on thread [{}]; "
+                                + "the master was closed before all parts completed",
+                            src,
+                            Thread.currentThread().getName()
+                        )
+                    );
+                }
+                // Delegate to the underlying IndexInput's clone() — NOT super.clone(). FilterIndexInput inherits
+                // Object.clone(), which yields a shallow wrapper sharing the same 'in' field and double-closes it
+                // when released. slice() lands here via FilterIndexInput#slice -> clone of the sliced delegate.
+                return in.clone();
+            }
+        };
+    }
+
+    protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);
@@ -475,8 +668,37 @@ public class RemoteDirectory extends Directory {
         byte[] bytes;
         try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
             // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
-            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+            bytes = downloadRateLimiterProvider.get(name).apply(inputStream).readAllBytes();
         }
         return new ByteArrayIndexInput(name, bytes);
+    }
+
+    private boolean isMergedSegment(String remoteFilename) {
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsValue(remoteFilename);
+    }
+
+    /**
+     * DownloadRateLimiterProvider returns a low-priority rate limited stream if the segment
+     * being downloaded is a merged segment as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}.
+     */
+    private class DownloadRateLimiterProvider {
+        private final UnaryOperator<InputStream> downloadRateLimiter;
+        private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
+
+        DownloadRateLimiterProvider(
+            UnaryOperator<InputStream> downloadRateLimiter,
+            UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        ) {
+            this.downloadRateLimiter = downloadRateLimiter;
+            this.lowPriorityDownloadRateLimiter = lowPriorityDownloadRateLimiter;
+        }
+
+        public UnaryOperator<InputStream> get(final String filename) {
+            if (isMergedSegment(filename)) {
+                return lowPriorityDownloadRateLimiter;
+            }
+            return downloadRateLimiter;
+        }
     }
 }

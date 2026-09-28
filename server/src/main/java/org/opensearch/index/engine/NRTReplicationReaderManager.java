@@ -39,6 +39,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
     private volatile SegmentInfos currentInfos;
     private Consumer<Collection<String>> onReaderClosed;
     private Consumer<Collection<String>> onNewReader;
+    private final EngineConfig engineConfig;
 
     /**
      * Creates and returns a new SegmentReplicationReaderManager from the given
@@ -48,16 +49,19 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
      * @param reader         - The SegmentReplicationReaderManager to use for future reopens.
      * @param onNewReader    - Called when a new reader is created.
      * @param onReaderClosed - Called when a reader is closed.
+     * @param engineConfig   - The engine configuration containing leafSorter.
      */
     NRTReplicationReaderManager(
         OpenSearchDirectoryReader reader,
         Consumer<Collection<String>> onNewReader,
-        Consumer<Collection<String>> onReaderClosed
+        Consumer<Collection<String>> onReaderClosed,
+        EngineConfig engineConfig
     ) {
         super(reader);
         currentInfos = unwrapStandardReader(reader).getSegmentInfos();
         this.onNewReader = onNewReader;
         this.onReaderClosed = onReaderClosed;
+        this.engineConfig = engineConfig;
     }
 
     @Override
@@ -75,7 +79,13 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
         // does not yet exist on store (not yet committed)
         final Collection<String> files = currentInfos.files(false);
-        DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
+        DirectoryReader innerReader = StandardDirectoryReader.open(
+            referenceToRefresh.directory(),
+            currentInfos,
+            subs,
+            engineConfig.getLeafSorter(),
+            null
+        );
         final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
             innerReader,
             Lucene.SOFT_DELETES_FIELD
@@ -112,8 +122,8 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
 
     public static StandardDirectoryReader unwrapStandardReader(OpenSearchDirectoryReader reader) {
         final DirectoryReader delegate = reader.getDelegate();
-        if (delegate instanceof SoftDeletesDirectoryReaderWrapper) {
-            return (StandardDirectoryReader) ((SoftDeletesDirectoryReaderWrapper) delegate).getDelegate();
+        if (delegate instanceof SoftDeletesDirectoryReaderWrapper softDeletesWrapper) {
+            return (StandardDirectoryReader) softDeletesWrapper.getDelegate();
         }
         return (StandardDirectoryReader) delegate;
     }

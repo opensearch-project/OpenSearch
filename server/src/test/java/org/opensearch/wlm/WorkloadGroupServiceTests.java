@@ -14,7 +14,9 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.tasks.Task;
@@ -441,6 +443,42 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
+    public void testGetCurrentWorkloadGroupReturnsNullWhenHeaderMissing() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
+        assertNull(workloadGroupService.getCurrentWorkloadGroup());
+    }
+
+    public void testGetCurrentWorkloadGroupReturnsGroupWhenPresent() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-1");
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
+        WorkloadGroup wg = new WorkloadGroup(
+            "wg-1-name",
+            "wg-1",
+            new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.SOFT, Map.of(ResourceType.MEMORY, 0.5)),
+            1L
+        );
+        ClusterState clusterState = Mockito.mock(ClusterState.class);
+        Metadata metadata = Mockito.mock(Metadata.class);
+        when(mockClusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.workloadGroups()).thenReturn(Map.of("wg-1", wg));
+        assertSame(wg, workloadGroupService.getCurrentWorkloadGroup());
+    }
+
+    public void testGetCurrentWorkloadGroupReturnsNullWhenGroupMissing() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "missing-id");
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
+        ClusterState clusterState = Mockito.mock(ClusterState.class);
+        Metadata metadata = Mockito.mock(Metadata.class);
+        when(mockClusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
+        assertNull(workloadGroupService.getCurrentWorkloadGroup());
+    }
+
     public void testShouldSBPHandle() {
         SearchTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
         WorkloadGroupState workloadGroupState = new WorkloadGroupState();
@@ -477,7 +515,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         task.setWorkloadGroupId(mockThreadPool.getThreadContext());
         assertTrue(workloadGroupService.shouldSBPHandle(task));
 
-        // Valid query group task but wlm not enabled
+        // Valid workload group task but wlm not enabled
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
         activeWorkloadGroups.add(
             new WorkloadGroup(

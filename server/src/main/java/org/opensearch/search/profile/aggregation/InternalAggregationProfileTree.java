@@ -43,7 +43,7 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
 
     @Override
-    protected AggregationProfileBreakdown createProfileBreakdown() {
+    protected AggregationProfileBreakdown createProfileBreakdown(Aggregator aggregator) {
         return new AggregationProfileBreakdown();
     }
 

@@ -605,5 +605,4 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
         }
     }
-
 }

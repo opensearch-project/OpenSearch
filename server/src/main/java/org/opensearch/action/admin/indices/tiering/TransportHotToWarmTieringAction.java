@@ -11,12 +11,14 @@ package org.opensearch.action.admin.indices.tiering;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -39,7 +41,9 @@ import static org.opensearch.indices.tiering.TieringRequestValidator.validateHot
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class TransportHotToWarmTieringAction extends TransportClusterManagerNodeAction<TieringIndexRequest, HotToWarmTieringResponse> {
+public class TransportHotToWarmTieringAction extends TransportClusterManagerNodeAction<TieringIndexRequest, HotToWarmTieringResponse>
+    implements
+        TransportIndicesResolvingAction<TieringIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportHotToWarmTieringAction.class);
     private final ClusterInfoService clusterInfoService;
@@ -90,7 +94,7 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
         ClusterState state,
         ActionListener<HotToWarmTieringResponse> listener
     ) throws Exception {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        Index[] concreteIndices = resolveIndices(state, request).concreteIndicesAsArray();
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new HotToWarmTieringResponse(true));
             return;
@@ -106,5 +110,14 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
             listener.onResponse(tieringValidationResult.constructResponse());
             return;
         }
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, TieringIndexRequest request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(state, request);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(TieringIndexRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request));
     }
 }

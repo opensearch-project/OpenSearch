@@ -24,7 +24,7 @@ import java.nio.file.Path;
 public final class SmbNIOFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         return new SmbDirectoryWrapper(new NIOFSDirectory(location, lockFactory));
     }
 }

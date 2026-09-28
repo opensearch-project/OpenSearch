@@ -1,0 +1,1 @@
+source=test_data | eval exp_val = exp(1), pi_val = pi() | fields value, exp_val, pi_val | head 1

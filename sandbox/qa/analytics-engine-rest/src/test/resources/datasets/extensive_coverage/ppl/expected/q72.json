@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "total_value",
+      "type": "double"
+    },
+    {
+      "name": "total_count",
+      "type": "bigint"
+    },
+    {
+      "name": "category",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      606.25,
+      62,
+      "A"
+    ],
+    [
+      677.0,
+      72,
+      "B"
+    ],
+    [
+      1050.25,
+      88,
+      "C"
+    ],
+    [
+      2333.5,
+      222,
+      null
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

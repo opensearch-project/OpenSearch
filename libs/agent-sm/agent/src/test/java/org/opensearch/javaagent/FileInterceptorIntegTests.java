@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
@@ -55,6 +56,17 @@ public class FileInterceptorIntegTests {
                 Permissions permissions = new Permissions();
                 permissions.add(new FilePermission(System.getProperty("user.dir") + "/-", "read,write,delete"));
                 return permissions;
+            }
+
+            @Override
+            public boolean implies(ProtectionDomain domain, Permission permission) {
+                final PermissionCollection pc = getPermissions(domain);
+
+                if (pc == null) {
+                    return false;
+                }
+
+                return pc.implies(permission);
             }
         };
         AgentPolicy.setPolicy(policy);

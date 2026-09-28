@@ -1,0 +1,50 @@
+{
+  "schema": [
+    {
+      "name": "denied_count",
+      "type": "bigint"
+    },
+    {
+      "name": "resource",
+      "type": "string"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      8,
+      "/api/config/system",
+      "mjones"
+    ],
+    [
+      8,
+      "/api/config/system",
+      "bwilson"
+    ],
+    [
+      7,
+      "/api/admin/users",
+      "bwilson"
+    ],
+    [
+      5,
+      "/api/admin/users",
+      "mjones"
+    ],
+    [
+      4,
+      "/api/data/sensitive",
+      "admin"
+    ],
+    [
+      4,
+      "/dashboard/admin",
+      "bwilson"
+    ]
+  ],
+  "total": 6,
+  "size": 6
+}

@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "resource",
+      "type": "string"
+    },
+    {
+      "name": "success_count",
+      "type": "bigint"
+    },
+    {
+      "name": "r.resource",
+      "type": "string"
+    },
+    {
+      "name": "error_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      20,
+      "/api/admin",
+      30,
+      "/api/admin",
+      40.0
+    ],
+    [
+      20,
+      "/api/config",
+      30,
+      "/api/config",
+      40.0
+    ],
+    [
+      20,
+      "/api/users",
+      30,
+      "/api/users",
+      40.0
+    ],
+    [
+      20,
+      "/dashboard",
+      30,
+      "/dashboard",
+      40.0
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

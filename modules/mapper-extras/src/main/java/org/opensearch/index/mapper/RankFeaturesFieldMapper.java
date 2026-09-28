@@ -210,6 +210,11 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new AssertionError("parse is implemented directly");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

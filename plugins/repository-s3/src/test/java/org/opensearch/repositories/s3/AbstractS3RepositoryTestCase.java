@@ -12,6 +12,7 @@ import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
@@ -39,10 +40,12 @@ public abstract class AbstractS3RepositoryTestCase extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "set predictable aws defaults")
     private void setUpAwsProfile() throws Exception {
-        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        previousOpenSearchPathConf = AccessController.doPrivileged(
+            () -> System.setProperty("opensearch.path.conf", configPath().toString())
+        );
         awsSharedCredentialsFile = System.getProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property());
         awsConfigFile = System.getProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property());
-        SocketAccess.doPrivilegedVoid(S3Service::setDefaultAwsProfilePath);
+        AccessController.doPrivileged(S3Service::setDefaultAwsProfilePath);
     }
 
     @SuppressForbidden(reason = "reset aws settings")
@@ -55,9 +58,9 @@ public abstract class AbstractS3RepositoryTestCase extends OpenSearchTestCase {
     @SuppressForbidden(reason = "reset aws settings")
     private void resetPropertyValue(String key, String value) {
         if (value != null) {
-            SocketAccess.doPrivileged(() -> System.setProperty(key, value));
+            AccessController.doPrivileged(() -> System.setProperty(key, value));
         } else {
-            SocketAccess.doPrivileged(() -> System.clearProperty(key));
+            AccessController.doPrivileged(() -> System.clearProperty(key));
         }
     }
 }

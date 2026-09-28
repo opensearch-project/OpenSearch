@@ -80,13 +80,16 @@ To run OpenSearch in debug mode,
 
 This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port incrementing from `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
 
+Alternately, you can configure your OpenSearch JVM to listen as a debug server on port `5005`, and attach a debugger IDE once opensearch JVM is up and running. Use `./gradlew run --debug-server-jvm` for this debugging setup.
+
 ### Other useful arguments
 
 -   In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 -   In order to disable assertions add: `-Dtests.asserts=false`
 -   In order to use a custom data directory: `--data-dir=/tmp/foo`
 -   In order to preserve data in between executions: `--preserve-data`
--   In order to remotely attach a debugger to the process: `--debug-jvm`
+-   In order to start opensearch as a debug server and remotely attach a debugger client (like an IDE debugger): `--debug-server-jvm`
+-   In order to start and attach opensearch process to an existing debug server: `--debug-jvm`
 -   In order to set a different keystore password: `--keystore-password yourpassword`
 -   In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.opensearch.`
 -   In order to enable stack trace of the MockSpanData during testing, add: `-Dtests.telemetry.span.stack_traces=true` (Storing stack traces alongside span data can be useful for comprehensive debugging and performance optimization during testing, as it provides insights into the exact code paths and execution sequences, facilitating efficient issue identification and resolution. Note: Enabling this might lead to OOM issues while running ITs)
@@ -287,105 +290,6 @@ For example :
 
 You can launch a local OpenSearch cluster in debug mode following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide), and run your REST tests against that following [Running REST Tests Against An External Cluster](#running-rest-tests-against-an-external-cluster).
 
-# Testing packaging
-
-The packaging tests use Vagrant virtual machines or cloud instances to verify that installing and running OpenSearch distributions works correctly on supported operating systems. These tests should really only be run on ephemeral systems because they’re destructive; that is, these tests install and remove packages and freely modify system settings, so you will probably regret it if you execute them on your development machine.
-
-When you run a packaging test, Gradle will set up the target VM and mount your repository directory in the VM. Once this is done, a Gradle task will issue a Vagrant command to run a **nested** Gradle task on the VM. This nested Gradle runs the actual "destructive" test classes.
-
-1.  Install Virtual Box and Vagrant.
-
-2.  (Optional) Install [vagrant-cachier](https://github.com/fgrehm/vagrant-cachier) to squeeze a bit more performance out of the process (Note: as of 2021, vagrant-cachier is unmaintained):
-
-        vagrant plugin install vagrant-cachier
-
-3.  You can run all the OS packaging tests with `./gradlew packagingTest`. This task includes our legacy `bats` tests.
-
-    To run only the OS tests that are written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar, zip, and deb packages and all the plugins. It will then run the tests on every available system. This will take a very long time.
-
-    Fortunately, the various systems under test have their own Gradle tasks under `qa/os`. To find out what packaging combinations can be tested on a system, run the `tasks` task. For example:
-
-        ./gradlew :qa:os:ubuntu-1804:tasks
-
-    If you want a quick test of the tarball and RPM packaging for Centos 7, you would run:
-
-        ./gradlew :qa:os:centos-7:distroTest.rpm :qa:os:centos-7:distroTest.linux-archive
-
-Note that if you interrupt Gradle in the middle of running these tasks, any boxes started will remain running, and you’ll have to stop them manually with `./gradlew --stop` or `vagrant halt`.
-
-All the regular vagrant commands should just work, so you can get a shell in a VM running trusty by running `vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
-
-These are the linux flavors supported, all of which we provide images for
-
--   ubuntu-1604 aka xenial
--   ubuntu-1804 aka bionic beaver
--   debian-8 aka jessie
--   debian-9 aka stretch, the current debian stable distribution
--   centos-6
--   centos-7
--   rhel-8
--   fedora-28
--   fedora-29
--   oel-6 aka Oracle Enterprise Linux 6
--   oel-7 aka Oracle Enterprise Linux 7
--   sles-12
--   opensuse-42 aka Leap
-
-We’re missing the following from the support matrix because there are no high quality boxes available in vagrant atlas:
-
--   sles-11
-
-## Testing packaging on Windows
-
-The packaging tests also support Windows Server 2012R2 and Windows Server 2016. Unfortunately we’re not able to provide boxes for them in open source use because of licensing issues. Any Virtualbox image that has WinRM and Powershell enabled for remote users should work.
-
-Testing on Windows requires the [vagrant-winrm](https://github.com/criteo/vagrant-winrm) plugin.
-
-    vagrant plugin install vagrant-winrm
-
-Specify the image IDs of the Windows boxes to gradle with the following project properties. They can be set in `~/.gradle/gradle.properties` such as
-
-    vagrant.windows-2012r2.id=my-image-id
-    vagrant.windows-2016.id=another-image-id
-
-or passed on the command line such as `-Pvagrant.windows-2012r2.id=my-image-id` or `-Pvagrant.windows-2016=another-image-id`
-
-These properties are required for Windows support in all gradle tasks that handle packaging tests. Either or both may be specified.
-
-If you’re running vagrant commands outside of gradle, specify the Windows boxes with the environment variables.
-
--   `VAGRANT_WINDOWS_2012R2_BOX`
--   `VAGRANT_WINDOWS_2016_BOX`
-
-## Testing VMs are disposable
-
-It’s important to think of VMs like cattle. If they become lame you just shoot them and let vagrant reprovision them. Say you’ve hosed your precise VM:
-
-    vagrant ssh ubuntu-1604 -c 'sudo rm -rf /bin'; echo oops
-
-All you’ve got to do to get another one is
-
-    vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
-
-The whole process takes a minute and a half on a modern laptop, two and a half without vagrant-cachier.
-
-Some vagrant commands will work on all VMs at once:
-
-    vagrant halt
-    vagrant destroy -f
-
-`vagrant up` would normally start all the VMs, but we’ve prevented that because that’d consume a ton of ram.
-
-## Iterating on packaging tests
-
-Because our packaging tests are capable of testing many combinations of OS (e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.) and so forth, it’s faster to develop against smaller subsets of the tests. For example, to run tests for the default archive distribution on Fedora 28:
-
-    ./gradlew :qa:os:fedora-28:distroTest.linux-archive
-
-These test tasks can use the `--tests`, `--info`, and `--debug` parameters just like non-OS tests can. For example:
-
-    ./gradlew :qa:os:fedora-28:distroTest.linux-archive --tests "com.opensearch.packaging.test.ArchiveTests"
-
 # Testing backwards compatibility
 
 Backwards compatibility tests exist to test upgrading from each supported version to the current version.
@@ -518,25 +422,48 @@ Example:
 
 # Test coverage analysis
 
-The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html). Following are some of the ways to generate the code coverage reports locally.
 
 For unit test:
 
-    ./gradlew codeCoverageReportForUnitTest
+    ./gradlew test
+    ./gradlew jacocoTestReport
+
+For unit test inside a specific module:
+
+    ./gradlew :server:test
+    ./gradlew :server:jacocoTestReport
+
+For specific unit test inside a specific module:
+
+    ./gradlew :server:test --tests "org.opensearch.search.approximate.ApproximatePointRangeQueryTests.testNycTaxiDataDistribution"
+    ./gradlew :server:jacocoTestReport -Dtests.coverage.report.html=true
 
 For integration test:
 
-    ./gradlew codeCoverageReportForIntegrationTest
+    ./gradlew internalClusterTest
+    ./gradlew jacocoTestReport
 
-For the combined tests (unit and integration):
+For integration test inside a specific module:
 
-    ./gradlew codeCoverageReport
+    ./gradlew :server:internalClusterTest
+    ./gradlew :server:jacocoTestReport
+
+For specific integration test inside a specific module:
+
+    ./gradlew :server:internalClusterTest --tests "org.opensearch.action.admin.ClientTimeoutIT.testNodesInfoTimeout"
+    ./gradlew :server:jacocoTestReport
+
+For modules with javaRestTest:
+
+    ./gradlew :qa:die-with-dignity:javaRestTest
+    ./gradlew :qa:die-with-dignity:jacocoTestReport -Dtests.coverage.report.html=true
 
 To generate coverage report for the combined tests after `check` task:
 
     ./gradlew check -Dtests.coverage=true
 
-The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+The code coverage report will be generated in `$buildDir/build/reports/jacoco/test/html/`.
 
 The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
 
@@ -546,7 +473,7 @@ The report will be in XML format only by default, but you can add the following 
 
 For example, to generate code coverage report in HTML format and not in XML format:
 
-    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+    ./gradlew internalClusterTest -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
 
 Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 

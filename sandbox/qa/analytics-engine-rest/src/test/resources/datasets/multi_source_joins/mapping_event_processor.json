@@ -1,0 +1,18 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "cluster_name": { "type": "keyword" },
+      "namespace": { "type": "keyword" },
+      "log_level": { "type": "keyword" },
+      "processor_type": { "type": "keyword" },
+      "filter_in_count": { "type": "integer" },
+      "success_count": { "type": "integer" },
+      "event_type": { "type": "keyword" }
+    }
+  }
+}

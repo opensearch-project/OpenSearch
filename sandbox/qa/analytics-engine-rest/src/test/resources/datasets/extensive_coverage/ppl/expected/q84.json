@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "tags",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "1",
+      "tag1,tag2,tag3"
+    ],
+    [
+      "2",
+      "tag2,tag4"
+    ],
+    [
+      "3",
+      "tag1,tag3,tag5"
+    ],
+    [
+      "4",
+      "tag4,tag6"
+    ],
+    [
+      "5",
+      "tag2,tag5,tag7"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

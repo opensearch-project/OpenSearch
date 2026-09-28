@@ -32,6 +32,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 
 /**
  * Test utility to access the engine of a shard
@@ -39,6 +40,7 @@ import org.opensearch.index.engine.Engine;
 public final class EngineAccess {
 
     public static Engine engine(IndexShard shard) {
-        return shard.getEngine();
+        assert shard.getIndexer() instanceof EngineBackedIndexer;
+        return ((EngineBackedIndexer) shard.getIndexer()).getEngine();
     }
 }

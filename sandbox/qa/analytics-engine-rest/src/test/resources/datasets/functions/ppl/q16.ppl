@@ -1,0 +1,1 @@
+source=function_tests | where message is not null | eval first_5 = substr(message, 1, 5) | fields message, first_5 | head 10

@@ -102,7 +102,7 @@ public class SearchTransportService {
     public static final String UPDATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[update_context]";
 
     private final TransportService transportService;
-    private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
+    protected final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(

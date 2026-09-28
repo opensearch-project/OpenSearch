@@ -27,7 +27,7 @@ buildScan {
   tag OS.current().name()
 
   // Tag if this build is run in FIPS mode
-  if (BuildParams.inFipsJvm) {
+  if (BuildParams.isInFipsJvm()) {
     tag 'FIPS'
   }
 }

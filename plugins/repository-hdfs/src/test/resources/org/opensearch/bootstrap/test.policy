@@ -9,4 +9,5 @@
 grant {
   permission java.net.NetPermission "accessUnixDomainSocket";
   permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.io.FilePermission "${{java.security.krb5.conf}}", "read";
 };

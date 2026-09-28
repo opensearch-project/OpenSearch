@@ -1,0 +1,1 @@
+multisearch [ search source=%INDEX% category="A" ] [ search source=%INDEX% category="B" ] | stats count()

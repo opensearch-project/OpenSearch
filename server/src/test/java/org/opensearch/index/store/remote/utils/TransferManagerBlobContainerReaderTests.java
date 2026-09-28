@@ -27,7 +27,7 @@ public class TransferManagerBlobContainerReaderTests extends TransferManagerTest
     protected void initializeTransferManager() throws IOException {
         blobContainer = mock(BlobContainer.class);
         doAnswer(i -> new ByteArrayInputStream(createData())).when(blobContainer).readBlob(eq("blob"), anyLong(), anyLong());
-        transferManager = new TransferManager(blobContainer::readBlob, fileCache);
+        transferManager = new TransferManager(blobContainer::readBlob, fileCache, threadPool);
     }
 
     protected void mockExceptionWhileReading() throws IOException {

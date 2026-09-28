@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8e47fb8fb1db24906b9af022c409e9ea7c4518a4590689e586d3a6ca9bb3fb27 # shrinks to search_task_current_incs = 51, search_task_current_decs = 22, search_task_total_incs = 95, shard_task_current_incs = 13, shard_task_current_decs = 76, shard_task_total_incs = 25

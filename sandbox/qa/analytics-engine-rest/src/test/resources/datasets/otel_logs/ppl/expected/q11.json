@@ -1,0 +1,12 @@
+{
+  "schema": [
+    {"name": "avg_sev", "type": "double"},
+    {"name": "max_status", "type": "bigint"},
+    {"name": "min_time", "type": "bigint"}
+  ],
+  "datarows": [
+    [10.8, 503, 1780156800000]
+  ],
+  "total": 1,
+  "size": 1
+}

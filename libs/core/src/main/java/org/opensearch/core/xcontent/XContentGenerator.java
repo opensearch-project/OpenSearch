@@ -48,8 +48,6 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     MediaType contentType();
 
-    void usePrettyPrint();
-
     boolean isPrettyPrint();
 
     void usePrintLineFeedAtEnd();

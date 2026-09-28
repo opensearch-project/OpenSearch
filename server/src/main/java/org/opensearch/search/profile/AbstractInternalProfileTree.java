@@ -45,7 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
+public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown, E> {
 
     protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
@@ -128,12 +128,12 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB breakdown = createProfileBreakdown();
+        PB breakdown = createProfileBreakdown(element);
         breakdowns.add(token, breakdown);
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown();
+    protected abstract PB createProfileBreakdown(E element);
 
     /**
      * Removes the last (e.g. most recent) value on the stack
@@ -208,6 +208,12 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         ArrayList<Integer> parentNode = tree.get(parent);
         parentNode.add(childToken);
         tree.set(parent, parentNode);
+    }
+
+    public PB findProfileBreakdown(E query) {
+        int index = elements.indexOf(query);
+        assert index != -1;
+        return breakdowns.get(index);
     }
 
 }

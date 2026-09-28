@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "kubernetes.pod_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      "pod-12"
+    ],
+    [
+      5,
+      "pod-13"
+    ],
+    [
+      5,
+      "pod-17"
+    ],
+    [
+      5,
+      "pod-18"
+    ],
+    [
+      5,
+      "pod-2"
+    ],
+    [
+      5,
+      "pod-3"
+    ],
+    [
+      5,
+      "pod-7"
+    ],
+    [
+      5,
+      "pod-8"
+    ]
+  ],
+  "total": 8,
+  "size": 8
+}

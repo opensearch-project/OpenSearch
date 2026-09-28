@@ -1,0 +1,91 @@
+---
+"Test auto-injected field on index creation":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              mapping_transform_trigger_field:
+                type: keyword
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match:
+      test-index.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field on mapping update":
+  - do:
+      indices.create:
+        index: test-index-update
+        body:
+          mappings:
+            properties:
+              dummy_field:
+                type: keyword
+  - do:
+      indices.put_mapping:
+        index: test-index-update
+        body:
+          properties:
+            mapping_transform_trigger_field:
+              type: keyword
+  - do:
+      indices.get_mapping:
+        index: test-index-update
+  - match:
+      test-index-update.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field via index template":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [example_template] has index patterns [auto-template-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [example_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: example_template
+        body:
+          index_patterns: ["auto-template-*"]
+          template:
+            mappings:
+              properties:
+                mapping_transform_trigger_field:
+                  type: keyword
+  - do:
+      indices.create:
+        index: auto-template-1
+  - do:
+      indices.get_mapping:
+        index: auto-template-1
+  - match:
+      auto-template-1.mappings.properties.mapping_transform_trigger_field.type: keyword
+  - match:
+      auto-template-1.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field via legacy create template API":
+  - skip:
+      features: allowed_warnings
+  - do:
+      indices.put_template:
+        name: legacy_template
+        body:
+          index_patterns: ["legacy-*"]
+          mappings:
+            properties:
+              mapping_transform_trigger_field:
+                type: keyword
+  - do:
+      allowed_warnings:
+        - "index [legacy-1] matches multiple legacy templates [global, legacy_template], composable templates will only match a single template"
+      indices.create:
+        index: legacy-1
+  - do:
+      indices.get_mapping:
+        index: legacy-1
+  - match:
+      legacy-1.mappings.properties.mapping_transform_trigger_field.type: keyword
+  - match:
+      legacy-1.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text

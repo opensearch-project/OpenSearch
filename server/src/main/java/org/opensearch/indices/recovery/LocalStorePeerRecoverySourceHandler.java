@@ -8,16 +8,17 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -94,11 +95,18 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 sendFileStep.onResponse(SendFileResult.EMPTY);
             }
         } else {
-            final GatedCloseable<IndexCommit> wrappedSafeCommit;
+            final GatedCloseable<CatalogSnapshot> wrappedSafeSnapshot;
             try {
-                wrappedSafeCommit = acquireSafeCommit(shard);
-                resources.add(wrappedSafeCommit);
+                wrappedSafeSnapshot = acquireSafeCatalogSnapshot(shard);
+                resources.add(wrappedSafeSnapshot);
             } catch (final Exception e) {
+                // acquireSafeCatalogSnapshot reads segments_N eagerly (unlike the old
+                // IndexCommit path). If the segments file is corrupt, the exception is
+                // wrapped in an EngineException. Detect this and fail the shard so the
+                // cluster turns RED instead of retrying recovery forever.
+                if (Lucene.isCorruptionException(e)) {
+                    shard.failShard("recovery", e);
+                }
                 throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
             }
 
@@ -112,14 +120,14 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
             // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
             // down.
-            startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+            startingSeqNo = Long.parseLong(wrappedSafeSnapshot.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
             logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
             try {
                 final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
                 final Releasable releaseStore = acquireStore(shard.store());
                 resources.add(releaseStore);
-                onSendFileStepComplete(sendFileStep, wrappedSafeCommit, releaseStore);
+                onSendFileStepCompleteCatalogSnapshot(sendFileStep, wrappedSafeSnapshot, releaseStore);
 
                 final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
                 RunUnderPrimaryPermit.run(() -> {
@@ -146,7 +154,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 deleteRetentionLeaseStep.whenComplete(ignored -> {
                     logger.debug("deleteRetentionLeaseStep completed");
                     assert Transports.assertNotTransportThread(this + "[phase1]");
-                    phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep, false);
+                    phase1(wrappedSafeSnapshot.get(), startingSeqNo, () -> estimateNumOps, sendFileStep, false);
                 }, onFailure);
 
             } catch (final Exception e) {

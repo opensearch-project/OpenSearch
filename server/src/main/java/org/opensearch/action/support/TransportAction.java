@@ -215,7 +215,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             int i = index.getAndIncrement();
             try {
                 if (i < this.action.filters.length) {
-                    this.action.filters[i].apply(task, actionName, request, listener, this);
+                    this.action.filters[i].apply(task, actionName, request, new ActionRequestMetadata<>(action, request), listener, this);
                 } else if (i == this.action.filters.length) {
                     this.action.doExecute(task, request, listener);
                 } else {

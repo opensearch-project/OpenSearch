@@ -16,10 +16,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Replacement for TypesFieldMapper used in nested fields
@@ -105,6 +107,24 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
+
+        /**
+         * Requests nothing from pluggable data formats. On a pluggable-format index this internal
+         * field is used only as a parse-time scope marker for nested elements — it needs no storage
+         * or search from any format, and its classic Lucene search field (this type is
+         * searchable-only) would otherwise request a search capability no format is required to
+         * serve, failing capability coverage on every such index. Only the pluggable path consults
+         * this method, so classic nested queries are unaffected.
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            return Set.of();
         }
     }
 }

@@ -38,6 +38,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.AbstractDiffable;
@@ -49,6 +50,7 @@ import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -292,7 +294,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportClusterManagerNodeReadAction<Request, Response> {
+    public static class TransportAction extends TransportClusterManagerNodeReadAction<Request, Response>
+        implements
+            TransportIndicesResolvingAction<Request> {
 
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
@@ -353,6 +357,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            return ResolvedIndices.of(
+                getDataStreams(clusterService.state(), indexNameExpressionResolver, request).stream()
+                    .map(DataStream::getName)
+                    .collect(Collectors.toList())
+            );
         }
     }
 

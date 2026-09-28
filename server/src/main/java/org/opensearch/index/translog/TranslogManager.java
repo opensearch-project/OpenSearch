@@ -185,4 +185,12 @@ public interface TranslogManager extends Closeable {
      * @return the uuid of the translog
      */
     String getTranslogUUID();
+
+    /**
+     * Acquire retention lock on the translog
+     * @return releasable for releasing the lock
+     */
+    default Closeable acquireHistoryRetentionLock() {
+        return () -> {};
+    }
 }

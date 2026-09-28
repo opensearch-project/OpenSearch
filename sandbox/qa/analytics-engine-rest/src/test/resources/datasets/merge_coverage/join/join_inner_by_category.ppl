@@ -1,0 +1,1 @@
+source=%INDEX% | inner join left=a, right=b ON a.category = b.category [ source=%INDEX% ] | stats count() as cnt by a.category

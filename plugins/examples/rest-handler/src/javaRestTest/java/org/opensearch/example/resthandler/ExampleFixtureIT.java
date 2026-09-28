@@ -40,6 +40,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public class ExampleFixtureIT extends OpenSearchTestCase {
         final String externalAddress = System.getProperty("external.address");
         assertNotNull("External address must not be null", externalAddress);
 
-        final URL url = new URL("http://" + externalAddress);
+        final URL url = URI.create("http://" + externalAddress).toURL();
         final InetAddress address = InetAddress.getByName(url.getHost());
         try (
             Socket socket = new Socket(address, url.getPort());

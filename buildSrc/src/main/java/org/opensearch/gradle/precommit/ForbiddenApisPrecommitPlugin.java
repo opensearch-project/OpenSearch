@@ -40,7 +40,6 @@ import groovy.lang.Closure;
 import org.opensearch.gradle.ExportOpenSearchBuildResourcesTask;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.util.GradleUtils;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -53,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     @Override
@@ -89,10 +89,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
 
             t.setTargetCompatibility(BuildParams.getRuntimeJavaVersion().getMajorVersion());
-            if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_14) > 0) {
-                // TODO: forbidden apis does not yet support java 15, rethink using runtime version
-                t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
-            }
             t.setBundledSignatures(new HashSet<>(Arrays.asList("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out")));
             t.setSignaturesFiles(
                 project.files(
@@ -140,6 +136,34 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     return null;
                 }
             });
+            // Add a closure to allow projects to optionally call `forbidSleep()` which will add the signatures
+            // to forbid all usages of `Thread.sleep`
+            ext.set("forbidSleep", new Closure<Void>(t) {
+                @Override
+                public Void call(Object... unused) {
+                    final List<String> signatures = new ArrayList<>();
+                    signatures.addAll(t.getSignatures());
+                    signatures.add(
+                        "java.lang.Thread#sleep(**) @ Fixed sleeps lead to non-deterministic test failures."
+                            + " Poll for whatever condition you're waiting for."
+                            + " Use helpers like `assertBusy` or the awaitility lib."
+                    );
+                    t.setSignatures(signatures);
+                    return null;
+                }
+            });
+            // Use of the deprecated security manager APIs are pervasive so set them to warn
+            // globally for all projects. Replacements for (most of) these APIs are available
+            // so usages can move to the non-deprecated variants to avoid the warnings.
+            t.setSignaturesWithSeverityWarn(
+                Set.of(
+                    "java.security.AccessController",
+                    "java.security.AccessControlContext",
+                    "java.lang.System#getSecurityManager()",
+                    "java.lang.SecurityManager",
+                    "java.security.Policy"
+                )
+            );
         });
         TaskProvider<Task> forbiddenApis = project.getTasks().named("forbiddenApis");
         forbiddenApis.configure(t -> t.setGroup(""));

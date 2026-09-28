@@ -52,14 +52,38 @@ public interface ActionFilter {
     /**
      * Enables filtering the execution of an action on the request side, either by sending a response through the
      * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
+     *
+     * Note: This has only for a transitional period a default implementation. After the deprecated apply()
+     * method has been removed, the default implementation will be removed.
      */
-    <Request extends ActionRequest, Response extends ActionResponse> void apply(
+    default <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        String action,
+        Request request,
+        ActionRequestMetadata<Request, Response> actionRequestMetadata,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
+        this.apply(task, action, request, listener, chain);
+    }
+
+    /**
+     * Enables filtering the execution of an action on the request side, either by sending a response through the
+     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
+     *
+     * @deprecated please do not override this method any more. Instead, override the method with the additional
+     * ActionRequestMetadata parameter. This method will be removed soon.
+     */
+    @Deprecated(forRemoval = true)
+    default <Request extends ActionRequest, Response extends ActionResponse> void apply(
         Task task,
         String action,
         Request request,
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
-    );
+    ) {
+        throw new UnsupportedOperationException("Incomplete implementation of ActionFilter interface in " + this);
+    }
 
     /**
      * A simple base class for injectable action filters that spares the implementation from handling the
@@ -72,6 +96,7 @@ public interface ActionFilter {
             Task task,
             String action,
             Request request,
+            ActionRequestMetadata<Request, Response> actionRequestMetadata,
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {

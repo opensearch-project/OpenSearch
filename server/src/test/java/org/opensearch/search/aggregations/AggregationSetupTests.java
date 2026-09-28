@@ -8,6 +8,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexService;
@@ -38,6 +39,8 @@ public class AggregationSetupTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareRefresh("idx").get();
         context = createSearchContext(index);
         ((TestSearchContext) context).setConcurrentSegmentSearchEnabled(true);
+        SearchShardTask task = new SearchShardTask(0, "n/a", "n/a", "test-kind", null, null);
+        context.setTask(task);
     }
 
     protected AggregatorFactories getAggregationFactories(String agg) throws IOException {

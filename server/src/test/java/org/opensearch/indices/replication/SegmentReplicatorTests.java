@@ -21,10 +21,12 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -38,6 +40,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -60,8 +63,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         .build();
 
     public void testReplicationWithUnassignedPrimary() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         SegmentReplicator replicator = new SegmentReplicator(threadPool);
 
         ClusterService cs = mock(ClusterService.class);
@@ -76,8 +79,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     }
 
     public void testReplicationWithUnknownPrimaryNode() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         SegmentReplicator replicator = new SegmentReplicator(threadPool);
 
         ClusterService cs = mock(ClusterService.class);
@@ -113,8 +116,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     }
 
     public void testStartReplicationRunsSuccessfully() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         // index and copy segments to replica.
         int numDocs = randomIntBetween(10, 20);
@@ -164,8 +167,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
 
     public void testReplicationFails() throws Exception {
         allowShardFailures();
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         SegmentReplicator segmentReplicator = spy(new SegmentReplicator(threadPool));
         SegmentReplicationSourceFactory factory = mock(SegmentReplicationSourceFactory.class);
@@ -215,10 +218,10 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(0, replicationStats.maxBytesBehind);
     }
 
-    public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() {
+    public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() throws InterruptedException {
         ShardId shardId = new ShardId("index", "uuid", 0);
         ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
-
+        long baseTime = DateUtils.toLong(Instant.now());
         StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, new BytesRef(500));
         StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, new BytesRef(500));
         Map<String, StoreFileMetadata> stringStoreFileMetadataMapOne = new HashMap<>();
@@ -232,7 +235,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1000,
             "",
             stringStoreFileMetadataMapOne,
-            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+            baseTime - 5_000_000
         );
 
         IndexShard replicaShard = mock(IndexShard.class);
@@ -260,7 +263,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             200,
             "",
             stringStoreFileMetadataMapTwo,
-            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+            baseTime - 1_000_000
         );
 
         segmentReplicator.updateReplicationCheckpointStats(thirdReplicationCheckpoint, replicaShard);
@@ -276,6 +279,16 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(200, replicationStatsSecond.totalBytesBehind);
         assertEquals(200, replicationStatsSecond.maxBytesBehind);
         assertTrue(replicationStatsSecond.maxReplicationLag > 0);
+
+        // shard finished syncing to last checkpoint (sis 3)
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(thirdReplicationCheckpoint);
+        segmentReplicator.pruneCheckpointsUpToLastSync(replicaShard);
+        ReplicationStats finalStats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(0, finalStats.totalBytesBehind);
+        assertEquals(0, finalStats.maxBytesBehind);
+        assertEquals(0, finalStats.maxReplicationLag);
+        // shard is up to date, should not have any tracked stats
+        assertTrue(segmentReplicator.replicationCheckpointStats.get(shardId).isEmpty());
     }
 
     public void testGetSegmentReplicationStats_WhenCheckPointReceivedOutOfOrder() {

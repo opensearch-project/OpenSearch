@@ -139,6 +139,105 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPipelineFailures_sameSlot() {
+        BulkRequest originalBulkRequest = new BulkRequest();
+        for (int i = 0; i < 32; i++) {
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+        }
+
+        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
+        for (int i = 0; modifier.hasNext(); i++) {
+            modifier.next();
+            if (i % 2 == 0) {
+                // Since update requests can have two child index requests that can both trigger pipelines and fail
+                // We check this case surfaces and stores errors correctly
+
+                modifier.markItemAsFailed(i, new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException());
+
+            }
+        }
+
+        // The failures should be deduped. So still, only half have failed.
+        BulkRequest bulkRequest = modifier.getBulkRequest();
+        assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
+
+        List<BulkItemResponse> responses = new ArrayList<>();
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkItemResponses) {
+                responses.addAll(Arrays.asList(bulkItemResponses.getItems()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+
+        List<BulkItemResponse> originalResponses = new ArrayList<>();
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
+            IndexRequest indexRequest = (IndexRequest) actionRequest;
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.id(), 1, 17, 1, true);
+            originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
+        }
+        bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[0]), 0));
+
+        assertThat(responses.size(), Matchers.equalTo(32));
+        for (int i = 0; i < 32; i++) {
+            assertThat(responses.get(i).getId(), Matchers.equalTo(String.valueOf(i)));
+        }
+    }
+
+    public void testPipelineDropsAndFailures_sameSlot() {
+        BulkRequest originalBulkRequest = new BulkRequest();
+        for (int i = 0; i < 32; i++) {
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+        }
+
+        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
+
+        // Combination of drops and failures on the same slot
+        for (int i = 0; i < 32; i++) {
+            if (i < 5) {
+                modifier.markItemAsDropped(i);
+                modifier.markItemAsFailed(i, new RuntimeException());
+            } else if (i < 10) {
+                modifier.markItemAsDropped(i);
+                modifier.markItemAsDropped(i);
+            } else if (i < 16) {
+                modifier.markItemAsDropped(i);
+            }
+            modifier.next();
+        }
+
+        // The failures should be deduped. So still, only half have failed.
+        BulkRequest bulkRequest = modifier.getBulkRequest();
+        assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
+
+        List<BulkItemResponse> responses = new ArrayList<>();
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkItemResponses) {
+                responses.addAll(Arrays.asList(bulkItemResponses.getItems()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+
+        List<BulkItemResponse> originalResponses = new ArrayList<>();
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
+            IndexRequest indexRequest = (IndexRequest) actionRequest;
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.id(), 1, 17, 1, true);
+            originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
+        }
+        bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[0]), 0));
+
+        assertThat(responses.size(), Matchers.equalTo(32));
+        for (int i = 0; i < 32; i++) {
+            assertThat(responses.get(i).getId(), Matchers.equalTo(String.valueOf(i)));
+        }
+    }
+
     public void testNoFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {

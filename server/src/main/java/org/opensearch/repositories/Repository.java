@@ -303,6 +303,11 @@ public interface Repository extends LifecycleComponent {
     long getRemoteDownloadThrottleTimeInNanos();
 
     /**
+     * Returns low priority remote download throttle time in nanoseconds
+     */
+    long getLowPriorityRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -356,18 +361,69 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                    store to be snapshotted
-     * @param mapperService            the shards mapper service
-     * @param snapshotId               snapshot id
-     * @param indexId                  id for the index being snapshotted
-     * @param snapshotIndexCommit      commit point
-     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus           snapshot status
-     * @param repositoryMetaVersion    version of the updated repository metadata to write
-     * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener                 listener invoked on completion
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     */
+    default void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            null
+        );
+    }
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     * @param indexMetadata         index metadata for the shard being snapshotted
      */
     void snapshotShard(
         Store store,
@@ -379,7 +435,8 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata
     );
 
     /**
@@ -602,6 +659,10 @@ public interface Repository extends LifecycleComponent {
         return false;
     }
 
+    default boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
+        return false;
+    }
+
     /**
      * Reload the repository inplace
      */
@@ -611,4 +672,24 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns the native (Rust) object store wrapper for this repository, or
+     * {@link NativeStoreRepository#EMPTY} if native object store is not supported or not initialized.
+     *
+     * <p>The returned value is a {@link NativeStoreRepository} wrapper managed by the
+     * repository implementation. Callers must NOT cache or use the wrapper across
+     * repository lifecycle boundaries. The wrapper is invalidated when the repository
+     * is closed — accessing it after close throws {@link IllegalStateException}.
+     *
+     * <p>Only sandbox tiered storage code should call this method. The default
+     * implementation returns {@link NativeStoreRepository#EMPTY} (no native store).
+     *
+     * @return the native (Rust) object store wrapper, or {@link NativeStoreRepository#EMPTY} if not available
+     * @throws IllegalStateException if the native store has been closed
+     * @opensearch.experimental
+     */
+    default NativeStoreRepository getNativeStore() {
+        return NativeStoreRepository.EMPTY;
+    }
 }

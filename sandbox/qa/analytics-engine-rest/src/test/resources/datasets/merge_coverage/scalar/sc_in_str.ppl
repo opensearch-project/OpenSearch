@@ -1,0 +1,1 @@
+source=%INDEX% | where category in ("A", "B") | sort id | fields id, category

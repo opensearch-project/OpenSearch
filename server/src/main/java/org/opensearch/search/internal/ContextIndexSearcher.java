@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
@@ -67,12 +68,19 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.ProfileWeight;
@@ -82,14 +90,13 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -150,10 +157,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.searchContext = searchContext;
+        // Set the timeout on the IndexSearcher so that Lucene-native timeout-aware components
+        // (e.g. TimeLimitingKnnCollectorManager used by AbstractKnnVectorQuery) can enforce
+        // the query timeout. Without this, searcher.getTimeout() returns null and KNN vector
+        // searches ignore the configured query timeout entirely.
+        if (cancellable != null) {
+            setTimeout(cancellable);
+        }
     }
 
     public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
+    }
+
+    public QueryProfiler getProfiler() {
+        return profiler;
     }
 
     /**
@@ -191,8 +209,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        if (original instanceof ApproximateScoreQuery) {
-            ((ApproximateScoreQuery) original).setContext(searchContext);
+        if (original instanceof ApproximateScoreQuery approximateScoreQuery) {
+            approximateScoreQuery.setContext(searchContext);
         }
         if (profiler != null) {
             profiler.startRewriteTime();
@@ -213,7 +231,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown<QueryTimingType> profile = profiler.getQueryBreakdown(query);
+            ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
@@ -331,8 +349,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final LeafCollector leafCollector;
         try {
             cancellable.checkCancelled();
-            if (weight instanceof ProfileWeight) {
-                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
+            if (weight instanceof ProfileWeight profileWeight) {
+                profileWeight.associateCollectorToLeaves(ctx, collector);
             }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
@@ -385,9 +403,42 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+            logger.debug(
+                "Stream intermediate aggregation for segment [{}], shard [{}]",
+                ctx.ord,
+                searchContext.shardTarget().getShardId().id()
+            );
+            List<InternalAggregation> internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
+            if (!internalAggregation.isEmpty()) {
+                sendBatch(internalAggregation);
+            }
+        }
+
         // Note: this is called if collection ran successfully, including the above special cases of
         // CollectionTerminatedException and TimeExceededException, but no other exception.
         leafCollector.finish();
+    }
+
+    void sendBatch(List<InternalAggregation> batch) {
+        InternalAggregations batchAggResult = new InternalAggregations(batch);
+
+        final QuerySearchResult queryResult = searchContext.queryResult();
+        // clone the query result to avoid issue in concurrent scenario
+        final QuerySearchResult cloneResult = new QuerySearchResult(
+            queryResult.getContextId(),
+            queryResult.getSearchShardTarget(),
+            queryResult.getShardSearchRequest()
+        );
+        cloneResult.aggregations(batchAggResult);
+        // set a dummy topdocs
+        cloneResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+        // set a dummy fetch
+        final FetchSearchResult fetchResult = searchContext.fetchResult();
+        fetchResult.hits(SearchHits.empty());
+        final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
+        // flush back
+        searchContext.getStreamChannelListener().onStreamResponse(result, false);
     }
 
     private Weight wrapWeight(Weight weight) {
@@ -457,9 +508,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {
             return (BitSet) liveDocs;
-        } else if (liveDocs instanceof CombinedBitSet
+        } else if (liveDocs instanceof CombinedBitSet combinedBitSet
             // if the underlying role bitset is sparse
-            && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
+            && combinedBitSet.getFirst() instanceof SparseFixedBitSet) {
                 return (BitSet) liveDocs;
             } else {
                 return null;
@@ -483,6 +534,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
+        // acceptDocs.approximateCardinality() scorer.iterator().cost()
         DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
             Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
         );
@@ -533,7 +585,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+        if (leaves == null || leaves.isEmpty()) {
+            return new LeafSlice[0];
+        }
+        int targetMaxSlice = searchContext.getTargetMaxSliceCount();
+        if (targetMaxSlice == 0) {
+            LeafSlice[] leafSlices = super.slices(leaves);
+            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            return leafSlices;
+        }
+        LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            targetMaxSlice,
+            searchContext.shouldUseIntraSegmentSearch(),
+            searchContext.getPartitionStrategy(),
+            searchContext.getPartitionMinSegmentSize()
+        );
+        logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        return leafSlices;
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -542,15 +611,32 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return (DirectoryReader) reader;
     }
 
-    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
+    /**
+     * A mutable timeout implementation that bridges OpenSearch's cancellation mechanism with Lucene's
+     * {@link QueryTimeout} interface.
+     * <p>
+     * This class implements both {@link ExitableDirectoryReader.QueryCancellation} (used by OpenSearch's
+     * {@link ExitableDirectoryReader} to check for cancellation while iterating terms, points, and stored fields)
+     * and {@link QueryTimeout} (used by Lucene's {@link org.apache.lucene.search.IndexSearcher} to enforce
+     * timeouts in components like {@link org.apache.lucene.search.TimeLimitingKnnCollectorManager} for KNN
+     * vector queries).
+     * <p>
+     * Cancellation runnables are added/removed dynamically via {@link #add} and {@link #remove}. When any
+     * runnable throws a {@link RuntimeException} (e.g. {@link org.opensearch.search.query.QueryPhase.TimeExceededException}),
+     * it signals that the query should be terminated.
+     *
+     * @opensearch.internal
+     */
+    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation, QueryTimeout {
 
-        private final Set<Runnable> runnables = new HashSet<>();
+        private final ArrayList<Runnable> runnables = new ArrayList<>();
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
-            if (runnables.add(action) == false) {
+            if (runnables.contains(action)) {
                 throw new IllegalArgumentException("Cancellation runnable already added");
             }
+            runnables.add(action);
             return action;
         }
 
@@ -560,14 +646,35 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         @Override
         public void checkCancelled() {
-            for (Runnable timeout : runnables) {
-                timeout.run();
+            // Checks are frequent; avoid allocating an iterator for this small callback list.
+            for (int i = 0; i < runnables.size(); i++) {
+                runnables.get(i).run();
             }
         }
 
         @Override
         public boolean isEnabled() {
             return runnables.isEmpty() == false;
+        }
+
+        /**
+         * Implements {@link QueryTimeout#shouldExit()} by delegating to {@link #checkCancelled()}.
+         * Returns {@code true} if a registered cancellation runnable throws a
+         * {@link org.opensearch.search.query.QueryPhase.TimeExceededException} (timeout) or
+         * {@link org.opensearch.core.tasks.TaskCancelledException} (task cancellation),
+         * indicating that the query should be terminated early.
+         * <p>
+         * This is called by Lucene's {@link org.apache.lucene.search.TimeLimitingKnnCollectorManager}
+         * during KNN vector search to check whether the search should be terminated early.
+         */
+        @Override
+        public boolean shouldExit() {
+            try {
+                checkCancelled();
+            } catch (QueryPhase.TimeExceededException | TaskCancelledException e) {
+                return true;
+            }
+            return false;
         }
 
         public void clear() {
@@ -600,20 +707,5 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
         return true;
-    }
-
-    // package-private for testing
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        LeafSlice[] leafSlices;
-        if (targetMaxSlice == 0) {
-            // use the default lucene slice calculation
-            leafSlices = super.slices(leaves);
-            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
-        } else {
-            // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
-        }
-        return leafSlices;
     }
 }

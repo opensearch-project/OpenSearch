@@ -59,6 +59,19 @@ public class GetStats implements Writeable, ToXContentFragment {
 
     public GetStats() {}
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new GetStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private GetStats(Builder builder) {
+        this.existsCount = builder.existsCount;
+        this.existsTimeInMillis = builder.existsTimeInMillis;
+        this.missingCount = builder.missingCount;
+        this.missingTimeInMillis = builder.missingTimeInMillis;
+        this.current = builder.current;
+    }
+
     public GetStats(StreamInput in) throws IOException {
         existsCount = in.readVLong();
         existsTimeInMillis = in.readVLong();
@@ -67,6 +80,11 @@ public class GetStats implements Writeable, ToXContentFragment {
         current = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public GetStats(long existsCount, long existsTimeInMillis, long missingCount, long missingTimeInMillis, long current) {
         this.existsCount = existsCount;
         this.existsTimeInMillis = existsTimeInMillis;
@@ -132,6 +150,54 @@ public class GetStats implements Writeable, ToXContentFragment {
 
     public long current() {
         return this.current;
+    }
+
+    /**
+     * Builder for the {@link GetStats} class.
+     * Provides a fluent API for constructing a GetStats object.
+     */
+    public static class Builder {
+        private long existsCount = 0;
+        private long existsTimeInMillis = 0;
+        private long missingCount = 0;
+        private long missingTimeInMillis = 0;
+        private long current = 0;
+
+        public Builder() {}
+
+        public Builder existsCount(long count) {
+            this.existsCount = count;
+            return this;
+        }
+
+        public Builder existsTimeInMillis(long time) {
+            this.existsTimeInMillis = time;
+            return this;
+        }
+
+        public Builder missingCount(long count) {
+            this.missingCount = count;
+            return this;
+        }
+
+        public Builder missingTimeInMillis(long time) {
+            this.missingTimeInMillis = time;
+            return this;
+        }
+
+        public Builder current(long current) {
+            this.current = current;
+            return this;
+        }
+
+        /**
+         * Creates a {@link GetStats} object from the builder's current state.
+         *
+         * @return A new GetStats instance.
+         */
+        public GetStats build() {
+            return new GetStats(this);
+        }
     }
 
     @Override

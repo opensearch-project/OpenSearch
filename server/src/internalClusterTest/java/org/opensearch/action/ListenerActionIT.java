@@ -74,4 +74,31 @@ public class ListenerActionIT extends OpenSearchIntegTestCase {
 
         assertFalse(threadName.get().contains("listener"));
     }
+
+    public void testIndexWithCompletableFuture() throws Throwable {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final AtomicReference<String> threadName = new AtomicReference<>();
+        Client client = client();
+
+        IndexRequest request = new IndexRequest("test").id("1");
+        if (randomBoolean()) {
+            // set the source, without it, we will have a verification failure
+            request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        }
+
+        client.indexAsync(request).thenAccept(indexResponse -> {
+            threadName.set(Thread.currentThread().getName());
+            latch.countDown();
+        }).exceptionally(error -> {
+            threadName.set(Thread.currentThread().getName());
+            failure.set(error);
+            latch.countDown();
+            return null;
+        });
+
+        latch.await();
+
+        assertFalse(threadName.get().contains("listener"));
+    }
 }

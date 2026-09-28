@@ -24,8 +24,8 @@ import java.util.function.Supplier;
 
 /**
  * Purposed for passing terms into {@link TermInSetQuery}.
- * If the given terms are sorted already, it wrap it with a SortedSet stub.
- * Otherwise, it passes terms as list.
+ * If the given terms are sorted already, it wraps terms with a SortedSet stub.
+ * Otherwise, it passes terms as a list.
  */
 public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<Collection<BytesRef>> {
 

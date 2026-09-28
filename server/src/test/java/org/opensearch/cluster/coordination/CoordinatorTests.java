@@ -57,13 +57,17 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.telemetry.TestInMemoryCounter;
+import org.opensearch.test.telemetry.TestInMemoryMetricsRegistry;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -250,6 +254,25 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat(lastCommittedConfiguration + " should be 3 nodes", lastCommittedConfiguration.getNodeIds().size(), equalTo(3));
                 assertFalse(lastCommittedConfiguration.getNodeIds().contains(newNode1.getId()));
                 assertFalse(lastCommittedConfiguration.getNodeIds().contains(newNode2.getId()));
+
+                TestInMemoryMetricsRegistry clusterManagerMetricsRegistry = leader.getMetricsRegistry();
+                TestInMemoryCounter nodeLeftCounter = clusterManagerMetricsRegistry.getCounterStore().get("node.left.count");
+                assertNotNull("node.left.count counter should be present", nodeLeftCounter);
+                ConcurrentHashMap<Map<String, ?>, Double> counterValuesByTags = nodeLeftCounter.getCounterValueForTags();
+
+                // Check for newNode1
+                Map<String, Object> tags1 = new HashMap<>();
+                tags1.put("follower_node_id", newNode1.getId());
+                tags1.put("reason", "health.check.fail");
+                assertTrue(counterValuesByTags.containsKey(tags1));
+                assertEquals(Double.valueOf(1.0), counterValuesByTags.get(tags1));
+
+                // Check for newNode2
+                Map<String, Object> tags2 = new HashMap<>();
+                tags2.put("follower_node_id", newNode2.getId());
+                tags2.put("reason", "health.check.fail");
+                assertTrue(counterValuesByTags.containsKey(tags2));
+                assertEquals(Double.valueOf(1.0), counterValuesByTags.get(tags2));
             }
         }
     }

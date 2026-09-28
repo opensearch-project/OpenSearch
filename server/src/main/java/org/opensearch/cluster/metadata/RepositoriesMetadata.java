@@ -33,7 +33,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.metadata.Metadata.Custom;
@@ -229,11 +228,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {

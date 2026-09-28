@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -39,6 +40,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestResponse;
+
+import java.util.Map;
 
 /**
  * A REST based action listener that assumes the response is of type {@link ToXContent} and automatically
@@ -59,11 +62,20 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
 
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
         assert response.isFragment() == false; // would be nice if we could make default methods final
-        response.toXContent(builder, channel.request());
+        response.toXContent(builder, getRequestParams());
         return new BytesRestResponse(getStatus(response), builder);
     }
 
     protected RestStatus getStatus(Response response) {
         return RestStatus.OK;
+    }
+
+    protected ToXContent.Params getRequestParams() {
+        ToXContent.Params params = channel.request();
+        // We add detailed stack traces if the request indicates so
+        if (channel.detailedErrorStackTraceEnabled()) {
+            return new ToXContent.DelegatingMapParams(Map.of(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        }
+        return params;
     }
 }

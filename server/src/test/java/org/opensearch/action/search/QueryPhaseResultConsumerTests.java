@@ -36,18 +36,23 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -128,7 +133,9 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
             writableRegistry(),
             10,
             e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
-                curr.addSuppressed(prev);
+                if (prev != null) {
+                    curr.addSuppressed(prev);
+                }
                 return curr;
             })
         );
@@ -136,17 +143,7 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
         CountDownLatch partialReduceLatch = new CountDownLatch(10);
 
         for (int i = 0; i < 10; i++) {
-            SearchShardTarget searchShardTarget = new SearchShardTarget(
-                "node",
-                new ShardId("index", "uuid", i),
-                null,
-                OriginalIndices.NONE
-            );
-            QuerySearchResult querySearchResult = new QuerySearchResult();
-            TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
-            querySearchResult.setSearchShardTarget(searchShardTarget);
-            querySearchResult.setShardIndex(i);
+            QuerySearchResult querySearchResult = getQuerySearchResult(i);
             queryPhaseResultConsumer.consumeResult(querySearchResult, partialReduceLatch::countDown);
         }
 
@@ -157,6 +154,82 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
         queryPhaseResultConsumer.reduce();
         assertEquals(1, searchProgressListener.onFinalReduce.get());
+    }
+
+    public void testCircuitBreakerTriggersBeforeBatchedReduce() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(AggregationBuilders.max("max").field("test")).size(1));
+        final int BATCH_REDUCED_SIZE = 5;
+        searchRequest.setBatchedReduceSize(BATCH_REDUCED_SIZE);
+        AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
+        TestCircuitBreaker testCircuitBreaker = new TestCircuitBreaker();
+        QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            testCircuitBreaker,
+            searchPhaseController,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            10,
+            onPartialMergeFailure::set
+        );
+
+        for (int i = 0; i < BATCH_REDUCED_SIZE - 2; i++) {
+            QuerySearchResult querySearchResult = getQuerySearchResult(i);
+            querySearchResult.aggregations(InternalAggregations.from(List.of(new InternalMax("test", 23, DocValueFormat.RAW, null))));
+            queryPhaseResultConsumer.consumeResult(querySearchResult, () -> {});
+        }
+
+        testCircuitBreaker.startBreaking();
+        QuerySearchResult querySearchResult = getQuerySearchResult(7);
+        querySearchResult.aggregations(InternalAggregations.from(List.of(new InternalMax("test", 23, DocValueFormat.RAW, null))));
+        queryPhaseResultConsumer.consumeResult(querySearchResult, () -> {});
+        assertThrows(CircuitBreakingException.class, queryPhaseResultConsumer::reduce);
+    }
+
+    private static QuerySearchResult getQuerySearchResult(int i) {
+        SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null, OriginalIndices.NONE);
+
+        QuerySearchResult querySearchResult = new QuerySearchResult();
+        TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+        querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
+        querySearchResult.setSearchShardTarget(searchShardTarget);
+        querySearchResult.setShardIndex(i);
+        return querySearchResult;
+    }
+
+    /**
+     * Tests that reduce() does not throw a NullPointerException when the search request has aggregations
+     * but all shards failed (no results consumed). This reproduces a bug where hasAggs=true but
+     * reducedQueryPhase returns null aggregations due to the empty results and the early-termination path in
+     * SearchPhaseController.reducedQueryPhase(). Ensure we do not exit early with a NPE particularly when
+     * allow_partial_search_results is enabled.
+     */
+    public void testReduceWithAggsAndPartialResultsAllowedReturnsEmptyResult() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(AggregationBuilders.max("test").field("value")));
+        searchRequest.setBatchedReduceSize(2);
+        searchRequest.allowPartialSearchResults(true);
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            10,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        // No results consumed — all shards failed.
+        SearchPhaseController.ReducedQueryPhase result = consumer.reduce();
+        assertTrue("result should be marked as empty", result.isEmptyResult);
+        assertNull("aggregations should be null when no shards returned results", result.aggregations);
+        assertEquals(0, result.totalHits.value());
+        assertEquals(0, result.sortedTopDocs.scoreDocs.length);
     }
 
     private static class ThrowingSearchProgressListener extends SearchProgressListener {

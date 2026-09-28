@@ -175,7 +175,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {

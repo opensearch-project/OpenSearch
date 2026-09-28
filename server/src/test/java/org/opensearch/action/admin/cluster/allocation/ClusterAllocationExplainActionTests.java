@@ -32,9 +32,18 @@
 
 package org.opensearch.action.admin.cluster.allocation;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -44,7 +53,9 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -175,6 +186,17 @@ public class ClusterAllocationExplainActionTests extends OpenSearchTestCase {
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).primaryShard(), shard);
     }
 
+    public void testFindPrimaryShardToExplainWithNoPrimaryShard() {
+        ClusterState clusterState = searchOnlyClusterState();
+        ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest("idx", 0, true, "node-1");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> findShardToExplain(request, routingAllocation(clusterState))
+        );
+        assertTrue(exception.getMessage().contains("unable to find primary shard to explain"));
+    }
+
     public void testFindAnyReplicaToExplain() {
         // prefer unassigned replicas to started replicas
         ClusterState clusterState = ClusterStateCreationUtils.state(
@@ -244,5 +266,35 @@ public class ClusterAllocationExplainActionTests extends OpenSearchTestCase {
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
         return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
+    }
+
+    private static ClusterState searchOnlyClusterState() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
+            )
+            .build();
+        ShardRouting searchOnlyShard = ShardRouting.newUnassigned(
+            new ShardId(indexMetadata.getIndex(), 0),
+            false,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "search-only shard")
+        );
+        IndexRoutingTable indexRoutingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex()).addShard(searchOnlyShard).build();
+        Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+        DiscoveryNode node = new DiscoveryNode("node-1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .nodes(DiscoveryNodes.builder().add(node).localNodeId(node.getId()))
+            .build();
     }
 }

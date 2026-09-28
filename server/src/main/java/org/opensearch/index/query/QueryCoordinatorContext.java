@@ -9,6 +9,7 @@
 package org.opensearch.index.query;
 
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -35,6 +36,7 @@ public class QueryCoordinatorContext implements QueryRewriteContext {
     private final QueryRewriteContext rewriteContext;
     private final IndicesRequest searchRequest;
 
+    @InternalApi
     public QueryCoordinatorContext(QueryRewriteContext rewriteContext, IndicesRequest searchRequest) {
         this.rewriteContext = rewriteContext;
         this.searchRequest = searchRequest;

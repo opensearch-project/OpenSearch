@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +46,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterShardHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -84,7 +86,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class TransportIndicesShardStoresAction extends TransportClusterManagerNodeReadAction<
     IndicesShardStoresRequest,
-    IndicesShardStoresResponse> {
+    IndicesShardStoresResponse> implements TransportIndicesResolvingAction<IndicesShardStoresRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
@@ -133,7 +135,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
     ) {
         final RoutingTable routingTables = state.routingTable();
         final RoutingNodes routingNodes = state.getRoutingNodes();
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        final String[] concreteIndices = resolveIndices(state, request).namesOfConcreteIndicesAsArray();
         final Set<Tuple<ShardId, String>> shardsToFetch = new HashSet<>();
 
         logger.trace("using cluster state version [{}] to determine shards", state.version());
@@ -161,10 +163,19 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
         new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, shardsToFetch, listener, clusterManagerMetrics).start();
     }
 
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, IndicesShardStoresRequest request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(state, request);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(IndicesShardStoresRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request));
+    }
+
     @Override
     protected ClusterBlockException checkBlock(IndicesShardStoresRequest request, ClusterState state) {
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, resolveIndices(state, request).namesOfConcreteIndicesAsArray());
     }
 
     /**

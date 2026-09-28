@@ -336,6 +336,31 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         Store.MetadataSnapshot metadataSnapshot;
         try {
             metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            if (logger.isInfoEnabled()) {
+                int total = metadataSnapshot.size();
+                java.util.List<String> dfaFiles = metadataSnapshot.asMap()
+                    .keySet()
+                    .stream()
+                    .filter(name -> name.contains("/"))
+                    .sorted()
+                    .collect(java.util.stream.Collectors.toList());
+                String luceneSample = metadataSnapshot.asMap()
+                    .keySet()
+                    .stream()
+                    .filter(name -> name.contains("/") == false)
+                    .sorted()
+                    .limit(5)
+                    .collect(java.util.stream.Collectors.joining(", "));
+                logger.debug(
+                    "[DFA-RECOVERY] peer recovery TARGET sending metadata to source shardId={} totalFiles={} "
+                        + "dfaFiles={} dfaList=[{}] luceneSample=[{}]",
+                    recoveryTarget.shardId(),
+                    total,
+                    dfaFiles.size(),
+                    String.join(", ", dfaFiles),
+                    luceneSample
+                );
+            }
             if (verifyTranslog) {
                 // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
                 // index.

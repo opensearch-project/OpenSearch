@@ -23,9 +23,8 @@ import static org.apache.lucene.index.LogMergePolicy.DEFAULT_NO_CFS_RATIO;
  * <p>
  * The LogByteSizeMergePolicy is an alternative merge policy primarily used here to optimize the merging of segments in scenarios
  * with index with timestamps.
- * While the TieredMergePolicy is the default choice, the LogByteSizeMergePolicy can be configured
+ * For composite engine, we have LogByteSizeMergePolicy as the default choice while the TieredMergePolicy is the default choice for non-composite engine indexes, the LogByteSizeMergePolicy can be configured
  * as the default merge policy for time-index data using the <code>index.datastream_merge.policy</code> setting.
- *
  * <p>
  * Unlike the TieredMergePolicy, which prioritizes merging segments of equal sizes, the LogByteSizeMergePolicy
  * specializes in merging adjacent segments efficiently.

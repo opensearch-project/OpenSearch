@@ -42,6 +42,8 @@ public abstract class StarTreeValuesIterator {
         return docIdSetIterator.advance(target);
     }
 
+    public abstract int entryValueCount();
+
     public long cost() {
         return docIdSetIterator.cost();
     }

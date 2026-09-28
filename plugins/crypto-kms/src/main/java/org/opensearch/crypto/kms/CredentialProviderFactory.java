@@ -15,6 +15,8 @@ import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvide
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
 
+import org.opensearch.secure_sm.AccessController;
+
 import java.util.function.Supplier;
 
 /**
@@ -44,7 +46,7 @@ public class CredentialProviderFactory {
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 

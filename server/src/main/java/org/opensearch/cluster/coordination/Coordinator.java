@@ -90,6 +90,7 @@ import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -111,6 +112,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.cluster.ClusterManagerMetrics.FOLLOWER_NODE_ID_TAG;
+import static org.opensearch.cluster.ClusterManagerMetrics.REASON_TAG;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_DISCONNECTED;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_LAGGING;
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
@@ -193,6 +200,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final RemoteStoreNodeService remoteStoreNodeService;
     private NodeConnectionsService nodeConnectionsService;
     private final ClusterSettings clusterSettings;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -250,6 +258,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
+        this.clusterManagerMetrics = clusterManagerMetrics;
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(
@@ -358,6 +367,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
                     nodeRemovalExecutor,
                     nodeRemovalExecutor
+                );
+                String reasonToPublish = switch (reason) {
+                    case NODE_LEFT_REASON_DISCONNECTED -> "disconnected";
+                    case NODE_LEFT_REASON_LAGGING -> "lagging";
+                    case NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL -> "follower.check.fail";
+                    case NODE_LEFT_REASON_HEALTHCHECK_FAIL -> "health.check.fail";
+                    default -> reason;
+                };
+                clusterManagerMetrics.incrementCounter(
+                    clusterManagerMetrics.nodeLeftCounter,
+                    1.0,
+                    Optional.ofNullable(
+                        Tags.create().addTag(FOLLOWER_NODE_ID_TAG, discoveryNode.getId()).addTag(REASON_TAG, reasonToPublish)
+                    )
                 );
             }
         }

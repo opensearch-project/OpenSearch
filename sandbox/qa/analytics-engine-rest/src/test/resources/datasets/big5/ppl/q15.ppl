@@ -1,0 +1,1 @@
+source = big5 | sort - `@timestamp` | head 10

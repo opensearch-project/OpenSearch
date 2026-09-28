@@ -9,7 +9,6 @@
 package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
 
 import java.nio.file.Files;
@@ -37,12 +36,12 @@ import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
  */
 public class FileCacheFactory {
 
-    public static FileCache createConcurrentLRUFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).build(), circuitBreaker);
+    public static FileCache createConcurrentLRUFileCache(long capacity) {
+        return new FileCache(createDefaultBuilder().capacity(capacity).build());
     }
 
-    public static FileCache createConcurrentLRUFileCache(long capacity, int concurrencyLevel, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build(), circuitBreaker);
+    public static FileCache createConcurrentLRUFileCache(long capacity, int concurrencyLevel) {
+        return new FileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build());
     }
 
     private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder() {
@@ -55,7 +54,11 @@ public class FileCacheFactory {
                 Path key = removalNotification.getKey();
                 if (removalReason != RemovalReason.REPLACED) {
                     catchAsRuntimeException(value::close);
-                    catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                    // On RESTARTED removal, we close the IndexInput but preserve the files on disk as this scenario only occurs during
+                    // tests
+                    if (removalReason != RemovalReason.RESTARTED) {
+                        catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                    }
                 }
             });
     }

@@ -247,6 +247,15 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
         return shardId;
     }
 
+    /**
+     * Kinesis does not support pointer based lag. Return default value of 0.
+     * @param expectedStartPointer the pointer where ingestion would start if no messages have been consumed yet
+     */
+    @Override
+    public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+        return 0;
+    }
+
     @Override
     public void close() throws IOException {
         if (kinesisClient != null) {

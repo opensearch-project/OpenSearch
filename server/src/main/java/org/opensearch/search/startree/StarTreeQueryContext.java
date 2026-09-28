@@ -23,6 +23,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationFactory;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
@@ -107,23 +108,7 @@ public class StarTreeQueryContext {
     public boolean consolidateAllFilters(SearchContext context) {
         // Validate the fields and metrics required by aggregations are supported in star tree
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
-            // first check for aggregation is a metric aggregation
-            if (validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // if not a metric aggregation, check for applicable date histogram shape
-            if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // validation for terms aggregation
-            if (validateKeywordTermsAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // validation for range aggregation
-            if (validateRangeAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
+            if (validateNestedAggregationStructure(compositeMappedFieldType, aggregatorFactory)) {
                 continue;
             }
             // invalid query shape
@@ -149,16 +134,16 @@ public class StarTreeQueryContext {
     // TODO : Push this validation down to a common method in AggregatorFactory or an equivalent place.
     private static boolean validateStarTreeMetricSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
-        AggregatorFactory aggregatorFactory
+        MetricAggregatorFactory metricAggregatorFactory
     ) {
-        if (aggregatorFactory instanceof MetricAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 0) {
+        if (metricAggregatorFactory.getSubFactories().getFactories().length == 0) {
             String field;
             Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
                 .stream()
                 .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
 
-            MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
-            field = ((MetricAggregatorFactory) aggregatorFactory).getField();
+            MetricStat metricStat = metricAggregatorFactory.getMetricStat();
+            field = metricAggregatorFactory.getField();
 
             return field != null && supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
         }
@@ -167,54 +152,24 @@ public class StarTreeQueryContext {
 
     private static boolean validateKeywordTermsAggregationSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
-        AggregatorFactory aggregatorFactory
+        TermsAggregatorFactory termsAggregatorFactory
     ) {
-        if (!(aggregatorFactory instanceof TermsAggregatorFactory termsAggregatorFactory)) {
-            return false;
-        }
-
         // Validate request field is part of dimensions
-        if (compositeIndexFieldInfo.getDimensions()
+        return compositeIndexFieldInfo.getDimensions()
             .stream()
             .map(Dimension::getField)
-            .noneMatch(termsAggregatorFactory.getField()::equals)) {
-            return false;
-        }
-
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
-                return false;
-            }
-        }
-        return true;
+            .anyMatch(termsAggregatorFactory.getField()::equals);
     }
 
     private static boolean validateRangeAggregationSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
-        AggregatorFactory aggregatorFactory
+        RangeAggregatorFactory rangeAggregatorFactory
     ) {
-        if (!(aggregatorFactory instanceof RangeAggregatorFactory rangeAggregatorFactory)) {
-            return false;
-        }
-
         // Validate request field is part of dimensions & is a numeric field
         // TODO: Add support for date type ranges
-        if (compositeIndexFieldInfo.getDimensions()
+        return compositeIndexFieldInfo.getDimensions()
             .stream()
-            .noneMatch(
-                dimension -> rangeAggregatorFactory.getField().equals(dimension.getField()) && dimension instanceof NumericDimension
-            )) {
-            return false;
-        }
-
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
-                return false;
-            }
-        }
-        return true;
+            .anyMatch(dimension -> rangeAggregatorFactory.getField().equals(dimension.getField()) && dimension instanceof NumericDimension);
     }
 
     private StarTreeFilter getStarTreeFilter(
@@ -236,18 +191,17 @@ public class StarTreeQueryContext {
 
     private static boolean validateDateHistogramSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
-        AggregatorFactory aggregatorFactory
+        DateHistogramAggregatorFactory dateHistogramAggregatorFactory
     ) {
-        if (!(aggregatorFactory instanceof DateHistogramAggregatorFactory dateHistogramAggregatorFactory)
-            || aggregatorFactory.getSubFactories().getFactories().length < 1) {
+        if (dateHistogramAggregatorFactory.getSubFactories().getFactories().length < 1) {
             return false;
         }
 
         // Find the DateDimension in the dimensions list
         DateDimension starTreeDateDimension = null;
         for (Dimension dimension : compositeIndexFieldInfo.getDimensions()) {
-            if (dimension instanceof DateDimension) {
-                starTreeDateDimension = (DateDimension) dimension;
+            if (dimension instanceof DateDimension dateDimension) {
+                starTreeDateDimension = dateDimension;
                 break;
             }
         }
@@ -270,12 +224,60 @@ public class StarTreeQueryContext {
             return false;
         }
 
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
+        return true;
+    }
+
+    private static boolean validateMultiTermsAggregationSupport(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        MultiTermsAggregationFactory multiTermsAggregationFactory
+    ) {
+        return compositeIndexFieldInfo.getDimensions()
+            .stream()
+            .map(Dimension::getField)
+            .collect(Collectors.toSet())
+            .containsAll(multiTermsAggregationFactory.getRequestFields());
+    }
+
+    private static boolean validateNestedAggregationStructure(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        AggregatorFactory aggregatorFactory
+    ) {
+        boolean isValid;
+
+        switch (aggregatorFactory) {
+            case TermsAggregatorFactory termsAggregatorFactory -> isValid = validateKeywordTermsAggregationSupport(
+                compositeIndexFieldInfo,
+                termsAggregatorFactory
+            );
+            case DateHistogramAggregatorFactory dateHistogramAggregatorFactory -> isValid = validateDateHistogramSupport(
+                compositeIndexFieldInfo,
+                dateHistogramAggregatorFactory
+            );
+            case RangeAggregatorFactory rangeAggregatorFactory -> isValid = validateRangeAggregationSupport(
+                compositeIndexFieldInfo,
+                rangeAggregatorFactory
+            );
+            case MetricAggregatorFactory metricAggregatorFactory -> {
+                isValid = validateStarTreeMetricSupport(compositeIndexFieldInfo, metricAggregatorFactory);
+                return isValid && metricAggregatorFactory.getSubFactories().getFactories().length == 0;
+            }
+            case MultiTermsAggregationFactory multiTermsAggregationFactory -> isValid = validateMultiTermsAggregationSupport(
+                compositeIndexFieldInfo,
+                multiTermsAggregationFactory
+            );
+            case null, default -> {
                 return false;
             }
         }
+
+        if (isValid == false) return false;
+
+        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
+            if (!validateNestedAggregationStructure(compositeIndexFieldInfo, subFactory)) {
+                return false;
+            }
+        }
+
         return true;
     }
 

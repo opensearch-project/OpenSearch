@@ -54,6 +54,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig());
         reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
     }
 
     @After
@@ -80,9 +81,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(1);
@@ -103,12 +102,16 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         for (LeafReaderContext leaf : reader.leaves()) {
             SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
             Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
             DocIdSetIterator disi = scorer.iterator();
             int docId;
             while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                dv.advanceExact(docId);
-                for (int count = 0; count < dv.docValueCount(); ++count) {
-                    actual.add((int) dv.nextValue());
+                if (dv.advanceExact(docId)) {
+                    for (int count = 0; count < dv.docValueCount(); ++count) {
+                        actual.add((int) dv.nextValue());
+                    }
                 }
             }
         }
@@ -133,9 +136,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(3);
@@ -158,9 +159,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             w.addDocument(d);
         }
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         // Generate random values for bitmap query
         Set<Integer> queryValues = new HashSet<>();
@@ -216,11 +215,9 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
         RoaringBitmap bitmap = new RoaringBitmap();
-        bitmap.add(1);
+        bitmap.add(4);
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
         assertNotNull(weight);
@@ -232,16 +229,107 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         assertEquals(20, cost);
     }
 
+    public void testScorerSupplierGetIsRepeatable() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 1, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        refreshSearcher();
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        bitmap.add(4);
+
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        List<Integer> firstPassMatches = new ArrayList<>();
+        List<Integer> secondPassMatches = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            ScorerSupplier supplier1 = weight.scorerSupplier(leaf);
+            ScorerSupplier supplier2 = weight.scorerSupplier(leaf);
+            if (supplier1 == null || supplier2 == null) {
+                continue;
+            }
+
+            Scorer scorer1 = supplier1.get(supplier1.cost());
+            Scorer scorer2 = supplier2.get(supplier2.cost());
+            firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
+            secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
+        }
+
+        Collections.sort(firstPassMatches);
+        Collections.sort(secondPassMatches);
+        assertEquals(List.of(1, 4), firstPassMatches);
+        assertEquals(firstPassMatches, secondPassMatches);
+    }
+
+    public void testScoreNoMatchingDocs() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 5, Field.Store.NO));
+        w.addDocument(d);
+
+        refreshSearcher();
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(99);
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        assertTrue(getMatchingValues(weight, searcher.getIndexReader()).isEmpty());
+    }
+
     public void testRewrite() throws IOException {
         RoaringBitmap bitmap = new RoaringBitmap();
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
         assertEquals(new MatchNoDocsQuery(), query.rewrite(searcher));
     }
 
+    private static List<Integer> getMatchingValues(Scorer scorer, LeafReaderContext leaf) throws IOException {
+        List<Integer> actual = new ArrayList<>();
+        SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
+        DocIdSetIterator disi = scorer.iterator();
+        int docId;
+        while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (dv.advanceExact(docId)) {
+                for (int count = 0; count < dv.docValueCount(); ++count) {
+                    actual.add((int) dv.nextValue());
+                }
+            }
+        }
+        return actual;
+    }
+
+    private void refreshSearcher() throws IOException {
+        w.commit();
+        DirectoryReader oldReader = reader;
+        DirectoryReader newReader = DirectoryReader.open(w);
+        try {
+            IndexSearcher newSearcher = newSearcher(newReader);
+            reader = newReader;
+            searcher = newSearcher;
+            oldReader.close();
+        } catch (Exception e) {
+            newReader.close();
+            throw e;
+        }
+    }
+
     public void testPointVisitor() throws IOException {
+        reader.close();
         w.close();
         // default codec uses 512 documents per leaf node, so we can cover the visit disi methods in PointVisitor
         w = new IndexWriter(dir, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()));
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
 
         for (int i = 0; i < 512 + 1; i++) {
             Document d = new Document();
@@ -267,9 +355,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             w.addDocument(d);
         }
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(0, 1, 2, 3, 5);

@@ -48,6 +48,8 @@ import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -57,9 +59,13 @@ import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.EXPECTED_BUCKET_OWNER_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.PERMIT_BACKED_TRANSFER_ENABLED;
 import static org.opensearch.repositories.s3.S3Repository.REDIRECT_LARGE_S3_UPLOAD;
-import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
@@ -81,7 +87,11 @@ public class S3BlobStore implements BlobStore {
 
     private volatile boolean permitBackedTransferEnabled;
 
-    private volatile boolean serverSideEncryption;
+    private volatile String serverSideEncryptionType;
+    private volatile String serverSideEncryptionKmsKey;
+    private volatile boolean serverSideEncryptionBucketKey;
+    private volatile String serverSideEncryptionEncryptionContext;
+    private volatile String expectedBucketOwner;
 
     private volatile ObjectCannedACL cannedACL;
 
@@ -107,7 +117,6 @@ public class S3BlobStore implements BlobStore {
         S3AsyncService s3AsyncService,
         boolean multipartUploadEnabled,
         String bucket,
-        boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
@@ -119,13 +128,17 @@ public class S3BlobStore implements BlobStore {
         AsyncExecutorContainer normalExecutorBuilder,
         SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
         SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
-        GenericStatsMetricPublisher genericStatsMetricPublisher
+        GenericStatsMetricPublisher genericStatsMetricPublisher,
+        String serverSideEncryptionType,
+        String serverSideEncryptionKmsKey,
+        boolean serverSideEncryptionBucketKey,
+        String serverSideEncryptionEncryptionContext,
+        String expectedBucketOwner
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;
         this.multipartUploadEnabled = multipartUploadEnabled;
         this.bucket = bucket;
-        this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -142,13 +155,17 @@ public class S3BlobStore implements BlobStore {
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.genericStatsMetricPublisher = genericStatsMetricPublisher;
         this.permitBackedTransferEnabled = PERMIT_BACKED_TRANSFER_ENABLED.get(repositoryMetadata.settings());
+        this.serverSideEncryptionType = serverSideEncryptionType;
+        this.serverSideEncryptionKmsKey = serverSideEncryptionKmsKey;
+        this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
+        this.serverSideEncryptionEncryptionContext = serverSideEncryptionEncryptionContext;
+        this.expectedBucketOwner = expectedBucketOwner;
     }
 
     @Override
     public void reload(RepositoryMetadata repositoryMetadata) {
         this.repositoryMetadata = repositoryMetadata;
         this.bucket = BUCKET_SETTING.get(repositoryMetadata.settings());
-        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(repositoryMetadata.settings());
         this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
         this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
         this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
@@ -156,6 +173,11 @@ public class S3BlobStore implements BlobStore {
         this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
         this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
         this.permitBackedTransferEnabled = PERMIT_BACKED_TRANSFER_ENABLED.get(repositoryMetadata.settings());
+        this.serverSideEncryptionType = SERVER_SIDE_ENCRYPTION_TYPE_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionKmsKey = SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionBucketKey = SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionEncryptionContext = SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.get(repositoryMetadata.settings());
+        this.expectedBucketOwner = EXPECTED_BUCKET_OWNER_SETTING.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -191,8 +213,33 @@ public class S3BlobStore implements BlobStore {
         return bucket;
     }
 
-    public boolean serverSideEncryption() {
-        return serverSideEncryption;
+    public String serverSideEncryptionType() {
+        return serverSideEncryptionType;
+    }
+
+    public String serverSideEncryptionKmsKey() {
+        return serverSideEncryptionKmsKey;
+    }
+
+    public boolean serverSideEncryptionBucketKey() {
+        return serverSideEncryptionBucketKey;
+    }
+
+    /**
+     * Returns the SSE encryption context base64 UTF8 encoded, as required by S3 SDK. If the encryption context is empty return
+     * null as the S3 client ignores null header values
+     */
+    public String serverSideEncryptionEncryptionContext() {
+        return serverSideEncryptionEncryptionContext == null || serverSideEncryptionEncryptionContext.isEmpty()
+            ? null
+            : Base64.getEncoder().encodeToString(serverSideEncryptionEncryptionContext.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Returns the expected bucket owner if set, else null as the S3 client ignores null header values
+     */
+    public String expectedBucketOwner() {
+        return expectedBucketOwner == null || expectedBucketOwner.isEmpty() ? null : expectedBucketOwner;
     }
 
     public long bufferSizeInBytes() {

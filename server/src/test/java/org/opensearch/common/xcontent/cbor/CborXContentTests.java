@@ -32,13 +32,13 @@
 
 package org.opensearch.common.xcontent.cbor;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
+
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.dataformat.cbor.CBORFactory;
 
 public class CborXContentTests extends BaseXContentTestCase {
 

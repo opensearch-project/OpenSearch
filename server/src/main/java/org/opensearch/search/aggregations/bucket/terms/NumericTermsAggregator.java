@@ -31,9 +31,11 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
@@ -67,13 +69,12 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.startree.StarTreeTraversalUtil;
 import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -94,6 +95,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
     private final String fieldName;
+    private String resultSelectionStrategy;
 
     public NumericTermsAggregator(
         String name,
@@ -118,6 +120,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     @Override
@@ -136,7 +139,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
-
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long val = values.nextValue();
@@ -156,6 +158,16 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                     }
                 }
             }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
+            }
         });
     }
 
@@ -169,33 +181,30 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         return false;
     }
 
+    @Override
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
+    }
+
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        assert parent == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(fieldName);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
-
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    fieldName,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                ),
-                context
-            )
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 
@@ -215,7 +224,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
 
                 for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
-
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
                         long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
@@ -246,6 +254,11 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("result_selection_strategy", resultSelectionStrategy);
+    }
+
+    public String getResultSelectionStrategy() {
+        return resultSelectionStrategy;
     }
 
     /**
@@ -259,48 +272,49 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
-                B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                        continue;
-                    }
-                    if (spare == null) {
-                        spare = emptyBucketBuilder.get();
-                    }
-                    updateBucket(spare, ordsEnum, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                }
 
-                // Get the top buckets
-                B[] bucketsForOrd = buildBuckets(ordered.size());
-                topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                if (isKeyOrder(order)) {
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                    }
-                } else {
-                    // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
-                    // order in priority queue ordered
-                    Iterator<B> itr = ordered.iterator();
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = itr.next();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                    }
-                }
+                BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
+                    size,
+                    bucketsInOrd,
+                    order,
+                    partiallyBuiltBucketComparator,
+                    context.bucketSelectionStrategyFactor()
+                );
+
+                BucketSelectionStrategy.SelectionInput<B> selectionInput = new BucketSelectionStrategy.SelectionInput<>(
+                    size,
+                    bucketsInOrd,
+                    ordsEnum,
+                    emptyBucketBuilder,
+                    localBucketCountThresholds,
+                    ordIdx,
+                    order,
+                    this::buildPriorityQueue,
+                    this::buildBuckets,
+                    (spare, ordsEnumParam, docCount) -> {
+                        try {
+                            updateBucket(spare, ordsEnumParam, docCount);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error updating bucket", e);
+                        }
+                    },
+                    NumericTermsAggregator.this::bucketDocCount,
+                    partiallyBuiltBucketComparator
+                );
+
+                BucketSelectionStrategy.SelectionResult<B> result = strategy.selectTopBuckets(selectionInput);
+                topBucketsPerOrd[ordIdx] = result.topBuckets;
+                otherDocCounts[ordIdx] = result.otherDocCount;
+                resultSelectionStrategy = result.actualStrategyUsed;
             }
 
             buildSubAggs(topBucketsPerOrd);
-
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
@@ -711,6 +725,16 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                     super.collect(doc, owningBucketOrd);
                     subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             };
         }

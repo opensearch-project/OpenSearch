@@ -13,6 +13,7 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -32,7 +33,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.VersionConflictEngineException;
-import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -47,7 +47,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -281,15 +281,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                 .getNodes()
                 .get(0)
                 .getIndices()
-                .getIndexing()
-                .getTotal()
+                .getStatusCounterStats()
                 .getDocStatusStats();
 
             assertTrue(
                 Arrays.equals(
                     docStatusStats.getDocStatusCounter(),
                     expectedDocStatusStats.getDocStatusCounter(),
-                    Comparator.comparingLong(AtomicLong::longValue)
+                    Comparator.comparingLong(LongAdder::longValue)
                 )
             );
         }
@@ -543,15 +542,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             .getNodes()
             .get(0)
             .getIndices()
-            .getIndexing()
-            .getTotal()
+            .getStatusCounterStats()
             .getDocStatusStats();
 
         assertTrue(
             Arrays.equals(
                 docStatusStats.getDocStatusCounter(),
                 expectedDocStatusStats.getDocStatusCounter(),
-                Comparator.comparingLong(AtomicLong::longValue)
+                Comparator.comparingLong(LongAdder::longValue)
             )
         );
     }

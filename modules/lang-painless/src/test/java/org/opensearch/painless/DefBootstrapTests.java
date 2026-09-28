@@ -46,6 +46,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class DefBootstrapTests extends OpenSearchTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
@@ -157,9 +159,11 @@ public class DefBootstrapTests extends OpenSearchTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+        final DefBootstrap.WrappedCheckedException wrapped = expectThrows(DefBootstrap.WrappedCheckedException.class, () -> {
             Integer.toString((int) handle.invokeExact(new Object()));
         });
+        assertThat(wrapped.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException iae = (IllegalArgumentException) wrapped.getCause();
         assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
         assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
             return e.getMethodName().equals("computeValue") && e.getClassName().startsWith("org.opensearch.painless.DefBootstrap$PIC$");

@@ -1,0 +1,1 @@
+source=test_data | eval dow = day_of_week(timestamp) | fields timestamp, dow | head 3

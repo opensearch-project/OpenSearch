@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -30,8 +31,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METAD
  */
 public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWriteableBlobEntity<DiffableStringMap> {
     public static final String HASHES_OF_CONSISTENT_SETTINGS = "hashes-of-consistent-settings";
-    public static final ChecksumWritableBlobStoreFormat<DiffableStringMap> HASHES_OF_CONSISTENT_SETTINGS_FORMAT =
-        new ChecksumWritableBlobStoreFormat<>("hashes-of-consistent-settings", DiffableStringMap::readFrom);
+    public final ChecksumWritableBlobStoreFormat<DiffableStringMap> hashesOfConsistentSettingsFormat;
 
     private DiffableStringMap hashesOfConsistentSettings;
     private long metadataVersion;
@@ -45,11 +45,25 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
         super(clusterUUID, compressor, null);
         this.metadataVersion = metadataVersion;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
+        this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
+            "hashes-of-consistent-settings",
+            DiffableStringMap::readFrom
+        );
     }
 
-    public RemoteHashesOfConsistentSettings(final String blobName, final String clusterUUID, final Compressor compressor) {
+    public RemoteHashesOfConsistentSettings(
+        final String blobName,
+        final String clusterUUID,
+        final Compressor compressor,
+        final Version version
+    ) {
         super(clusterUUID, compressor, null);
         this.blobName = blobName;
+        this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
+            "hashes-of-consistent-settings",
+            DiffableStringMap::readFrom,
+            version
+        );
     }
 
     @Override
@@ -83,12 +97,12 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
 
     @Override
     public InputStream serialize() throws IOException {
-        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, generateBlobFileName(), getCompressor())
+        return hashesOfConsistentSettingsFormat.serialize(hashesOfConsistentSettings, generateBlobFileName(), getCompressor())
             .streamInput();
     }
 
     @Override
     public DiffableStringMap deserialize(final InputStream inputStream) throws IOException {
-        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.deserialize(blobName, Streams.readFully(inputStream));
+        return hashesOfConsistentSettingsFormat.deserialize(blobName, Streams.readFully(inputStream));
     }
 }

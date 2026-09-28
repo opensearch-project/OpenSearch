@@ -139,8 +139,8 @@ public final class IOUtils {
         }
 
         if (firstException != null) {
-            if (firstException instanceof IOException) {
-                throw (IOException) firstException;
+            if (firstException instanceof IOException ioe) {
+                throw ioe;
             } else {
                 // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
                 throw (RuntimeException) firstException;

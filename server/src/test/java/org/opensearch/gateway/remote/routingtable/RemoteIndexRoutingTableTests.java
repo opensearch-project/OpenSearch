@@ -107,7 +107,12 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
             );
             assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(TEST_BLOB_NAME, clusterUUID, compressor);
+            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(
+                TEST_BLOB_NAME,
+                clusterUUID,
+                compressor,
+                Version.CURRENT
+            );
             assertEquals(remoteObjectForDownload.clusterUUID(), clusterUUID);
         });
     }
@@ -137,7 +142,12 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
             );
             assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
-            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(TEST_BLOB_NAME, clusterUUID, compressor);
+            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(
+                TEST_BLOB_NAME,
+                clusterUUID,
+                compressor,
+                Version.CURRENT
+            );
             assertThat(remoteObjectForDownload.getFullBlobName(), is(TEST_BLOB_NAME));
         });
     }
@@ -167,14 +177,24 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
             );
             assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
-            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(TEST_BLOB_NAME, clusterUUID, compressor);
+            RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(
+                TEST_BLOB_NAME,
+                clusterUUID,
+                compressor,
+                Version.CURRENT
+            );
             assertThat(remoteObjectForDownload.getBlobFileName(), is(TEST_BLOB_FILE_NAME));
         });
     }
 
     public void testBlobPathTokens() {
         String uploadedFile = "user/local/opensearch/routingTable";
-        RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(uploadedFile, clusterUUID, compressor);
+        RemoteIndexRoutingTable remoteObjectForDownload = new RemoteIndexRoutingTable(
+            uploadedFile,
+            clusterUUID,
+            compressor,
+            Version.CURRENT
+        );
         assertThat(remoteObjectForDownload.getBlobPathTokens(), is(new String[] { "user", "local", "opensearch", "routingTable" }));
     }
 

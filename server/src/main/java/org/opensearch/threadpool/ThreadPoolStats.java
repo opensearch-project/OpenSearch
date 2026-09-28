@@ -71,7 +71,30 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         private final int largest;
         private final long completed;
         private final long waitTimeNanos;
+        private final int parallelism;
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.name = builder.name;
+            this.threads = builder.threads;
+            this.queue = builder.queue;
+            this.active = builder.active;
+            this.rejected = builder.rejected;
+            this.largest = builder.largest;
+            this.completed = builder.completed;
+            this.waitTimeNanos = builder.waitTimeNanos;
+            this.parallelism = builder.parallelism;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed, long waitTimeNanos) {
             this.name = name;
             this.threads = threads;
@@ -81,6 +104,34 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             this.largest = largest;
             this.completed = completed;
             this.waitTimeNanos = waitTimeNanos;
+            this.parallelism = -1;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
+        public Stats(
+            String name,
+            int threads,
+            int queue,
+            int active,
+            long rejected,
+            int largest,
+            long completed,
+            long waitTimeNanos,
+            int parallelism
+        ) {
+            this.name = name;
+            this.threads = threads;
+            this.queue = queue;
+            this.active = active;
+            this.rejected = rejected;
+            this.largest = largest;
+            this.completed = completed;
+            this.waitTimeNanos = waitTimeNanos;
+            this.parallelism = parallelism;
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -92,6 +143,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             largest = in.readInt();
             completed = in.readLong();
             waitTimeNanos = in.getVersion().onOrAfter(Version.V_2_11_0) ? in.readLong() : -1;
+            parallelism = in.getVersion().onOrAfter(Version.V_3_4_0) ? in.readInt() : -1;
         }
 
         @Override
@@ -105,6 +157,9 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(completed);
             if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
                 out.writeLong(waitTimeNanos);
+            }
+            if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+                out.writeInt(parallelism);
             }
         }
 
@@ -144,9 +199,16 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             return waitTimeNanos;
         }
 
+        public int getParallelism() {
+            return parallelism;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
+            if (parallelism != -1) {
+                builder.field(Fields.PARALLELISM, parallelism);
+            }
             if (threads != -1) {
                 builder.field(Fields.THREADS, threads);
             }
@@ -191,6 +253,77 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
                 return compare;
             }
         }
+
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private String name = "";
+            private int threads = 0;
+            private int queue = 0;
+            private int active = 0;
+            private long rejected = 0;
+            private int largest = 0;
+            private long completed = 0;
+            private long waitTimeNanos = 0;
+            private int parallelism = 0;
+
+            public Builder() {}
+
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public Builder threads(int threads) {
+                this.threads = threads;
+                return this;
+            }
+
+            public Builder queue(int queue) {
+                this.queue = queue;
+                return this;
+            }
+
+            public Builder active(int active) {
+                this.active = active;
+                return this;
+            }
+
+            public Builder rejected(long rejected) {
+                this.rejected = rejected;
+                return this;
+            }
+
+            public Builder largest(int largest) {
+                this.largest = largest;
+                return this;
+            }
+
+            public Builder completed(long completed) {
+                this.completed = completed;
+                return this;
+            }
+
+            public Builder waitTimeNanos(long waitTimeNanos) {
+                this.waitTimeNanos = waitTimeNanos;
+                return this;
+            }
+
+            public Builder parallelism(int parallelism) {
+                this.parallelism = parallelism;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
+            }
+        }
     }
 
     private List<Stats> stats;
@@ -224,6 +357,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         static final String COMPLETED = "completed";
         static final String WAIT_TIME = "total_wait_time";
         static final String WAIT_TIME_NANOS = "total_wait_time_in_nanos";
+        static final String PARALLELISM = "parallelism";
     }
 
     @Override

@@ -137,7 +137,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         if (repurposeSearch) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Collecting file cache data paths");
-            fileCacheDataPaths = NodeEnvironment.collectFileCacheDataPath(fileCacheNodePath);
+            fileCacheDataPaths = NodeEnvironment.collectFileCacheDataPath(fileCacheNodePath, env.settings());
             fileCachePaths = uniqueParentPaths(fileCacheDataPaths, indexMetadataPaths);
         }
 
@@ -227,7 +227,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         if (repurposeSearch) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Collecting file cache data paths");
-            fileCacheDataPaths = NodeEnvironment.collectFileCacheDataPath(fileCacheNodePath);
+            fileCacheDataPaths = NodeEnvironment.collectFileCacheDataPath(fileCacheNodePath, env.settings());
             fileCachePaths = uniqueParentPaths(fileCacheDataPaths);
         }
 

@@ -1,0 +1,1 @@
+source=api_metrics | stats count() as requests by span(@timestamp, 5m) | sort `span(@timestamp,5m)` | head 12

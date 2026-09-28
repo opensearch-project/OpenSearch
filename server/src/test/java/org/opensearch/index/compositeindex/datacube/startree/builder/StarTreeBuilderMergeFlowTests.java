@@ -38,6 +38,7 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -216,7 +217,7 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         int count = 0;
         for (StarTreeDocument starTreeDocument : builder.getStarTreeDocuments()) {
             if (count < 1000) {
-                assertEquals(starTreeDocument.dimensions[0] * 20.0, starTreeDocument.metrics[0]);
+                assertEquals(starTreeDocument.dimensions[0] * 20.0, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(2L, starTreeDocument.metrics[2]);
             }
             count++;
@@ -530,7 +531,8 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
             if (count <= 6) {
                 assertEquals(
                     starTreeDocument.dimensions[0] != null ? starTreeDocument.dimensions[0] * 2 * 10.0 : 40.0,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
             }
         }
@@ -616,7 +618,8 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
             if (count <= 6) {
                 assertEquals(
                     starTreeDocument.dimensions[0] != null ? starTreeDocument.dimensions[0] * 2 * 10.0 : 40.0,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
             }
         }
@@ -1405,13 +1408,13 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
          */
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
             if (starTreeDocument.dimensions[3] == null) {
-                assertEquals(sum, starTreeDocument.metrics[0]);
+                assertEquals(sum, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(2495000L, (long) starTreeDocument.metrics[1]);
             } else {
                 if (starTreeDocument.dimensions[0] != null) {
-                    sum += (double) starTreeDocument.metrics[0];
+                    sum += ((CompensatedSum) starTreeDocument.metrics[0]).value();
                 }
-                assertEquals(starTreeDocument.dimensions[3] * 500 + 200.0, starTreeDocument.metrics[0]);
+                assertEquals(starTreeDocument.dimensions[3] * 500 + 200.0, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(starTreeDocument.dimensions[3] * 500 + 200L, (long) starTreeDocument.metrics[1]);
 
             }
@@ -2047,7 +2050,7 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         builder.appendDocumentsToStarTree(starTreeDocumentIterator);
         for (StarTreeDocument starTreeDocument : builder.getStarTreeDocuments()) {
             count++;
-            assertEquals(starTreeDocument.dimensions[3] * 10.0, (double) starTreeDocument.metrics[1], 0);
+            assertEquals(starTreeDocument.dimensions[3] * 10.0, (Double) ((CompensatedSum) starTreeDocument.metrics[1]).value(), 0);
             assertEquals(starTreeDocument.dimensions[3], starTreeDocument.metrics[0]);
         }
         assertEquals(10, count);
@@ -2148,10 +2151,10 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
             count++;
             if (count <= 4) {
                 assertEquals(starTreeDocument.dimensions[0] * 2, (long) starTreeDocument.metrics[0], 0);
-                assertEquals(starTreeDocument.dimensions[0] * 20.0, (double) starTreeDocument.metrics[1], 0);
+                assertEquals(starTreeDocument.dimensions[0] * 20.0, ((CompensatedSum) starTreeDocument.metrics[1]).value(), 0);
             } else {
                 assertEquals(starTreeDocument.dimensions[0], (long) starTreeDocument.metrics[0], 0);
-                assertEquals(starTreeDocument.dimensions[0] * 10.0, (double) starTreeDocument.metrics[1], 0);
+                assertEquals(starTreeDocument.dimensions[0] * 10.0, ((CompensatedSum) starTreeDocument.metrics[1]).value(), 0);
             }
         }
         assertEquals(6, count);
@@ -2301,47 +2304,6 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
             null
         );
         return starTreeValues;
-    }
-
-    private StarTreeValues getStarTreeValuesWithKeywords(
-        SortedSetDocValues dimList,
-        SortedSetDocValues dimList2,
-        SortedSetDocValues dimList4,
-        SortedSetDocValues dimList3,
-        SortedNumericDocValues metricsList,
-        SortedNumericDocValues metricsList1,
-        StarTreeField sf,
-        String number
-    ) {
-        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
-            "field1_minute",
-            () -> new SortedSetStarTreeValuesIterator(dimList),
-            "field1_half-hour",
-            () -> new SortedSetStarTreeValuesIterator(dimList4),
-            "field1_hour",
-            () -> new SortedSetStarTreeValuesIterator(dimList2),
-            "field3",
-            () -> new SortedSetStarTreeValuesIterator(dimList3)
-        );
-        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
-
-        metricDocIdSetIterators.put(
-            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                sf.getName(),
-                "field2",
-                sf.getMetrics().get(0).getMetrics().get(0).getTypeName()
-            ),
-            () -> new SortedNumericStarTreeValuesIterator(metricsList)
-        );
-        metricDocIdSetIterators.put(
-            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                sf.getName(),
-                "field2",
-                sf.getMetrics().get(0).getMetrics().get(1).getTypeName()
-            ),
-            () -> new SortedNumericStarTreeValuesIterator(metricsList1)
-        );
-        return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number), null);
     }
 
     private StarTreeValues getStarTreeValues(

@@ -1,0 +1,1 @@
+source=metrics | eventstats max(cpu) as maxcpu by host | where cpu = maxcpu | fields host, timestamp, cpu, memory | sort host

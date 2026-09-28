@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "level=(?<level1>\w+)\|(?<level2>\w+)" | fields level1, level2, service | where level1 is not null

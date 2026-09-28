@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -175,6 +176,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
             );
             return super.termQuery(value, context);
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
     }
 

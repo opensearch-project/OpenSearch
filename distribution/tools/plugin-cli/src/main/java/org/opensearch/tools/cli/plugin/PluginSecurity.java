@@ -36,17 +36,17 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.Terminal.Verbosity;
 import org.opensearch.cli.UserException;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.secure_sm.policy.PolicyFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.URIParameter;
 import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -97,6 +97,7 @@ class PluginSecurity {
     }
 
     /** Format permission type, name, and actions into a string */
+    @SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
     static String formatPermission(Permission permission) {
         StringBuilder sb = new StringBuilder();
 
@@ -143,22 +144,12 @@ class PluginSecurity {
         // 2. read permission to the code itself (e.g. jar file of the code)
 
         Path emptyPolicyFile = Files.createTempFile(tmpDir, "empty", "tmp");
-        final Policy emptyPolicy;
-        try {
-            emptyPolicy = Policy.getInstance("JavaPolicy", new URIParameter(emptyPolicyFile.toUri()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
+        final Policy emptyPolicy = new PolicyFile(emptyPolicyFile.toUri().toURL());
         IOUtils.rm(emptyPolicyFile);
 
         // parse the plugin's policy file into a set of permissions
-        final Policy policy;
-        try {
-            policy = Policy.getInstance("JavaPolicy", new URIParameter(file.toUri()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        PermissionCollection permissions = policy.getPermissions(PluginSecurity.class.getProtectionDomain());
+        final Policy policy = new PolicyFile(file.toUri().toURL());
+        final PermissionCollection permissions = policy.getPermissions(PluginSecurity.class.getProtectionDomain());
         // this method is supported with the specific implementation we use, but just check for safety.
         if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
             throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");

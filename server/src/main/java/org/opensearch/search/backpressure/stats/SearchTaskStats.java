@@ -18,6 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
+import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 
@@ -60,6 +61,12 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         builder.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, in.readOptionalWriteable(CpuUsageTracker.Stats::new));
         builder.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, in.readOptionalWriteable(HeapUsageTracker.Stats::new));
         builder.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, in.readOptionalWriteable(ElapsedTimeTracker.Stats::new));
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            builder.put(
+                TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER,
+                in.readOptionalWriteable(NativeMemoryUsageTracker.Stats::new)
+            );
+        }
         this.resourceUsageTrackerStats = builder.immutableMap();
     }
 
@@ -95,6 +102,9 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER));
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER));
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER));
+        }
     }
 
     @Override

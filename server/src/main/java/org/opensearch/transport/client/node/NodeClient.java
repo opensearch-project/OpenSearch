@@ -35,6 +35,7 @@ package org.opensearch.transport.client.node;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.annotation.PublicApi;
@@ -156,5 +157,10 @@ public class NodeClient extends AbstractClient {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    @Override
+    public SearchRequestBuilder prepareStreamSearch(String... indices) {
+        return super.prepareStreamSearch(indices);
     }
 }

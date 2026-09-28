@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      14,
+      "fdas-prod"
+    ],
+    [
+      13,
+      "fdas-staging"
+    ],
+    [
+      13,
+      "prod-cluster"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

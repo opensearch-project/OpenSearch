@@ -81,7 +81,17 @@ public class SearchPipelineCommonModulePluginTests extends OpenSearchTestCase {
     public void testAllowlistNotSpecified() throws IOException {
         final Settings settings = Settings.EMPTY;
         try (SearchPipelineCommonModulePlugin plugin = new SearchPipelineCommonModulePlugin()) {
-            assertEquals(Set.of("oversample", "filter_query", "script"), plugin.getRequestProcessors(createParameters(settings)).keySet());
+            assertEquals(
+                Set.of(
+                    "oversample",
+                    "filter_query",
+                    "script",
+                    "hierarchical_routing_search",
+                    "temporal_routing_search",
+                    "acl_routing_search"
+                ),
+                plugin.getRequestProcessors(createParameters(settings)).keySet()
+            );
             assertEquals(
                 Set.of("rename_field", "truncate_hits", "collapse", "split", "sort"),
                 plugin.getResponseProcessors(createParameters(settings)).keySet()

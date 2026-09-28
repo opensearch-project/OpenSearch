@@ -1015,10 +1015,6 @@ setup:
   - match: { aggregations.test.buckets.0.doc_count: 1 }
 ---
 "Simple Composite aggregation with missing order":
-  - skip:
-      version: " - 1.2.99"
-      reason:  missing_order is supported in 1.3.0.
-
   - do:
       search:
         rest_total_hits_as_int: true

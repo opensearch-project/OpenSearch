@@ -129,7 +129,6 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         if (error.get() != null) {
             throw error.get();
         }
-        Thread.sleep(2000);
         GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").get();
         for (int i = 0; i < indexThreads.length; ++i) {
             assertMappingsHaveField(mappings, "index", "field" + i);

@@ -52,7 +52,6 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -75,6 +74,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import fixture.gcs.ContentHttpHeadersParser;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.threeten.bp.Duration;
 
@@ -92,9 +92,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 
 @SuppressForbidden(reason = "use a http server")
@@ -136,8 +133,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(client).getKey(), readTimeout);
         }
 
+        configureClientSettings(clientSettings, client);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(client).getKey(), createServiceAccount(random()));
+
+        configureSecureSettings(secureSettings, client);
         clientSettings.setSecureSettings(secureSettings);
 
         final GoogleCloudStorageService service = new GoogleCloudStorageService() {
@@ -152,7 +152,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setInitialRetryDelay(Duration.ofMillis(10L))
                     .setRetryDelayMultiplier(1.0d)
                     .setMaxRetryDelay(Duration.ofSeconds(1L))
-                    .setJittered(false)
                     .setInitialRpcTimeout(Duration.ofSeconds(1))
                     .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
                     .setMaxRpcTimeout(Duration.ofSeconds(1));
@@ -163,6 +162,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())
+                    .setStorageRetryStrategy(new GoogleShouldRetryStorageStrategy())
                     .build();
             }
         };
@@ -178,6 +178,26 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
+    }
+
+    /**
+     * Hook method for subclasses to add additional client settings.
+     *
+     * @param settings the settings builder to add settings to
+     * @param clientName the name of the client being configured
+     */
+    protected void configureClientSettings(Settings.Builder settings, String clientName) {
+        // Default implementation: no additional settings
+    }
+
+    /**
+     * Hook method for subclasses to add additional secure settings.
+     *
+     * @param secureSettings the secure settings to add settings to
+     * @param clientName the name of the client being configured
+     */
+    protected void configureSecureSettings(MockSecureSettings secureSettings, String clientName) {
+        // Default implementation: no additional secure settings
     }
 
     public void testReadLargeBlobWithRetries() throws Exception {
@@ -220,7 +240,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo("write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
-                    byte[] response = ("{\"bucket\":\"bucket\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
+                    byte[] response = String.format("""
+                        {"bucket":"bucket","name":"%s"}""", content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -274,8 +295,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     public void testWriteLargeBlob() throws IOException {
-        // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
-        final int defaultChunkSize = 60 * 256 * 1024;
+        final int defaultChunkSize = Math.toIntExact(ByteSizeValue.parseBytesSizeValue("16mb", "aaa").getBytes());
         final int nbChunks = randomIntBetween(3, 5);
         final int lastChunkSize = randomIntBetween(1, defaultChunkSize - 1);
         final int totalChunks = nbChunks + 1;
@@ -295,6 +315,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final AtomicInteger countUploads = new AtomicInteger(nbErrors * totalChunks);
         final AtomicBoolean allow410Gone = new AtomicBoolean(randomBoolean());
         final AtomicBoolean allowReadTimeout = new AtomicBoolean(rarely());
+        final AtomicInteger bytesReceived = new AtomicInteger();
         final int wrongChunk = randomIntBetween(1, totalChunks);
 
         final AtomicReference<String> sessionUploadId = new AtomicReference<>(UUIDs.randomBase64UUID());
@@ -325,7 +346,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     assertThat(wrongChunk, greaterThan(0));
                     return;
                 }
-
             } else if ("PUT".equals(exchange.getRequestMethod())) {
                 final String uploadId = params.get("upload_id");
                 if (uploadId.equals(sessionUploadId.get()) == false) {
@@ -348,29 +368,43 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         // we must reset the counters because the whole object upload will be retried
                         countInits.set(nbErrors);
                         countUploads.set(nbErrors * totalChunks);
+                        bytesReceived.set(0);
 
                         exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
                         return;
                     }
                 }
 
-                final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-                assertTrue(Strings.hasLength(range));
+                final String contentRangeHeaderValue = exchange.getRequestHeaders().getFirst("Content-Range");
+                final var contentRange = ContentHttpHeadersParser.parseContentRangeHeader(contentRangeHeaderValue);
+                assertNotNull("Invalid content range header: " + contentRangeHeaderValue, contentRange);
+
+                if (!contentRange.hasRange()) {
+                    // Content-Range: */... is a status check
+                    // https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+                    final int receivedSoFar = bytesReceived.get();
+                    if (receivedSoFar > 0) {
+                        exchange.getResponseHeaders().add("Range", String.format("bytes=0-%s", receivedSoFar));
+                    }
+                    exchange.getResponseHeaders().add("Content-Length", "0");
+                    exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
+                    return;
+                }
 
                 if (countUploads.decrementAndGet() % 2 == 0) {
                     assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
-
-                    final int rangeStart = getContentRangeStart(range);
-                    final int rangeEnd = getContentRangeEnd(range);
+                    final int rangeStart = Math.toIntExact(contentRange.start());
+                    final int rangeEnd = Math.toIntExact(contentRange.end());
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
                     assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
+                    bytesReceived.updateAndGet(existing -> Math.max(existing, rangeEnd));
 
-                    final Integer limit = getContentRangeLimit(range);
-                    if (limit != null) {
+                    if (contentRange.size() != null) {
+                        exchange.getResponseHeaders().add("x-goog-stored-content-length", String.valueOf(bytesReceived.get() + 1));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {
-                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", rangeStart, rangeEnd));
+                        exchange.getResponseHeaders().add("Range", String.format("bytes=%s-%s", rangeStart, rangeEnd));
                         exchange.getResponseHeaders().add("Content-Length", "0");
                         exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                         return;

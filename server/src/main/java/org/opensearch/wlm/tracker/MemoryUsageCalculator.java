@@ -15,7 +15,7 @@ import org.opensearch.wlm.WorkloadGroupTask;
 import java.util.List;
 
 /**
- * class to help make memory usage calculations for the query group
+ * class to help make memory usage calculations for the workload group
  */
 public class MemoryUsageCalculator extends ResourceUsageCalculator {
     public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();

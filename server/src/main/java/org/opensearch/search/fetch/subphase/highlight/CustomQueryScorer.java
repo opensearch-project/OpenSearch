@@ -101,12 +101,12 @@ public final class CustomQueryScorer extends QueryScorer {
             if (isChildOrParentQuery(query.getClass())) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
                 return;
-            } else if (query instanceof FunctionScoreQuery) {
-                super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
-            } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
-                super.extract(((OpenSearchToParentBlockJoinQuery) query).getChildQuery(), boost, terms);
-            } else if (query instanceof IndexOrDocValuesQuery) {
-                super.extract(((IndexOrDocValuesQuery) query).getIndexQuery(), boost, terms);
+            } else if (query instanceof FunctionScoreQuery functionScoreQuery) {
+                super.extract(functionScoreQuery.getSubQuery(), boost, terms);
+            } else if (query instanceof OpenSearchToParentBlockJoinQuery openSearchToParentBlockJoinQuery) {
+                super.extract(openSearchToParentBlockJoinQuery.getChildQuery(), boost, terms);
+            } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
+                super.extract(indexOrDocValuesQuery.getIndexQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }

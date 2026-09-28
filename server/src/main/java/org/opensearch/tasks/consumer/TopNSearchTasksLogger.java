@@ -73,8 +73,8 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
      */
     @Override
     public void accept(Task task) {
-        if (task instanceof SearchShardTask) {
-            recordSearchTask((SearchShardTask) task);
+        if (task instanceof SearchShardTask searchShardTask) {
+            recordSearchTask(searchShardTask);
         }
     }
 

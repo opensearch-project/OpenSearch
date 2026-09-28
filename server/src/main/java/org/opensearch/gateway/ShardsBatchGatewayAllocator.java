@@ -43,7 +43,6 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
@@ -721,8 +720,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             logger.trace("Checking if fetching done for batch id {}", batchId);
             ShardsBatch shardsBatch = shard.primary() ? batchIdToStartedShardBatch.get(batchId) : batchIdToStoreShardBatch.get(batchId);
             // if fetchData has never been called, the per node cache will be empty and have no nodes
-            /// this is because {@link AsyncShardFetchCache#fillShardCacheWithDataNodes(DiscoveryNodes)} initialises this map
-            /// and is called in {@link AsyncShardFetch#fetchData(DiscoveryNodes, Map)}
+            // this is because {@link AsyncShardFetchCache#fillShardCacheWithDataNodes(DiscoveryNodes)} initialises this map
+            // and is called in {@link AsyncShardFetch#fetchData(DiscoveryNodes, Map)}
             if (shardsBatch == null || shardsBatch.getAsyncFetcher().hasEmptyCache()) {
                 logger.trace("Batch cache is empty for batch {} ", batchId);
                 return false;
@@ -836,17 +835,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         protected void removeShard(ShardId shardId) {
             this.batchInfo.remove(shardId);
-        }
-
-        private TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata buildEmptyReplicaShardResponse() {
-            return new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata(
-                new TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata(
-                    null,
-                    Store.MetadataSnapshot.EMPTY,
-                    Collections.emptyList()
-                ),
-                null
-            );
         }
 
         private void removeFromBatch(ShardRouting shard) {

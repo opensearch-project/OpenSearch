@@ -1,0 +1,56 @@
+setup:
+  - skip:
+      version: " - 3.1.99"
+      reason: "regex query over field alias support starts 3.2"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              test:
+                type: text
+              test_alias:
+                type: alias
+                path: test
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index":{"_index":"test_index","_id":"1"}}
+          {"test":"hello"}
+          {"index":{"_index":"test_index","_id":"2"}}
+          {"test":"world"}
+
+---
+"regex search on normal field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            query_string:
+              query: "test: /h[a-z].*/"
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._id: "1"}
+
+---
+"regex search on alias field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            query_string:
+              query: "test_alias: /h[a-z].*/"
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._id: "1"}

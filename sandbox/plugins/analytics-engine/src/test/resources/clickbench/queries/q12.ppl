@@ -1,0 +1,10 @@
+/*
+SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u
+FROM hits WHERE MobilePhoneModel <> ''
+GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10;
+*/
+source=hits
+| where MobilePhoneModel != ''
+| stats bucket_nullable=false dc(UserID) as u by MobilePhone, MobilePhoneModel
+| sort - u
+| head 10

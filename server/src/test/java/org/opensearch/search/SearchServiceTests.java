@@ -102,6 +102,7 @@ import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.AliasFilter;
@@ -112,6 +113,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -139,6 +141,7 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -736,6 +739,47 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testCollapseSearchAfterRejectsScoreAndDocSort() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder[] sources = new SearchSourceBuilder[] {
+            new SearchSourceBuilder().collapse(new CollapseBuilder("user"))
+                .sort(new FieldSortBuilder(FieldSortBuilder.DOC_FIELD_NAME))
+                .searchAfter(new Object[] { 0 }),
+            new SearchSourceBuilder().collapse(new CollapseBuilder("user"))
+                .sort(new ScoreSortBuilder().order(SortOrder.ASC))
+                .searchAfter(new Object[] { 1.0f }) };
+
+        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
+            for (SearchSourceBuilder source : sources) {
+                SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).source(source);
+                ShardSearchRequest request = new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    searchRequest,
+                    indexShard.shardId(),
+                    1,
+                    new AliasFilter(null, Strings.EMPTY_ARRAY),
+                    1.0f,
+                    -1,
+                    null,
+                    null
+                );
+                SearchException ex = expectThrows(
+                    SearchException.class,
+                    () -> service.createContext(reader, request, null, randomBoolean())
+                );
+                assertThat(
+                    ex.getMessage(),
+                    containsString("collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`")
+                );
+            }
+        }
+    }
+
     public void testIgnoreScriptfieldIfSizeZero() throws IOException {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -1275,6 +1319,91 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testExecuteFetchPhaseWithProfiler() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().profile(true));
+
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        service.executeQueryPhase(shardSearchRequest, randomBoolean(), task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        List<Integer> docIds = new ArrayList<>();
+        docIds.add(0);
+        ShardFetchRequest fetchRequest = new ShardFetchRequest(queryResult.getContextId(), docIds, null);
+
+        PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+        service.executeFetchPhase(fetchRequest, task, fetchFuture);
+        FetchSearchResult fetchResult = fetchFuture.get();
+
+        assertNotNull("Profile results should be set when profiler is enabled", fetchResult.getProfileResults());
+        assertNotNull("Profile results should contain fetch phase data", fetchResult.getProfileResults().getFetchProfileResult());
+
+        service.freeReaderContext(queryResult.getContextId());
+    }
+
+    public void testExecuteFetchPhaseWithoutProfiler() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().profile(false));
+
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        service.executeQueryPhase(shardSearchRequest, randomBoolean(), task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        List<Integer> docIds = new ArrayList<>();
+        docIds.add(0);
+        ShardFetchRequest fetchRequest = new ShardFetchRequest(queryResult.getContextId(), docIds, null);
+
+        PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+        service.executeFetchPhase(fetchRequest, task, fetchFuture);
+        FetchSearchResult fetchResult = fetchFuture.get();
+
+        assertNull("Profile results should be null when profiler is disabled", fetchResult.getProfileResults());
+
+        service.freeReaderContext(queryResult.getContextId());
+    }
+
     public void testCreateSearchContext() throws IOException {
         String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         IndexService indexService = createIndex(index);
@@ -1498,17 +1627,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         String clusterMode = randomFrom(modeSettings);
         String indexMode = randomFrom(modeSettings);
 
-        // default to false in case mode setting is not set
-        boolean concurrentSearchEnabled = false;
-
-        boolean aggregationSupportsConcurrent = randomBoolean();
-
-        if (indexMode != null) {
-            concurrentSearchEnabled = !indexMode.equals("none") && aggregationSupportsConcurrent;
-        } else if (clusterMode != null) {
-            concurrentSearchEnabled = !clusterMode.equals("none") && aggregationSupportsConcurrent;
-        }
-
         // Set the cluster setting for mode
         if (clusterMode == null) {
             client().admin()
@@ -1539,46 +1657,76 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 .get();
         }
 
-        try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
-            assertEquals(
-                clusterMode,
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .get()
-                    .getState()
-                    .getMetadata()
-                    .transientSettings()
-                    .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
-            );
-            assertEquals(
-                indexMode,
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(index)
-                    .get()
-                    .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
-            );
-            SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
-            when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
-            when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(aggregationSupportsConcurrent);
-
-            // set the aggregations for context
-            searchContext.aggregations(mockAggregations);
-
-            searchContext.evaluateRequestShouldUseConcurrentSearch();
-            // check concurrentSearchenabled based on mode and supportedAggregation is computed correctly
-            assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
-            assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
-        } finally {
-            // Cleanup
+        assertEquals(
+            clusterMode,
             client().admin()
                 .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
-                .get();
+                .prepareState()
+                .get()
+                .getState()
+                .getMetadata()
+                .transientSettings()
+                .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+        );
+        assertEquals(
+            indexMode,
+            client().admin()
+                .indices()
+                .prepareGetSettings(index)
+                .get()
+                .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+        );
 
+        boolean concurrentSearchEnabled;
+        // with aggregations.
+        {
+            boolean aggregationSupportsConcurrent = randomBoolean();
+            // Default concurrent search mode is auto, which enables concurrent segment search when aggregations are present.
+            // aggregationSupportsConcurrent determines if the present aggregation type supports concurrent segment search.
+            concurrentSearchEnabled = aggregationSupportsConcurrent;
+            if (indexMode != null) {
+                concurrentSearchEnabled = !indexMode.equals("none") && aggregationSupportsConcurrent;
+            } else if (clusterMode != null) {
+                concurrentSearchEnabled = !clusterMode.equals("none") && aggregationSupportsConcurrent;
+            }
+
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
+                when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
+                when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(aggregationSupportsConcurrent);
+
+                // set the aggregations for context
+                searchContext.aggregations(mockAggregations);
+
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                // check concurrentSearchenabled based on mode and supportedAggregation is computed correctly
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+                assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
+            }
         }
+
+        // without aggregations.
+        {
+            // Default concurrent search mode is auto, without aggregations, concurrent search will be disabled.
+            concurrentSearchEnabled = false;
+            if (indexMode != null) {
+                concurrentSearchEnabled = indexMode.equals("all");
+            } else if (clusterMode != null) {
+                concurrentSearchEnabled = clusterMode.equals("all");
+            }
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+                assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
+            }
+        }
+
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+            .get();
     }
 
     /**

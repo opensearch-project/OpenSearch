@@ -54,6 +54,7 @@ import java.util.function.Predicate;
  * @opensearch.internal
  **/
 @SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 final class OpenSearchPolicy extends Policy {
 
     /** template policy file, the one used in tests */

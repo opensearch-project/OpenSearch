@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "status",
+      "type": "string"
+    },
+    {
+      "name": "ifnull_val",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "active",
+      "active"
+    ],
+    [
+      "inactive",
+      "inactive"
+    ],
+    [
+      "active",
+      "active"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

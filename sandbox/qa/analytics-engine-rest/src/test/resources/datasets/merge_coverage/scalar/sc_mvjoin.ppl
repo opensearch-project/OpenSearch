@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = mvjoin(array("a","b","c"), "-") | sort id | head 3 | fields id, r

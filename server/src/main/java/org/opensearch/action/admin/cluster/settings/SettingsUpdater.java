@@ -76,6 +76,7 @@ final class SettingsUpdater {
         final Settings persistentToApply,
         final Logger logger
     ) {
+        validateNoTransientSensitiveSettings(transientToApply);
         boolean changed = false;
 
         /*
@@ -210,6 +211,14 @@ final class SettingsUpdater {
             ),
             ex
         );
+    }
+
+    private void validateNoTransientSensitiveSettings(final Settings transientSettings) {
+        for (String key : transientSettings.keySet()) {
+            if (clusterSettings.isSensitiveSetting(key)) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be updated using persistent settings");
+            }
+        }
     }
 
 }

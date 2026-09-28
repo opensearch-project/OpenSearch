@@ -45,14 +45,17 @@ public class EhcacheDiskCacheManagerTests extends OpenSearchSingleNodeTestCase {
             EhcacheDiskCacheManager.getCacheManager(CacheType.INDICES_REQUEST_CACHE, path, settings, THREAD_POOL_ALIAS);
         }
         int randomThreads = randomIntBetween(5, 10);
+        // Pre-populate aliases to avoid concurrent writes
+        List<String> diskCacheAliases = new ArrayList<>(randomThreads);
+        for (int i = 0; i < randomThreads; i++) {
+            diskCacheAliases.add(UUID.randomUUID().toString());
+        }
         Thread[] threads = new Thread[randomThreads];
         Phaser phaser = new Phaser(randomThreads + 1);
         CountDownLatch countDownLatch = new CountDownLatch(randomThreads);
-        List<String> diskCacheAliases = new ArrayList<>();
         for (int i = 0; i < randomThreads; i++) {
+            String diskCacheAlias = diskCacheAliases.get(i);
             threads[i] = new Thread(() -> {
-                String diskCacheAlias = UUID.randomUUID().toString();
-                diskCacheAliases.add(diskCacheAlias);
                 phaser.arriveAndAwaitAdvance();
                 EhcacheDiskCacheManager.createCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAlias, getCacheConfigurationBuilder());
                 countDownLatch.countDown();
@@ -68,10 +71,10 @@ public class EhcacheDiskCacheManagerTests extends OpenSearchSingleNodeTestCase {
         CountDownLatch countDownLatch2 = new CountDownLatch(randomThreads);
         for (int i = 0; i < randomThreads; i++) {
             String finalPath = path;
-            int finalI = i;
+            String diskCacheAlias = diskCacheAliases.get(i);
             threads[i] = new Thread(() -> {
                 phaser2.arriveAndAwaitAdvance();
-                EhcacheDiskCacheManager.closeCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAliases.get(finalI), finalPath);
+                EhcacheDiskCacheManager.closeCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAlias, finalPath);
                 countDownLatch2.countDown();
             });
             threads[i].start();

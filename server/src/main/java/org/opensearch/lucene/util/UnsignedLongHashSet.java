@@ -110,8 +110,7 @@ public final class UnsignedLongHashSet implements Accountable {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj != null && obj instanceof UnsignedLongHashSet) {
-            UnsignedLongHashSet that = (UnsignedLongHashSet) obj;
+        if (obj != null && obj instanceof UnsignedLongHashSet that) {
             return size == that.size
                 && minValue == that.minValue
                 && maxValue == that.maxValue

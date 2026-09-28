@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "avg_memory",
+      "type": "double"
+    },
+    {
+      "name": "max_memory",
+      "type": "bigint"
+    },
+    {
+      "name": "min_memory",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      62.72,
+      91,
+      34,
+      "host1"
+    ],
+    [
+      59.4,
+      87,
+      33,
+      "host2"
+    ],
+    [
+      61.12,
+      95,
+      32,
+      "host3"
+    ],
+    [
+      59.48,
+      95,
+      30,
+      "host4"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

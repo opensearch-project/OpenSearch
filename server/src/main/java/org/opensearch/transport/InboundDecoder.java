@@ -43,6 +43,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.function.Consumer;
 
+import static org.opensearch.Version.MASK;
+
 /**
  * Decodes inbound data off the wire
  *
@@ -59,8 +61,6 @@ public class InboundDecoder implements Releasable {
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
     private boolean isClosed = false;
-
-    private static Version V_4_0_0 = Version.fromId(4000099 ^ Version.MASK);
 
     public InboundDecoder(Version version, PageCacheRecycler recycler) {
         this.version = version;
@@ -169,7 +169,13 @@ public class InboundDecoder implements Releasable {
             return 0;
         }
 
-        Version remoteVersion = Version.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
+        int versionId = reference.getInt(TcpHeader.VERSION_POSITION);
+        if (versionId == 7099999) {
+            // Convert from ES7.9 to OpenSearch 1.0
+            // TODO: Remove this block in 4.0.
+            versionId = 1000099 ^ MASK;
+        }
+        Version remoteVersion = Version.fromId(versionId);
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
         if (fixedHeaderSize > reference.length()) {
             return 0;
@@ -185,13 +191,19 @@ public class InboundDecoder implements Releasable {
     }
 
     // exposed for use in tests
-    static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    public static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             TransportProtocol protocol = TransportProtocol.fromBytes(streamInput.readByte(), streamInput.readByte());
             streamInput.skip(TcpHeader.MESSAGE_LENGTH_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
-            Version remoteVersion = Version.fromId(streamInput.readInt());
+            int versionId = streamInput.readInt();
+            if (versionId == 7099999) {
+                // Convert from ES7.9 to OpenSearch 1.0
+                // TODO: Remove this block in 4.0.
+                versionId = 1000099 ^ MASK;
+            }
+            Version remoteVersion = Version.fromId(versionId);
             Header header = new Header(protocol, networkMessageSize, requestId, status, remoteVersion);
             final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
             if (invalidVersion != null) {
@@ -221,8 +233,7 @@ public class InboundDecoder implements Releasable {
         // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
         // once the connection is established
         final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
-        boolean v3x = currentVersion.onOrAfter(Version.V_3_0_0) && currentVersion.before(V_4_0_0);
-        if ((v3x && remoteVersion.equals(Version.fromId(7099999)) == false) && remoteVersion.isCompatible(compatibilityVersion) == false) {
+        if (remoteVersion.isCompatible(compatibilityVersion) == false) {
             final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
             String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
             return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");

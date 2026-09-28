@@ -41,13 +41,13 @@ import java.io.IOException;
 public class RefreshStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        RefreshStats stats = new RefreshStats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            between(0, Integer.MAX_VALUE)
-        );
+        RefreshStats stats = new RefreshStats.Builder().total(randomNonNegativeLong())
+            .totalTimeInMillis(randomNonNegativeLong())
+            .externalTotal(randomNonNegativeLong())
+            .externalTotalTimeInMillis(randomNonNegativeLong())
+            .listeners(between(0, Integer.MAX_VALUE))
+            .build();
+
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

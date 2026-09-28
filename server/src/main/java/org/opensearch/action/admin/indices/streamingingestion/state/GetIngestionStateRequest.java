@@ -11,7 +11,7 @@ package org.opensearch.action.admin.indices.streamingingestion.state;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -33,9 +33,9 @@ import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
  * Request to get current ingestion state when using pull-based ingestion. This request supports retrieving index and
  * shard level state. By default, all shards of an index are included.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class GetIngestionStateRequest extends BroadcastRequest<GetIngestionStateRequest> {
     public static final int DEFAULT_PAGE_SIZE = 1000;
     public static final String DEFAULT_SORT_VALUE = PARAM_ASC_SORT_VALUE;

@@ -32,11 +32,20 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.IndexSettingsModule;
@@ -49,10 +58,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
     private MapperService mapperService;
@@ -358,6 +372,42 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         return operations;
     }
 
+    /**
+     * Verifies that routing values round-trip correctly through Translog.Delete serialization.
+     */
+    public void testDeleteRoutingSerialization() throws Exception {
+        final String routingValue = "tenant-abc";
+
+        // Delete WITH routing
+        Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, routingValue);
+        assertThat(deleteWithRouting.routing(), equalTo(routingValue));
+        assertThat(deleteWithRouting.id(), equalTo("doc-1"));
+
+        // Round-trip through Engine.Delete → Translog.Delete
+        Engine.Delete engineDelete = new Engine.Delete(
+            "doc-2",
+            newUid("doc-2"),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            1L,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            routingValue
+        );
+        assertThat("Engine.Delete should carry routing", engineDelete.routing(), equalTo(routingValue));
+
+        // Delete WITHOUT routing (backward compatibility)
+        Translog.Delete deleteNoRouting = new Translog.Delete("doc-3", 2, 1, 1);
+        assertNull("Delete without routing should have null routing", deleteNoRouting.routing());
+
+        // Verify toString includes routing
+        assertThat(deleteWithRouting.toString(), containsString("routing=" + routingValue));
+        assertThat(deleteNoRouting.toString(), not(containsString("routing=")));
+    }
+
     public void testOverFlow() throws Exception {
         long fromSeqNo = randomLongBetween(0, 5);
         long toSeqNo = randomLongBetween(Long.MAX_VALUE - 5, Long.MAX_VALUE);
@@ -367,6 +417,236 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 error.getMessage(),
                 containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found")
             );
+        }
+    }
+
+    public void testOutOfOrderSeqNoUsesDefaultStoredFieldsReader() throws Exception {
+        final int numOps = between(LuceneChangesSnapshot.MIN_SEQUENTIAL_ACCESS_BATCH_SIZE, 100);
+        final Map<Long, ParsedDocument> expectedDocs = new HashMap<>();
+        for (int i = 0; i < numOps; i++) {
+            final long seqNo = numOps - 1 - i;
+            final ParsedDocument doc = createParsedDoc("id-" + seqNo, null);
+            engine.index(replicaIndexForDoc(doc, 1, seqNo, false));
+            expectedDocs.put(seqNo, doc);
+        }
+        engine.refresh("test");
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try (LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, numOps, 0, numOps - 1, true, true)) {
+            searcher = null;
+            assertThat(snapshot.totalOperations(), equalTo(numOps));
+            // the flag is computed for the first batch by the constructor; a single batch holds every op here
+            assertFalse("descending docIDs must not use the sequential reader", snapshot.useSequentialStoredFieldsReader());
+            assertOpsMatch(drainAll(snapshot), expectedDocs);
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    public void testInterleavedSeqNosAcrossSegmentsUseDefaultStoredFieldsReader() throws Exception {
+        final int numOps = 2 * between(LuceneChangesSnapshot.MIN_SEQUENTIAL_ACCESS_BATCH_SIZE, 50);
+        final Map<Long, ParsedDocument> expectedDocs = new HashMap<>();
+        for (int step = 0; step < 2; step++) {
+            for (long seqNo = step; seqNo < numOps; seqNo += 2) {
+                final ParsedDocument doc = createParsedDoc("id-" + seqNo, null);
+                engine.index(replicaIndexForDoc(doc, 1, seqNo, false));
+                expectedDocs.put(seqNo, doc);
+            }
+            engine.flush();
+        }
+        engine.refresh("test");
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try (LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, numOps, 0, numOps - 1, true, true)) {
+            searcher = null;
+            assertThat(snapshot.totalOperations(), equalTo(numOps));
+            assertFalse("interleaved segments must not use the sequential reader", snapshot.useSequentialStoredFieldsReader());
+            assertOpsMatch(drainAll(snapshot), expectedDocs);
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    public void testContiguousReadsReuseSequentialStoredFieldsReader() throws Exception {
+        final int batchSize = LuceneChangesSnapshot.MIN_SEQUENTIAL_ACCESS_BATCH_SIZE;
+        final int numOps = batchSize * between(3, 10);
+        final Map<Long, ParsedDocument> expectedDocs = indexAppendOnly(numOps);
+        final AtomicInteger acquisitions = new AtomicInteger();
+        final AtomicInteger documentsRead = new AtomicInteger();
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try {
+            final int numLeaves = searcher.getDirectoryReader().leaves().size();
+            // a batch size well below the op count forces multiple batches, exercising reader reuse across them
+            final Engine.Searcher countingSearcher = countingSearcher(searcher, acquisitions, documentsRead);
+            try (LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(countingSearcher, batchSize, 0, numOps - 1, true, true)) {
+                searcher = null; // closed by the snapshot through the counting searcher
+                assertTrue("contiguous docIDs must use the sequential reader", snapshot.useSequentialStoredFieldsReader());
+                assertOpsMatch(drainAll(snapshot), expectedDocs);
+                assertThat("sequential reader must be acquired once per leaf and reused", acquisitions.get(), equalTo(numLeaves));
+                assertThat("every read must go through the SequentialStoredFieldsLeafReader", documentsRead.get(), equalTo(numOps));
+            }
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    public void testSequentialStoredFieldsReaderIsReacquiredOnThreadChange() throws Exception {
+        final int numOps = between(LuceneChangesSnapshot.MIN_SEQUENTIAL_ACCESS_BATCH_SIZE, 50);
+        final Map<Long, ParsedDocument> expectedDocs = indexAppendOnly(numOps);
+        final AtomicInteger acquisitions = new AtomicInteger();
+        final AtomicInteger documentsRead = new AtomicInteger();
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try {
+            final Engine.Searcher countingSearcher = countingSearcher(searcher, acquisitions, documentsRead);
+            try (LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(countingSearcher, numOps, 0, numOps - 1, true, true)) {
+                searcher = null; // closed by the snapshot through the counting searcher
+                assertTrue(snapshot.useSequentialStoredFieldsReader());
+                final List<Translog.Operation> ops = new ArrayList<>();
+                // every next() runs on a fresh thread; join() gives the happens-before that consumers get from locking
+                Translog.Operation op = callOnNewThread(snapshot::next);
+                while (op != null) {
+                    ops.add(op);
+                    op = callOnNewThread(snapshot::next);
+                }
+                assertOpsMatch(ops, expectedDocs);
+                assertThat("reader must be re-acquired for every reading thread", acquisitions.get(), equalTo(numOps));
+                assertThat(documentsRead.get(), equalTo(numOps));
+            }
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    private Map<Long, ParsedDocument> indexAppendOnly(int numOps) throws IOException {
+        final Map<Long, ParsedDocument> expectedDocs = new HashMap<>();
+        for (int i = 0; i < numOps; i++) {
+            final ParsedDocument doc = createParsedDoc("id-" + i, null);
+            final Engine.IndexResult result = engine.index(indexForDoc(doc));
+            expectedDocs.put(result.getSeqNo(), doc);
+        }
+        engine.refresh("test");
+        return expectedDocs;
+    }
+
+    private void assertOpsMatch(List<Translog.Operation> ops, Map<Long, ParsedDocument> expectedDocs) {
+        assertThat(ops, hasSize(expectedDocs.size()));
+        for (Translog.Operation op : ops) {
+            assertThat(op.toString(), op, instanceOf(Translog.Index.class));
+            final Translog.Index index = (Translog.Index) op;
+            final ParsedDocument expected = expectedDocs.get(op.seqNo());
+            assertNotNull("unexpected seqNo [" + op.seqNo() + "]", expected);
+            assertThat(index.id(), equalTo(expected.id()));
+            assertThat(index.source(), equalTo(expected.source()));
+        }
+    }
+
+    private static <T> T callOnNewThread(CheckedSupplier<T, Exception> supplier) throws Exception {
+        final AtomicReference<T> result = new AtomicReference<>();
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                result.set(supplier.get());
+            } catch (Exception e) {
+                failure.set(e);
+            }
+        });
+        thread.start();
+        thread.join();
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+        return result.get();
+    }
+
+    /**
+     * Wraps the searcher's reader so that every leaf sits behind a counting {@link SequentialStoredFieldsLeafReader}.
+     * The returned searcher takes ownership of {@code searcher}.
+     */
+    private static Engine.Searcher countingSearcher(Engine.Searcher searcher, AtomicInteger acquisitions, AtomicInteger documentsRead)
+        throws IOException {
+        final DirectoryReader reader = new CountingSequentialDirectoryReader(searcher.getDirectoryReader(), acquisitions, documentsRead);
+        return new Engine.Searcher(
+            searcher.source(),
+            reader,
+            searcher.getSimilarity(),
+            searcher.getQueryCache(),
+            searcher.getQueryCachingPolicy(),
+            searcher
+        );
+    }
+
+    /**
+     * Wraps every leaf in a pass-through {@link SequentialStoredFieldsLeafReader} that counts how many times its
+     * sequential stored fields reader is acquired, and how many documents that reader serves.
+     */
+    private static final class CountingSequentialDirectoryReader extends FilterDirectoryReader {
+        private final AtomicInteger acquisitions;
+        private final AtomicInteger documentsRead;
+
+        CountingSequentialDirectoryReader(DirectoryReader in, AtomicInteger acquisitions, AtomicInteger documentsRead) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new SequentialStoredFieldsLeafReader(reader) {
+                        @Override
+                        protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader storedFieldsReader) {
+                            acquisitions.incrementAndGet();
+                            return new CountingStoredFieldsReader(storedFieldsReader, documentsRead);
+                        }
+
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return reader.getCoreCacheHelper();
+                        }
+
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return reader.getReaderCacheHelper();
+                        }
+                    };
+                }
+            });
+            this.acquisitions = acquisitions;
+            this.documentsRead = documentsRead;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new CountingSequentialDirectoryReader(in, acquisitions, documentsRead);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
+    private static final class CountingStoredFieldsReader extends StoredFieldsReader {
+        private final StoredFieldsReader delegate;
+        private final AtomicInteger documentsRead;
+
+        CountingStoredFieldsReader(StoredFieldsReader delegate, AtomicInteger documentsRead) {
+            this.delegate = delegate;
+            this.documentsRead = documentsRead;
+        }
+
+        @Override
+        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            documentsRead.incrementAndGet();
+            delegate.document(docID, visitor);
+        }
+
+        @Override
+        public StoredFieldsReader clone() {
+            return new CountingStoredFieldsReader(delegate.clone(), documentsRead);
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            delegate.checkIntegrity();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

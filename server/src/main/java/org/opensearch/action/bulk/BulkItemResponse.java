@@ -421,7 +421,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
-         * @see BulkItemRequest#abort(String, Exception)
          */
         public boolean isAborted() {
             return aborted;
@@ -630,14 +629,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     private void writeResponseType(StreamOutput out) throws IOException {
-        if (response instanceof IndexResponse) {
-            out.writeByte((byte) 0);
-        } else if (response instanceof DeleteResponse) {
-            out.writeByte((byte) 1);
-        } else if (response instanceof UpdateResponse) {
-            out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
-        } else {
-            throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
+        switch (response) {
+            case IndexResponse ignored -> out.writeByte((byte) 0);
+            case DeleteResponse ignored -> out.writeByte((byte) 1);
+            case UpdateResponse ignored -> out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
+            default -> throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
         }
     }
 }

@@ -1447,6 +1447,14 @@ public class SettingTests extends OpenSearchTestCase {
         assertThat(ex.getMessage(), containsString("UnmodifiableOnRestore setting [foo.bar] cannot be dynamic"));
     }
 
+    public void testRejectSensitiveWithoutDynamic() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Sensitive, Property.NodeScope)
+        );
+        assertThat(ex.getMessage(), containsString("sensitive setting [foo.bar] must be dynamic"));
+    }
+
     public void testRejectNonIndexScopedUnmodifiableOnRestoreSetting() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

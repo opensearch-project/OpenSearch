@@ -1,0 +1,40 @@
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:00Z", "host": "host1", "cpu": 45.2, "memory": 62.5, "disk": 78.3}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:00Z", "host": "host1", "cpu": 52.8, "memory": 65.1, "disk": 78.5}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:00Z", "host": "host1", "cpu": 89.5, "memory": 88.2, "disk": 79.0}
+{"index": {}}
+{"timestamp": "2026-05-20T10:03:00Z", "host": "host1", "cpu": 91.2, "memory": 92.5, "disk": 79.2}
+{"index": {}}
+{"timestamp": "2026-05-20T10:04:00Z", "host": "host1", "cpu": 48.3, "memory": 60.8, "disk": 79.5}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:00Z", "host": "host2", "cpu": 35.6, "memory": 55.2, "disk": 65.8}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:00Z", "host": "host2", "cpu": 38.9, "memory": 58.4, "disk": 66.0}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:00Z", "host": "host2", "cpu": 42.1, "memory": 61.7, "disk": 66.3}
+{"index": {}}
+{"timestamp": "2026-05-20T10:03:00Z", "host": "host2", "cpu": 95.8, "memory": 96.3, "disk": 66.5}
+{"index": {}}
+{"timestamp": "2026-05-20T10:04:00Z", "host": "host2", "cpu": 40.5, "memory": 59.1, "disk": 66.8}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:00Z", "host": "host3", "cpu": 28.4, "memory": 48.9, "disk": 52.1}
+{"index": {}}
+{"timestamp": "2026-05-20T10:01:00Z", "host": "host3", "cpu": 31.2, "memory": 51.3, "disk": 52.4}
+{"index": {}}
+{"timestamp": "2026-05-20T10:02:00Z", "host": "host3", "cpu": 33.8, "memory": 53.7, "disk": 52.7}
+{"index": {}}
+{"timestamp": "2026-05-20T10:03:00Z", "host": "host3", "cpu": 36.5, "memory": 56.2, "disk": 53.0}
+{"index": {}}
+{"timestamp": "2026-05-20T10:04:00Z", "host": "host3", "cpu": 88.7, "memory": 90.5, "disk": 53.3}
+{"index": {}}
+{"timestamp": "2026-05-20T10:05:00Z", "host": "host1", "cpu": 50.1, "memory": 63.2, "disk": 79.8}
+{"index": {}}
+{"timestamp": "2026-05-20T10:06:00Z", "host": "host1", "cpu": 55.4, "memory": 67.8, "disk": 80.0}
+{"index": {}}
+{"timestamp": "2026-05-20T10:05:00Z", "host": "host2", "cpu": 43.2, "memory": 62.5, "disk": 67.0}
+{"index": {}}
+{"timestamp": "2026-05-20T10:06:00Z", "host": "host2", "cpu": 46.8, "memory": 65.9, "disk": 67.3}
+{"index": {}}
+{"timestamp": "2026-05-20T10:05:00Z", "host": "host3", "cpu": 39.1, "memory": 58.6, "disk": 53.6}

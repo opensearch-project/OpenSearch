@@ -1,0 +1,1 @@
+source=performance_metrics | stats avg(cpu_usage) as avg_cpu, max(cpu_usage) as max_cpu, min(cpu_usage) as min_cpu, count() as samples by host

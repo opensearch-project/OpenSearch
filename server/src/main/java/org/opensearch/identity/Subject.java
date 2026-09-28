@@ -5,10 +5,10 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.security.Principal;
-import java.util.concurrent.Callable;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
@@ -24,9 +24,9 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * runAs allows the caller to run a callable function as this subject
+     * runAs allows the caller to run a {@link CheckedRunnable} as this subject
      */
-    default <T> T runAs(Callable<T> callable) throws Exception {
-        return callable.call();
+    default <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
+        r.run();
     };
 }

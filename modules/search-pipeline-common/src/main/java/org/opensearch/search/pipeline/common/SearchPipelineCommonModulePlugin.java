@@ -80,7 +80,13 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
                 ScriptRequestProcessor.TYPE,
                 new ScriptRequestProcessor.Factory(parameters.scriptService),
                 OversampleRequestProcessor.TYPE,
-                new OversampleRequestProcessor.Factory()
+                new OversampleRequestProcessor.Factory(),
+                HierarchicalRoutingSearchProcessor.TYPE,
+                new HierarchicalRoutingSearchProcessor.Factory(),
+                TemporalRoutingSearchProcessor.TYPE,
+                new TemporalRoutingSearchProcessor.Factory(),
+                AclRoutingSearchProcessor.TYPE,
+                new AclRoutingSearchProcessor.Factory()
             )
         );
     }

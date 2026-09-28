@@ -32,10 +32,12 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -50,6 +52,45 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     void handleResponse(T response);
 
+    /**
+     * Processes a streaming transport response containing multiple batches.
+     * <p>
+     * Responsibilities:
+     * <ul>
+     *   <li>Iterate over responses using {@link StreamTransportResponse#nextResponse()}.</li>
+     *   <li>Close the stream with {@link StreamTransportResponse#close()} after processing.</li>
+     *   <li>Call {@link StreamTransportResponse#cancel(String, Throwable)} for errors, timeouts, or early termination.</li>
+     * </ul>
+     * <p>
+     * Exceptions from {@code nextResponse()} are propagated to the caller. Other errors
+     * (e.g., connection issues or timeouts before streaming starts) trigger
+     * {@link #handleException(TransportException)}.
+     * <p>
+     * Example:
+     * <pre>{@code
+     * public void handleStreamResponse(StreamTransportResponse<T> response) {
+     *     try {
+     *         while (true) {
+     *             T result = response.nextResponse();
+     *             if (result == null) break;
+     *             // Process result...
+     *         }
+     *     } catch (Exception e) {
+     *         response.cancel("Processing error", e);
+     *         throw e;
+     *     } finally {
+     *         response.close();
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param response the streaming response, which must be closed by the handler
+     */
+    @ExperimentalApi
+    default void handleStreamResponse(StreamTransportResponse<T> response) {
+        throw new UnsupportedOperationException("Streaming responses not supported by this handler");
+    }
+
     void handleException(TransportException exp);
 
     String executor();
@@ -60,6 +101,16 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      * @param exp exception
      */
     default void handleRejection(Exception exp) {}
+
+    /**
+     * True if this handler consumes the response payload directly (e.g. Flight's native Arrow
+     * path) instead of going through byte-level deserialization. Wrappers must forward their
+     * delegate's value.
+     */
+    @ExperimentalApi
+    default boolean skipsDeserialization() {
+        return false;
+    }
 
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;

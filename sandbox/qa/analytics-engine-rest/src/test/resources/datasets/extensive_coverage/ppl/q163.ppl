@@ -1,0 +1,1 @@
+source=test_data | eval updated = json_set(json_data, '$.discount', 10) | fields json_data, updated | head 3

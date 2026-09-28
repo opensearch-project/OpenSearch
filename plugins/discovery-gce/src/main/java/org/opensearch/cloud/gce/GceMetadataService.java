@@ -39,10 +39,10 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.URI;
@@ -90,12 +90,12 @@ public class GceMetadataService extends AbstractLifecycleComponent {
         try {
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            headers = Access.doPrivileged(HttpHeaders::new);
-            GenericUrl genericUrl = Access.doPrivileged(() -> new GenericUrl(urlMetadataNetwork));
+            headers = AccessController.doPrivileged(HttpHeaders::new);
+            GenericUrl genericUrl = AccessController.doPrivileged(() -> new GenericUrl(urlMetadataNetwork));
 
             // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
             headers.put("Metadata-Flavor", "Google");
-            HttpResponse response = Access.doPrivilegedIOException(
+            HttpResponse response = AccessController.doPrivilegedChecked(
                 () -> getGceHttpTransport().createRequestFactory().buildGetRequest(genericUrl).setHeaders(headers).execute()
             );
             String metadata = response.parseAsString();

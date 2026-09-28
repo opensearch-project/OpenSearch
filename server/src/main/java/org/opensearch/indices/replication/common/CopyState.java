@@ -13,6 +13,7 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -38,15 +39,26 @@ public class CopyState implements Closeable {
 
     public CopyState(IndexShard shard) throws IOException {
         this.shard = shard;
+        long lastRefreshedCheckpoint = shard.getLastRefreshedCheckpoint();
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> latestSegmentInfosAndCheckpoint = shard
             .getLatestSegmentInfosAndCheckpoint();
         this.segmentInfosRef = latestSegmentInfosAndCheckpoint.v1();
         this.replicationCheckpoint = latestSegmentInfosAndCheckpoint.v2();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
+
+        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
+        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+        long maxSeqNo = Long.parseLong(userData.getOrDefault(SequenceNumbers.MAX_SEQ_NO, "-1"));
+        // In the scenario of primary promotion. We need to ensure that the SegmentInfos#version of the new primary shard
+        // is greater than or equal to that of the replicas, and also need to ensure that the local_checkpoint of the new
+        // primary shard is less than or equal to the checkpoint of the Lucene commit.
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(Math.min(maxSeqNo, lastRefreshedCheckpoint)));
+        segmentInfosSnapshot.setUserData(userData, false);
+
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         // resource description and name are not used, but resource description cannot be null
         try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
-            segmentInfos.write(indexOutput);
+            segmentInfosSnapshot.write(indexOutput);
         }
         this.infosBytes = buffer.toArrayCopy();
     }

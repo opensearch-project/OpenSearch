@@ -321,10 +321,31 @@ public class Strings {
         return true;
     }
 
-    public static boolean validFileNameExcludingAstrix(String fileName) {
+    public static boolean validFileNameExcludingAsterisk(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
             if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean validFileNameExcludingSlash(String fileName) {
+        // Reject absolute paths
+        if (fileName.startsWith("/") || fileName.startsWith("\\")) {
+            return false;
+        }
+        // Reject invalid characters (excluding slashes)
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (c != '/' && c != '\\' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        // Reject path traversal: ".." as a path segment
+        for (String segment : fileName.split("[/\\\\]")) {
+            if (segment.equals("..")) {
                 return false;
             }
         }
@@ -749,10 +770,10 @@ public class Strings {
     private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
         XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
         if (pretty) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         if (human) {
-            builder.humanReadable(true);
+            builder = builder.humanReadable(true);
         }
         return builder;
     }

@@ -21,6 +21,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Metadata about encryption and decryption
@@ -33,6 +34,8 @@ public class CryptoMetadata implements Writeable {
     static final public String KEY_PROVIDER_NAME_KEY = "key_provider_name";
     static final public String KEY_PROVIDER_TYPE_KEY = "key_provider_type";
     static final public String SETTINGS_KEY = "settings";
+    static final private String KMS_KEY_ARN_SETTING = "kms.key_arn";
+    static final private String KMS_ENCRYPTION_CONTEXT_SETTING = "kms.encryption_context";
     private final String keyProviderName;
     private final String keyProviderType;
     private final Settings settings;
@@ -77,6 +80,24 @@ public class CryptoMetadata implements Writeable {
         return this.settings;
     }
 
+    /**
+     * Returns the encryption key ARN if configured.
+     *
+     * @return Optional containing the key ARN, or empty if not configured
+     */
+    public Optional<String> getKeyArn() {
+        return Optional.ofNullable(settings.get(KMS_KEY_ARN_SETTING));
+    }
+
+    /**
+     * Returns the encryption context if configured.
+     *
+     * @return Optional containing the encryption context, or empty if not configured
+     */
+    public Optional<String> getEncryptionContext() {
+        return Optional.ofNullable(settings.get(KMS_ENCRYPTION_CONTEXT_SETTING));
+    }
+
     public CryptoMetadata(StreamInput in) throws IOException {
         keyProviderName = in.readString();
         keyProviderType = in.readString();
@@ -88,6 +109,18 @@ public class CryptoMetadata implements Writeable {
             return null;
         }
         return new CryptoMetadata(cryptoSettings.getKeyProviderName(), cryptoSettings.getKeyProviderType(), cryptoSettings.getSettings());
+    }
+
+    public static CryptoMetadata fromIndexSettings(Settings indexSettings) {
+        String keyProviderName = indexSettings.get("index.store.crypto.key_provider");
+        if (keyProviderName == null) {
+            return null;
+        }
+
+        String keyProviderType = indexSettings.get("index.store.crypto.key_provider_type", "aws-kms");
+        Settings cryptoSettings = indexSettings.getAsSettings("index.store.crypto");
+
+        return new CryptoMetadata(keyProviderName, keyProviderType, cryptoSettings);
     }
 
     /**

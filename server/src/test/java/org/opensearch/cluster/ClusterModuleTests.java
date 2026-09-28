@@ -32,6 +32,9 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.deployment.DeploymentAllocationDecider;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
@@ -62,6 +65,7 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.ClusterSettings;
@@ -89,7 +93,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class ClusterModuleTests extends ModuleTestCase {
-    private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
+    private final ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
     private ClusterService clusterService;
     private ThreadContext threadContext;
 
@@ -124,6 +128,71 @@ public class ClusterModuleTests extends ModuleTestCase {
         public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
             throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
+    }
+
+    static class FakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    static class AnotherFakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    public void testRegisterCustomExpressionResolver() {
+        FakeExpressionResolver customResolver1 = new FakeExpressionResolver();
+        AnotherFakeExpressionResolver customResolver2 = new AnotherFakeExpressionResolver();
+        List<ClusterPlugin> clusterPlugins = Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Collection<IndexNameExpressionResolver.ExpressionResolver> getIndexNameCustomResolvers() {
+                return Arrays.asList(customResolver1, customResolver2);
+            }
+        });
+        ClusterModule module = new ClusterModule(
+            Settings.EMPTY,
+            clusterService,
+            clusterPlugins,
+            clusterInfoService,
+            null,
+            threadContext,
+            null,
+            ShardStateAction.class
+        );
+        assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver1));
+        assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver2));
+    }
+
+    public void testRegisterCustomExpressionResolverDuplicate() {
+        FakeExpressionResolver customResolver1 = new FakeExpressionResolver();
+        FakeExpressionResolver customResolver2 = new FakeExpressionResolver();
+        List<ClusterPlugin> clusterPlugins = Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Collection<IndexNameExpressionResolver.ExpressionResolver> getIndexNameCustomResolvers() {
+                return Arrays.asList(customResolver1, customResolver2);
+            }
+        });
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ClusterModule(
+                Settings.EMPTY,
+                clusterService,
+                clusterPlugins,
+                clusterInfoService,
+                null,
+                threadContext,
+                null,
+                ShardStateAction.class
+            )
+        );
+        assertEquals(
+            "Cannot specify expression resolver [org.opensearch.cluster.ClusterModuleTests$FakeExpressionResolver] twice",
+            ex.getMessage()
+        );
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
@@ -172,7 +241,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE))
+            }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE), ShardStateAction.class)
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -183,7 +252,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE), ShardStateAction.class);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -193,7 +262,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE), ShardStateAction.class);
     }
 
     public void testRegisterShardsAllocator() {
@@ -221,7 +290,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 clusterInfoService,
                 null,
                 threadContext,
-                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                ShardStateAction.class
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -253,11 +323,13 @@ public class ClusterModuleTests extends ModuleTestCase {
             SearchReplicaAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
+            WarmDiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
             AwarenessAllocationDecider.class,
             NodeLoadAwareAllocationDecider.class,
             TargetPoolAllocationDecider.class,
+            DeploymentAllocationDecider.class,
             RemoteStoreMigrationAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
@@ -308,7 +380,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            ShardStateAction.class
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -324,7 +397,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            ShardStateAction.class
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -357,7 +431,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            ShardStateAction.class
         );
         clusterModule.setRerouteServiceForAllocator((reason, priority, listener) -> listener.onResponse(clusterService.state()));
     }

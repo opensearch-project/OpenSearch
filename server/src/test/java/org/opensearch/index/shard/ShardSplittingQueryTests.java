@@ -32,6 +32,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -50,12 +51,14 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -64,6 +67,47 @@ import java.util.Arrays;
 import java.util.List;
 
 public class ShardSplittingQueryTests extends OpenSearchTestCase {
+
+    public void testSplitOnNoopOnlySegment() throws IOException {
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        sequenceIDFields.tombstoneField.setLongValue(1);
+        Directory dir = newFSDirectory(createTempDir());
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        writer.addDocument(
+            Arrays.asList(
+                sequenceIDFields.seqNo,
+                sequenceIDFields.seqNoDocValue,
+                sequenceIDFields.primaryTerm,
+                sequenceIDFields.tombstoneField,
+                new NumericDocValuesField(VersionFieldMapper.NAME, 1),
+                Lucene.newSoftDeletesField()
+            )
+        );
+        writer.commit();
+        writer.close();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(2)
+            .setRoutingNumShards(2 * 1000000)
+            .numberOfReplicas(0)
+            .build();
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            final Weight splitWeight = searcher.createWeight(
+                searcher.rewrite(new ShardSplittingQuery(metadata, 0, false)),
+                ScoreMode.COMPLETE_NO_SCORES,
+                1f
+            );
+            for (LeafReaderContext ctx : reader.leaves()) {
+                assertNull(ctx.reader().terms(IdFieldMapper.NAME));
+                Scorer scorer = splitWeight.scorer(ctx);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, scorer.iterator().nextDoc());
+            }
+        }
+        dir.close();
+    }
 
     public void testSplitOnID() throws IOException {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

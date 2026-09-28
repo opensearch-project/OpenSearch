@@ -74,6 +74,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     private final Map<String, DiscoveryNode> nodes;
     private final Map<String, DiscoveryNode> dataNodes;
+    private final Map<String, DiscoveryNode> warmNodes;
     private final Map<String, DiscoveryNode> clusterManagerNodes;
     private final Map<String, DiscoveryNode> ingestNodes;
 
@@ -87,6 +88,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private DiscoveryNodes(
         final Map<String, DiscoveryNode> nodes,
         final Map<String, DiscoveryNode> dataNodes,
+        final Map<String, DiscoveryNode> warmNodes,
         final Map<String, DiscoveryNode> clusterManagerNodes,
         final Map<String, DiscoveryNode> ingestNodes,
         String clusterManagerNodeId,
@@ -98,6 +100,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     ) {
         this.nodes = Collections.unmodifiableMap(nodes);
         this.dataNodes = Collections.unmodifiableMap(dataNodes);
+        this.warmNodes = Collections.unmodifiableMap(warmNodes);
         this.clusterManagerNodes = Collections.unmodifiableMap(clusterManagerNodes);
         this.ingestNodes = Collections.unmodifiableMap(ingestNodes);
         this.clusterManagerNodeId = clusterManagerNodeId;
@@ -149,6 +152,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public Map<String, DiscoveryNode> getDataNodes() {
         return this.dataNodes;
+    }
+
+    /**
+     * Get a {@link Map} of the discovered warm nodes arranged by their ids
+     *
+     * @return {@link Map} of the discovered warm nodes arranged by their ids
+     */
+    public Map<String, DiscoveryNode> getWarmNodes() {
+        return this.warmNodes;
     }
 
     /**
@@ -802,6 +814,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public DiscoveryNodes build() {
             final Map<String, DiscoveryNode> dataNodesBuilder = new HashMap<>();
+            final Map<String, DiscoveryNode> warmNodesBuilder = new HashMap<>();
             final Map<String, DiscoveryNode> clusterManagerNodesBuilder = new HashMap<>();
             final Map<String, DiscoveryNode> ingestNodesBuilder = new HashMap<>();
             Version minNodeVersion = null;
@@ -811,6 +824,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             for (final Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 if (nodeEntry.getValue().isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
+                }
+                if (nodeEntry.getValue().isWarmNode()) {
+                    warmNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 if (nodeEntry.getValue().isClusterManagerNode()) {
                     clusterManagerNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
@@ -835,6 +851,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return new DiscoveryNodes(
                 nodes,
                 dataNodesBuilder,
+                warmNodesBuilder,
                 clusterManagerNodesBuilder,
                 ingestNodesBuilder,
                 clusterManagerNodeId,

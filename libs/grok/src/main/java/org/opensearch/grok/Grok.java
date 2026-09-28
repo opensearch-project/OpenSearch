@@ -99,17 +99,28 @@ public final class Grok {
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
     private final List<GrokCaptureConfig> captureConfig;
+    private final boolean captureAllMatches;
 
     public Grok(Map<String, String> patternBank, String grokPattern, Consumer<String> logCallBack) {
-        this(patternBank, grokPattern, true, MatcherWatchdog.noop(), logCallBack);
+        this(patternBank, grokPattern, true, MatcherWatchdog.noop(), logCallBack, false);
     }
 
     public Grok(Map<String, String> patternBank, String grokPattern, MatcherWatchdog matcherWatchdog, Consumer<String> logCallBack) {
-        this(patternBank, grokPattern, true, matcherWatchdog, logCallBack);
+        this(patternBank, grokPattern, true, matcherWatchdog, logCallBack, false);
+    }
+
+    public Grok(
+        Map<String, String> patternBank,
+        String grokPattern,
+        MatcherWatchdog matcherWatchdog,
+        Consumer<String> logCallBack,
+        boolean captureAllMatches
+    ) {
+        this(patternBank, grokPattern, true, matcherWatchdog, logCallBack, captureAllMatches);
     }
 
     Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, Consumer<String> logCallBack) {
-        this(patternBank, grokPattern, namedCaptures, MatcherWatchdog.noop(), logCallBack);
+        this(patternBank, grokPattern, namedCaptures, MatcherWatchdog.noop(), logCallBack, false);
     }
 
     private Grok(
@@ -117,11 +128,13 @@ public final class Grok {
         String grokPattern,
         boolean namedCaptures,
         MatcherWatchdog matcherWatchdog,
-        Consumer<String> logCallBack
+        Consumer<String> logCallBack,
+        boolean captureAllMatches
     ) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
+        this.captureAllMatches = captureAllMatches;
 
         validatePatternBank();
 
@@ -395,7 +408,7 @@ public final class Grok {
         if (result == Matcher.FAILED) {
             return false;
         }
-        extracter.extract(utf8Bytes, offset, matcher.getEagerRegion());
+        extracter.extract(utf8Bytes, offset, matcher.getEagerRegion(), captureAllMatches);
         return true;
     }
 

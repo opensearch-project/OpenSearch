@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -58,8 +59,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -183,15 +184,18 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         }
 
         // use version number that is unknown
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99")).build()
+        );
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals(Version.fromString("99.99.99"), settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99"))
                     .put("index.test.setting.int", 42)
                     .build()
             )
@@ -590,6 +594,69 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
+    /**
+     * Verifies the index scoped {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}: it has a
+     * default, reports whether the index set it explicitly (which is what makes it win over the cluster default at the
+     * publication site), and rejects zero or negative sizes since those would flush on every successful segments sync.
+     * The precedence against the cluster setting is exercised in {@code RemoteStoreRefreshListenerTests}, which owns
+     * the resolution.
+     */
+    public void testFlushOnUncommittedSegmentsThresholdSize() {
+        IndexSettings settings = new IndexSettings(
+            newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()),
+            Settings.EMPTY
+        );
+        assertEquals(
+            IndexSettings.DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            settings.getFlushOnUncommittedSegmentsThresholdSize()
+        );
+        assertFalse(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "64mb")
+                    .build()
+            )
+        );
+        assertEquals(new ByteSizeValue(64, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        assertTrue(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
+        // removing it puts the index back on the cluster default, which the publication site resolves
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertFalse(settings.isFlushOnUncommittedSegmentsThresholdSizeExplicit());
+
+        for (String invalid : new String[] { "0b", "-1" }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new IndexSettings(
+                    newIndexMeta(
+                        "index",
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), invalid)
+                            .build()
+                    ),
+                    Settings.EMPTY
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse value [" + invalid + "]"));
+        }
+    }
+
+    /** Enablement is cluster-only: there is deliberately no index scoped counterpart, so index scope rejects the key. */
+    public void testFlushOnUncommittedSegmentsEnabledHasNoIndexScopedSetting() {
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(
+                Settings.builder().put("index.remote_store.flush_on_uncommitted_segments.enabled", false).build(),
+                false
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("unknown setting [index.remote_store.flush_on_uncommitted_segments.enabled]"));
+    }
+
     public void testTranslogGenerationSizeThreshold() {
         final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
@@ -883,6 +950,30 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * index.remote_store.auto_restore.enabled requires fencing: the trigger fires on the cluster manager's view of
+     * node membership while the departed primary may still be alive, and only the fence stops it acknowledging
+     * writes the restored copy will never see.
+     */
+    public void testRemoteStoreAutoRestoreRequiresFencing() {
+        Settings withoutFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withoutFencing, true)
+        );
+        assertTrue(iae.getMessage(), iae.getMessage().contains("can only be enabled when"));
+
+        Settings withFencing = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, true)
+            .build();
+        IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(withFencing, true); // must not throw
+    }
+
     public void testRemoteTranslogRepoDefaultSetting() {
         IndexMetadata metadata = newIndexMeta(
             "index",
@@ -996,47 +1087,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    @LockFeatureFlag(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
-    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteSnapshot());
-        assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
-    public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertFalse(settings.isRemoteSnapshot());
-        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
-    public void testExtendedCompatibilityVersionWithoutFeatureFlag() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteSnapshot());
-        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
     @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
     public void testDefaultSearchPipeline() throws Exception {
         IndexMetadata metadata = newIndexMeta(
@@ -1065,5 +1115,184 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
         assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
+    }
+
+    public void testUpdateDerivedSourceFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        SettingsException error = expectThrows(
+            SettingsException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.derived_source.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.derived_source.enabled], not updateable"));
+    }
+
+    public void testDerivedSourceTranslogReadPreferenceValidation() {
+        // Test 1: Valid case - when derived source is enabled
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 2: Invalid case - setting read preference when derived source is disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 3: Default(Derived) behavior - no read preference set
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 4: Dynamic update - valid case
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(metadata.getSettings())
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+        );
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 5: If derived source is disabled then translog setting value should also be disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+    }
+
+    public void testDefaultPeriodicFlushIntervalForRegularIndex() {
+        // Test that regular indices have periodic flush disabled by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.MINUS_ONE, defaultValue);
+    }
+
+    public void testDefaultPeriodicFlushIntervalForPullBasedIngestionIndex() {
+        // Test that ingestion indices have periodic flush enabled by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(10), defaultValue);
+    }
+
+    public void testPeriodicFlushIntervalExplicitValue() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "5m")
+            .build();
+
+        TimeValue value = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(5), value);
+    }
+
+    public void testPeriodicFlushIntervalDynamicUpdate() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                .build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+
+        // Verify default value
+        assertEquals(TimeValue.timeValueMinutes(10), settings.getPeriodicFlushInterval());
+
+        // Update to 10 minutes
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                    .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "10m")
+                    .build()
+            )
+        );
+        assertEquals(TimeValue.timeValueMinutes(10), settings.getPeriodicFlushInterval());
+
+        // Update to disabled (-1)
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                    .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1")
+                    .build()
+            )
+        );
+        assertEquals(TimeValue.MINUS_ONE, settings.getPeriodicFlushInterval());
+    }
+
+    public void testPartitionStrategyDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals("segment", INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+    }
+
+    public void testPartitionStrategyValidValues() {
+        for (String strategy : new String[] { "segment", "balanced", "force" }) {
+            IndexMetadata metadata = newIndexMeta(
+                "index",
+                Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), strategy).build()
+            );
+            IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+            assertEquals(strategy, INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+        }
+    }
+
+    public void testPartitionMinSegmentSizeDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(500_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
+    }
+
+    public void testPartitionMinSegmentSizeCustom() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 100_000).build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(100_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
     }
 }

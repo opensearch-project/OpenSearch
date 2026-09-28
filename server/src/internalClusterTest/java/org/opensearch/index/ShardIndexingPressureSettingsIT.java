@@ -19,6 +19,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
@@ -45,6 +46,7 @@ import java.util.stream.Stream;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
+@SuppressForbidden(reason = "Need to fix: https://github.com/opensearch-project/OpenSearch/issues/14331")
 public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
     public static final String INDEX_NAME = "test_index";

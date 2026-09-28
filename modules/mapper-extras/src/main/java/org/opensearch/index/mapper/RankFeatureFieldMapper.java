@@ -203,8 +203,8 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
     }
 
     private static Float objectToFloat(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).floatValue();
+        if (value instanceof Number number) {
+            return number.floatValue();
         } else {
             return Float.parseFloat(value.toString());
         }

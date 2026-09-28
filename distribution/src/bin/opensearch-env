@@ -43,7 +43,7 @@ if [[ -z "$OPENSEARCH_HOME" ]]; then
   OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
 fi
 
-# now set the classpath
+# now set the classpath — include lib/* (core jars)
 OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"
 
 # now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JRE -> bundled JDK
@@ -112,6 +112,21 @@ fi
 # now make OPENSEARCH_PATH_CONF absolute
 OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
 
+# FIPS mode is runtime-configured via env var (default: false)
+OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
+
+# Normalize to lowercase for common inputs: TRUE/True/true
+OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
+OPENSEARCH_FIPS_MODE="$(echo "$OPENSEARCH_FIPS_MODE" | tr '[:upper:]' '[:lower:]')"
+
+if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]] && ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
+  echo "FIPS mode enabled, setting JVM options."
+  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
+
+  # Ensure BC-FIPS "approved only" mode is on when FIPS mode is enabled
+  export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true ${OPENSEARCH_JAVA_OPTS}"
+fi
+
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
 OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
 
@@ -132,7 +147,7 @@ if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
   #
   # will cause OpenSearch to be invoked with -Ecluster.name=testcluster
   #
-  # see https://opensearch.org/docs/opensearch/configuration/ 
+  # see https://opensearch.org/docs/opensearch/configuration/
 
   declare -a opensearch_arg_array
 

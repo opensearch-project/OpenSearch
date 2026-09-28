@@ -11,6 +11,7 @@
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
@@ -24,6 +25,8 @@ dependencies {
   api "com.google.http-client:google-http-client:${versions.google_http_client}"
   api "com.google.http-client:google-http-client-gson:${versions.google_http_client}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google_http_client}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api 'com.google.code.findbugs:jsr305:3.0.2'
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -34,6 +37,9 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {
@@ -45,6 +51,7 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
   mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 check {
@@ -88,6 +95,12 @@ thirdPartyAudit {
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
-    'org.apache.log.Logger'
+    'org.apache.log.Logger',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.MarkerFactory',
+    'org.slf4j.spi.LocationAwareLogger'
   )
 }

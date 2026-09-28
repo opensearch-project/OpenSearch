@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "endpoint",
+      "type": "string"
+    },
+    {
+      "name": "status_code",
+      "type": "int"
+    },
+    {
+      "name": "latency",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "/api/payments",
+      503,
+      1517
+    ],
+    [
+      "/api/payments",
+      500,
+      1597
+    ],
+    [
+      "/SCS/Retail/v1/orders",
+      200,
+      560
+    ],
+    [
+      "/api/orders",
+      503,
+      492
+    ],
+    [
+      "/api/payments",
+      500,
+      541
+    ],
+    [
+      "/api/orders",
+      200,
+      784
+    ],
+    [
+      "/api/products",
+      400,
+      1796
+    ],
+    [
+      "/api/orders",
+      500,
+      1467
+    ],
+    [
+      "/api/products",
+      201,
+      1512
+    ],
+    [
+      "/api/payments",
+      201,
+      293
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

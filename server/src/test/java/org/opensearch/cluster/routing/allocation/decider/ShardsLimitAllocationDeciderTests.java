@@ -13,6 +13,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -24,6 +25,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.NO;
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.YES;
@@ -344,6 +349,7 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
+        Set<DiscoveryNodeRole> roles = new HashSet<>(Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT);
     }
 }

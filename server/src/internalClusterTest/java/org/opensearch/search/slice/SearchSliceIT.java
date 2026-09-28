@@ -34,6 +34,7 @@ package org.opensearch.search.slice;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.CreatePitAction;
@@ -69,6 +70,15 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
+/**
+ * <p>{@code @SuppressCodecs("*")} is needed because we cache StoredFieldsReader instances
+ * across scroll batches for sequential access. Different batches may run on different threads
+ * (but never concurrently). Lucene's AssertingStoredFieldsFormat enforces thread affinity
+ * that rejects this valid sequential cross-thread usage.
+ *
+ * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
+ */
+@LuceneTestCase.SuppressCodecs("*")
 public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchSliceIT(Settings staticSettings) {
         super(staticSettings);

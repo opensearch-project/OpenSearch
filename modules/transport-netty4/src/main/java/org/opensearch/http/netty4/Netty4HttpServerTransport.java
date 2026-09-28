@@ -87,6 +87,8 @@ import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpContentEncoder;
+import io.netty.handler.codec.http.HttpDecoderConfig;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -97,9 +99,11 @@ import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodecFactory;
 import io.netty.handler.codec.http2.CleartextHttp2ServerUpgradeHandler;
 import io.netty.handler.codec.http2.Http2CodecUtil;
+import io.netty.handler.codec.http2.Http2FrameCodec;
 import io.netty.handler.codec.http2.Http2FrameCodecBuilder;
 import io.netty.handler.codec.http2.Http2MultiplexHandler;
 import io.netty.handler.codec.http2.Http2ServerUpgradeCodec;
+import io.netty.handler.codec.http2.Http2Settings;
 import io.netty.handler.codec.http2.Http2StreamFrameToHttpObjectCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -138,6 +142,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
      */
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
+
+    /**
+     * The size of the http content decompressor buffer that is going to be used with the {@link #createDecompressor()}.
+     */
+    private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
@@ -180,11 +189,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Property.NodeScope
     );
 
+    public static final Setting<Integer> SETTING_HTTP_PIPELINE_DEPTH = Setting.intSetting(
+        "http.netty.pipeline.depth",
+        HttpContentEncoder.DEFAULT_MAX_PIPELINE_DEPTH,
+        1,
+        Property.NodeScope
+    );
+
     private final ByteSizeValue maxInitialLineLength;
     private final ByteSizeValue maxHeaderSize;
     private final ByteSizeValue maxChunkSize;
 
     private final int pipeliningMaxEvents;
+    private final int pipelineMaxDepth;
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -197,7 +214,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     /**
      * Creates new HTTP transport implementations based on Netty 4
-     * @param settings seetings
+     * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
      * @param threadPool thread pool instance
@@ -226,6 +243,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
+        this.pipelineMaxDepth = SETTING_HTTP_PIPELINE_DEPTH.get(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
@@ -310,8 +328,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
             }
 
-            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.option(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
 
             final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
             serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
@@ -371,11 +389,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+            this(transport, handlingSettings, HttpResponseHeadersFactories.newDefault());
+        }
+
+        protected HttpChannelHandler(
+            final Netty4HttpServerTransport transport,
+            final HttpHandlingSettings handlingSettings,
+            final HttpResponseHeadersFactory responseHeadersFactory
+        ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
-            this.requestCreator = new Netty4HttpRequestCreator();
-            this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.requestCreator = new Netty4HttpRequestCreator(responseHeadersFactory);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }
 
@@ -406,7 +432,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 public UpgradeCodec newUpgradeCodec(CharSequence protocol) {
                     if (AsciiString.contentEquals(Http2CodecUtil.HTTP_UPGRADE_PROTOCOL_NAME, protocol)) {
                         return new Http2ServerUpgradeCodec(
-                            Http2FrameCodecBuilder.forServer().build(),
+                            createHttp2FrameCodec(),
                             new Http2MultiplexHandler(createHttp2ChannelInitializer(ch.pipeline()))
                         );
                     } else {
@@ -415,12 +441,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 }
             };
 
-            final HttpServerCodec sourceCodec = new HttpServerCodec(
-                handlingSettings.getMaxInitialLineLength(),
-                handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize()
-            );
+            final HttpDecoderConfig config = new HttpDecoderConfig();
+            config.setMaxInitialLineLength(handlingSettings.getMaxInitialLineLength());
+            config.setMaxHeaderSize(handlingSettings.getMaxHeaderSize());
+            config.setMaxChunkSize(handlingSettings.getMaxChunkSize());
 
+            final HttpServerCodec sourceCodec = new HttpServerCodec(config, transport.pipelineMaxDepth);
             final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
                 sourceCodec,
                 upgradeCodecFactory,
@@ -448,7 +474,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         pipeline.addAfter(
                             "aggregator",
                             "encoder_compress",
-                            new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                            new HttpContentCompressor(
+                                0,
+                                transport.pipelineMaxDepth,
+                                defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                            )
                         );
                     }
                     pipeline.addBefore("handler", "request_creator", requestCreator);
@@ -477,7 +507,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
                     "encoder_compress",
-                    new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                    new HttpContentCompressor(
+                        0,
+                        transport.pipelineMaxDepth,
+                        defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                    )
                 );
             }
             pipeline.addLast("request_creator", requestCreator);
@@ -487,8 +521,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
 
         protected void configureDefaultHttp2Pipeline(ChannelPipeline pipeline) {
-            pipeline.addLast(Http2FrameCodecBuilder.forServer().build())
-                .addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+            pipeline.addLast(createHttp2FrameCodec()).addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+        }
+
+        /**
+         * Advertises {@code http.max_header_size} as SETTINGS_MAX_HEADER_LIST_SIZE, otherwise Netty's 8kb default
+         * caps HTTP/2 request headers regardless of the configured value.
+         */
+        private Http2FrameCodec createHttp2FrameCodec() {
+            return Http2FrameCodecBuilder.forServer()
+                .initialSettings(Http2Settings.defaultSettings().maxHeaderListSize(handlingSettings.getMaxHeaderSize()))
+                .build();
         }
 
         private ChannelInitializer<Channel> createHttp2ChannelInitializerPriorKnowledge() {
@@ -525,7 +568,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         childChannel.pipeline()
                             .addLast(
                                 "encoder_compress",
-                                new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                                new HttpContentCompressor(
+                                    0,
+                                    transport.pipelineMaxDepth,
+                                    defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                                )
                             );
                     }
 
@@ -575,7 +622,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      * Used in instances to conditionally decompress depending on the outcome from header verification
      */
     protected ChannelInboundHandlerAdapter createDecompressor() {
-        return new HttpContentDecompressor();
+        return new HttpContentDecompressor(UNLIMITED_DECOMPRESSOR_BUFFER);
     }
 
     /**

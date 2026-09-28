@@ -90,10 +90,6 @@
 
 ---
 "get cluster stats nodes count with both master and cluster_manager":
-  - skip:
-      version: " - 1.4.99"
-      reason: "node role cluster_manager is added in 2.0.0"
-
   - do:
       cluster.stats: {}
 

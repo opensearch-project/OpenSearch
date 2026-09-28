@@ -5,6 +5,11 @@
         </exclusions>
         <dependencies>
             <module name="org.reactivestreams"/>
+            <system export="true">
+                <paths>
+                    <path name="jdk/net"/>
+                </paths>
+            </system>
         </dependencies>
     </deployment>
 </jboss-deployment-structure>

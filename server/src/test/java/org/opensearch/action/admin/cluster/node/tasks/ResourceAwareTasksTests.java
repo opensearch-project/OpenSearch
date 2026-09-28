@@ -179,9 +179,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
                 protected void doRun() {
                     taskTestContext.memoryConsumptionWhenExecutionStarts = threadMXBean.getThreadAllocatedBytes(
-                        Thread.currentThread().getId()
+                        Thread.currentThread().threadId()
                     );
-                    threadId.set(Thread.currentThread().getId());
+                    threadId.set(Thread.currentThread().threadId());
 
                     // operationStartValidator will be called just before the task execution.
                     if (taskTestContext.operationStartValidator != null) {
@@ -410,7 +410,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertEquals(0, resourceTasks.size());
+        // The task may not be removed from resourceAwareTasks immediately after the request completes
+        // because stopTracking is called asynchronously via the task's resource tracking completion listener.
+        assertBusy(() -> assertEquals(0, resourceTasks.size()));
         assertNull(throwableReference.get());
         assertNotNull(responseReference.get());
         assertEquals(1, responseReference.get().failureCount());

@@ -255,4 +255,10 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     protected boolean supportsMeta() {
         return false;
     }
+
+    public void testPluggableDataFormatGeoShapeThrows() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        GeoShapeFieldMapper geoMapper = (GeoShapeFieldMapper) mapper.mappers().getMapper("field");
+        expectThrows(UnsupportedOperationException.class, () -> geoMapper.parseCreateFieldForPluggableFormat(null));
+    }
 }

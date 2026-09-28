@@ -49,9 +49,11 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
@@ -62,7 +64,9 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -74,7 +78,7 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.MockLogAppender;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.client.Client;
@@ -103,10 +107,14 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import org.mockito.ArgumentMatcher;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
+import reactor.util.annotation.NonNull;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -116,6 +124,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
@@ -124,29 +133,41 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class IngestServiceTests extends OpenSearchTestCase {
+public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
+
+    @Mock
+    private static Processor.Factory mockSystemProcessorFactory;
+    @Mock
+    private Processor mockSystemProcessor;
 
     private static final IngestPlugin DUMMY_PLUGIN = new IngestPlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Collections.singletonMap("foo", (factories, tag, description, config) -> null);
         }
+
+        @Override
+        public Map<String, Processor.Factory> getSystemIngestProcessors(Processor.Parameters parameters) {
+            return Map.of("foo", mockSystemProcessorFactory);
+        }
     };
 
     private ThreadPool threadPool;
-    private BulkRequest mockBulkRequest;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        MockitoAnnotations.openMocks(this);
         threadPool = mock(ThreadPool.class);
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        mockBulkRequest = mock(BulkRequest.class);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
     }
 
     public void testIngestPlugin() {
@@ -163,11 +184,17 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             Collections.singletonList(DUMMY_PLUGIN),
             client,
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            mock(NamedXContentRegistry.class),
+            mock(SystemIngestPipelineCache.class)
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
+
+        Map<String, Processor.Factory> systemFactories = ingestService.getSystemProcessorFactories();
+        assertTrue(systemFactories.containsKey("foo"));
+        assertEquals(1, systemFactories.size());
     }
 
     public void testIngestPluginDuplicate() {
@@ -182,13 +209,15 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 null,
                 Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
-                mock(IndicesService.class)
+                mock(IndicesService.class),
+                mock(NamedXContentRegistry.class),
+                mock(SystemIngestPipelineCache.class)
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
 
-    public void testExecuteIndexPipelineDoesNotExist() {
+    public void testExecuteSystemPipelineDoesNotExist() {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
@@ -202,7 +231,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             Collections.singletonList(DUMMY_PLUGIN),
             client,
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            mock(NamedXContentRegistry.class),
+            mock(SystemIngestPipelineCache.class)
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -234,7 +265,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testUpdatePipelines() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -258,7 +289,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testInnerUpdatePipelines() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         assertThat(ingestService.pipelines().size(), is(0));
 
         PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON);
@@ -341,7 +372,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testDelete() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         PipelineConfiguration config = new PipelineConfiguration(
             "_id",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
@@ -373,7 +404,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateNoIngestInfo() throws Exception {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
@@ -394,7 +425,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidatePipelineId_WithNotValidLength_ShouldThrowException() throws Exception {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
 
         String longId = "a".repeat(512) + "a";
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -427,7 +458,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -496,7 +527,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             );
         });
 
-        IngestService ingestService = createWithProcessors(processors);
+        IngestService ingestService = createIngestServiceWithProcessors(processors);
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -522,7 +553,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testCrud() throws Exception {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -552,7 +583,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testPut() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -586,7 +617,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testPutWithErrorResponse() throws IllegalAccessException {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -624,7 +655,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testDeleteUsingWildcard() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
         BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
         pipelines.put("p1", new PipelineConfiguration("p1", definition, MediaTypeRegistry.JSON));
@@ -672,7 +703,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testDeleteWithExistingUnmatchedPipelines() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
         BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
         pipelines.put("p1", new PipelineConfiguration("p1", definition, MediaTypeRegistry.JSON));
@@ -732,7 +763,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidate() throws Exception {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray(
@@ -761,7 +792,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateProcessorCountForIngestPipelineThrowsException() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray(
@@ -784,7 +815,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateProcessorCountForWithNestedOnFailureProcessorThrowsException() {
-        IngestService ingestService = createWithProcessors();
+        IngestService ingestService = createIngestServiceWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray(
@@ -878,8 +909,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
     }
 
-    public void testExecuteIndexPipelineExistsButFailedParsing() {
-        IngestService ingestService = createWithProcessors(
+    public void testExecuteSystemPipelineExistsButFailedParsing() {
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> new AbstractProcessor("mock", "description") {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
@@ -907,9 +938,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
             .source(emptyMap())
             .setPipeline("_none")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline(id)
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
 
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
@@ -936,7 +972,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor())
         );
 
@@ -984,7 +1020,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testExecuteSuccess() {
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor())
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -999,7 +1035,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
             .setPipeline("_id")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1017,7 +1054,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testExecuteEmptyPipeline() throws Exception {
-        IngestService ingestService = createWithProcessors(emptyMap());
+        IngestService ingestService = createIngestServiceWithProcessors(emptyMap());
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
@@ -1030,7 +1067,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
             .setPipeline("_id")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1049,7 +1087,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> processor)
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1116,7 +1154,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteFailure() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> processor)
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1176,7 +1214,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             Collections.singletonList(processor),
             Collections.singletonList(new CompoundProcessor(onFailureProcessor))
         );
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> compoundProcessor)
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1219,7 +1257,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             Collections.singletonList(processor),
             Collections.singletonList(new CompoundProcessor(false, processors, onFailureProcessors))
         );
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> compoundProcessor)
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1264,7 +1302,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         int numIndexRequests = scaledRandomIntBetween(4, 32);
         for (int i = 0; i < numIndexRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+            IndexRequest indexRequest = new IndexRequest("_index").id("_id")
+                .setPipeline(pipelineId)
+                .setFinalPipeline("_none")
+                .setSystemIngestPipeline("_none");
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
@@ -1273,7 +1314,12 @@ public class IngestServiceTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 bulkRequest.add(new DeleteRequest("_index", "_id"));
             } else {
-                bulkRequest.add(new UpdateRequest("_index", "_id"));
+                UpdateRequest updateRequest = new UpdateRequest("_index", "_id");
+
+                // We attach a child index request
+                IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+                updateRequest.doc(indexRequest);
+                bulkRequest.add(updateRequest);
             }
         }
 
@@ -1290,7 +1336,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             handler.accept(ingestDocumentWrappers);
             return null;
         }).when(processor).batchExecute(any(), any());
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> processor)
         );
         PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1332,7 +1378,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+            IndexRequest indexRequest = new IndexRequest("_index").id("_id")
+                .setPipeline(pipelineId)
+                .setFinalPipeline("_none")
+                .setSystemIngestPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
@@ -1350,7 +1399,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Map<String, Processor.Factory> map = new HashMap<>(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 
-        IngestService ingestService = createWithProcessors(map);
+        IngestService ingestService = createIngestServiceWithProcessors(map);
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"),
@@ -1405,7 +1454,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Map<String, Processor.Factory> map = new HashMap<>(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
-        IngestService ingestService = createWithProcessors(map);
+        IngestService ingestService = createIngestServiceWithProcessors(map);
 
         final IngestStats initialStats = ingestService.stats();
         assertThat(initialStats.getPipelineStats().size(), equalTo(0));
@@ -1587,7 +1636,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 return null;
             }
         });
-        IngestService ingestService = createWithProcessors(factories);
+        IngestService ingestService = createIngestServiceWithProcessors(factories);
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"drop\" : {}}, {\"mock\" : {}}]}"),
@@ -1602,13 +1651,15 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
             .source(Collections.emptyMap())
             .setPipeline("_none")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
 
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
             .source(Collections.emptyMap())
             .setPipeline("_id")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
 
         @SuppressWarnings("unchecked")
@@ -1661,7 +1712,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             Arrays.asList(testPlugin),
             client,
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            mock(NamedXContentRegistry.class),
+            mock(SystemIngestPipelineCache.class)
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -1683,7 +1736,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     public void testCBORParsing() throws Exception {
         AtomicReference<Object> reference = new AtomicReference<>();
         Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
-        final IngestService ingestService = createWithProcessors(
+        final IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("foo", (factories, tag, description, config) -> new FakeProcessor("foo", tag, description, executor))
         );
 
@@ -1722,6 +1775,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
+        IngestService ingestService = createIngestServiceWithProcessors();
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
             .numberOfShards(1)
@@ -1731,14 +1785,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
@@ -1749,20 +1803,21 @@ public class IngestServiceTests extends OpenSearchTestCase {
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // index name matches with ITMD for bulk upsert
         UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(emptyMap()).script(mockScript("1"));
-        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        result = ingestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
         assertThat(result, is(true));
         assertThat(updateRequest.upsertRequest().isPipelineResolved(), is(true));
         assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("default-pipeline"));
     }
 
     public void testResolveFinalPipeline() {
+        IngestService ingestService = createIngestServiceWithProcessors();
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
@@ -1772,7 +1827,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -1780,7 +1835,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -1792,7 +1847,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -1800,28 +1855,29 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         // index name matches with ITMD for bulk upsert:
         UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(emptyMap()).script(mockScript("1"));
-        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        result = ingestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
         assertThat(result, is(true));
         assertThat(updateRequest.upsertRequest().isPipelineResolved(), is(true));
         assertThat(updateRequest.upsertRequest().getFinalPipeline(), equalTo("final-pipeline"));
     }
 
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
+        IngestService ingestService = createIngestServiceWithProcessors();
         // no pipeline:
         {
             Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
 
         // request pipeline:
         {
             Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -1835,7 +1891,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -1849,7 +1905,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            boolean result = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -1857,14 +1913,103 @@ public class IngestServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteBulkRequestInBatchFallbackWithOneDocument() {
+    public void testExecuteBulkRequestInBatch() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         createPipeline("_id", ingestService);
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_id")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_id")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest4);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(4, bulkRequest.requests(), failureHandler, completionHandler, indexReq -> {}, Names.WRITE);
+        verify(failureHandler, never()).accept(any(), any());
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(mockCompoundProcessor, times(2)).batchExecute(any(), any());
+        verify(mockCompoundProcessor, never()).execute(any(), any());
+    }
+
+    public void testExecuteBulkRequestInBatchWithDefaultAndFinalPipeline() {
+        CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
+        IngestService ingestService = createIngestServiceWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
+        );
+        ClusterState clusterState = createPipeline("_id", ingestService);
+        createPipeline("_final", ingestService, clusterState);
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_final")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_final")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_final")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_final")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest4);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(4, bulkRequest.requests(), failureHandler, completionHandler, indexReq -> {}, Names.WRITE);
+        verify(failureHandler, never()).accept(any(), any());
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(mockCompoundProcessor, times(2)).batchExecute(any(), any());
+        verify(mockCompoundProcessor, never()).execute(any(), any());
+    }
+
+    public void testExecuteBulkRequestInBatchFallbackWithOneDocument() {
+        CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
+        IngestService ingestService = createIngestServiceWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
+        );
+        createPipeline("_id", ingestService);
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1879,7 +2024,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteBulkRequestInBatchNoValidPipeline() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         createPipeline("_id", ingestService);
@@ -1888,12 +2033,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
             .source(emptyMap())
             .setPipeline("_none")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
             .source(emptyMap())
             .setPipeline("_none")
-            .setFinalPipeline("_none");
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1908,7 +2055,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteBulkRequestInBatchNoValidDocument() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         createPipeline("_id", ingestService);
@@ -1929,7 +2076,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteBulkRequestInBatchWithException() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         doThrow(new RuntimeException()).when(mockCompoundProcessor).batchExecute(any(), any());
@@ -1953,23 +2100,35 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         createPipeline("_id", ingestService);
         BulkRequest bulkRequest = new BulkRequest();
         // will not be handled as not valid document type
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest3);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
-            new IngestDocumentWrapper(0, IngestService.toIngestDocument(indexRequest1), null),
-            new IngestDocumentWrapper(1, null, new RuntimeException()),
-            new IngestDocumentWrapper(2, null, null)
+            new IngestDocumentWrapper(0, 0, IngestService.toIngestDocument(indexRequest1), null),
+            new IngestDocumentWrapper(1, 0, null, new RuntimeException()),
+            new IngestDocumentWrapper(2, 0, null, null)
         );
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
@@ -1996,20 +2155,111 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
-    public void testExecuteBulkRequestInBatchWithDefaultBatchSize() {
+    public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback_requestsWithMatchingChildSlots() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(
+        IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
         );
         createPipeline("_id", ingestService);
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        // will not be handled as not valid document type
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+
+        IndexRequest indexRequest2ChildSlot0 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest2ChildSlot0);
+        IndexRequest indexRequest2ChildSlot1 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest2ChildSlot1);
+
+        IndexRequest indexRequest3ChildSlot0 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest3ChildSlot0);
+        IndexRequest indexRequest3ChildSlot1 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest3ChildSlot1);
+
+        List<IngestDocumentWrapper> results = Arrays.asList(
+            new IngestDocumentWrapper(0, 0, IngestService.toIngestDocument(indexRequest1), null),
+            new IngestDocumentWrapper(1, 0, IngestService.toIngestDocument(indexRequest2ChildSlot0), null),
+            new IngestDocumentWrapper(1, 1, null, new RuntimeException()),
+            new IngestDocumentWrapper(2, 0, null, new RuntimeException()),
+            new IngestDocumentWrapper(2, 1, null, new RuntimeException())
+        );
+        doAnswer(args -> {
+            @SuppressWarnings("unchecked")
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];
+            handler.accept(results);
+            return null;
+        }).when(mockCompoundProcessor).batchExecute(any(), any());
+
+        final Map<Integer, List<Exception>> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+        ingestService.executeBulkRequest(5, bulkRequest.requests(), (slot, exception) -> {
+            // Collect exceptions into a map of slots to list to inspect later
+            failureHandler.computeIfAbsent(slot, i -> new ArrayList<>()).add(exception);
+        }, completionHandler::put, dropHandler::add, Names.WRITE);
+
+        // The first and second slots should have failures
+        assertEquals(Set.of(1, 2), failureHandler.keySet());
+
+        // The slots should have the correct number of failures
+        assertEquals(failureHandler.get(1).size(), 1);
+        assertEquals(failureHandler.get(2).size(), 2);
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
+        verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
+        verify(mockCompoundProcessor, never()).execute(any(), any());
+    }
+
+    public void testExecuteBulkRequestInBatchWithDefaultBatchSize() {
+        CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
+        IngestService ingestService = createIngestServiceWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
+        );
+        createPipeline("_id", ingestService);
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_none").setFinalPipeline("_id");
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_id")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest3);
-        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest4);
         @SuppressWarnings("unchecked")
         final Map<Integer, Exception> failureHandler = new HashMap<>();
@@ -2028,11 +2278,11 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertEquals(1, completionHandler.size());
         assertNull(completionHandler.get(Thread.currentThread()));
         verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
-        verify(mockCompoundProcessor, never()).execute(any(), any());
+        verify(mockCompoundProcessor, times(1)).execute(any(), any());
     }
 
     public void testExecuteEmptyPipelineInBatch() throws Exception {
-        IngestService ingestService = createWithProcessors(emptyMap());
+        IngestService ingestService = createIngestServiceWithProcessors(emptyMap());
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
@@ -2043,13 +2293,29 @@ public class IngestServiceTests extends OpenSearchTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest3);
-        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4")
+            .source(emptyMap())
+            .setPipeline("_id")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest4);
         final Map<Integer, Exception> failureHandler = new HashMap<>();
         final Map<Thread, Exception> completionHandler = new HashMap<>();
@@ -2066,14 +2332,23 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testPrepareBatches_same_index_pipeline() {
-        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
-        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(
-            2,
-            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
+        IndexRequestWrapper wrapper1 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
         );
+        IndexRequestWrapper wrapper2 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
+        );
+        IndexRequestWrapper wrapper3 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
+        );
+        IndexRequestWrapper wrapper4 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
+        );
+        List<List<IndexRequestWrapper>> batches = IngestService.prepareBatches(2, Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4));
         assertEquals(2, batches.size());
         for (int i = 0; i < 2; ++i) {
             assertEquals(2, batches.get(i).size());
@@ -2081,14 +2356,23 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testPrepareBatches_different_index_pipeline() {
-        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index2", Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1", Arrays.asList("p1", "p2"));
-        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1", Collections.singletonList("p2"));
-        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(
-            2,
-            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
+        IndexRequestWrapper wrapper1 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
         );
+        IndexRequestWrapper wrapper2 = createIndexRequestWrapper(
+            "index2",
+            Collections.singletonList(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT))
+        );
+        IndexRequestWrapper wrapper3 = createIndexRequestWrapper(
+            "index1",
+            List.of(new IngestPipelineInfo("p1", IngestPipelineType.DEFAULT), new IngestPipelineInfo("p2", IngestPipelineType.DEFAULT))
+        );
+        IndexRequestWrapper wrapper4 = createIndexRequestWrapper(
+            "index1",
+            Collections.singletonList(new IngestPipelineInfo("p2", IngestPipelineType.DEFAULT))
+        );
+        List<List<IndexRequestWrapper>> batches = IngestService.prepareBatches(2, Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4));
         assertEquals(4, batches.size());
     }
 
@@ -2104,9 +2388,10 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertEquals(3, clusterSettings.get(IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS).intValue());
     }
 
-    private IngestService.IndexRequestWrapper createIndexRequestWrapper(String index, List<String> pipelines) {
+    private IndexRequestWrapper createIndexRequestWrapper(String index, List<IngestPipelineInfo> pipelineInfoList) {
         IndexRequest indexRequest = new IndexRequest(index);
-        return new IngestService.IndexRequestWrapper(0, indexRequest, pipelines, true);
+        DocWriteRequest<?> actionRequest = new IndexRequest(index);
+        return new IndexRequestWrapper(0, 0, indexRequest, actionRequest, pipelineInfoList);
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {
@@ -2117,7 +2402,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", version, versionType, source));
     }
 
-    private static IngestService createWithProcessors() {
+    private static IngestService createIngestServiceWithProcessors() {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put("set", (factories, tag, description, config) -> {
             String field = (String) config.remove("field");
@@ -2129,11 +2414,21 @@ public class IngestServiceTests extends OpenSearchTestCase {
             return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {
             };
         });
-        return createWithProcessors(processors);
+
+        Map<String, Processor.Factory> systemProcessors = new HashMap<>();
+        systemProcessors.put("foo", mockSystemProcessorFactory);
+
+        return createIngestServiceWithProcessors(processors, systemProcessors);
     }
 
-    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+    public static IngestService createIngestServiceWithProcessors(Map<String, Processor.Factory> processors) {
+        return createIngestServiceWithProcessors(processors, Collections.emptyMap());
+    }
 
+    public static IngestService createIngestServiceWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Map<String, Processor.Factory> systemProcessors
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
@@ -2148,7 +2443,12 @@ public class IngestServiceTests extends OpenSearchTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, mock(IndicesService.class));
+
+            @Override
+            public Map<String, Processor.Factory> getSystemIngestProcessors(Processor.Parameters parameters) {
+                return systemProcessors;
+            }
+        }), client, mock(IndicesService.class), mock(NamedXContentRegistry.class), spy(new SystemIngestPipelineCache()));
     }
 
     private CompoundProcessor mockCompoundProcessor() {
@@ -2199,7 +2499,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(stats.getCount(), equalTo(count));
         assertThat(stats.getCurrent(), equalTo(0L));
         assertThat(stats.getFailedCount(), equalTo(failed));
-        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.getTotalTime(), greaterThanOrEqualTo(time));
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
@@ -2211,11 +2511,11 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     private ClusterState createPipeline(String pipeline, IngestService ingestService, ClusterState previousState) {
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            pipeline,
-            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            MediaTypeRegistry.JSON
-        );
+        return createPipeline(pipeline, new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), ingestService, previousState);
+    }
+
+    private ClusterState createPipeline(String pipeline, BytesArray config, IngestService ingestService, ClusterState previousState) {
+        PutPipelineRequest putRequest = new PutPipelineRequest(pipeline, config, MediaTypeRegistry.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         if (previousState != null) {
             clusterState = previousState;
@@ -2224,5 +2524,633 @@ public class IngestServiceTests extends OpenSearchTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         return clusterState;
+    }
+
+    public void testInvalidateCache() {
+        // initiate ingest service
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+
+        // prepare test data and mock
+        final IndexMetadata indexMetadata1 = mock(IndexMetadata.class);
+        final Index index1 = new Index("index1", "uuid1");
+        when(indexMetadata1.getIndex()).thenReturn(index1);
+
+        final IndexMetadata indexMetadata2 = mock(IndexMetadata.class);
+        final Index index2 = new Index("index2", "uuid2");
+        when(indexMetadata2.getIndex()).thenReturn(index2);
+        final IndexMetadata changedIndexMetadata2 = mock(IndexMetadata.class);
+        when(changedIndexMetadata2.getIndex()).thenReturn(index2);
+
+        final IndexMetadata indexMetadata3 = mock(IndexMetadata.class);
+        final Index index3 = new Index("index3", "uuid3");
+        when(indexMetadata3.getIndex()).thenReturn(index3);
+
+        final Map<String, IndexMetadata> previousIndices = Map.of(
+            "index1",
+            indexMetadata1,
+            "index2",
+            indexMetadata2,
+            "index3",
+            indexMetadata3
+        );
+
+        final Pipeline dummyPipeline = new Pipeline("id", null, null, new CompoundProcessor());
+        cache.cachePipeline(index1.toString(), dummyPipeline, 10);
+        cache.cachePipeline(index2.toString(), dummyPipeline, 10);
+        cache.cachePipeline(index3.toString(), dummyPipeline, 10);
+        cache.cachePipeline("[" + index3.getName() + "/template]", dummyPipeline, 10);
+
+        final Map<String, IndexMetadata> currentIndices = Map.of("index1", indexMetadata1, "index2", changedIndexMetadata2);
+
+        final Metadata previousMetadata = mock(Metadata.class);
+        when(previousMetadata.indices()).thenReturn(previousIndices);
+
+        final Metadata currentMetadata = mock(Metadata.class);
+        when(currentMetadata.indices()).thenReturn(currentIndices);
+
+        final ClusterState previousClusterState = ClusterState.builder(new ClusterName("_name")).metadata(previousMetadata).build();
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName("_name")).metadata(currentMetadata).build();
+
+        // process cluster state change event
+        ingestService.applyClusterState(new ClusterChangedEvent("", currentClusterState, previousClusterState));
+
+        // verify
+        assertNotNull(cache.getSystemIngestPipeline(index1.toString()));
+        assertNull(cache.getSystemIngestPipeline(index2.toString()));
+        assertNull(cache.getSystemIngestPipeline(index3.toString()));
+        assertNull(cache.getSystemIngestPipeline("[" + index3.getName() + "/template]"));
+    }
+
+    public void testResolvePipelines_whenExistingIndex() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        final Index index = new Index("idx", "uuid");
+        when(indexMetadata.getIndex()).thenReturn(index);
+        Metadata metadata = Metadata.builder().indices(Map.of("idx", indexMetadata)).build();
+
+        // First time create the pipeline and cache it
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean hasPipeline = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/uuid]", hasPipeline, indexRequest, cache);
+
+        // Second time use the cache directly
+        IndexRequest indexRequest2 = new IndexRequest("idx");
+        boolean hasPipeline2 = ingestService.resolvePipelines(indexRequest2, indexRequest2, metadata);
+        assertTrue(hasPipeline2);
+        assertTrue(indexRequest2.isPipelineResolved());
+        assertEquals("[idx/uuid]", indexRequest2.getSystemIngestPipeline());
+        verify(cache, times(2)).getSystemIngestPipeline(eq("[idx/uuid]"));
+        verifyNoMoreInteractions(cache);
+    }
+
+    public void testResolvePipelines_whenExistingIndexAndSystemPipelineDisabled_thenNoSystemPipeline() throws Exception {
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.getClusterService()
+            .getClusterSettings()
+            .applySettings(Settings.builder().put(IngestService.SYSTEM_INGEST_PIPELINE_ENABLED.getKey(), false).build());
+
+        final IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        final Index index = new Index("idx", "uuid");
+        when(indexMetadata.getIndex()).thenReturn(index);
+        Metadata metadata = Metadata.builder().indices(Map.of("idx", indexMetadata)).build();
+
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean hasPipeline = ingestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        // verify
+        assertTrue(hasPipeline);
+        assertTrue(indexRequest.isPipelineResolved());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getSystemIngestPipeline());
+    }
+
+    public void testResolvePipelines_whenUseTemplateV2() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getInstanceFromNode(MetadataIndexTemplateService.class);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("idx*"), null, null, null, null, null, null);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("", state, state));
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexRequest indexRequest = new IndexRequest("idx");
+
+        // invoke
+        boolean hasPipeline = ingestService.resolvePipelines(indexRequest, indexRequest, state.metadata());
+
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/template]", hasPipeline, indexRequest, cache);
+    }
+
+    public void testResolvePipelines_whenUseTemplateV1() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(v1Template).build())
+            .build();
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("", state, state));
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexRequest indexRequest = new IndexRequest("idx");
+
+        // invoke
+        boolean hasPipeline = ingestService.resolvePipelines(indexRequest, indexRequest, state.metadata());
+
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/template]", hasPipeline, indexRequest, cache);
+    }
+
+    public void testResolveSystemIngestPipeline_whenExistingIndex() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        // We add a default pipeline to index metadata to verify we DO NOT resolve it (only system pipeline)
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+
+        final Index index = new Index("idx", "uuid");
+        when(indexMetadata.getIndex()).thenReturn(index);
+        Metadata metadata = Metadata.builder().indices(Map.of("idx", indexMetadata)).build();
+
+        // First time create the pipeline and cache it
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean hasPipeline = ingestService.resolveSystemIngestPipeline(indexRequest, indexRequest, metadata);
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/uuid]", hasPipeline, indexRequest, cache);
+        assertEquals("[idx/uuid]", indexRequest.getSystemIngestPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getFinalPipeline());
+    }
+
+    public void testResolveSystemIngestPipeline_whenExistingIndexAndSystemPipelineDisabled_thenNoSystemPipeline() throws Exception {
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.getClusterService()
+            .getClusterSettings()
+            .applySettings(Settings.builder().put(IngestService.SYSTEM_INGEST_PIPELINE_ENABLED.getKey(), false).build());
+
+        final IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        final Index index = new Index("idx", "uuid");
+        when(indexMetadata.getIndex()).thenReturn(index);
+        Metadata metadata = Metadata.builder().indices(Map.of("idx", indexMetadata)).build();
+
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean hasPipeline = ingestService.resolveSystemIngestPipeline(indexRequest, indexRequest, metadata);
+
+        // verify
+        assertFalse(hasPipeline);
+        assertTrue(indexRequest.isPipelineResolved());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getSystemIngestPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getFinalPipeline());
+    }
+
+    public void testResolveSystemIngestPipeline_whenUseTemplateV2() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getInstanceFromNode(MetadataIndexTemplateService.class);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("idx*"), null, null, null, null, null, null);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("", state, state));
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexRequest indexRequest = new IndexRequest("idx");
+
+        // invoke
+        boolean hasPipeline = ingestService.resolveSystemIngestPipeline(indexRequest, indexRequest, state.metadata());
+
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/template]", hasPipeline, indexRequest, cache);
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getFinalPipeline());
+    }
+
+    public void testResolveSystemIngestPipeline_whenUseTemplateV1() throws Exception {
+        // mock
+        when(mockSystemProcessorFactory.create(any(), any(), any(), any())).thenReturn(mockSystemProcessor);
+        when(mockSystemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(mockSystemProcessor.isSystemGenerated()).thenReturn(true);
+
+        IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(v1Template).build())
+            .build();
+        final IngestService ingestService = createIngestServiceWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("", state, state));
+        final SystemIngestPipelineCache cache = ingestService.getSystemIngestPipelineCache();
+        final IndexRequest indexRequest = new IndexRequest("idx");
+
+        // invoke
+        boolean hasPipeline = ingestService.resolveSystemIngestPipeline(indexRequest, indexRequest, state.metadata());
+
+        // verify
+        verifySystemPipelineResolvedSuccessfully("[idx/template]", hasPipeline, indexRequest, cache);
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest.getFinalPipeline());
+    }
+
+    private void verifySystemPipelineResolvedSuccessfully(
+        @NonNull final String id,
+        final boolean hasPipeline,
+        @NonNull final IndexRequest indexRequest,
+        @NonNull final SystemIngestPipelineCache cache
+    ) {
+        assertTrue(hasPipeline);
+        assertTrue(indexRequest.isPipelineResolved());
+        assertEquals(id, indexRequest.getSystemIngestPipeline());
+        verify(cache, times(1)).getSystemIngestPipeline(eq(id));
+        verify(cache, times(1)).cachePipeline(eq(id), any(), eq(Integer.MAX_VALUE));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTargetIndexChange() {
+        // prepare test data
+        final Map<String, Processor.Factory> processors = new HashMap<>();
+
+        // mock a default pipeline do change the target index of the first request
+        Processor defaultProcessor = mock(Processor.class);
+        doAnswer(invocationOnMock -> {
+            List<IngestDocumentWrapper> documents = (List<IngestDocumentWrapper>) invocationOnMock.getArguments()[0];
+            documents.get(0).getIngestDocument().setFieldValue("_index", "new_index");
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer<List<IngestDocumentWrapper>>) invocationOnMock.getArguments()[1];
+            handler.accept(documents);
+            return null;
+        }).when(defaultProcessor).batchExecute(any(), any());
+        processors.put(
+            "default",
+            (factories, tag, description, config) -> new CompoundProcessor(false, List.of(defaultProcessor), List.of())
+        );
+
+        // mock a final pipeline do nothing
+        Processor dummyFinalProcessor = mock(Processor.class);
+        doAnswer(invocationOnMock -> {
+            IngestDocument document = (IngestDocument) invocationOnMock.getArguments()[0];
+            BiConsumer<IngestDocument, Exception> handler = (BiConsumer<IngestDocument, Exception>) invocationOnMock.getArguments()[1];
+            handler.accept(document, null);
+            return null;
+        }).when(dummyFinalProcessor).execute(any(), any());
+        processors.put(
+            "dummy",
+            (factories, tag, description, config) -> new CompoundProcessor(false, List.of(dummyFinalProcessor), List.of())
+        );
+
+        // create ingest service and cluster state
+        IngestService ingestService = createIngestServiceWithProcessors(processors);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+
+        // add pipeline
+        clusterState = createPipeline("pipeline", new BytesArray("{\"processors\": [{\"default\" : {}}]}"), ingestService, clusterState);
+        createPipeline("final_pipeline", new BytesArray("{\"processors\": [{\"dummy\" : {}}]}"), ingestService, clusterState);
+
+        // prepare request
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("pipeline")
+            .setFinalPipeline("final_pipeline")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("pipeline")
+            .setFinalPipeline("final_pipeline")
+            .setSystemIngestPipeline("_none");
+        bulkRequest.add(indexRequest2);
+
+        // prepare handler
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+
+        // call
+        ingestService.executeBulkRequest(
+            2,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE
+        );
+
+        // verify the default pipeline will process both requests and the final pipeline will only process the second
+        // one. This happens because the target index of the first doc is changed.
+        verify(defaultProcessor, times(1)).batchExecute(any(), any());
+        verify(dummyFinalProcessor, times(1)).execute(any(), any());
+
+        // verify the pipeline info of the request 1 will be reset since its target index is changed
+        assertFalse(indexRequest1.isPipelineResolved());
+        assertNull(indexRequest1.getFinalPipeline());
+        assertEquals(NOOP_PIPELINE_NAME, indexRequest1.getPipeline());
+
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+    }
+
+    public void testExecuteBulkRequestInBatchWithSystemPipeline() throws Exception {
+        // prepare test data
+        final Map<String, Processor.Factory> processors = new HashMap<>();
+
+        // mock a default pipeline do nothing
+        Processor defaultProcessor = mock(Processor.class);
+        doAnswer(invocationOnMock -> {
+            List<IngestDocumentWrapper> documents = (List<IngestDocumentWrapper>) invocationOnMock.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer<List<IngestDocumentWrapper>>) invocationOnMock.getArguments()[1];
+            handler.accept(documents);
+            return null;
+        }).when(defaultProcessor).batchExecute(any(), any());
+        processors.put(
+            "default",
+            (factories, tag, description, config) -> new CompoundProcessor(false, List.of(defaultProcessor), List.of())
+        );
+
+        // mock a final pipeline do nothing
+        Processor dummyProcessor = mock(Processor.class);
+        doAnswer(invocationOnMock -> {
+            List<IngestDocumentWrapper> documents = (List<IngestDocumentWrapper>) invocationOnMock.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer<List<IngestDocumentWrapper>>) invocationOnMock.getArguments()[1];
+            handler.accept(documents);
+            return null;
+        }).when(dummyProcessor).batchExecute(any(), any());
+        processors.put("dummy", (factories, tag, description, config) -> new CompoundProcessor(false, List.of(dummyProcessor), List.of()));
+
+        // mock a system pipeline do nothing
+        final Processor dummySystemProcessor = mock(Processor.class);
+        final Map<String, Processor.Factory> systemProcessors = createDummyMockSystemProcessors(dummySystemProcessor, true);
+
+        // create ingest service and cluster state
+        IngestService ingestService = createIngestServiceWithProcessors(processors, systemProcessors);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+
+        // add pipeline
+        clusterState = createPipeline("pipeline", new BytesArray("{\"processors\": [{\"default\" : {}}]}"), ingestService, clusterState);
+        createPipeline("final_pipeline", new BytesArray("{\"processors\": [{\"dummy\" : {}}]}"), ingestService, clusterState);
+
+        // prepare systemIngestPipelineCache for the case using index template
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        systemIngestPipelineCache.cachePipeline(
+            "[_index/template]",
+            new Pipeline("id", "description", null, new CompoundProcessor(false, List.of(dummySystemProcessor), Collections.emptyList())),
+            100
+        );
+
+        // prepare request
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("pipeline")
+            .setFinalPipeline("final_pipeline")
+            .setSystemIngestPipeline("[_index/template]")
+            .isPipelineResolved(true);
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("pipeline")
+            .setFinalPipeline("final_pipeline")
+            .setSystemIngestPipeline("[_index/template]")
+            .isPipelineResolved(true);
+        bulkRequest.add(indexRequest2);
+
+        // prepare handler
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+
+        // call
+        ingestService.executeBulkRequest(
+            2,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE
+        );
+
+        // verify we use the system pipeline from the cache
+        verify(systemIngestPipelineCache, times(1)).getSystemIngestPipeline(any());
+        // only 1 time for set up
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
+        // verify
+        verify(defaultProcessor, times(1)).batchExecute(any(), any());
+        verify(dummyProcessor, times(1)).batchExecute(any(), any());
+        verify(dummySystemProcessor, times(1)).batchExecute(any(), any());
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+    }
+
+    private Map<String, Processor.Factory> createDummyMockSystemProcessors(Processor dummySystemProcessor, boolean isBatch)
+        throws Exception {
+        final Map<String, Processor.Factory> systemProcessors = new HashMap<>();
+        final Processor.Factory systemProcessorFactory = mock(Processor.Factory.class);
+        when(systemProcessorFactory.isSystemGenerated()).thenReturn(true);
+        when(systemProcessorFactory.create(any(), any(), any(), any())).thenReturn(dummySystemProcessor);
+        when(dummySystemProcessor.isSystemGenerated()).thenReturn(true);
+        if (isBatch) {
+            doAnswer(invocationOnMock -> {
+                List<IngestDocumentWrapper> documents = (List<IngestDocumentWrapper>) invocationOnMock.getArguments()[0];
+                Consumer<List<IngestDocumentWrapper>> handler = (Consumer<List<IngestDocumentWrapper>>) invocationOnMock.getArguments()[1];
+                handler.accept(documents);
+                return null;
+            }).when(dummySystemProcessor).batchExecute(any(), any());
+        } else {
+            doAnswer(invocationOnMock -> {
+                IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
+                BiConsumer<IngestDocument, Exception> handler = (BiConsumer<IngestDocument, Exception>) invocationOnMock.getArguments()[1];
+                handler.accept(ingestDocument, null);
+                return null;
+            }).when(dummySystemProcessor).execute(any(), any());
+        }
+
+        systemProcessors.put("dummy", systemProcessorFactory);
+        return systemProcessors;
+    }
+
+    public void testExecuteBulkRequestSingleRequestWithSystemPipeline() throws Exception {
+        // mock a system pipeline do nothing
+        final Processor dummySystemProcessor = mock(Processor.class);
+        final Map<String, Processor.Factory> systemProcessors = createDummyMockSystemProcessors(dummySystemProcessor, false);
+
+        // add index metadata for the new index
+        IngestService ingestService = createIngestServiceWithProcessors(Map.of(), systemProcessors);
+        IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("_index")
+                .settings(settings(Version.CURRENT))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        when(indexMetadata.getIndex()).thenReturn(new Index("_index", "uuid"));
+        Metadata metadata = Metadata.builder().indices(Map.of("_index", indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("_name", clusterState, clusterState));
+
+        // prepare request
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("[_index/uuid]")
+            .isPipelineResolved(true);
+        bulkRequest.add(indexRequest1);
+
+        // prepare systemIngestPipelineCache
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        systemIngestPipelineCache.cachePipeline(
+            "[_index/uuid]",
+            new Pipeline("id", "description", null, new CompoundProcessor(false, List.of(dummySystemProcessor), Collections.emptyList())),
+            100
+        );
+
+        // prepare handler
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+
+        // call
+        ingestService.executeBulkRequest(
+            1,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE
+        );
+
+        // verify we use the system pipeline from the cache
+        verify(systemIngestPipelineCache, times(1)).getSystemIngestPipeline(any());
+        // only 1 time for set up
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
+        // verify
+        verify(dummySystemProcessor, times(1)).execute(any(), any());
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+    }
+
+    public void testExecuteBulkRequestWithSystemPipelineButCacheNotAvailable() throws Exception {
+        // mock a system pipeline do nothing
+        final Processor dummySystemProcessor = mock(Processor.class);
+        final Map<String, Processor.Factory> systemProcessors = createDummyMockSystemProcessors(dummySystemProcessor, false);
+
+        // add index metadata for the new index
+        IngestService ingestService = createIngestServiceWithProcessors(Map.of(), systemProcessors);
+        IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("_index")
+                .settings(settings(Version.CURRENT))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        when(indexMetadata.getIndex()).thenReturn(new Index("_index", "uuid"));
+        Metadata metadata = Metadata.builder().indices(Map.of("_index", indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("_name", clusterState, clusterState));
+
+        // prepare request
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("[_index/uuid]")
+            .isPipelineResolved(true);
+        bulkRequest.add(indexRequest1);
+
+        // prepare handler
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+
+        // call
+        ingestService.executeBulkRequest(
+            1,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE
+        );
+
+        // verify we resolve the system pipeline again and then cache it
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        verify(systemIngestPipelineCache, times(3)).getSystemIngestPipeline(any());
+        // only 1 time to cache the newly generated pipeline
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
+        // verify
+        verify(dummySystemProcessor, times(1)).execute(any(), any());
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+    }
+
+    public void testIngestServiceCreation_whenInvalidSystemProcessor_thenFail() {
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("set", (factories, tag, description, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            return new FakeProcessor("set", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value));
+        });
+
+        final Exception exception = assertThrows(RuntimeException.class, () -> createIngestServiceWithProcessors(processors, processors));
+
+        assertEquals("[set] is not a system generated processor factory.", exception.getMessage());
     }
 }

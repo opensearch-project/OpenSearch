@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "maxresponsetime",
+      "type": "string"
+    },
+    {
+      "name": "requests",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "avgresponsetime",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "567",
+      41,
+      "api-service",
+      948.14
+    ],
+    [
+      "567",
+      54,
+      "auth-service",
+      900.5
+    ],
+    [
+      "567",
+      55,
+      "db-service",
+      870.18
+    ],
+    [
+      "567",
+      50,
+      "web-service",
+      900.5
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

@@ -1,0 +1,1 @@
+source = app_logs_filter_delegation | where service_name = 'auth-service' AND host = 'host1' | stats count() as cnt

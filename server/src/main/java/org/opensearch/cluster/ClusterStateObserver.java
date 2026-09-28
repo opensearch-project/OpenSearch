@@ -117,6 +117,25 @@ public class ClusterStateObserver {
         this.contextHolder = contextHolder;
     }
 
+    public ClusterStateObserver(
+        String clusterManagerNodeId,
+        long version,
+        ClusterApplierService clusterApplierService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
+        this.clusterApplierService = clusterApplierService;
+        this.threadPool = clusterApplierService.threadPool();
+        this.lastObservedState = new AtomicReference<>(new StoredState(clusterManagerNodeId, version));
+        this.timeOutValue = timeout;
+        if (timeOutValue != null) {
+            this.startTimeMS = threadPool.relativeTimeInMillis();
+        }
+        this.logger = logger;
+        this.contextHolder = contextHolder;
+    }
+
     /** sets the last observed state to the currently applied cluster state and returns it */
     public ClusterState setAndGetObservedState() {
         if (observingContext.get() != null) {
@@ -311,8 +330,12 @@ public class ClusterStateObserver {
         private final long version;
 
         StoredState(ClusterState clusterState) {
-            this.clusterManagerNodeId = clusterState.nodes().getClusterManagerNodeId();
-            this.version = clusterState.version();
+            this(clusterState.nodes().getClusterManagerNodeId(), clusterState.version());
+        }
+
+        StoredState(String clusterManagerNodeId, long version) {
+            this.clusterManagerNodeId = clusterManagerNodeId;
+            this.version = version;
         }
 
         /**

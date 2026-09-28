@@ -61,6 +61,10 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    protected String getPassword() {
+        return randomFrom("", "keystorepassword");
+    }
+
     private Path createRandomFile() throws IOException {
         int length = randomIntBetween(10, 20);
         byte[] bytes = new byte[length];
@@ -93,7 +97,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassword"));
+        var password = getPassword();
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configDir()));

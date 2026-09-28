@@ -64,6 +64,26 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long replicaRejections;
     private final long memoryLimit;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new IndexingPressureStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private IndexingPressureStats(Builder builder) {
+        this.totalCombinedCoordinatingAndPrimaryBytes = builder.totalCombinedCoordinatingAndPrimaryBytes;
+        this.totalCoordinatingBytes = builder.totalCoordinatingBytes;
+        this.totalPrimaryBytes = builder.totalPrimaryBytes;
+        this.totalReplicaBytes = builder.totalReplicaBytes;
+        this.currentCombinedCoordinatingAndPrimaryBytes = builder.currentCombinedCoordinatingAndPrimaryBytes;
+        this.currentCoordinatingBytes = builder.currentCoordinatingBytes;
+        this.currentPrimaryBytes = builder.currentPrimaryBytes;
+        this.currentReplicaBytes = builder.currentReplicaBytes;
+        this.coordinatingRejections = builder.coordinatingRejections;
+        this.primaryRejections = builder.primaryRejections;
+        this.replicaRejections = builder.replicaRejections;
+        this.memoryLimit = builder.memoryLimit;
+    }
+
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
         totalCoordinatingBytes = in.readVLong();
@@ -81,6 +101,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         memoryLimit = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public IndexingPressureStats(
         long totalCombinedCoordinatingAndPrimaryBytes,
         long totalCoordinatingBytes,
@@ -107,6 +132,95 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
         this.memoryLimit = memoryLimit;
+    }
+
+    /**
+     * Builder for the {@link IndexingPressureStats} class.
+     * Provides a fluent API for constructing a IndexingPressureStats object.
+     */
+    public static class Builder {
+        private long totalCombinedCoordinatingAndPrimaryBytes = 0;
+        private long totalCoordinatingBytes = 0;
+        private long totalPrimaryBytes = 0;
+        private long totalReplicaBytes = 0;
+        private long currentCombinedCoordinatingAndPrimaryBytes = 0;
+        private long currentCoordinatingBytes = 0;
+        private long currentPrimaryBytes = 0;
+        private long currentReplicaBytes = 0;
+        private long coordinatingRejections = 0;
+        private long primaryRejections = 0;
+        private long replicaRejections = 0;
+        private long memoryLimit = 0;
+
+        public Builder() {}
+
+        public Builder totalCombinedCoordinatingAndPrimaryBytes(long bytes) {
+            this.totalCombinedCoordinatingAndPrimaryBytes = bytes;
+            return this;
+        }
+
+        public Builder totalCoordinatingBytes(long bytes) {
+            this.totalCoordinatingBytes = bytes;
+            return this;
+        }
+
+        public Builder totalPrimaryBytes(long bytes) {
+            this.totalPrimaryBytes = bytes;
+            return this;
+        }
+
+        public Builder totalReplicaBytes(long bytes) {
+            this.totalReplicaBytes = bytes;
+            return this;
+        }
+
+        public Builder currentCombinedCoordinatingAndPrimaryBytes(long bytes) {
+            this.currentCombinedCoordinatingAndPrimaryBytes = bytes;
+            return this;
+        }
+
+        public Builder currentCoordinatingBytes(long bytes) {
+            this.currentCoordinatingBytes = bytes;
+            return this;
+        }
+
+        public Builder currentPrimaryBytes(long bytes) {
+            this.currentPrimaryBytes = bytes;
+            return this;
+        }
+
+        public Builder currentReplicaBytes(long bytes) {
+            this.currentReplicaBytes = bytes;
+            return this;
+        }
+
+        public Builder coordinatingRejections(long rejections) {
+            this.coordinatingRejections = rejections;
+            return this;
+        }
+
+        public Builder primaryRejections(long rejections) {
+            this.primaryRejections = rejections;
+            return this;
+        }
+
+        public Builder replicaRejections(long rejections) {
+            this.replicaRejections = rejections;
+            return this;
+        }
+
+        public Builder memoryLimit(long limit) {
+            this.memoryLimit = limit;
+            return this;
+        }
+
+        /**
+         * Creates a {@link IndexingPressureStats} object from the builder's current state.
+         * @return A new IndexingPressureStats instance.
+         */
+        public IndexingPressureStats build() {
+            return new IndexingPressureStats(this);
+        }
     }
 
     @Override

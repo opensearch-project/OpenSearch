@@ -1,0 +1,1 @@
+source=security_logs | where event_type="access_denied" and status_code in (401, 403) | stats count() as denied_count by resource, user | where denied_count > 3 | sort - denied_count

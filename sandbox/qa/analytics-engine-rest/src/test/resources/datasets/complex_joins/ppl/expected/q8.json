@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "total_processed",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster_name",
+      "type": "string"
+    },
+    {
+      "name": "log_volume",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    },
+    {
+      "name": "processing_efficiency",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      2000,
+      "cluster-c",
+      1,
+      "cluster-c",
+      2000.0
+    ],
+    [
+      1500,
+      "cluster-b",
+      1,
+      "cluster-b",
+      1500.0
+    ],
+    [
+      1000,
+      "cluster-a",
+      1,
+      "cluster-a",
+      1000.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -9,6 +9,9 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.io.IOUtils;
@@ -71,6 +74,28 @@ public class FileSnapshot implements Closeable {
             : new InputStreamIndexInput(new ByteArrayIndexInput(this.name, content), content.length);
     }
 
+    /**
+     * Supplies the offset-ranged streams that a multipart (async) upload reads its parts from.
+     * <p>
+     *  The default implementation reads directly from the backing file (or the in-memory content, for
+     * content-backed snapshots), so no part of the file is ever held on heap.
+     * <p>
+     * Subclasses that transform the bytes on the way out (for example decrypting a client-side encrypted
+     * translog) must override this in addition to {@link #inputStream()}, and must keep the supplier
+     * random-access.
+     *
+     * @return a supplier of offset-ranged streams over the bytes to be uploaded
+     */
+    public RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier() {
+        if (path != null) {
+            final Path filePath = path;
+            return (size, position) -> new OffsetRangeFileInputStream(filePath, size, position);
+        }
+        final String resourceDescription = this.name;
+        final byte[] bytes = this.content;
+        return (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(name, content, path);
@@ -130,6 +155,17 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
+        /**
+         * Returns the generation number.
+         * Default implementation returns -1 for non-generational files.
+         * Subclasses should override this to return the actual generation.
+         *
+         * @return the generation number, or -1 if not applicable
+         */
+        public long getGeneration() {
+            return -1;
+        }
+
         public void setMetadataFileInputStream(InputStream inputStream) {
             this.metadataFileInputStream = inputStream;
         }
@@ -160,7 +196,7 @@ public class FileSnapshot implements Closeable {
      *
      * @opensearch.internal
      */
-    public static final class TranslogFileSnapshot extends TransferFileSnapshot {
+    public static class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
 
@@ -169,6 +205,7 @@ public class FileSnapshot implements Closeable {
             this.generation = generation;
         }
 
+        @Override
         public long getGeneration() {
             return generation;
         }
@@ -208,6 +245,7 @@ public class FileSnapshot implements Closeable {
             this.generation = generation;
         }
 
+        @Override
         public long getGeneration() {
             return generation;
         }

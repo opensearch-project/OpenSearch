@@ -1,0 +1,1 @@
+source=otel_logs | dedup severityText | stats count()

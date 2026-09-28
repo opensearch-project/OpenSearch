@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -152,6 +153,14 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (non-UTC, script/missing,
+        // non-indexed field, or nested). When it applies, its BKD point-tree walk is not partition-aware, so
+        // partitioning would duplicate the walk per partition and regress — stay sequential in that case.
+        return DateHistogramAggregatorBridge.filterRewriteFastPathApplies(parent, config, rounding) == false;
     }
 
     public Rounding.DateTimeUnit getRounding() {

@@ -62,6 +62,7 @@ import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineCreationFailureException;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TestTranslog;
@@ -172,7 +173,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 indexMetadata,
                 null,
                 null,
-                new InternalEngineFactory(),
+                new EngineBackedIndexerFactory(new InternalEngineFactory()),
                 new EngineConfigFactory(new IndexSettings(indexMetadata, settings)),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
@@ -552,7 +553,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             metadata,
             storeProvider,
             null,
-            indexShard.engineFactory,
+            indexShard.indexerFactory,
             indexShard.getEngineConfigFactory(),
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),

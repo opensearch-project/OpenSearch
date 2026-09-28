@@ -249,10 +249,10 @@ public abstract class QueryCollectorContext {
                 children.add(in);
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
                     final InternalProfileCollectorManager subCollectorManager;
-                    if (manager instanceof AggregationCollectorManager) {
+                    if (manager instanceof AggregationCollectorManager aggregationCollectorManager) {
                         subCollectorManager = new InternalProfileCollectorManager(
                             manager,
-                            ((AggregationCollectorManager) manager).getCollectorReason(),
+                            aggregationCollectorManager.getCollectorReason(),
                             Collections.emptyList()
                         );
                     } else {

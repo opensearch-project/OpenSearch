@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.PrimitiveIterator;
+import java.util.stream.IntStream;
 
 /**
  * A snapshot composed out of multiple snapshots
@@ -52,19 +54,25 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final int totalOperations;
     private int overriddenOperations;
     private final Closeable onClose;
+    private final PrimitiveIterator.OfInt iterator;
     private int index;
     private final SeqNoSet seenSeqNo;
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
      */
-    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose) {
+    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose, boolean readForward) {
         this.translogs = translogs;
         this.totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
         this.overriddenOperations = 0;
         this.onClose = onClose;
         this.seenSeqNo = new SeqNoSet();
-        this.index = translogs.length - 1;
+        if (readForward) {
+            this.iterator = IntStream.range(0, translogs.length).iterator();
+        } else {
+            this.iterator = IntStream.range(0, translogs.length).map(i -> translogs.length - 1 - i).iterator();
+        }
+        this.index = iterator.hasNext() ? iterator.nextInt() : -1;
     }
 
     @Override
@@ -79,8 +87,7 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
-        // TODO: Read translog forward in 9.0+
-        for (; index >= 0; index--) {
+        while (index >= 0) {
             final TranslogSnapshot current = translogs[index];
             Translog.Operation op;
             while ((op = current.next()) != null) {
@@ -90,6 +97,8 @@ final class MultiSnapshot implements Translog.Snapshot {
                     overriddenOperations++;
                 }
             }
+            // Current snapshot exhausted, move to next
+            index = iterator.hasNext() ? iterator.nextInt() : -1;
         }
         return null;
     }

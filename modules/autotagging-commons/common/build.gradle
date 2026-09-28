@@ -12,7 +12,7 @@ apply plugin: 'opensearch.publish'
 description = 'OpenSearch Rule framework common constructs which spi and module shares'
 
 dependencies {
-  api 'org.apache.commons:commons-collections4:4.4'
+  api "org.apache.commons:commons-collections4:${versions.commonscollections4}"
   implementation project(":libs:opensearch-common")
   compileOnly project(":server")
 

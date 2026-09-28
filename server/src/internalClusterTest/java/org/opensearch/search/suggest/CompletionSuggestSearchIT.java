@@ -1176,7 +1176,7 @@ public class CompletionSuggestSearchIT extends ParameterizedStaticSettingsOpenSe
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d", id);
-            logger.info("Creating {}, id {}, weight {}", suggestion, i, id, weight);
+            logger.info("Creating {}, i {}, id {}, weight {}", suggestion, i, id, weight);
             indexRequestBuilders.add(
                 client().prepareIndex(INDEX)
                     .setRefreshPolicy(WAIT_UNTIL)
@@ -1193,12 +1193,12 @@ public class CompletionSuggestSearchIT extends ParameterizedStaticSettingsOpenSe
         indexRandom(true, indexRequestBuilders);
 
         Arrays.sort(termIds, Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
-        logger.info("Expected terms id ordered {}", (Object[]) termIds);
+        logger.info("Expected terms id ordered {}", Arrays.toString(termIds));
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
             expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d", termIds[i]);
         }
-        logger.info("Expected suggestions field values {}", (Object[]) expected);
+        logger.info("Expected suggestions field values {}", Arrays.toString(expected));
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .skipDuplicates(true)

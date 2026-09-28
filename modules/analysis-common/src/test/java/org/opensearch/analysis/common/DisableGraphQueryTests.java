@@ -93,10 +93,9 @@ public class DisableGraphQueryTests extends OpenSearchSingleNodeTestCase {
             .put("index.analysis.analyzer.text_shingle_unigram.tokenizer", "whitespace")
             .put("index.analysis.analyzer.text_shingle_unigram.filter", "lowercase, shingle_unigram")
             .build();
-        indexService = createIndex(
+        indexService = createIndexWithSimpleMappings(
             "test",
             settings,
-            "t",
             "text_shingle",
             "type=text,analyzer=text_shingle",
             "text_shingle_unigram",

@@ -1,0 +1,55 @@
+{
+  "schema": [
+    {
+      "name": "verification_count",
+      "type": "bigint"
+    },
+    {
+      "name": "app_id",
+      "type": "string"
+    },
+    {
+      "name": "decision",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      7,
+      "APP003",
+      "pending"
+    ],
+    [
+      6,
+      "APP002",
+      "approved"
+    ],
+    [
+      4,
+      "APP003",
+      "approved"
+    ],
+    [
+      3,
+      "APP002",
+      "pending"
+    ],
+    [
+      2,
+      "APP001",
+      "approved"
+    ],
+    [
+      2,
+      "APP002",
+      "rejected"
+    ],
+    [
+      1,
+      "APP001",
+      "pending"
+    ]
+  ],
+  "total": 7,
+  "size": 7
+}

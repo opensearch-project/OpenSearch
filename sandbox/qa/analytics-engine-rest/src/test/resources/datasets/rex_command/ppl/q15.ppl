@@ -1,0 +1,1 @@
+source=rex_command | rex field=raw_log "(?<httpmethod>\w+) (?<endpoint>\S+) (?<httpstatus>\d+) (?<responsetime>\d+)ms" | where httpstatus >= 500 | stats count() as cnt by httpmethod, httpstatus | sort cnt desc

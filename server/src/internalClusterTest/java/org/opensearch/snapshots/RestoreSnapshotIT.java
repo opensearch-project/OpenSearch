@@ -43,6 +43,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -1361,6 +1362,53 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
 
+    }
+
+    public void testInvalidRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        // b - 100000 times
+        String invalidRenameReplacementString = "b".repeat(100000);
+
+        ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(invalidRenameReplacementString)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("rename_replacement string size exceeds max allowed size"));
+    }
+
+    public void testValidRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        String validRenameReplacement = "restored-index";
+
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(index)
+            .setRenamePattern(index)
+            .setRenameReplacement(validRenameReplacement)
+            .get();
+
+        ensureGreen(validRenameReplacement);
+    }
+
+    public void testEmptyRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        client().admin().cluster().prepareRestoreSnapshot(snapshotRepo, snapshotName1).setWaitForCompletion(true).setIndices(index).get();
+
+        ensureGreen(index);
     }
 
     public void testInvalidRestoreRequest_MixModifiableAndUnmodifiableOnRestoreModified() throws Exception {

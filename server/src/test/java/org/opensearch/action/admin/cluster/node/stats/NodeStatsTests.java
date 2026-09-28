@@ -33,10 +33,12 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PersistedStateStats;
@@ -96,6 +98,7 @@ import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -422,13 +425,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(totalStats.getCount(), deserializedIngestStats.getTotalStats().getCount());
                     assertEquals(totalStats.getCurrent(), deserializedIngestStats.getTotalStats().getCurrent());
                     assertEquals(totalStats.getFailedCount(), deserializedIngestStats.getTotalStats().getFailedCount());
-                    assertEquals(totalStats.getTotalTimeInMillis(), deserializedIngestStats.getTotalStats().getTotalTimeInMillis());
+                    assertEquals(totalStats.getTotalTime(), deserializedIngestStats.getTotalStats().getTotalTime());
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
                         String pipelineId = pipelineStat.getPipelineId();
                         OperationStats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.getPipelineStats(), pipelineId);
                         assertEquals(pipelineStat.getStats().getFailedCount(), deserializedPipelineStats.getFailedCount());
-                        assertEquals(pipelineStat.getStats().getTotalTimeInMillis(), deserializedPipelineStats.getTotalTimeInMillis());
+                        assertEquals(pipelineStat.getStats().getTotalTime(), deserializedPipelineStats.getTotalTime());
                         assertEquals(pipelineStat.getStats().getCurrent(), deserializedPipelineStats.getCurrent());
                         assertEquals(pipelineStat.getStats().getCount(), deserializedPipelineStats.getCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
@@ -437,10 +440,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
                             assertEquals(processorStat.getStats().getFailedCount(), deserializedProcessorStat.getStats().getFailedCount());
-                            assertEquals(
-                                processorStat.getStats().getTotalTimeInMillis(),
-                                deserializedProcessorStat.getStats().getTotalTimeInMillis()
-                            );
+                            assertEquals(processorStat.getStats().getTotalTime(), deserializedProcessorStat.getStats().getTotalTime());
                             assertEquals(processorStat.getStats().getCurrent(), deserializedProcessorStat.getStats().getCurrent());
                             assertEquals(processorStat.getStats().getCount(), deserializedProcessorStat.getStats().getCount());
                         }
@@ -623,6 +623,28 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 } else {
                     assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
                 }
+
+                ActionConcurrencyLimiterStats limiterStats = nodeStats.getConcurrencyLimiterStats();
+                ActionConcurrencyLimiterStats deserializedLimiterStats = deserializedNodeStats.getConcurrencyLimiterStats();
+                if (limiterStats == null) {
+                    assertNull(deserializedLimiterStats);
+                } else {
+                    assertNotNull(deserializedLimiterStats);
+                    assertEquals(limiterStats.getSnapshots().size(), deserializedLimiterStats.getSnapshots().size());
+                    for (int i = 0; i < limiterStats.getSnapshots().size(); i++) {
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot orig = limiterStats.getSnapshots().get(i);
+                        ActionConcurrencyLimiterStats.ActionLimiterSnapshot deser = deserializedLimiterStats.getSnapshots().get(i);
+                        assertEquals(orig.getAlias(), deser.getAlias());
+                        assertEquals(orig.getActionName(), deser.getActionName());
+                        assertEquals(orig.getMode(), deser.getMode());
+                        assertEquals(orig.getAlgorithm(), deser.getAlgorithm());
+                        assertEquals(orig.getCurrentLimit(), deser.getCurrentLimit());
+                        assertEquals(orig.getInFlight(), deser.getInFlight());
+                        assertEquals(orig.getTotalRejected(), deser.getTotalRejected());
+                        assertEquals(orig.getLastRttMillis(), deser.getLastRttMillis());
+                        assertEquals(orig.getRttNoLoadMillis(), deser.getRttNoLoadMillis());
+                    }
+                }
             }
         }
     }
@@ -647,23 +669,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(
-                System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
-                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                new OsStats.Cgroup(
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                    randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
-                    Long.toString(randomNonNegativeLong())
+            osStats = new OsStats.Builder().timestamp(System.currentTimeMillis())
+                .cpu(new OsStats.Cpu(randomShort(), loadAverages))
+                .mem(new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)))
+                .swap(new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)))
+                .cgroup(
+                    new OsStats.Cgroup(
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())
+                    )
                 )
-            );
+                .build();
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
@@ -737,16 +760,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
             List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
             for (int i = 0; i < numThreadPoolStats; i++) {
                 threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(-1, 10)
-                    )
+                    new ThreadPoolStats.Stats.Builder().name(randomAlphaOfLengthBetween(3, 10))
+                        .threads(randomIntBetween(1, 1000))
+                        .queue(randomIntBetween(1, 1000))
+                        .active(randomIntBetween(1, 1000))
+                        .rejected(randomNonNegativeLong())
+                        .largest(randomIntBetween(1, 1000))
+                        .completed(randomIntBetween(1, 1000))
+                        .waitTimeNanos(randomIntBetween(-1, 10))
+                        .parallelism(-1) // Non-ForkJoinPool: use -1
+                        .build()
                 );
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
@@ -758,34 +781,32 @@ public class NodeStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean()
                     ? null
-                    : new FsInfo.DeviceStats(
-                        randomInt(),
-                        randomInt(),
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        null
-                    );
-                deviceStatsArray[i] = new FsInfo.DeviceStats(
-                    randomInt(),
-                    randomInt(),
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    previousDeviceStats
-                );
+                    : new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                        .minorDeviceNumber(randomInt())
+                        .deviceName(randomAlphaOfLengthBetween(3, 10))
+                        .currentReadsCompleted(randomNonNegativeLong())
+                        .currentSectorsRead(randomNonNegativeLong())
+                        .currentWritesCompleted(randomNonNegativeLong())
+                        .currentSectorsWritten(randomNonNegativeLong())
+                        .currentReadTime(randomNonNegativeLong())
+                        .currentWriteTime(randomNonNegativeLong())
+                        .currentQueueSize(randomNonNegativeLong())
+                        .currentIOTime(randomNonNegativeLong())
+                        .previousDeviceStats(null)
+                        .build();
+                deviceStatsArray[i] = new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                    .minorDeviceNumber(randomInt())
+                    .deviceName(randomAlphaOfLengthBetween(3, 10))
+                    .currentReadsCompleted(randomNonNegativeLong())
+                    .currentSectorsRead(randomNonNegativeLong())
+                    .currentWritesCompleted(randomNonNegativeLong())
+                    .currentSectorsWritten(randomNonNegativeLong())
+                    .currentReadTime(randomNonNegativeLong())
+                    .currentWriteTime(randomNonNegativeLong())
+                    .currentQueueSize(randomNonNegativeLong())
+                    .currentIOTime(randomNonNegativeLong())
+                    .previousDeviceStats(previousDeviceStats)
+                    .build();
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -802,16 +823,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently()
-            ? new TransportStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            )
+            ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())
+                .totalOutboundConnections(randomNonNegativeLong())
+                .rxCount(randomNonNegativeLong())
+                .rxSize(randomNonNegativeLong())
+                .txCount(randomNonNegativeLong())
+                .txSize(randomNonNegativeLong())
+                .build()
             : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = frequently()
+            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong()).totalOpen(randomNonNegativeLong()).build()
+            : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
@@ -828,7 +850,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently()
-            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ? new ScriptStats.Builder().compilations(randomNonNegativeLong())
+                .cacheEvictions(randomNonNegativeLong())
+                .compilationLimitTriggered(randomNonNegativeLong())
+                .build()
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
@@ -907,7 +932,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodeStats.put(nodeId, stats);
                 }
             }
-            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+            adaptiveSelectionStats = new AdaptiveSelectionStats.Builder().clientOutgoingConnections(nodeConnections)
+                .nodeComputedStats(nodeStats)
+                .build();
         }
         NodesResourceUsageStats nodesResourceUsageStats = null;
         if (frequently()) {
@@ -927,7 +954,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
                         randomDoubleBetween(1.0, 100.0, true),
-                        new IoUsageStats(100.0)
+                        new IoUsageStats(100.0),
+                        randomDoubleBetween(1.0, 100.0, true)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
                 }
@@ -1043,12 +1071,38 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
+            null,
             segmentReplicationRejectionStats,
             null,
             admissionControlStats,
             nodeCacheStats,
-            remoteStoreNodeStats
+            remoteStoreNodeStats,
+            null,
+            frequently() ? randomConcurrencyLimiterStats() : null,
+            -1L
         );
+    }
+
+    private static ActionConcurrencyLimiterStats randomConcurrencyLimiterStats() {
+        int count = randomIntBetween(1, 3);
+        List<ActionConcurrencyLimiterStats.ActionLimiterSnapshot> snapshots = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            snapshots.add(
+                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(10),
+                    randomFrom("enforced", "monitor_only", "disabled"),
+                    randomFrom("vegas", "gradient2", "aimd"),
+                    randomIntBetween(1, 200),
+                    randomIntBetween(0, 50),
+                    randomNonNegativeLong(),
+                    randomBoolean() ? randomNonNegativeLong() : -1L,
+                    randomBoolean() ? randomNonNegativeLong() : -1L
+                )
+            );
+        }
+        return new ActionConcurrencyLimiterStats(snapshots);
     }
 
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
@@ -1058,7 +1112,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             indicesStats = new NodeIndicesStats(
                 new CommonStats(CommonStatsFlags.ALL),
                 new HashMap<>(),
-                new SearchRequestStats(clusterSettings)
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
             );
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
@@ -1082,27 +1137,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
     }
 
     private static RemoteTranslogTransferTracker.Stats getRandomRemoteTranslogTransferTrackerStats() {
-        return new RemoteTranslogTransferTracker.Stats(
-            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
-            0L,
-            randomLongBetween(100, 500),
-            randomLongBetween(50, 100),
-            randomLongBetween(100, 200),
-            randomLongBetween(10000, 50000),
-            randomLongBetween(5000, 10000),
-            randomLongBetween(10000, 20000),
-            0L,
-            0D,
-            0D,
-            0D,
-            0L,
-            0L,
-            0L,
-            0L,
-            0D,
-            0D,
-            0D
-        );
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)))
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(randomLongBetween(100, 500))
+            .totalUploadsSucceeded(randomLongBetween(50, 100))
+            .totalUploadsFailed(randomLongBetween(100, 200))
+            .uploadBytesStarted(randomLongBetween(10000, 50000))
+            .uploadBytesSucceeded(randomLongBetween(5000, 10000))
+            .uploadBytesFailed(randomLongBetween(10000, 20000))
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
@@ -1118,18 +1172,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
         public MockNodeIndicesStats(
             CommonStats oldStats,
             Map<Index, List<IndexShardStats>> statsByShard,
-            SearchRequestStats searchRequestStats
+            SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats
         ) {
-            super(oldStats, statsByShard, searchRequestStats);
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats);
         }
 
         public MockNodeIndicesStats(
             CommonStats oldStats,
             Map<Index, List<IndexShardStats>> statsByShard,
             SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats,
             StatsLevel level
         ) {
-            super(oldStats, statsByShard, searchRequestStats, level);
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats, level);
         }
 
         public CommonStats getStats() {
@@ -1150,10 +1206,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
         long numDeletedDocs = randomLongBetween(0, 100);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
-        DocsStats hostDocStats = new DocsStats(numDocs, numDeletedDocs, 0);
+        DocsStats hostDocStats = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
         commonStatsFlags.clear();
@@ -1196,8 +1252,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1247,8 +1303,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1324,7 +1380,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         final MockNodeIndicesStats nonAggregatedNodeIndicesStats = new MockNodeIndicesStats(
             new CommonStats(commonStatsFlags),
             statsByShards,
-            new SearchRequestStats(clusterSettings)
+            new SearchRequestStats(clusterSettings),
+            new StatusCounterStats()
         );
 
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
@@ -1334,6 +1391,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new CommonStats(commonStatsFlags),
                 statsByShards,
                 new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
                 level
             );
 
@@ -1367,19 +1425,29 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     private CommonStats createRandomCommonStats() {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
-        commonStats.docs = new DocsStats(randomLongBetween(0, 10000), randomLongBetween(0, 100), randomLongBetween(0, 1000));
-        commonStats.store = new StoreStats(randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.docs = new DocsStats.Builder().count(randomLongBetween(0, 10000))
+            .deleted(randomLongBetween(0, 100))
+            .totalSizeInBytes(randomLongBetween(0, 1000))
+            .build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(randomLongBetween(0, 100))
+            .reservedSize(randomLongBetween(0, 1000))
+            .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
-        commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
-        commonStats.queryCache = new QueryCacheStats(
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100)
-        );
+        commonStats.flush = new FlushStats.Builder().total(randomLongBetween(0, 100))
+            .periodic(randomLongBetween(0, 100))
+            .totalTimeInMillis(randomLongBetween(0, 100))
+            .build();
+        commonStats.fieldData = new FieldDataStats.Builder().memorySize(randomLongBetween(0, 100))
+            .evictions(randomLongBetween(0, 100))
+            .fieldMemoryStats(null)
+            .build();
+        commonStats.queryCache = new QueryCacheStats.Builder().ramBytesUsed(randomLongBetween(0, 100))
+            .hitCount(randomLongBetween(0, 100))
+            .missCount(randomLongBetween(0, 100))
+            .cacheCount(randomLongBetween(0, 100))
+            .cacheSize(randomLongBetween(0, 100))
+            .build();
         commonStats.segments = new SegmentsStats();
 
         return commonStats;
@@ -1407,15 +1475,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     .resolve(shardRouting.shardId().getIndex().getUUID())
                     .resolve(String.valueOf(shardRouting.shardId().id()));
 
-                ShardStats shardStats = new ShardStats(
-                    shardRouting,
-                    new ShardPath(false, path, path, shardRouting.shardId()),
-                    createRandomCommonStats(),
-                    null,
-                    null,
-                    null,
-                    null
-                );
+                ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                    .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                    .commonStats(createRandomCommonStats())
+                    .commitStats(null)
+                    .seqNoStats(null)
+                    .retentionLeaseStats(null)
+                    .pollingIngestStats(null)
+                    .build();
                 List<ShardStats> shardStatsList = new ArrayList<>();
                 shardStatsList.add(shardStats);
                 IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), shardStatsList.toArray(new ShardStats[0]));
@@ -1459,15 +1526,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
 
-            ShardStats shardStats = new ShardStats(
-                shardRouting,
-                new ShardPath(false, path, path, shardRouting.shardId()),
-                commonStats,
-                null,
-                null,
-                null,
-                null
-            );
+            ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                .commonStats(commonStats)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build();
             IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), new ShardStats[] { shardStats });
             indexShardStatsList.add(indexShardStats);
         }
@@ -1481,10 +1547,274 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new CommonStats(commonStatsFlags),
                 statsByShard,
                 new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
                 level
             );
         } else {
-            return new MockNodeIndicesStats(new CommonStats(commonStatsFlags), statsByShard, new SearchRequestStats(clusterSettings));
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
+            );
+        }
+    }
+
+    /**
+     * Older nodes (pre-V_3_7_0) don't write the native-allocator stats payload. The version
+     * gate must keep them round-tripping cleanly: the receiver should see {@code null}.
+     */
+    public void testNativeAllocatorStatsBwcEmptyOnOldVersion() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats original = newNodeStatsWithNativeAllocator(node, stats);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_6_0);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_6_0);
+                NodeStats roundtripped = new NodeStats(in);
+                assertNull("native allocator stats must be null when written by an older node", roundtripped.getNativeAllocatorStats());
+                assertEquals(
+                    "totalEstimatedNativeBytes must default to -1 when written by a pre-V_3_7_0 node",
+                    -1L,
+                    roundtripped.getTotalEstimatedNativeBytes()
+                );
+            }
+        }
+    }
+
+    /**
+     * Round-trip on the current wire version — the typed allocator stats payload must
+     * survive serialize/deserialize unchanged.
+     */
+    public void testNativeAllocatorStatsRoundTripCurrentVersion() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(
+                new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L),
+                new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 400L, 4096L),
+                new NativeAllocatorPoolStats.PoolStats("query", 300L, 600L, 2048L)
+            )
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats original = newNodeStatsWithNativeAllocator(node, stats);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.CURRENT);
+                NodeStats roundtripped = new NodeStats(in);
+                NativeAllocatorPoolStats decoded = roundtripped.getNativeAllocatorStats();
+                assertNotNull("native allocator stats must round-trip on current wire version", decoded);
+                assertEquals(1024L, decoded.getNativeAllocatedBytes());
+                assertEquals(2048L, decoded.getNativeResidentBytes());
+                assertEquals(3, decoded.getPools().size());
+                assertEquals("flight", decoded.getPools().get(0).getName());
+                assertEquals(100L, decoded.getPools().get(0).getAllocatedBytes());
+                assertEquals(200L, decoded.getPools().get(0).getPeakBytes());
+                assertEquals(2048L, decoded.getPools().get(0).getLimitBytes());
+            }
+        }
+    }
+
+    /**
+     * Renders {@code NodeStats.toXContent} when {@code nativeAllocatorStats} is non-null and
+     * asserts the JSON shape: a top-level {@code native_memory} block with
+     * {@code runtime.allocated_bytes}/{@code runtime.resident_bytes} and grouped {@code memory_pools}.
+     */
+    public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats nodeStats = newNodeStatsWithNativeAllocator(node, stats);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        Map<String, Object> root = xContentBuilderToMap(builder);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+        assertNotNull("native_memory wrapper must be opened when allocator stats are present", nativeMemory);
+
+        // Runtime stats are nested under "runtime"
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtime = (Map<String, Object>) nativeMemory.get("runtime");
+        assertNotNull("runtime block must be present", runtime);
+        assertEquals(1024L, ((Number) runtime.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) runtime.get("resident_bytes")).longValue());
+
+        // Pools are grouped under "memory_pools"
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pools = (Map<String, Object>) nativeMemory.get("memory_pools");
+        assertNotNull("memory_pools block must be present", pools);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
+        assertNotNull("flight pool must be present in memory_pools", flight);
+        assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
+    }
+
+    /**
+     * total_estimated_bytes must be captured on the data node hosting this NodeStats and survive
+     * the wire round-trip; the coordinator must NOT re-read its own OsProbe at toXContent time.
+     * Constructs a NodeStats with a specific (non-realistic) value, serializes / deserializes,
+     * renders, and asserts the rendered value matches the constructed value verbatim.
+     */
+    public void testTotalEstimatedNativeBytesPreservedAcrossWireAndRender() throws IOException {
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        long sentinel = 4_026_531_840L; // distinctive value, unlikely to match coordinator RSS
+
+        // Build via the existing helper so the test is robust against future ctor argument churn.
+        NodeStats original = newNodeStatsWithNativeAllocator(node, null, sentinel);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        original.writeTo(out);
+        try (StreamInput in = out.bytes().streamInput()) {
+            in.setVersion(Version.CURRENT);
+            NodeStats roundtripped = new NodeStats(in);
+            assertEquals("totalEstimatedNativeBytes must round-trip on the wire", sentinel, roundtripped.getTotalEstimatedNativeBytes());
+
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            roundtripped.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            Map<String, Object> root = xContentBuilderToMap(builder);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+            assertNotNull("native_memory must always be emitted", nativeMemory);
+            assertEquals(
+                "total_estimated_bytes in the rendered JSON must be the sentinel value, not OsProbe re-read",
+                sentinel,
+                ((Number) nativeMemory.get("total_estimated_bytes")).longValue()
+            );
+        }
+    }
+
+    private static NodeStats newNodeStatsWithNativeAllocator(DiscoveryNode node, NativeAllocatorPoolStats nativeAllocatorStats) {
+        return newNodeStatsWithNativeAllocator(node, nativeAllocatorStats, -1L);
+    }
+
+    private static NodeStats newNodeStatsWithNativeAllocator(
+        DiscoveryNode node,
+        NativeAllocatorPoolStats nativeAllocatorStats,
+        long totalEstimatedNativeBytes
+    ) {
+        return new NodeStats(
+            node,
+            0L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null, // blockCacheOnlyStats
+            null,
+            null,
+            null,
+            null,
+            null,
+            null, // nodeCacheStats
+            null,
+            nativeAllocatorStats,
+            null, // concurrencyLimiterStats
+            totalEstimatedNativeBytes
+        );
+    }
+
+    /**
+     * Verifies that {@code fileCacheOnlyStats} and {@code blockCacheOnlyStats} are serialized on V_3_7_0+
+     * and skipped (null) when deserializing from an older-version stream.
+     */
+    public void testFileCacheDetailedStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_7_0: fields are written and read back (null or non-null, just no deserialization error)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                // fileCacheOnlyStats and blockCacheOnlyStats may be null (createNodeStats doesn't set them),
+                // but deserialization must not throw
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+
+        // Pre-V_3_7_0: fields are not written; deserialization must not throw and fields must be null
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_18_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_18_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+    }
+
+    public void testConcurrencyLimiterStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_8_0: concurrencyLimiterStats round-trips (may be null or non-null)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_9_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_9_0);
+                NodeStats deserialized = new NodeStats(in);
+                if (nodeStats.getConcurrencyLimiterStats() == null) {
+                    assertNull(deserialized.getConcurrencyLimiterStats());
+                } else {
+                    assertNotNull(deserialized.getConcurrencyLimiterStats());
+                    assertEquals(
+                        nodeStats.getConcurrencyLimiterStats().getSnapshots().size(),
+                        deserialized.getConcurrencyLimiterStats().getSnapshots().size()
+                    );
+                }
+            }
+        }
+
+        // V_3_7_0: concurrencyLimiterStats is not on the wire; deserialization must not throw
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull("V_3_7_0 must not include concurrencyLimiterStats", deserialized.getConcurrencyLimiterStats());
+            }
         }
     }
 }

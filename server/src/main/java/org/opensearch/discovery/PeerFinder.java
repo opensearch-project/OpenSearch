@@ -442,7 +442,7 @@ public abstract class PeerFinder {
                 public void onFailure(Exception e) {
                     logger.debug(() -> new ParameterizedMessage("{} connection failed", Peer.this), e);
                     synchronized (mutex) {
-                        peersByAddress.remove(transportAddress);
+                        peersByAddress.remove(transportAddress, Peer.this);
                     }
                 }
             });

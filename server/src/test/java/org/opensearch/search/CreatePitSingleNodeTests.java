@@ -8,6 +8,7 @@
 
 package org.opensearch.search;
 
+import org.opensearch.Version;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.CreatePitRequest;
@@ -17,6 +18,7 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.PitTestsUtil;
+import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
@@ -33,6 +35,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -210,7 +213,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     public void testInvalidPitId() {
         createIndex("idx");
-        String id = "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1";
+        String encodedContext = SearchContextId.encode(Collections.emptyList(), Collections.emptyMap(), Version.CURRENT);
+        String id = encodedContext.substring(0, encodedContext.length() - 1);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> client().prepareSearch()
