@@ -8,8 +8,10 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.mapper.IpFieldMapper.IpFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -43,6 +45,35 @@ public class DataFormatPluginAssignCapabilitiesTests extends OpenSearchTestCase 
             Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE),
             capMap.get(format)
         );
+    }
+
+    public void testOptionalCapabilityIsAssignedWhenSupported() {
+        MockDataFormat format = new MockDataFormat(
+            "ip-format",
+            100L,
+            Set.of(new FieldTypeCapabilities("ip", Set.of(Capability.COLUMNAR_STORAGE, Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+        // not indexed + doc values: requests COLUMNAR_STORAGE, optionally wants FULL_TEXT_SEARCH
+        IpFieldType fieldType = new IpFieldType("test_field", false, false, true, null, Map.of());
+
+        plugin.assignCapabilities(fieldType, null, null);
+
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE, Capability.FULL_TEXT_SEARCH), fieldType.getCapabilityMap().get(format));
+    }
+
+    public void testUnsupportedOptionalCapabilityDoesNotFailMapping() {
+        MockDataFormat format = new MockDataFormat(
+            "ip-format",
+            100L,
+            Set.of(new FieldTypeCapabilities("ip", Set.of(Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+        IpFieldType fieldType = new IpFieldType("test_field", false, false, true, null, Map.of());
+
+        plugin.assignCapabilities(fieldType, null, null);
+
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE), fieldType.getCapabilityMap().get(format));
     }
 
     public void testSingleFormatPartialCoverage_Throws() {

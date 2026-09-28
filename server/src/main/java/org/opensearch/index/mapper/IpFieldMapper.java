@@ -77,6 +77,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -247,6 +248,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
+        @Override
+        public Set<FieldTypeCapabilities.Capability> optionalCapabilities() {
+            return Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
         }
 
         private static InetAddress parse(Object value) {

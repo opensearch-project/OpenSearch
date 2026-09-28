@@ -34,23 +34,25 @@ public class TotalHitCountCollectorManager
         CollectorManager<TotalHitCountCollector, ReduceableSearchResult>,
         EarlyTerminatingListener {
 
-    private static final TotalHitCountCollector EMPTY_COLLECTOR = new TotalHitCountCollector() {
-        @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-            return new LeafCollector() {
-                @Override
-                public void setScorer(Scorable scorer) throws IOException {}
+    private static TotalHitCountCollector createEmptyCollector() {
+        return new TotalHitCountCollector() {
+            @Override
+            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                return new LeafCollector() {
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {}
 
-                @Override
-                public void collect(int doc) throws IOException {}
-            };
-        }
+                    @Override
+                    public void collect(int doc) throws IOException {}
+                };
+            }
 
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-    };
+            @Override
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE_NO_SCORES;
+            }
+        };
+    }
 
     private final Sort sort;
     private Integer terminatedAfter;
@@ -101,7 +103,7 @@ public class TotalHitCountCollectorManager
 
         @Override
         public TotalHitCountCollector newCollector() throws IOException {
-            return EMPTY_COLLECTOR;
+            return createEmptyCollector();
         }
 
         @Override

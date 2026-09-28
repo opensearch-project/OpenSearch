@@ -598,6 +598,17 @@ public abstract class MappedFieldType {
         return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
     }
 
+    /**
+     * Capabilities that improve this field type when an active data format supports them,
+     * but are not required for the mapping to be valid.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public Set<FieldTypeCapabilities.Capability> optionalCapabilities() {
+        return Set.of();
+    }
+
     /** Return a {@link DocValueFormat} that can be used to display and parse
      *  values as returned by the fielddata API.
      *  The default implementation returns a {@link DocValueFormat#RAW}. */

@@ -348,4 +348,9 @@ public abstract class FilterFieldType extends MappedFieldType {
     public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
         return delegate.requestedCapabilities();
     }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> optionalCapabilities() {
+        return delegate.optionalCapabilities();
+    }
 }
