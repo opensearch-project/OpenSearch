@@ -112,6 +112,63 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
     }
 
     /**
+     * The trailing map is inferred from the remaining byte count, so what is read is validated before it is trusted.
+     * An entry whose key is not a generation the primary-term map knows, or whose value is not a checksum, means the
+     * bytes were not written as a checksum map; the map is dropped and every generation is downloaded, rather than
+     * the metadata being misread.
+     */
+    public void testImplausibleTrailingMapIsDroppedRatherThanTrusted() throws IOException {
+        TranslogTransferMetadata base = getTestMetadata();
+        Map<String, String> unknownGeneration = Map.of("300", "1234", "999", "5678");
+        Map<String, String> nonNumericChecksum = Map.of("300", "1234", "400", "not-a-checksum");
+        for (Map<String, String> implausible : List.of(unknownGeneration, nonNumericChecksum)) {
+            TranslogTransferMetadata actual = codecWrapper().readStream(
+                new ByteArrayIndexInput("metadata file", writeThroughCodec(base, implausible, new byte[0]))
+            );
+            assertEquals(base.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+            assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+        }
+        // The same entries with a valid key set are accepted, so the rejection above is about content, not shape.
+        TranslogTransferMetadata accepted = codecWrapper().readStream(
+            new ByteArrayIndexInput("metadata file", writeThroughCodec(base, Map.of("300", "1234", "400", "5678"), new byte[0]))
+        );
+        assertEquals(Map.of("300", "1234", "400", "5678"), accepted.getGenerationToChecksumMapper());
+    }
+
+    /**
+     * Anything after the checksum map other than the codec footer violates the last-field invariant; the map is
+     * dropped rather than assumed to be complete or correct.
+     */
+    public void testTrailingBytesAfterChecksumMapDropTheMap() throws IOException {
+        TranslogTransferMetadata base = getTestMetadata();
+        Map<String, String> checksums = Map.of("300", "1234", "400", "5678");
+        TranslogTransferMetadata actual = codecWrapper().readStream(
+            new ByteArrayIndexInput("metadata file", writeThroughCodec(base, checksums, randomByteArrayOfLength(randomIntBetween(1, 64))))
+        );
+        assertEquals(base.getGenerationToPrimaryTermMapper(), actual.getGenerationToPrimaryTermMapper());
+        assertEquals(Map.of(), actual.getGenerationToChecksumMapper());
+    }
+
+    /**
+     * Writes {@code base} through the codec wrapper's header/footer with {@code checksums} appended as the trailing
+     * map and {@code extra} bytes placed between that map and the footer.
+     */
+    private static byte[] writeThroughCodec(TranslogTransferMetadata base, Map<String, String> checksums, byte[] extra) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096)) {
+            CodecUtil.writeHeader(indexOutput, TranslogTransferMetadata.METADATA_CODEC, TranslogTransferMetadata.CURRENT_VERSION);
+            indexOutput.writeLong(base.getPrimaryTerm());
+            indexOutput.writeLong(base.getGeneration());
+            indexOutput.writeLong(base.getMinTranslogGeneration());
+            indexOutput.writeMapOfStrings(base.getGenerationToPrimaryTermMapper());
+            indexOutput.writeMapOfStrings(checksums);
+            indexOutput.writeBytes(extra, extra.length);
+            CodecUtil.writeFooter(indexOutput);
+        }
+        return BytesReference.toBytes(output.bytes());
+    }
+
+    /**
      * Full round trip through the versioned codec wrapper, with and without checksum entries, must preserve both maps.
      */
     public void testCodecWrapperRoundTripPreservesChecksumMap() throws IOException {

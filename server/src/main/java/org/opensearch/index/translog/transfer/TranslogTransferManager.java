@@ -414,7 +414,7 @@ public class TranslogTransferManager {
         }
         try {
             Long localChecksum = TranslogFooter.readGenerationChecksum(location, generation);
-            boolean current = localChecksum != null && localChecksum == Long.parseLong(expectedChecksum);
+            boolean current = localChecksum != null && localChecksum.longValue() == Long.parseLong(expectedChecksum);
             if (current) {
                 logger.debug("local translog generation {} matches remote checksum {}; skipping download", generation, expectedChecksum);
             } else {

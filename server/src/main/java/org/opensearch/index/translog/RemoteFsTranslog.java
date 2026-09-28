@@ -285,6 +285,17 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 : Map.of();
             long maxGeneration = translogMetadata.getGeneration();
             long minGeneration = translogMetadata.getMinTranslogGeneration();
+            if (minGeneration > maxGeneration) {
+                // The reconciliation loop below would silently do nothing and the translog.ckp copy at the end would
+                // fail with an opaque NoSuchFileException after the download retries; name the actual problem.
+                throw new IllegalStateException(
+                    "remote translog metadata has min generation ["
+                        + minGeneration
+                        + "] greater than max generation ["
+                        + maxGeneration
+                        + "]"
+                );
+            }
 
             // Only generations inside the remote range can be reused; everything else is removed. That includes
             // translog.ckp: a stale top-level checkpoint may name a generation from a previous remote state, so it is

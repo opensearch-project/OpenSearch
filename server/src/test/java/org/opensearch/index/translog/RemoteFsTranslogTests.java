@@ -119,6 +119,7 @@ import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsI
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1957,6 +1958,26 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         TranslogTransferManager noChecksum = mockTransferManagerFor(metadataFor(1, 1, Map.of()));
         RemoteFsTranslog.download(noChecksum, location, logger, false, 0);
         verify(noChecksum).downloadTranslogIfChanged("1", "1", location, null);
+    }
+
+    /**
+     * Metadata whose minimum generation exceeds its maximum would make the reconciliation loop a no-op and the final
+     * translog.ckp copy fail with an opaque NoSuchFileException after all retries; it is rejected up front instead.
+     */
+    public void testDownloadRejectsInvertedGenerationRange() throws IOException {
+        Path location = createTempDir();
+        TranslogTransferMetadata inverted = new TranslogTransferMetadata(1, 3, 5, 0);
+        inverted.setGenerationToPrimaryTermMapper(Map.of());
+        inverted.setGenerationToChecksumMapper(Map.of());
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(inverted);
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> RemoteFsTranslog.download(mockTransfer, location, logger, false, 0)
+        );
+        assertThat(e.getMessage(), containsString("min generation [5] greater than max generation [3]"));
+        verify(mockTransfer, times(1)).readMetadata(0);
+        verify(mockTransfer, times(0)).downloadTranslogIfChanged(any(), any(), any(), any());
     }
 
     /**

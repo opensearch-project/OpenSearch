@@ -8,6 +8,8 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -23,6 +25,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<TranslogTransferMetadata> {
+
+    private static final Logger logger = LogManager.getLogger(TranslogTransferMetadataHandler.class);
 
     /**
      * Implements logic to read content from file input stream {@code indexInput} and parse into {@link TranslogTransferMetadata}
@@ -54,13 +58,52 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         // written by an upgraded node is unreadable by an older one until that older release already accepts it.
         // (TranslogTransferMetadataHandlerTests#testReadLegacyMetadataThroughCodecWrapperYieldsEmptyChecksumMap
         // guards the legacy-tail case.)
-        if (indexInput.length() - indexInput.getFilePointer() > CodecUtil.footerLength()) {
-            metadata.setGenerationToChecksumMapper(indexInput.readMapOfStrings());
-        } else {
-            metadata.setGenerationToChecksumMapper(Map.of());
-        }
+        //
+        // Because the map is inferred rather than tagged, what is read is validated before it is trusted: every
+        // key must be a generation the primary-term map knows, every value must be a checksum, and nothing but
+        // the codec footer may follow. The map only ever lets a download be skipped, so on any doubt it is dropped
+        // and every generation is downloaded, which is the pre-existing behaviour.
+        metadata.setGenerationToChecksumMapper(readChecksumMapIfPresent(indexInput, generationToPrimaryTermMapper));
 
         return metadata;
+    }
+
+    private static Map<String, String> readChecksumMapIfPresent(IndexInput indexInput, Map<String, String> generationToPrimaryTermMapper)
+        throws IOException {
+        if (indexInput.length() - indexInput.getFilePointer() <= CodecUtil.footerLength()) {
+            return Map.of();
+        }
+        Map<String, String> generationToChecksumMapper = indexInput.readMapOfStrings();
+        long trailingBytes = indexInput.length() - indexInput.getFilePointer();
+        if (trailingBytes > CodecUtil.footerLength()) {
+            logger.warn(
+                "ignoring generation-to-checksum map in translog metadata [{}]: [{}] unexpected bytes follow it",
+                indexInput,
+                trailingBytes - CodecUtil.footerLength()
+            );
+            return Map.of();
+        }
+        for (Map.Entry<String, String> entry : generationToChecksumMapper.entrySet()) {
+            if (generationToPrimaryTermMapper.containsKey(entry.getKey()) == false || isLong(entry.getValue()) == false) {
+                logger.warn(
+                    "ignoring generation-to-checksum map in translog metadata [{}]: entry [{}={}] is not a known generation and checksum",
+                    indexInput,
+                    entry.getKey(),
+                    entry.getValue()
+                );
+                return Map.of();
+            }
+        }
+        return generationToChecksumMapper;
+    }
+
+    private static boolean isLong(String value) {
+        try {
+            Long.parseLong(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /**
