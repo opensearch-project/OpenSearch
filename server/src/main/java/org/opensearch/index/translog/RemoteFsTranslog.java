@@ -287,8 +287,11 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             long maxGeneration = translogMetadata.getGeneration();
             long minGeneration = translogMetadata.getMinTranslogGeneration();
 
-            // Only generations inside the remote range can be reused; everything else (including translog.ckp,
-            // which is re-derived below, and any file that is not a translog or checkpoint file) is removed.
+            // Only generations inside the remote range can be reused; everything else is removed. That includes
+            // translog.ckp: a stale top-level checkpoint may name a generation from a previous remote state, so it is
+            // always deleted here and recreated from the latest generation's checkpoint at the end of this method
+            // (which is also why that copy needs no REPLACE_EXISTING). There is no early return in between; an
+            // exception aborts the download, and with it the engine open, so a shard never runs without translog.ckp.
             for (Path file : FileSystemUtils.files(location)) {
                 try {
                     long generation = parseIdFromFileName(file.getFileName().toString(), STRICT_TLOG_OR_CKP_PATTERN);

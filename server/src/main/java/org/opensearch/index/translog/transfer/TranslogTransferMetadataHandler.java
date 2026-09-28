@@ -45,6 +45,15 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         // before that ends right here, followed only by the codec footer, so its presence is decided by how many
         // bytes remain rather than by probing for EOF. Older readers stop after the primary-term map and never
         // look at the extra map, which keeps the file readable in both directions during a rolling upgrade.
+        //
+        // FORMAT INVARIANT: this map must remain the LAST field of the version-1 layout. The remaining-byte check
+        // cannot distinguish it from any other trailing bytes, so appending a further field to version 1 would be
+        // read as (part of) this map by new nodes and would corrupt the layout for both sides. Any further field
+        // requires bumping TranslogTransferMetadata.CURRENT_VERSION with a reader-first rollout: the metadata
+        // stream wrapper in TranslogTransferManager accepts only [CURRENT_VERSION, CURRENT_VERSION], so a version
+        // written by an upgraded node is unreadable by an older one until that older release already accepts it.
+        // (TranslogTransferMetadataHandlerTests#testReadLegacyMetadataThroughCodecWrapperYieldsEmptyChecksumMap
+        // guards the legacy-tail case.)
         if (indexInput.length() - indexInput.getFilePointer() > CodecUtil.footerLength()) {
             metadata.setGenerationToChecksumMapper(indexInput.readMapOfStrings());
         } else {
@@ -71,7 +80,8 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
             indexOutput.writeMapOfStrings(new HashMap<>());
         }
         // The generation-to-checksum map is always written last so that readers can detect its presence by the
-        // number of bytes left before the codec footer (see readContent).
+        // number of bytes left before the codec footer (see readContent). Do not append anything after it within
+        // this version; a new field needs a CURRENT_VERSION bump.
         if (content.getGenerationToChecksumMapper() != null) {
             indexOutput.writeMapOfStrings(content.getGenerationToChecksumMapper());
         } else {

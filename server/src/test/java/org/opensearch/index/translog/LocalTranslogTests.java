@@ -751,6 +751,30 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         assertEquals(ex.getMessage(), "translog is already closed");
     }
 
+    /**
+     * A local-only translog must keep the layout it has always had: no footer, so the file is exactly as long as
+     * the offset recorded in its checkpoint and no content checksum is derived. The footer is a remote-store
+     * concern only (see {@link TranslogFooter}).
+     */
+    public void testLocalTranslogGenerationHasNoFooter() throws IOException {
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
+        translog.rollGeneration();
+        final long closedGeneration = translog.currentFileGeneration() - 1;
+
+        final Path translogFile = translogDir.resolve(Translog.getFilename(closedGeneration));
+        final Checkpoint checkpoint = Checkpoint.read(translogDir.resolve(Translog.getCommitCheckpointFileName(closedGeneration)));
+        assertThat(Files.size(translogFile), equalTo(checkpoint.offset));
+        assertThat(TranslogFooter.readChecksum(translogFile, checkpoint.offset), nullValue());
+
+        final TranslogReader reader = translog.readers.stream()
+            .filter(r -> r.getGeneration() == closedGeneration)
+            .findFirst()
+            .orElseThrow();
+        assertThat(reader.getTranslogChecksum(), nullValue());
+        assertThat(reader.getTranslogContentChecksum(), nullValue());
+    }
+
     public void testRangeSnapshot() throws Exception {
         long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;

@@ -231,11 +231,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
-            // The running checksum feeds the footer written on close, so it is maintained for local as well as
-            // remote translogs: every closed generation gets the same layout regardless of where it is persisted.
-            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            header.write(byteArrayOutputStream);
-            final TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
+            // The running checksum serves the remote store only: it produces the whole-file checksum verified on upload
+            // and feeds the footer written on close, which lets a download be skipped when the local copy is current.
+            // A local-only translog is never downloaded, so it keeps the footer-less layout it has always had.
+            TranslogCheckedContainer translogCheckedContainer = null;
+            if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
+                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                header.write(byteArrayOutputStream);
+                translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
+            }
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
@@ -492,20 +496,19 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
-                        // The generation is now immutable: append the footer carrying the checksum of everything
-                        // written so far (header + operations). It is placed past the offset recorded in the last
-                        // synced checkpoint, so readers that predate the footer never see it; a crash before this
-                        // point simply leaves a footer-less generation behind, which is still perfectly valid.
+                        // For a remote-store translog the generation is now immutable: append the footer carrying the
+                        // checksum of everything written so far (header + operations). It is placed past the offset
+                        // recorded in the last synced checkpoint, so readers that predate the footer never see it; a
+                        // crash before this point simply leaves a footer-less generation behind, which is still valid
+                        // and is downloaded in full like any other. Local-only translogs carry no footer (see create).
                         Long translogContentChecksum = null;
                         Long translogChecksum = null;
                         if (translogCheckedContainer != null) {
                             translogContentChecksum = translogCheckedContainer.getChecksum();
                             try {
-                                final byte[] footer = TranslogFooter.write(
-                                    channel,
-                                    translogContentChecksum,
-                                    !Boolean.TRUE.equals(remoteTranslogEnabled)
-                                );
+                                // Not fsynced: the upload is the durability point, and a torn footer only means the
+                                // generation is fetched again instead of being reused.
+                                final byte[] footer = TranslogFooter.write(channel, translogContentChecksum, false);
                                 // The remote store verifies the whole uploaded object, footer included.
                                 translogCheckedContainer.updateFromBytes(footer, 0, footer.length);
                             } catch (final Exception ex) {

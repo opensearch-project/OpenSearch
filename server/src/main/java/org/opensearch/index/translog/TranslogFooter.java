@@ -45,8 +45,10 @@ import java.nio.file.StandardOpenOption;
  *   <li>Checksum (long) - checksum of {@code [0, checkpoint.offset)}, i.e. header plus operations</li>
  * </ul>
  *
- * <p>The checksum is used by {@link RemoteFsTranslog} to decide whether a generation already present on local
- * disk is byte-identical to the one in the remote store, so that its download can be skipped.
+ * <p>The footer is only written for remote-store translogs: its checksum is used by {@link RemoteFsTranslog} to
+ * decide whether a generation already present on local disk is byte-identical to the one in the remote store, so
+ * that its download can be skipped. A local-only translog is never downloaded and keeps the footer-less layout
+ * (file size equal to {@code checkpoint.offset}) it has always had.
  *
  * @opensearch.internal
  */
