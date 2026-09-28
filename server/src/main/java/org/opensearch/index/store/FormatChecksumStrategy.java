@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 
@@ -96,6 +97,23 @@ public interface FormatChecksumStrategy {
      */
     default VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
         return new Store.DataFormatVerifyingIndexOutput(metadata, output);
+    }
+
+    /**
+     * Creates a verifying {@link IndexInput} that validates the file's integrity as it is read, using this
+     * format's algorithm. This is the read-side counterpart of
+     * {@link #createVerifyingOutput(StoreFileMetadata, IndexOutput)}, and is what the snapshot upload path uses.
+     *
+     * <p>The default digests the whole file and compares the result against {@link StoreFileMetadata#checksum()}.
+     * Formats that store their checksum in a trailer, such as Lucene, must override this: the default would
+     * otherwise digest the trailer as though it were data.
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param input the underlying index input to wrap
+     * @return a verifying input that checks integrity on {@code verify()}
+     */
+    default Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+        return new Store.DataFormatVerifyingIndexInput(metadata, input);
     }
 
 }
