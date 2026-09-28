@@ -6,8 +6,8 @@
  * compatible open source license.
  */
 
-//! Single-collector evaluator — one backend collector plus DataFusion for
-//! residual predicates.
+//! Single-collector evaluator — one delegated-backend collector plus the driving
+//! backend's own evaluation of the residual predicates.
 //!
 //! When the filter has exactly one `index_filter(...)` call AND'd with
 //! (possibly zero, one, or many) parquet-native predicates, this evaluator
@@ -16,7 +16,7 @@
 //! 1. Call the single collector → bitset.
 //! 2. Apply page pruning (AND/OR mode depending on how the query combined them).
 //! 3. Hand the bitset offsets to `IndexedStream` as a RowSelection.
-//! 4. `on_batch_mask` returns `None` — DataFusion's
+//! 4. `on_batch_mask` returns `None` — the parquet reader's
 //!    `with_predicate(residual).with_pushdown_filters(true)` applies the
 //!    residual predicates during decode, so indices stay aligned and no
 //!    post-filtering is needed.
@@ -49,11 +49,11 @@ use std::time::Instant;
 pub use super::CollectorCallStrategy;
 use crate::indexed_table::stream::RowGroupInfo;
 
-/// TODO(phase-99): hardcoded selectivity threshold for opportunistic peer consultation.
+/// TODO(phase-99): hardcoded selectivity threshold for opportunistic delegated-backend consultation.
 /// Replaced by a cluster setting plumbed through `WireConfigSnapshot` and
 /// `DatafusionQueryConfig` in the very last phase, after Phase 7 OR/NOT support and
-/// everything else. Until then, performance-delegated leaves consult the peer when DF
-/// page-pruning kept more than 5% of an RG.
+/// everything else. Until then, performance-delegated leaves consult the delegated backend
+/// when the driving backend's page pruning kept more than 5% of an RG.
 const HARDCODED_SELECTIVITY_THRESHOLD: f64 = 0.05;
 
 /// Builds delegated-backend collectors for performance-delegated leaves. Production impl
@@ -104,8 +104,8 @@ impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
     }
 }
 
-/// A dual-viable leaf: evaluable by DataFusion (`expr` over doc values) or by the peer backend
-/// (via `annotation_id`) with identical results. Exactly one of them owns it per row group; see
+/// A dual-viable leaf: evaluable by the driving backend (`expr` over doc values) or by the
+/// delegated backend (via `annotation_id`) with identical results. Exactly one of them owns it per row group; see
 /// [`elect_leaf_owner`]. `pruning_predicate` is `None` when the column has no usable stats.
 #[derive(Clone)]
 pub struct PerformanceLeaf {
@@ -128,8 +128,8 @@ struct SingleCollectorState {
     candidates: RoaringBitmap,
     mask_buffer: datafusion::arrow::buffer::Buffer,
     mask_len: usize,
-    /// AND of the performance leaves DataFusion owns for this RG, applied post-decode in
-    /// `on_batch_mask`. Leaves owned by Lucene are already in `candidates` and absent here.
+    /// AND of the performance leaves the driving backend owns for this RG, applied post-decode
+    /// in `on_batch_mask`. Delegate-owned leaves are already in `candidates` and absent here.
     perf_residual: Option<Arc<dyn PhysicalExpr>>,
 }
 
@@ -142,17 +142,17 @@ struct SingleCollectorState {
 /// shape routes to the multi-filter tree path today.
 pub struct SingleCollectorEvaluator {
     /// Always-call collector for correctness-delegated predicates. `None` when
-    /// the query has only performance-delegated leaves (no peer call required
+    /// the query has only performance-delegated leaves (no delegated-backend call required
     /// upfront — see `performance_provider_locks`).
     collector: Option<Arc<dyn RowGroupDocsCollector>>,
     page_pruner: Arc<PagePruner>,
     /// Pruning predicate over the native residual AND every performance leaf
     /// (page-stats + bloom). `None` means nothing to prune with.
     pruning_predicate: Option<Arc<PruningPredicate>>,
-    /// Raw DataFusion-native residual (the `Predicate` children of the top-level
-    /// AND, converted to a single `PhysicalExpr`). Excludes performance leaves,
-    /// which are applied per RG via `SingleCollectorState::perf_residual` only
-    /// when DataFusion owns them.
+    /// Raw native residual (the `Predicate` children of the top-level AND, converted
+    /// to a single `PhysicalExpr`). Excludes performance leaves, which are applied
+    /// per RG via `SingleCollectorState::perf_residual` only when the driving
+    /// backend owns them.
     ///
     /// Used in two modes:
     ///
@@ -179,8 +179,9 @@ pub struct SingleCollectorEvaluator {
     /// Lazy `ProviderHandle` cache, one per performance-delegated annotation_id.
     /// Empty when the query has no performance-delegated leaves. Populated by
     /// the factory at query setup; lookups + `OnceLock` init happen ONLY when
-    /// `should_consult_lucene` decides DF's own pruning wasn't selective enough
-    /// for an RG. Drop releases the Lucene Weight via `releaseProvider`.
+    /// `should_consult_delegate` decides the driving backend's own pruning wasn't
+    /// selective enough for an RG. Drop releases the delegated backend's provider
+    /// via `releaseProvider`.
     ///
     /// The HashMap is **query-scoped** (shared across all per-(segment×chunk)
     /// evaluators of a single query via `Arc::clone`), so threads racing to fill
@@ -207,10 +208,10 @@ pub struct SingleCollectorEvaluator {
     /// Next matching docId from the last collectDocs call. When next_doc >= rg.max_doc,
     /// the RG can be skipped without an FFM call. Initialized to i32::MIN (no skip info).
     last_next_doc: std::sync::atomic::AtomicI32,
-    /// Dual-viable leaves, owned per RG by either DataFusion or Lucene. Must not appear in
-    /// `residual_expr` (built by `plan_single_collector_filter`) and are never pushed to
-    /// parquet, since a Lucene election makes the leaf authoritative without DataFusion
-    /// decoding or evaluating it. They do contribute to `pruning_predicate`.
+    /// Dual-viable leaves, owned per RG by either the driving or the delegated backend. Must
+    /// not appear in `residual_expr` (built by `plan_single_collector_filter`) and are never
+    /// pushed to parquet, since electing the delegate makes its result authoritative without
+    /// the driving backend decoding or evaluating the leaf. They do contribute to `pruning_predicate`.
     performance_leaves: Vec<PerformanceLeaf>,
 }
 
@@ -264,18 +265,18 @@ impl SingleCollectorEvaluator {
     }
 }
 
-/// Per-RG decision: should we consult the peer backend?
+/// Per-RG decision: should we consult the delegated backend?
 ///
 /// Pure function. Inputs: post-page-prune surviving ranges, RG row count, and the
-/// configured selectivity threshold. The function says "consult" when DF kept
-/// MORE than `threshold` of the RG (page pruning wasn't selective enough — peer
-/// might narrow further); "skip" when DF already squeezed it below threshold
-/// (peer call would be wasted work).
+/// configured selectivity threshold. The function says "consult" when the driving
+/// backend's page pruning kept MORE than `threshold` of the RG (not selective enough —
+/// the delegate might narrow further); "skip" when it already squeezed the RG below
+/// the threshold (a delegate call would be wasted work).
 ///
-/// `page_ranges == None` means there's no usable PruningPredicate for the
-/// residual at all (e.g. text-column predicate with no parquet stats) — DF
-/// can't help, so consult.
-fn should_consult_lucene(
+/// `page_ranges == None` means there's no usable PruningPredicate at all (e.g. a
+/// text-column predicate with no parquet stats) — the driving backend can't narrow,
+/// so consult.
+fn should_consult_delegate(
     page_ranges: &Option<Vec<(i32, i32)>>,
     rg: &RowGroupInfo,
     threshold: f64,
@@ -291,16 +292,19 @@ fn should_consult_lucene(
     surviving_fraction > threshold
 }
 
-/// Owner of a dual-viable leaf for one row group.
+/// Which backend evaluates a dual-viable leaf for one row group.
 enum LeafOwner {
-    /// Intersect the peer bitmap into the candidates; the leaf's `expr` is not applied.
-    Lucene,
-    /// Apply the leaf's `expr` post-decode; the peer is not consulted.
-    DataFusion,
+    /// The driving backend applies the leaf's `expr` to the decoded batch; the delegated
+    /// backend is not called.
+    Driver,
+    /// The delegated backend's doc bitmap is intersected into the candidates; `expr` is not
+    /// applied.
+    Delegate,
 }
 
-/// DataFusion owns the leaf when its own page-stat pruning already narrows the RG below the
-/// selectivity threshold; otherwise Lucene does. No usable stats fail toward Lucene.
+/// The driving backend owns the leaf when its own page-stats pruning already narrows the row
+/// group below the selectivity threshold; otherwise the delegated backend does. A leaf with no
+/// usable stats goes to the delegated backend.
 fn elect_leaf_owner(
     leaf: &PerformanceLeaf,
     rg: &RowGroupInfo,
@@ -325,10 +329,10 @@ fn elect_leaf_owner(
                 ranges
             })
     });
-    if should_consult_lucene(&leaf_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD) {
-        LeafOwner::Lucene
+    if should_consult_delegate(&leaf_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD) {
+        LeafOwner::Delegate
     } else {
-        LeafOwner::DataFusion
+        LeafOwner::Driver
     }
 }
 
@@ -501,9 +505,9 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
             None => {
                 // Performance-only query. Seed candidates with the page-pruned universe
-                // (or the full RG if no PruningPredicate). The opportunistic peer branch
-                // below may narrow further; otherwise DF's pushdown filter handles the
-                // residual at decode time.
+                // (or the full RG if no PruningPredicate). The opportunistic delegate branch
+                // below may narrow further; otherwise the residual is applied by the
+                // driving backend.
                 let mut bm = RoaringBitmap::new();
                 match &page_ranges {
                     Some(r) if r.is_empty() => return Ok(None),
@@ -522,11 +526,11 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Elect one owner per dual-viable leaf for this RG. DataFusion-owned leaves accumulate
-        // into `perf_residual` (applied post-decode) and contribute their columns to the RG
-        // projection; Lucene-owned leaves intersect the peer bitmap into `candidates` instead.
+        // Elect one owner per dual-viable leaf for this RG. Driver-owned leaves accumulate into
+        // `perf_residual` (applied post-decode) and contribute their columns to the RG
+        // projection; delegate-owned leaves intersect the delegate's bitmap into `candidates`.
         let mut perf_residual: Option<Arc<dyn PhysicalExpr>> = None;
-        let mut df_owned_columns: BTreeSet<usize> = BTreeSet::new();
+        let mut driver_owned_columns: BTreeSet<usize> = BTreeSet::new();
         for leaf in &self.performance_leaves {
             match elect_leaf_owner(
                 leaf,
@@ -535,9 +539,9 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 self.page_prune_metrics.as_ref(),
                 min_doc,
             ) {
-                LeafOwner::DataFusion => {
+                LeafOwner::Driver => {
                     for col in collect_columns(&leaf.expr) {
-                        df_owned_columns.insert(col.index());
+                        driver_owned_columns.insert(col.index());
                     }
                     perf_residual = Some(match perf_residual {
                         None => Arc::clone(&leaf.expr),
@@ -546,7 +550,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                         }
                     });
                 }
-                LeafOwner::Lucene => {
+                LeafOwner::Delegate => {
                     let lock = self
                         .performance_provider_locks
                         .get(&leaf.annotation_id)
@@ -606,12 +610,12 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                             result.words.len() * 8,
                         )
                     };
-                    let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
+                    let mut delegate_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
                     let upper = offset.saturating_add(num_docs);
                     if upper < u32::MAX {
-                        peer_bm.remove_range(upper..);
+                        delegate_bm.remove_range(upper..);
                     }
-                    candidates &= peer_bm;
+                    candidates &= delegate_bm;
                 }
             }
         }
@@ -620,13 +624,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             return Ok(None);
         }
 
-        // Per-RG parquet projection: native residual columns plus the DataFusion-owned leaf
+        // Per-RG parquet projection: native residual columns plus the driver-owned leaf
         // columns. Sound because pushdown is off with performance leaves (`forbid_parquet_pushdown`),
         // so the residual runs post-decode over the projected batch, remapped by name.
         let required_predicate_columns: Option<Vec<usize>> = if self.performance_leaves.is_empty() {
             None
         } else {
-            let mut cols = df_owned_columns;
+            let mut cols = driver_owned_columns;
             if let Some(ref residual) = self.residual_expr {
                 for col in collect_columns(residual) {
                     cols.insert(col.index());
@@ -667,7 +671,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         batch: &RecordBatch,
     ) -> Result<Option<BooleanArray>, String> {
         // Nothing can need post-decode evaluation; the stream's `current_mask` handles
-        // Collector / peer narrowing.
+        // Collector / delegate narrowing.
         if self.residual_expr.is_none() && self.performance_leaves.is_empty() {
             return Ok(None);
         }
@@ -678,7 +682,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 "SingleCollectorEvaluator: rg_state is not SingleCollectorState".to_string()
             })?;
 
-        // Post-decode residual: the native residual AND this RG's DataFusion-owned leaves.
+        // Post-decode residual: the native residual AND this RG's driver-owned leaves.
         let residual: Arc<dyn PhysicalExpr> =
             match (self.residual_expr.as_ref(), state.perf_residual.as_ref()) {
                 (None, None) => return Ok(None),
@@ -767,7 +771,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
     /// pushdown proceeds.
     fn forbid_parquet_pushdown(&self) -> bool {
         // Performance leaves are owned per row group, so their residual can only be applied
-        // post-decode in `on_batch_mask`; static pushdown would evaluate Lucene-owned leaves too.
+        // post-decode in `on_batch_mask`; static pushdown would evaluate delegate-owned leaves too.
         !self.performance_leaves.is_empty()
     }
 
@@ -1380,10 +1384,10 @@ mod tests {
     }
 
     #[test]
-    fn owner_election_datafusion_when_selective() {
+    fn owner_election_driver_when_selective() {
         // 4% of rows survive, below the 5% threshold.
         let ranges = Some(vec![(0i32, 4i32)]);
-        assert!(!should_consult_lucene(
+        assert!(!should_consult_delegate(
             &ranges,
             &rg(100),
             HARDCODED_SELECTIVITY_THRESHOLD
@@ -1391,10 +1395,10 @@ mod tests {
     }
 
     #[test]
-    fn owner_election_lucene_when_weak() {
+    fn owner_election_delegate_when_weak() {
         // 50% of rows survive, above the threshold.
         let ranges = Some(vec![(0i32, 50i32)]);
-        assert!(should_consult_lucene(
+        assert!(should_consult_delegate(
             &ranges,
             &rg(100),
             HARDCODED_SELECTIVITY_THRESHOLD
@@ -1402,8 +1406,8 @@ mod tests {
     }
 
     #[test]
-    fn owner_election_lucene_when_no_stats() {
-        assert!(should_consult_lucene(
+    fn owner_election_delegate_when_no_stats() {
+        assert!(should_consult_delegate(
             &None,
             &rg(100),
             HARDCODED_SELECTIVITY_THRESHOLD

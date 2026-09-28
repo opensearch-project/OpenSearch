@@ -13,14 +13,14 @@
 //! evaluated twice gives the same rows), so these tests measure the work instead:
 //!
 //! - **Evaluations**: every leaf expression is wrapped in [`CountingExpr`], which counts
-//!   the rows DataFusion evaluates it on, whichever code path does it (residual,
+//!   the rows the driving backend evaluates it on, whichever code path does it (residual,
 //!   per-RG `perf_residual`, pushdown).
 //! - **Bytes read**: the object store records every fetched byte range, and the tests
 //!   check them against each column chunk's byte range, per row group.
-//! - **Lucene calls**: the mock delegated backend records every `(annotation_id,
+//! - **Delegate calls**: the mock delegated backend records every `(annotation_id,
 //!   doc_min)` it is asked for.
-//! - **Authority**: a Lucene-owned leaf whose peer returns an extra row must keep that
-//!   row — proving DataFusion did not re-check it.
+//! - **Authority**: a delegate-owned leaf whose delegate returns an extra row must keep
+//!   that row — proving the driver did not re-check it.
 //!
 //! The filter is split by the production `plan_single_collector_filter`, and the
 //! evaluator is the production `SingleCollectorEvaluator`.
@@ -35,9 +35,9 @@
 //! | `price`  | RG0: `j` (sorted); RG1: `(j * 7919) % 8192` (a permutation, every page wide) |
 //! | `status` | `["ok", "warn", "err"][i % 3]` (every page spans all values)             |
 //!
-//! So `price < 256` keeps 1/32 pages of RG0 (below the 5% gate → DataFusion owns it)
-//! and ~all of RG1 (→ Lucene owns it); `status = 'ok'` can never be page-pruned
-//! (→ Lucene owns it in both RGs).
+//! So `price < 256` keeps 1/32 pages of RG0 (below the 5% gate → the driver owns it)
+//! and ~all of RG1 (→ the delegate owns it); `status = 'ok'` can never be page-pruned
+//! (→ the delegate owns it in both RGs).
 
 #![cfg(test)]
 
@@ -212,7 +212,7 @@ fn id_lt(v: i32) -> Arc<dyn PhysicalExpr> {
     ))
 }
 
-/// Transparent wrapper that counts the rows DataFusion evaluates `inner` on.
+/// Transparent wrapper that counts the rows the driving backend evaluates `inner` on.
 #[derive(Debug)]
 struct CountingExpr {
     inner: Arc<dyn PhysicalExpr>,
@@ -308,7 +308,7 @@ impl Leaf {
 }
 
 /// Production split of the filter, with the leaves' counted wrappers in the tree so any
-/// DataFusion evaluation of a leaf is observed. `CountingExpr` is opaque to
+/// driving-backend evaluation of a leaf is observed. `CountingExpr` is opaque to
 /// `PruningPredicate`, so the stats-derived pieces are rebuilt from the plain leaf
 /// expressions — the same inputs production gets — to keep the owner election real.
 fn plan_with_counters(
@@ -685,10 +685,10 @@ const RG1_MIN_DOC: i32 = RG_ROWS as i32;
 
 // ── Tests ───────────────────────────────────────────────────────────
 
-/// `status = 'ok'` cannot be page-pruned, so Lucene owns it in every RG. DataFusion
+/// `status = 'ok'` cannot be page-pruned, so the delegate owns it in every RG. The driver
 /// must neither read the `status` column nor evaluate the leaf.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn lucene_owned_leaf_is_not_read_or_evaluated() {
+async fn delegate_owned_leaf_is_not_read_or_evaluated() {
     let status = Leaf::new(STATUS_LEAF_ID, status_eq("ok"));
     let backend = Arc::new(RecordingDelegatedBackend {
         match_sets: HashMap::from([(STATUS_LEAF_ID, docs_where(|i| status_of(i) == "ok"))]),
@@ -707,7 +707,7 @@ async fn lucene_owned_leaf_is_not_read_or_evaluated() {
     assert_eq!(
         status.rows_evaluated(),
         0,
-        "DataFusion evaluated a Lucene-owned leaf"
+        "driver evaluated a delegate-owned leaf"
     );
     assert_eq!(
         backend.calls_for(STATUS_LEAF_ID),
@@ -716,7 +716,7 @@ async fn lucene_owned_leaf_is_not_read_or_evaluated() {
     for rg in 0..NUM_RGS {
         assert!(
             !r.read_column(rg, COL_STATUS),
-            "RG{rg}: read the Lucene-owned status column"
+            "RG{rg}: read the delegate-owned status column"
         );
         assert!(
             r.read_column(rg, COL_ID),
@@ -725,10 +725,10 @@ async fn lucene_owned_leaf_is_not_read_or_evaluated() {
     }
 }
 
-/// Lucene is authoritative for a leaf it owns: an extra row from the peer survives,
-/// because DataFusion does not re-check the leaf.
+/// The delegate is authoritative for a leaf it owns: an extra row it returns survives,
+/// because the driver does not re-check the leaf.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn lucene_owned_leaf_is_authoritative() {
+async fn delegate_owned_leaf_is_authoritative() {
     let status = Leaf::new(STATUS_LEAF_ID, status_eq("ok"));
     // Row 1 has status 'warn'; the peer claims it matches anyway.
     let peer = docs_where(|i| status_of(i) == "ok" || i == 1);
@@ -749,7 +749,7 @@ async fn lucene_owned_leaf_is_authoritative() {
     assert_eq!(status.rows_evaluated(), 0);
 }
 
-/// `price < 256` is selective in RG0 (DataFusion owns it) and not in RG1 (Lucene owns
+/// `price < 256` is selective in RG0 (the driver owns it) and not in RG1 (the delegate owns
 /// it). Per RG, exactly one backend does the work.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn owner_is_elected_per_row_group() {
@@ -770,8 +770,8 @@ async fn owner_is_elected_per_row_group() {
     assert_ids(&r.ids, &expected(|i| price_of(i) < 256));
     assert_eq!(r.ids.len(), 512);
 
-    // RG0: DataFusion owns it. Page stats narrow RG0 to page 0 (256 rows); the leaf is
-    // evaluated on exactly those rows, once. RG1: Lucene owns it, so no evaluation.
+    // RG0: the driver owns it. Page stats narrow RG0 to page 0 (256 rows); the leaf is
+    // evaluated on exactly those rows, once. RG1: the delegate owns it, so no evaluation.
     assert_eq!(
         price.rows_evaluated(),
         ROWS_PER_PAGE,
@@ -780,15 +780,15 @@ async fn owner_is_elected_per_row_group() {
     assert_eq!(
         backend.calls_for(PRICE_LEAF_ID),
         vec![RG1_MIN_DOC],
-        "Lucene consulted only for RG1"
+        "delegate consulted only for RG1"
     );
     assert!(
         r.read_column(0, COL_PRICE),
-        "RG0: DataFusion-owned price column not read"
+        "RG0: driver-owned price column not read"
     );
     assert!(
         !r.read_column(1, COL_PRICE),
-        "RG1: read the Lucene-owned price column"
+        "RG1: read the delegate-owned price column"
     );
 }
 
@@ -827,13 +827,13 @@ async fn mixed_collector_native_and_both_owners() {
     );
     assert!(!r.ids.is_empty());
 
-    // status: Lucene-owned everywhere.
+    // status: delegate-owned everywhere.
     assert_eq!(status.rows_evaluated(), 0);
     assert_eq!(
         backend.calls_for(STATUS_LEAF_ID),
         vec![RG0_MIN_DOC, RG1_MIN_DOC]
     );
-    // price: DataFusion in RG0 (at most the 256 page-0 rows, once), Lucene in RG1.
+    // price: driver in RG0 (at most the 256 page-0 rows, once), delegate in RG1.
     let price_rows = price.rows_evaluated();
     assert!(
         price_rows > 0 && price_rows <= ROWS_PER_PAGE,
@@ -843,12 +843,12 @@ async fn mixed_collector_native_and_both_owners() {
     for rg in 0..NUM_RGS {
         assert!(
             !r.read_column(rg, COL_STATUS),
-            "RG{rg}: read the Lucene-owned status column"
+            "RG{rg}: read the delegate-owned status column"
         );
     }
     assert!(r.read_column(0, COL_PRICE));
     assert!(
         !r.read_column(1, COL_PRICE),
-        "RG1: read the Lucene-owned price column"
+        "RG1: read the delegate-owned price column"
     );
 }

@@ -10,16 +10,16 @@
 //!
 //! Production behavior under test: the filter is split by
 //! `plan_single_collector_filter`, and per row group the evaluator elects exactly one
-//! owner for each `DelegationPossible` leaf — DataFusion (evaluates `original_expr`
-//! post-decode) or the delegated backend (Lucene bitset AND-intersected into the
+//! owner for each `DelegationPossible` leaf — the driving backend (evaluates
+//! `original_expr` post-decode) or the delegated backend (bitset AND-intersected into the
 //! candidates, `original_expr` not evaluated). Random predicates make the election
 //! land on both sides across row groups and segments.
 //!
 //! The mock delegated backend returns *exactly* the rows where `original_expr` is
 //! TRUE (the dual-viable contract), so whichever backend owns a leaf, the final
 //! result must equal `Predicate(original_expr)` evaluated row-by-row. A lying backend
-//! is not a valid input any more: a Lucene-owned leaf is authoritative (see
-//! `tests_e2e::performance_leaves::lucene_owned_leaf_is_authoritative`).
+//! is not a valid input any more: a delegate-owned leaf is authoritative (see
+//! `tests_e2e::performance_leaves::delegate_owned_leaf_is_authoritative`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
