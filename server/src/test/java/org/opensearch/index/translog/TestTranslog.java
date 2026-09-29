@@ -107,6 +107,58 @@ public class TestTranslog {
     }
 
     /**
+     * Flips one byte inside the body of the last operation of a randomly chosen generation that holds operations, and
+     * returns the corrupted translog file. The operation's size prefix, the numbered checkpoint and any
+     * {@link TranslogFooter} are left intact, so the generation still passes every structural check and the rot only
+     * surfaces as a per-operation checksum failure when the operation is read.
+     */
+    public static Path corruptLastOperationOfRandomGeneration(Random random, Path translogDir) throws IOException {
+        List<Path> nonEmpty = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir, "translog-*" + TRANSLOG_FILE_SUFFIX)) {
+            for (Path translogPath : stream) {
+                Checkpoint checkpoint = readCheckpointOfGeneration(translogDir, translogPath);
+                if (checkpoint != null && checkpoint.numOps > 0) {
+                    nonEmpty.add(translogPath);
+                }
+            }
+        }
+        assertThat("expected at least one generation with operations in " + translogDir, nonEmpty, not(empty()));
+        nonEmpty.sort(Comparator.naturalOrder());
+        Path victim = RandomPicks.randomFrom(random, nonEmpty);
+        Checkpoint checkpoint = readCheckpointOfGeneration(translogDir, victim);
+        // The last operation ends at checkpoint.offset with its 4-byte checksum; six bytes back is inside its body.
+        long position = checkpoint.offset - 6;
+        try (FileChannel channel = FileChannel.open(victim, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            ByteBuffer one = ByteBuffer.allocate(1);
+            channel.read(one, position);
+            one.flip();
+            byte original = one.get();
+            one.clear();
+            one.put((byte) (original ^ 0x1)).flip();
+            channel.write(one, position);
+        }
+        return victim;
+    }
+
+    /**
+     * Reads the checkpoint describing {@code translogPath}: its numbered checkpoint for a closed generation, or
+     * {@code translog.ckp} for the current writer's generation, which has no numbered checkpoint yet. Returns
+     * {@code null} if neither describes this generation.
+     */
+    private static Checkpoint readCheckpointOfGeneration(Path translogDir, Path translogPath) throws IOException {
+        long generation = Translog.parseIdFromFileName(translogPath);
+        Path checkpointPath = translogDir.resolve(Translog.getCommitCheckpointFileName(generation));
+        if (Files.exists(checkpointPath) == false) {
+            checkpointPath = translogDir.resolve(CHECKPOINT_FILE_NAME);
+            if (Files.exists(checkpointPath) == false) {
+                return null;
+            }
+        }
+        Checkpoint checkpoint = Checkpoint.read(checkpointPath);
+        return checkpoint.generation == generation ? checkpoint : null;
+    }
+
+    /**
      * Corrupts random translog file (translog-N.tlog or translog-N.ckp or translog.ckp) from the given translog directory, ignoring
      * translogs and checkpoints with generations below the generation recorded in the latest index commit found in translogDir/../index/,
      * or writes a corrupted translog-N.ckp file as if from a crash while rolling a generation.
