@@ -232,6 +232,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
 
     /**
+     * Repository setting (not a node setting): require the S3 service to return CRC32 checksums for multipart uploads.
+     * When disabled, the transfer container verifies the bytes read locally when an expected checksum is available.
+     */
+    static final Setting<Boolean> REMOTE_INTEGRITY_CHECK_ENABLED = Setting.boolSetting("remote_integrity_check_enabled", true);
+
+    /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
      * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the

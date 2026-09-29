@@ -67,6 +67,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -407,7 +408,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         inputStream.getInputStream(),
                         uploadRequest.getContentLength(),
                         uploadRequest.getMetadata(),
-                        crypto
+                        crypto,
+                        uploadRequest.getUploadFinalizer()
                     );
                     completionListener.onResponse(null);
                 } catch (Exception ex) {
@@ -532,7 +534,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     public boolean remoteIntegrityCheckSupported() {
-        return true;
+        return blobStore.isRemoteIntegrityCheckEnabled();
     }
 
     // package private for testing
@@ -747,6 +749,18 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final Map<String, String> metadata,
         @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
+        executeMultipartUpload(blobStore, blobName, input, blobSize, metadata, cryptoMetadata, null);
+    }
+
+    private void executeMultipartUpload(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata,
+        @Nullable CheckedConsumer<Boolean, IOException> uploadFinalizer
+    ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
         final long partSize = blobStore.bufferSizeInBytes();
@@ -820,6 +834,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 throw new IOException(
                     "Failed to execute multipart upload for [" + blobName + "], expected " + blobSize + "bytes sent but got " + bytesCount
                 );
+            }
+
+            // Validate locally read bytes before committing the multipart upload, so a failure aborts it in the finally block.
+            if (uploadFinalizer != null) {
+                uploadFinalizer.accept(true);
             }
 
             CompleteMultipartUploadRequest completeMultipartUploadRequest = CompleteMultipartUploadRequest.builder()

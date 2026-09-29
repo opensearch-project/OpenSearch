@@ -62,6 +62,7 @@ import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.EXPECTED_BUCKET_OWNER_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.PERMIT_BACKED_TRANSFER_ENABLED;
 import static org.opensearch.repositories.s3.S3Repository.REDIRECT_LARGE_S3_UPLOAD;
+import static org.opensearch.repositories.s3.S3Repository.REMOTE_INTEGRITY_CHECK_ENABLED;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
@@ -84,6 +85,8 @@ public class S3BlobStore implements BlobStore {
     private volatile boolean redirectLargeUploads;
 
     private volatile boolean uploadRetryEnabled;
+
+    private volatile boolean remoteIntegrityCheckEnabled;
 
     private volatile boolean permitBackedTransferEnabled;
 
@@ -151,6 +154,7 @@ public class S3BlobStore implements BlobStore {
         // Settings to initialize blobstore with.
         this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
         this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
+        this.remoteIntegrityCheckEnabled = REMOTE_INTEGRITY_CHECK_ENABLED.get(repositoryMetadata.settings());
         this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.genericStatsMetricPublisher = genericStatsMetricPublisher;
@@ -172,6 +176,7 @@ public class S3BlobStore implements BlobStore {
         this.bulkDeletesSize = BULK_DELETE_SIZE.get(repositoryMetadata.settings());
         this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
         this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
+        this.remoteIntegrityCheckEnabled = REMOTE_INTEGRITY_CHECK_ENABLED.get(repositoryMetadata.settings());
         this.permitBackedTransferEnabled = PERMIT_BACKED_TRANSFER_ENABLED.get(repositoryMetadata.settings());
         this.serverSideEncryptionType = SERVER_SIDE_ENCRYPTION_TYPE_SETTING.get(repositoryMetadata.settings());
         this.serverSideEncryptionKmsKey = SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.get(repositoryMetadata.settings());
@@ -203,6 +208,10 @@ public class S3BlobStore implements BlobStore {
 
     public boolean isUploadRetryEnabled() {
         return uploadRetryEnabled;
+    }
+
+    public boolean isRemoteIntegrityCheckEnabled() {
+        return remoteIntegrityCheckEnabled;
     }
 
     public boolean isPermitBackedTransferEnabled() {

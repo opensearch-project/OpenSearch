@@ -143,6 +143,33 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         }
     }
 
+    public void testRemoteIntegrityCheckDisabledOnRepositoryCreation() {
+        Settings settings = Settings.builder().put(S3Repository.REMOTE_INTEGRITY_CHECK_ENABLED.getKey(), false).build();
+        try (S3Repository repository = createS3Repo(new RepositoryMetadata("dummy-repo", "mock", settings))) {
+            repository.start();
+            S3BlobStore blobStore = (S3BlobStore) repository.blobStore();
+            S3BlobContainer container = (S3BlobContainer) blobStore.blobContainer(repository.basePath());
+            assertFalse(container.remoteIntegrityCheckSupported());
+        }
+    }
+
+    public void testRemoteIntegrityCheckSetting() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository repository = createS3Repo(metadata)) {
+            repository.start();
+            S3BlobStore blobStore = (S3BlobStore) repository.blobStore();
+            S3BlobContainer container = (S3BlobContainer) blobStore.blobContainer(repository.basePath());
+            assertTrue(container.remoteIntegrityCheckSupported());
+
+            Settings withoutRemoteCheck = Settings.builder().put(S3Repository.REMOTE_INTEGRITY_CHECK_ENABLED.getKey(), false).build();
+            blobStore.reload(new RepositoryMetadata("dummy-repo", "mock", withoutRemoteCheck));
+            assertFalse(container.remoteIntegrityCheckSupported());
+
+            blobStore.reload(metadata);
+            assertTrue(container.remoteIntegrityCheckSupported());
+        }
+    }
+
     public void testIsReloadable() {
         final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = createS3Repo(metadata)) {

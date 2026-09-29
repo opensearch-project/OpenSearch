@@ -255,6 +255,19 @@ public final class AsyncTransferManager {
         String fileName,
         long expectedChecksum
     ) {
+        for (int index = 0; index < inputStreamContainers.length(); index++) {
+            CheckedContainer inputStreamContainer = inputStreamContainers.get(index);
+            if (inputStreamContainer == null || inputStreamContainer.getChecksum() == null) {
+                throw new IllegalStateException(
+                    "Cannot verify multipart checksum for file ["
+                        + fileName
+                        + "]: part "
+                        + (index + 1)
+                        + " has no CRC32 checksum"
+                );
+            }
+        }
+
         long resultantChecksum = fromBase64String(inputStreamContainers.get(0).getChecksum());
         for (int index = 1; index < inputStreamContainers.length(); index++) {
             long curChecksum = fromBase64String(inputStreamContainers.get(index).getChecksum());
