@@ -258,6 +258,67 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
+     * A full-copy snapshot deletion that observes a {@link SnapshotDeletionAttempt}: it carries the supplied attempt down
+     * its own delete path rather than dropping it. It calls {@link SnapshotDeletionAttempt#claimCommit()} as the point at
+     * which its generation commits, and does not commit if that returns {@code false}; having claimed, it reports exactly
+     * one of {@link SnapshotDeletionAttempt#committed} and {@link SnapshotDeletionAttempt#commitUnconfirmed}. A cleanup step
+     * that fails after the commit is recorded with {@link SnapshotDeletionAttempt#recordCleanupFailure} rather than reported
+     * as a failure of the deletion. It begins no new destructive unit or batch once the attempt reports abandonment. Work
+     * already admitted is allowed to finish, and no repository I/O is cancelled -- what stops is the admission of new work,
+     * not a call already in flight. Whatever is left behind is unreferenced by the committed repository data and is left in
+     * the repository.
+     * <p>
+     * A {@link Repository} hands one of these out from {@link #abandonableSnapshotDelete()}. It is declared by an
+     * implementation for its own delete path; BlobStoreRepository does not advertise it on its own behalf, and a subclass
+     * of a declaring class inherits the declaration.
+     * <p>
+     * Other delete methods take no attempt and are outside this contract.
+     * <p>
+     * It does not promise that declining to commit leaves nothing behind: a repository whose effective generation comes
+     * from listing its blobs rather than from cluster state can still adopt a write this contract declined to commit.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    @FunctionalInterface
+    interface AbandonableSnapshotDelete {
+        /**
+         * @param snapshotIds           snapshot ids
+         * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+         * @param repositoryMetaVersion version of the updated repository metadata to write
+         * @param deletion              this attempt at the deletion, which the caller may abandon while it is still running
+         * @param listener              completion listener
+         * @see Repository#deleteSnapshots(Collection, long, Version, ActionListener)
+         */
+        void deleteSnapshots(
+            Collection<SnapshotId> snapshotIds,
+            long repositoryStateId,
+            Version repositoryMetaVersion,
+            SnapshotDeletionAttempt deletion,
+            ActionListener<RepositoryData> listener
+        );
+    }
+
+    /**
+     * The full-copy delete entrypoint this repository hands out for time-budgeted deletes, or empty. Empty by default. A
+     * caller that puts a time budget on a delete deletes through the returned entrypoint, and falls back to
+     * {@link #deleteSnapshots(Collection, long, Version, ActionListener)}, unbudgeted, when nothing is returned.
+     * <p>
+     * An implementation returns one only for a delete path it owns and declares, and only while a check of its store has
+     * found that the store evaluates conditional-write preconditions for this client. The answer is synchronous, involves
+     * no I/O and reads no cluster state. It is read per operation and must not be cached: it may be empty until an
+     * asynchronous check completes, and it is empty while the repository is read-only, not strictly consistent or configured
+     * for shallow copies. When present it is the same object. {@link FilterRepository} does not forward it: a
+     * decorator that wants it overrides this method and maps the wrapped entrypoint, passing the same attempt.
+     *
+     * @return the abandonment-observing full-copy delete entrypoint, or empty
+     */
+    @ExperimentalApi
+    default Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+        return Optional.empty();
+    }
+
+    /**
      * Deletes snapshots and releases respective lock files from remote store repository.
      *
      * @param snapshotIds                           snapshot ids

@@ -67,6 +67,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Repository cleanup action for repository implementations based on {@link BlobStoreRepository}.
@@ -259,6 +260,18 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
                         if (snapshots.entries().isEmpty() == false) {
                             throw new IllegalStateException(
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"
+                            );
+                        }
+                        // Refused on every repository, like the checks above: a call the time budget gave up on is still running,
+                        // although its operation's entry may already have left the cluster state.
+                        final Set<String> pastBudget = repositoriesService.repositoriesWithCallsPastBudget();
+                        if (pastBudget.isEmpty() == false) {
+                            throw new IllegalStateException(
+                                "Cannot cleanup ["
+                                    + repositoryName
+                                    + "] - a repository call on "
+                                    + pastBudget
+                                    + " outlived its time budget and has not returned"
                             );
                         }
                         return ClusterState.builder(currentState)

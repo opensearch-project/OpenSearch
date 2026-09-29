@@ -255,6 +255,12 @@ public class MockRepository extends FsRepository {
         return conditionalWrites ? blobStoreAbandonableSnapshotFinalization() : Optional.empty();
     }
 
+    /** Under the {@code conditional_writes} opt-in this repository declares the delete entrypoint for its own path. */
+    @Override
+    public Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+        return conditionalWrites ? blobStoreAbandonableSnapshotDelete() : Optional.empty();
+    }
+
     private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {
         // TODO: use another method of testing not being able to read the test file written by the cluster-manager...
         // this is super duper hacky

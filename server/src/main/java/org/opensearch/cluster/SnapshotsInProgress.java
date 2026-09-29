@@ -675,6 +675,33 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         /**
+         * Replaces the index list and the shard assignments together, since {@link IndexId}s fix the paths shard blobs are written
+         * under and the assignments fix the generations they are compared against; promotes the entry to {@link State#SUCCESS}
+         * when every assignment is complete, as {@link #withShardStates} does.
+         *
+         * @param indices new index list, resolved from the same repository data as {@code shards}
+         * @param shards  new shard snapshot states
+         * @return new snapshot entry
+         */
+        public Entry withIndicesAndShardStates(final List<IndexId> indices, final Map<ShardId, ShardSnapshotStatus> shards) {
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                completed(shards.values()) ? State.SUCCESS : state,
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                userMetadata,
+                version,
+                remoteStoreIndexShallowCopy
+            );
+        }
+
+        /**
          * Same as {@link #withShardStates} but does not check if the snapshot completed and thus is only to be used when starting new
          * shard snapshots on data nodes for a running snapshot.
          */

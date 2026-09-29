@@ -410,9 +410,10 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
 
     /**
      * Once a finalization is stopped by its budget before it wrote the repository generation, repository cleanup and
-     * unregistering the repository are admitted while the stopped call is still parked, because that call writes no root
-     * generation. Released, it is refused and leaves nothing at the root; the repository registered again at the same
-     * location points at the committed generation, and the snapshot taken before restores every document.
+     * unregistering the repository are refused while the stopped call is still parked, because the call is still recorded as
+     * past its budget, and admitted once it has returned. Released, it is refused and leaves nothing at the root; the
+     * repository registered again at the same location points at the committed generation, and the snapshot taken before
+     * restores every document.
      */
     public void testStoppedFinalizationAdmitsCleanupAndUnregistration() throws Exception {
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
@@ -432,12 +433,19 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             repository.awaitParked();
             setIoTimeout("1h");
             awaitAbandonment(parked, PARKED);
-            clusterAdmin().prepareCleanupRepository(REPO).get();
-            assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
+            expectThrows(IllegalStateException.class, () -> clusterAdmin().prepareCleanupRepository(REPO).get());
+            expectThrows(IllegalStateException.class, () -> clusterAdmin().prepareDeleteRepository(REPO).get());
         } finally {
             repository.releaseParkedFinalization();
         }
+        assertBusy(
+            () -> assertTrue(
+                internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repositoriesWithCallsPastBudget().isEmpty()
+            )
+        );
         awaitNoMoreRunningOperations(clusterManagerNode);
+        clusterAdmin().prepareCleanupRepository(REPO).get();
+        assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
         createEnforcingRepository(repoPath);
 
         final String parkedUuid = repository.finalizedSnapshotUuid(PARKED);
@@ -487,8 +495,9 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     /**
      * A finalization whose budget expires before it started writing the repository generation is stopped, and everything
      * it was holding back runs while the stopped call is still parked: the snapshot queued behind it, a delete of its
-     * index, a retry under its name and a repository cleanup. Released, the stopped call is refused and writes nothing,
-     * and the repository records exactly one snapshot under the name, the retry.
+     * index and a retry under its name. A repository cleanup is refused until the stopped call has returned, and then runs.
+     * Released, the stopped call is refused and writes nothing, and the repository records exactly one snapshot under the
+     * name, the retry.
      */
     public void testBudgetExpiryBeforeTheGenerationWriteReleasesEverything() throws Exception {
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
@@ -524,7 +533,7 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
                 .get()
                 .getSnapshotInfo();
             assertThat("a same-name retry must run its normal flow", retried.state(), is(SnapshotState.SUCCESS));
-            clusterAdmin().prepareCleanupRepository(REPO).get();
+            expectThrows(IllegalStateException.class, () -> clusterAdmin().prepareCleanupRepository(REPO).get());
             rootBlobsBeforeRelease = rootBlobNames(repoPath);
         } finally {
             repository.releaseParkedFinalization();
@@ -537,6 +546,7 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
         awaitNoMoreRunningOperations(clusterManagerNode);
 
         assertThat("the stopped call must write nothing at the root", rootBlobNames(repoPath), equalTo(rootBlobsBeforeRelease));
+        clusterAdmin().prepareCleanupRepository(REPO).get();
         final long generation = repositoryGeneration(internalCluster().clusterService(clusterManagerNode).state());
         assertOneSnapshotNamed(repoPath, generation, RETRIED);
         assertThat(snapshotNames(getRepositoryData(REPO).getSnapshotIds()), equalTo(Set.of("other", QUEUED, RETRIED)));

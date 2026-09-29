@@ -278,7 +278,7 @@ public interface BlobContainer {
      * The distinction matters to both callers of this flag. Remote store primary fencing uses a conditional write to
      * exclude a writer it cannot see, and an emulated precondition would let two nodes both believe they hold the fence,
      * which is worse than running unfenced, since the shard would report itself protected. A snapshot repository reads it as
-     * the claim that its conditional-write probe then tests.
+     * the claim that its conditional-write probe then tests, before it writes {@code index.latest} as a compare-and-set.
      */
     @ExperimentalApi
     default boolean isConditionalWriteSupported() {

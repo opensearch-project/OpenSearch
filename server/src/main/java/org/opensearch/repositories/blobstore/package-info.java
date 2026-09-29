@@ -143,9 +143,14 @@
  * <li>On the same cluster-manager node, after the cluster state has been updated in the first step, write the new {@code index-N} blob and
  * also update the contents of the {@code index.latest} blob. Note that updating the index.latest blob is done on a best effort
  * basis and that there is a chance for a stuck cluster-manager node to overwrite the contents of the {@code index.latest} blob after a newer
- * {@code index-N} has been written by another cluster-manager node. This is acceptable since the contents of {@code index.latest} are not used
- * during normal operation of the repository and must only be correct for purposes of mounting the contents of a
- * {@link org.opensearch.repositories.blobstore.BlobStoreRepository} as a read-only url repository.</li>
+ * {@code index-N} has been written by another cluster-manager node. This is acceptable because, on a store whose conditional writes are
+ * not proven, the contents of {@code index.latest} are not used during normal operation and must only be correct for purposes of
+ * mounting the contents of a {@link org.opensearch.repositories.blobstore.BlobStoreRepository} as a read-only url repository.
+ * Where it is written depends on the repository instance. An instance whose store has passed the conditional-write probe
+ * writes it after the last of these steps instead, for every writer, as a compare-and-set that does not lower a value naming
+ * an existing {@code index-N} blob and that a writer whose last step failed never issues; it removes the {@code index-N}
+ * blobs its generation supersedes only after that write is confirmed, and a deletion whose caller has stopped waiting for it
+ * does neither. Any other instance writes it beside the new {@code index-N} blob as above.</li>
  * <li>After the write has finished, set the value of {@code RepositoriesState.State#generation} to the value used for
  * {@code RepositoriesState.State#pendingGeneration} so that the new entry for the state of the repository has {@code generation} and
  * {@code pendingGeneration} set to the same value to signalize a clean repository state with no potentially failed writes newer than the

@@ -283,6 +283,33 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         }
     }
 
+    /**
+     * The declared entrypoint runs the blob store's own delete body, bypassing deleteSnapshots, deleteSnapshotsInternal and
+     * writeIndexGen overrides; this pins that neither S3Repository nor MeteredBlobStoreRepository declares them, and that the
+     * capability is present only once the store is proven.
+     */
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    @SuppressForbidden(reason = "asserts which methods the repository classes declare themselves")
+    public void testDeclaresTheDeleteCapabilityWithoutOverridingTheDeletePath() throws Exception {
+        for (Class<?> type : List.of(S3Repository.class, MeteredBlobStoreRepository.class)) {
+            for (Method method : type.getDeclaredMethods()) {
+                assertThat(type.getSimpleName() + " overrides the delete path", method.getName(), not(equalTo("deleteSnapshots")));
+                assertThat(type.getSimpleName() + " overrides the delete path", method.getName(), not(equalTo("deleteSnapshotsInternal")));
+                assertThat(type.getSimpleName() + " overrides the generation write", method.getName(), not(equalTo("writeIndexGen")));
+            }
+        }
+        assertNotNull(S3Repository.class.getDeclaredMethod("abandonableSnapshotDelete"));
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY, 0L, 0L);
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            s3repo.updateState(BlobStoreTestUtil.mockClusterService(metadata).state());
+            setConditionalWriteProof(s3repo, "UNPROVEN");
+            assertTrue("empty while the store is not proven", s3repo.abandonableSnapshotDelete().isEmpty());
+            setConditionalWriteProof(s3repo, "PROVEN");
+            assertTrue("present once the store is proven", s3repo.abandonableSnapshotDelete().isPresent());
+            assertSame(s3repo.abandonableSnapshotDelete().get(), s3repo.abandonableSnapshotDelete().get());
+        }
+    }
+
     /** Sets the repository's private proof state, as a completed probe would have left it. */
     @SuppressForbidden(reason = "the proof state is private to BlobStoreRepository and must not gain a test seam")
     @SuppressWarnings({ "unchecked", "rawtypes" })

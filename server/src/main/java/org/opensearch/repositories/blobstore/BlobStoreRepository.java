@@ -157,6 +157,7 @@ import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.SnapshotDeletionAttempt;
 import org.opensearch.repositories.SnapshotFinalizationAttempt;
 import org.opensearch.snapshots.AbortedSnapshotException;
 import org.opensearch.snapshots.SnapshotException;
@@ -184,6 +185,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1189,6 +1191,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         boolean isShallowSnapshotV2,
         ActionListener<RepositoryData> listener
     ) {
+        deleteSnapshotsInternal(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            remoteStoreLockManagerFactory,
+            remoteSegmentStoreDirectoryFactory,
+            remoteStorePinnedTimestampService,
+            snapshotIdsPinnedTimestampMap,
+            isShallowSnapshotV2,
+            SnapshotDeletionAttempt.notAbandoned(),
+            IndexGenerationWrite.LEGACY,
+            listener
+        );
+    }
+
+    /**
+     * Runs every deletion. {@code deletion} is consulted before each new piece of destructive work and records the cleanup
+     * failures; {@code mode} decides how the generation write treats index.latest and the superseded index-N blobs. The
+     * overridable overload above passes an attempt no caller holds and {@link IndexGenerationWrite#LEGACY}; only the entrypoint
+     * {@link #blobStoreAbandonableSnapshotDelete()} hands out passes {@link IndexGenerationWrite#ABANDONABLE}.
+     *
+     * @param deletion this attempt at the deletion, consulted before each new piece of destructive work
+     * @param mode     how the generation write treats index.latest and the superseded index-N blobs
+     */
+    private void deleteSnapshotsInternal(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
+        boolean isShallowSnapshotV2,
+        SnapshotDeletionAttempt deletion,
+        IndexGenerationWrite mode,
+        ActionListener<RepositoryData> listener
+    ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
@@ -1212,6 +1251,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         remoteStorePinnedTimestampService,
                         snapshotIdsPinnedTimestampMap,
                         isShallowSnapshotV2,
+                        deletion,
+                        mode,
                         listener
                     );
                 }
@@ -1274,6 +1315,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
+        // Through the overridable overload, so a subclass that intercepts it sees every full-copy deletion that cannot be given
+        // up on; the one that can is reached only through blobStoreAbandonableSnapshotDelete().
         deleteSnapshotsInternal(
             snapshotIds,
             repositoryStateId,
@@ -1283,6 +1326,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             null,
             Collections.emptyMap(),
             false,
+            listener
+        );
+    }
+
+    /**
+     * The body {@link #blobStoreAbandonableSnapshotDelete()} hands out. Private on purpose: it is reached only through that
+     * factory's method reference, so a subclass that declares the entrypoint cannot replace it. A decorator that wants to
+     * intercept overrides {@link #abandonableSnapshotDelete()} and maps the entrypoint, and that signature receives the attempt.
+     */
+    private void deleteSnapshotsObservingAbandonment(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        SnapshotDeletionAttempt deletion,
+        ActionListener<RepositoryData> listener
+    ) {
+        deleteSnapshotsInternal(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            null, // Passing null since no remote store lock files need to be cleaned up.
+            null, // Passing null since no remote store segment files need to be cleaned up
+            null,
+            Collections.emptyMap(),
+            false,
+            deletion,
+            IndexGenerationWrite.ABANDONABLE,
             listener
         );
     }
@@ -1352,6 +1422,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param remoteStorePinnedTimestampService  RemoteStorePinnedTimestampService to be used for unpinning the snapshot timestamp
      * @param snapshotIdPinnedTimestampMap       Map of snapshotId and pinned timestamp
      * @prama isShallowSnapshotV2                true for shallow snapshot v2
+     * @param deletion                      this attempt at the deletion, consulted before each new piece of destructive work
+     * @param mode                          which kind of index generation write this deletion makes, see {@link IndexGenerationWrite}
      * @param listener                      Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(
@@ -1366,6 +1438,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
         Map<SnapshotId, Long> snapshotIdPinnedTimestampMap,
         boolean isShallowSnapshotV2,
+        SnapshotDeletionAttempt deletion,
+        IndexGenerationWrite mode,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -1386,19 +1460,44 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // written if all shard paths have been successfully updated.
         final StepListener<RepositoryData> writeUpdatedRepoDataStep = new StepListener<>();
         writeShardMetaDataAndComputeDeletesStep.whenComplete(deleteResults -> {
+            if (deletion.isAbandoned()) {
+                // Nothing has been committed yet, so stopping here leaves the snapshots this deletion was removing
+                // still recorded and removable by a later deletion. The shard metadata written above is reachable only
+                // from a generation that is now never written, which makes it collectable garbage rather than a
+                // dangling reference from live data.
+                listener.onFailure(
+                    new RepositoryException(metadata.name(), "deletion of " + snapshotIds + " was abandoned before its generation commit")
+                );
+                return;
+            }
             final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                 builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
             }
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
-            writeIndexGen(
-                updatedRepoData,
-                repositoryStateId,
-                repoMetaVersion,
-                Function.identity(),
-                Priority.NORMAL,
-                ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
-            );
+            if (mode == IndexGenerationWrite.LEGACY) {
+                // Through the overridable overload for a deletion that cannot be given up on; the one that can calls the private
+                // overload, so that no override can drop its attempt.
+                writeIndexGen(
+                    updatedRepoData,
+                    repositoryStateId,
+                    repoMetaVersion,
+                    Function.identity(),
+                    Priority.NORMAL,
+                    ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
+                );
+            } else {
+                writeIndexGen(
+                    updatedRepoData,
+                    repositoryStateId,
+                    repoMetaVersion,
+                    Function.identity(),
+                    Priority.NORMAL,
+                    deletion,
+                    IndexGenerationWrite.ABANDONABLE,
+                    ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
+                );
+            }
         }, listener::onFailure);
         // Once we have updated the repository, run the clean-ups
         final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
@@ -1418,11 +1517,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         pinnedTimestampListener.whenComplete(updatedRepoData -> {
 
-            // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-            final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
-                ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
-                2
-            );
+            // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion. The generation has committed, so the
+            // deletion answers success either way; one that can be given up on records a shard-level cleanup failure on its attempt.
+            final ActionListener<Collection<Void>> afterCleanups = mode == IndexGenerationWrite.ABANDONABLE
+                ? ActionListener.wrap(ignored -> listener.onResponse(updatedRepoData), e -> {
+                    deletion.recordCleanupFailure(e);
+                    listener.onResponse(updatedRepoData);
+                })
+                : ActionListener.wrap(() -> listener.onResponse(updatedRepoData));
+            final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(afterCleanups, 2);
 
             // We can create map of indexId to ShardInfo based on the old repository data. This is later used in cleanup
             // of stale indexes in combination with Snapshot Shard Paths file
@@ -1445,7 +1548,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreLockManagerFactory,
                 remoteSegmentStoreDirectoryFactory,
                 afterCleanupsListener,
-                idToShardInfoMap
+                idToShardInfoMap,
+                deletion
             );
             if (isShallowSnapshotV2) {
                 cleanUpRemoteStoreFilesForDeletedIndicesV2(
@@ -1461,7 +1565,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotIds,
                     writeShardMetaDataAndComputeDeletesStep.result(),
                     remoteStoreLockManagerFactory,
-                    afterCleanupsListener
+                    afterCleanupsListener,
+                    deletion
                 );
             }
         }, listener::onFailure);
@@ -1567,6 +1672,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param remoteStoreLockManagerFactory remote store lock manager factory used for shallow snapshots
      * @param listener                      listener on deletion of the stale indices
      * @param idToShardInfoMap              map of indexId to ShardInfo
+     * @param deletion                      this attempt at the deletion, consulted before any blob is removed
      */
     private void cleanupUnlinkedRootAndIndicesBlobs(
         Collection<SnapshotId> deletedSnapshots,
@@ -1577,7 +1683,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<Void> listener,
-        Map<String, ShardInfo> idToShardInfoMap
+        Map<String, ShardInfo> idToShardInfoMap,
+        SnapshotDeletionAttempt deletion
     ) {
         cleanupStaleBlobs(
             deletedSnapshots,
@@ -1588,7 +1695,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteStoreLockManagerFactory,
             remoteSegmentStoreDirectoryFactory,
             ActionListener.map(listener, ignored -> null),
-            idToShardInfoMap
+            idToShardInfoMap,
+            deletion
         );
     }
 
@@ -1597,7 +1705,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         Collection<ShardSnapshotMetaDeleteResult> deleteResults,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        SnapshotDeletionAttempt deletion
     ) {
         final List<Tuple<BlobPath, String>> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
         long startTimeNs = System.nanoTime();
@@ -1624,7 +1733,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Start as many workers as fit into the snapshot_deletion pool at once at the most
             final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
             for (int i = 0; i < workers; ++i) {
-                executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, groupedListener);
+                executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, groupedListener, deletion);
             }
 
         } catch (Exception e) {
@@ -1727,13 +1836,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void executeStaleShardDelete(
         BlockingQueue<List<Tuple<BlobPath, String>>> staleFilesToDeleteInBatch,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        GroupedActionListener<Void> listener
+        GroupedActionListener<Void> listener,
+        SnapshotDeletionAttempt deletion
     ) throws InterruptedException {
         List<Tuple<BlobPath, String>> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
         if (filesToDelete == null) {
             return;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
+            // Read per batch: the drain requeues itself one batch at a time and is the longest destructive stretch of a deletion.
+            if (deletion.isAbandoned()) {
+                // Resolve this batch and keep draining, since the grouped listener counts batches. The skipped blobs are unreferenced
+                // by the new repository data and stay until a later deletion touching the shard, or a cleanup of a wholly
+                // unreferenced index, removes them.
+                l.onResponse(null);
+                executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, listener, deletion);
+                return;
+            }
             try {
                 // filtering files for which remote store lock release and cleanup succeeded,
                 // remaining files for which it failed will be retried in next snapshot delete run.
@@ -1784,7 +1903,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 l.onFailure(e);
             }
-            executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, listener);
+            executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, listener, deletion);
         }));
     }
 
@@ -1966,6 +2085,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param newRepoData                   new repository data that was just written
      * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files.
      * @param idToShardInfoMap              map of indexId to ShardInfo
+     * @param deletion                      this attempt at the deletion, read here for both units of cleanup below and relayed into the
+     *                                      stale index drain
      * @param listener                      listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
      */
     private void cleanupStaleBlobs(
@@ -1977,8 +2098,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<DeleteResult> listener,
-        Map<String, ShardInfo> idToShardInfoMap
+        Map<String, ShardInfo> idToShardInfoMap,
+        SnapshotDeletionAttempt deletion
     ) {
+        if (deletion.isAbandoned()) {
+            // The root-blob unit reads abandonment only here; the stale-index unit reads it again per index. What is skipped is
+            // unreferenced by the new repository data and stays in the repository.
+            logger.debug("Repository [{}] skipping cleanup of unreferenced blobs: this deletion was abandoned", metadata.name());
+            listener.onResponse(DeleteResult.ZERO);
+            return;
+        }
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             for (DeleteResult result : deleteResults) {
@@ -1993,7 +2122,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
             executor.execute(ActionRunnable.supply(groupedListener, () -> {
-                List<String> deletedBlobs = cleanupStaleRootFiles(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
+                List<String> deletedBlobs = cleanupStaleRootFiles(
+                    newRepoData.getGenId() - 1,
+                    deletedSnapshots,
+                    withoutIndexNThePointerMayName(staleRootBlobs),
+                    deletion
+                );
                 return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
             }));
         }
@@ -2012,7 +2146,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 oldRepoData,
                 groupedListener,
                 snapshotShardPaths,
-                idToShardInfoMap
+                idToShardInfoMap,
+                deletion
             );
         }
     }
@@ -2083,7 +2218,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             remoteStoreLockManagerFactory,
                             remoteSegmentStoreDirectoryFactory,
                             ActionListener.map(listener, RepositoryCleanupResult::new),
-                            Collections.emptyMap()
+                            Collections.emptyMap(),
+                            // A repository cleanup has no time budget on it, so there is no caller to give up on it.
+                            SnapshotDeletionAttempt.notAbandoned()
                         ),
                         listener::onFailure
                     )
@@ -2121,10 +2258,48 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }).collect(Collectors.toList());
     }
 
+    /**
+     * On a store whose conditional writes are proven, and while {@code index.latest} is maintained, the given root blobs less
+     * every {@code index-K} that {@code index.latest} may name: those at or above the generation it names when that value is a
+     * generation whose {@code index-N} blob exists, and every one of them otherwise. Elsewhere the blobs unchanged.
+     */
+    private List<String> withoutIndexNThePointerMayName(List<String> rootBlobs) {
+        if (conditionalWritesProven() == false || supportURLRepo == false) {
+            return rootBlobs;
+        }
+        final OptionalLong pointer = confirmedIndexLatest();
+        return rootBlobs.stream()
+            .filter(
+                blob -> blob.startsWith(INDEX_FILE_PREFIX) == false
+                    || (pointer.isPresent() && Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length())) < pointer.getAsLong())
+            )
+            .collect(Collectors.toList());
+    }
+
+    /** The generation {@code index.latest} names, if it holds exactly one generation and that generation's blob exists. */
+    private OptionalLong confirmedIndexLatest() {
+        try {
+            final BlobContainer container = blobContainer();
+            final byte[] content;
+            try (InputStream stream = container.readBlob(INDEX_LATEST_BLOB)) {
+                content = stream.readAllBytes();
+            }
+            if (content.length != Long.BYTES) {
+                return OptionalLong.empty();
+            }
+            final long generation = BytesRefUtils.bytesToLong(new BytesRef(content));
+            return container.blobExists(INDEX_FILE_PREFIX + generation) ? OptionalLong.of(generation) : OptionalLong.empty();
+        } catch (Exception e) {
+            logger.debug(() -> new ParameterizedMessage("[{}] could not read index.latest", metadata.name()), e);
+            return OptionalLong.empty();
+        }
+    }
+
     private List<String> cleanupStaleRootFiles(
         long previousGeneration,
         Collection<SnapshotId> deletedSnapshots,
-        List<String> blobsToDelete
+        List<String> blobsToDelete,
+        SnapshotDeletionAttempt deletion
     ) {
         if (blobsToDelete.isEmpty()) {
             return blobsToDelete;
@@ -2153,6 +2328,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             deleteFromContainer(blobContainer(), blobsToDelete);
             return blobsToDelete;
         } catch (IOException e) {
+            deletion.recordCleanupFailure(e);
             logger.warn(
                 () -> new ParameterizedMessage(
                     "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
@@ -2166,12 +2342,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             // bubbling up and breaking the snapshot functionality.
             assert false : e;
+            deletion.recordCleanupFailure(e);
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of root level blobs", metadata.name()), e);
         }
         return Collections.emptyList();
     }
 
-    void cleanupStaleIndices(
+    /**
+     * Package-private for {@code BlobStoreRepositoryTests}, and {@code final} so that no override, in this package or a subclass,
+     * can drop {@code deletion}, whose abandonment check is in {@link #executeOneStaleIndexDelete}.
+     */
+    final void cleanupStaleIndices(
         Collection<SnapshotId> deletedSnapshots,
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
@@ -2180,7 +2361,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener,
         Map<String, BlobMetadata> snapshotShardPaths,
-        Map<String, ShardInfo> idToShardInfoMap
+        Map<String, ShardInfo> idToShardInfoMap,
+        SnapshotDeletionAttempt deletion
     ) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
@@ -2212,7 +2394,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     oldRepoData,
                     groupedListener,
                     snapshotShardPaths,
-                    idToShardInfoMap
+                    idToShardInfoMap,
+                    deletion
                 );
             }
         } catch (Exception e) {
@@ -2220,6 +2403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             // bubbling up and breaking the snapshot functionality.
             assert false : e;
+            deletion.recordCleanupFailure(e);
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
     }
@@ -2241,6 +2425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener                      Listener for grouped delete actions
      * @param snapshotShardPaths            Map of snapshot shard paths and their metadata
      * @param idToShardInfoMap              Map of indexId to ShardInfo
+     * @param deletion                      this attempt at the deletion, read once per stale index taken off the queue
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private void executeOneStaleIndexDelete(
@@ -2251,7 +2436,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData oldRepoData,
         GroupedActionListener<DeleteResult> listener,
         Map<String, BlobMetadata> snapshotShardPaths,
-        Map<String, ShardInfo> idToShardInfoMap
+        Map<String, ShardInfo> idToShardInfoMap,
+        SnapshotDeletionAttempt deletion
     ) throws InterruptedException {
         Map.Entry<String, BlobContainer> indexEntry = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
         if (indexEntry == null) {
@@ -2260,6 +2446,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String indexSnId = indexEntry.getKey();
         threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.supply(listener, () -> {
             try {
+                // Read per stale index: the drain requeues itself one index at a time. An index whose cleanup passed this point runs
+                // to completion.
+                if (deletion.isAbandoned()) {
+                    // Report nothing removed rather than drop this index, and let the finally below keep the queue draining: the
+                    // grouped listener is sized to the number of stale indices, so an index that neither deletes nor reports would
+                    // leave the deletion unanswered. The indices left behind are unreferenced by the new repository data and are
+                    // left in the repository.
+                    return DeleteResult.ZERO;
+                }
                 logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                 List<String> matchingShardPaths = findMatchingShardPaths(indexSnId, snapshotShardPaths);
                 Optional<String> highestGenShardPaths = findHighestGenerationShardPaths(matchingShardPaths);
@@ -2288,6 +2483,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                 return deleteResult;
             } catch (IOException e) {
+                deletion.recordCleanupFailure(e);
                 logger.warn(
                     () -> new ParameterizedMessage(
                         "[{}] index {} is no longer part of any snapshots in the repository, "
@@ -2300,6 +2496,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return DeleteResult.ZERO;
             } catch (Exception e) {
                 assert false : e;
+                deletion.recordCleanupFailure(e);
                 logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
                 return DeleteResult.ZERO;
             } finally {
@@ -2311,7 +2508,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     oldRepoData,
                     listener,
                     snapshotShardPaths,
-                    idToShardInfoMap
+                    idToShardInfoMap,
+                    deletion
                 );
             }
         }));
@@ -3537,7 +3735,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn(
                     () -> new ParameterizedMessage(
                         "[{}] could not complete a conditional write probe of the store in [{}] attempts; snapshot finalizations "
-                            + "on this repository are not given time budgets",
+                            + "and deletions on this repository are not given time budgets",
                         metadata.name(),
                         MAX_CONDITIONAL_WRITE_PROBES
                     ),
@@ -3555,7 +3753,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else if (outcome == ConditionalWriteProof.UNPROVEN) {
             logger.warn(
                 "[{}] the store does not support conditional writes or did not honour them for this client; snapshot finalizations "
-                    + "on this repository are not given time budgets",
+                    + "and deletions on this repository are not given time budgets",
                 metadata.name()
             );
         }
@@ -3621,6 +3819,37 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return isSystemRepository;
     }
 
+    /** Held in a field rather than built per call, so that a declaring subclass hands out the same entrypoint whenever it hands one out. */
+    private final Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete = Optional.of(this::deleteSnapshotsObservingAbandonment);
+
+    /**
+     * The full-copy delete entrypoint for a subclass that declares {@link #abandonableSnapshotDelete()} for its own delete
+     * path, or empty while {@link #timeBudgetsSupported()} does not hold. The entrypoint runs this class's delete body
+     * directly, so it bypasses the declaring class's {@code deleteSnapshots}(4), the public {@code deleteSnapshotsInternal}(9)
+     * and {@code writeIndexGen}(6). A subclass of a declaring class inherits the declaration.
+     */
+    protected final Optional<AbandonableSnapshotDelete> blobStoreAbandonableSnapshotDelete() {
+        return timeBudgetsSupported() ? abandonableSnapshotDelete : Optional.empty();
+    }
+
+    /**
+     * Which deletion is running: the one {@link #blobStoreAbandonableSnapshotDelete()} hands out, whose caller may stop waiting
+     * for it, or any other writer. Chosen by the entrypoint that was called.
+     */
+    private enum IndexGenerationWrite {
+        /**
+         * Finalization, repository cleanup, and every deletion other than the one {@link #blobStoreAbandonableSnapshotDelete()} hands
+         * out. Where {@code index.latest} is written is decided by whether the store is proven, not by the mode.
+         */
+        LEGACY,
+        /**
+         * The deletion {@link #blobStoreAbandonableSnapshotDelete()} hands out, whose caller may stop waiting for it. It runs only
+         * on a proven store, and after its commit it writes {@code index.latest} and removes the superseded {@code index-N}
+         * blobs only if its caller had not already stopped waiting when that step began.
+         */
+        ABANDONABLE
+    }
+
     /**
      * Writing a new index generation is a three step process.
      * First, the {@link RepositoryMetadata} entry for this repository is set into a pending state by incrementing its
@@ -3644,7 +3873,44 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Priority repositoryUpdatePriority,
         ActionListener<RepositoryData> listener
     ) {
+        // Finalization, repository cleanup and every deletion that cannot be given up on run the one body, in LEGACY mode, with an
+        // attempt no caller holds.
+        writeIndexGen(
+            repositoryData,
+            expectedGen,
+            version,
+            stateFilter,
+            repositoryUpdatePriority,
+            SnapshotDeletionAttempt.notAbandoned(),
+            IndexGenerationWrite.LEGACY,
+            listener
+        );
+    }
+
+    /**
+     * Writes a new index generation. {@code deletion} is consulted as the generation commit begins, so a deletion whose
+     * caller has already been told it failed does not commit. Where {@code index.latest} is written depends on whether this
+     * instance's store is proven: unproven, beside the new {@code index-N} blob, before the commit, for every writer; proven,
+     * after this writer's own commit, as a conditional write that never lowers a value naming an existing {@code index-N} blob,
+     * and not at all by a writer whose commit fails. On a proven store the superseded {@code index-N} blobs are removed only after
+     * that write is confirmed, and for {@link IndexGenerationWrite#ABANDONABLE} neither is done once {@code deletion} reports its
+     * caller stopped waiting.
+     */
+    private void writeIndexGen(
+        RepositoryData repositoryData,
+        long expectedGen,
+        Version version,
+        Function<ClusterState, ClusterState> stateFilter,
+        Priority repositoryUpdatePriority,
+        SnapshotDeletionAttempt deletion,
+        IndexGenerationWrite mode,
+        ActionListener<RepositoryData> listener
+    ) {
         assert isReadOnly() == false; // can not write to a read only repository
+        // Read once for the whole write. Proven is terminal for the instance, and a deletion that can be given up on is only
+        // handed out once the store is proven.
+        final boolean linearized = conditionalWritesProven();
+        assert mode == IndexGenerationWrite.LEGACY || linearized : "a deletion that can be given up on runs only on a proven store";
         final long currentGen = repositoryData.getGenId();
         if (currentGen != expectedGen) {
             // the index file was updated by a concurrent operation, so we were operating on stale
@@ -3733,7 +3999,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
 
-        // Step 2: Write new index-N blob to repository and update index.latest
+        // Step 2: Write new index-N blob to repository, and update index.latest here unless the store is proven (a proven store
+        // writes it after step 3)
         setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             // BwC logic: Load snapshot version information if any snapshot is missing a version in RepositoryData so that the new
             // RepositoryData contains a version for every snapshot
@@ -3800,7 +4067,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version, minNodeVersion)
             );
             writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);
-            maybeWriteIndexLatest(newGen);
+            if (linearized == false) {
+                maybeWriteIndexLatest(newGen);
+            }
 
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask(
@@ -3823,7 +4092,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     + "]"
                             );
                         }
-                        return updateRepositoryGenerationsIfNecessary(
+                        final ClusterState updated = updateRepositoryGenerationsIfNecessary(
                             stateFilter.apply(
                                 ClusterState.builder(currentState)
                                     .metadata(
@@ -3840,10 +4109,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             expectedGen,
                             newGen
                         );
+                        // Claimed last, once nothing else in this task can fail, so that a claimed commit is followed only by
+                        // this generation's publication or by onFailure. Declining leaves the repository at the generation it
+                        // is already at, and in the consistent mode leaves the index-N blob written above referenced by no
+                        // committed generation, so a later write or cleanup reclaims it.
+                        //
+                        // Under bestEffortConsistency, which a repository instance built while this gap is open starts in (for
+                        // example after a full restart, a re-registration or a non-reloadable settings change), the generation
+                        // comes from a listing of index- blobs, so a declined blob can become the effective generation and the
+                        // deletion still take effect.
+                        if (deletion.claimCommit() == false) {
+                            throw new RepositoryException(
+                                metadata.name(),
+                                "deletion was abandoned before generation [" + newGen + "] was committed"
+                            );
+                        }
+                        return updated;
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
+                        deletion.commitUnconfirmed(e);
                         listener.onFailure(
                             new RepositoryException(metadata.name(), "Failed to execute cluster state update [" + source + "]", e)
                         );
@@ -3851,8 +4137,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        deletion.committed(newRepositoryData);
                         cacheRepositoryData(serializedRepoData, newGen);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+                            if (linearized) {
+                                // Written after the commit, so a writer that lost the generation compare-and-set never writes
+                                // it, and on the snapshot pool because it is a blocking blob write. Abandonment is read once for
+                                // both steps below: skipping both is harmless, but removing a superseded index-N while
+                                // index.latest may still name it is not.
+                                if (mode == IndexGenerationWrite.ABANDONABLE && deletion.isAbandoned()) {
+                                    logger.debug(
+                                        "Repository [{}] not updating index.latest or removing index-N blobs: deletion abandoned",
+                                        metadata.name()
+                                    );
+                                    return newRepositoryData;
+                                }
+                                if (installIndexLatest(newGen) == false) {
+                                    // index.latest may still name one of the blobs below, so none is removed here; the root
+                                    // cleanup of a deletion or of a repository cleanup keeps them too, by reading index.latest.
+                                    deletion.recordCleanupFailure(
+                                        new RepositoryException(
+                                            metadata.name(),
+                                            "index.latest was not confirmed at generation [" + newGen + "]"
+                                        )
+                                    );
+                                    return newRepositoryData;
+                                }
+                            }
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
                             // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
@@ -3863,6 +4174,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             try {
                                 deleteFromContainer(blobContainer(), oldIndexN);
                             } catch (IOException e) {
+                                deletion.recordCleanupFailure(e);
                                 logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
                             }
                             return newRepositoryData;
@@ -3895,6 +4207,74 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
         }
+    }
+
+    /**
+     * Writes {@code index.latest} for a generation this writer has just committed, on a store whose conditional writes are
+     * proven, and returns whether it is known to name that generation or a later one, which is what allows the superseded
+     * {@code index-N} blobs to be removed.
+     * <p>
+     * The write is a compare-and-set against the value read. A value already at or past {@code newGen} is left alone when the
+     * {@code index-N} blob it names exists, so no such write lowers it; a value that is not a generation, or that names a
+     * blob which does not exist, is replaced. {@code true} is also returned when the blob is not maintained
+     * ({@code support_url_repo} is {@code false}); a blob left from a time the setting was {@code true} is then not kept in
+     * step.
+     */
+    private boolean installIndexLatest(long newGen) {
+        final BlobContainer container = blobContainer();
+        if (supportURLRepo == false) {
+            return true;
+        }
+        assert container.isConditionalWriteSupported() : "a proven store must support conditional writes";
+        final BytesArray value = new BytesArray(Numbers.longToBytes(newGen));
+        // Three immediate rounds and no backoff. Running out keeps the root index-N blobs, which the next deletion whose
+        // index.latest write is confirmed, or a repository cleanup, removes; a later finalization removes only the two newest.
+        Exception lastFailure = null;
+        for (int round = 0; round < 3; round++) {
+            try {
+                String token = null;
+                try {
+                    final VersionedBlob current = container.readBlobWithVersion(INDEX_LATEST_BLOB);
+                    token = current.versionToken();
+                    final long named = current.content().length == Long.BYTES
+                        ? BytesRefUtils.bytesToLong(new BytesRef(current.content()))
+                        : -1;
+                    if (named >= newGen && container.blobExists(INDEX_FILE_PREFIX + named)) {
+                        return true;
+                    }
+                } catch (NoSuchFileException e) {
+                    // absent: create it only if it is still absent
+                }
+                try (InputStream stream = value.streamInput()) {
+                    container.writeBlobConditionally(INDEX_LATEST_BLOB, stream, value.length(), token);
+                }
+                return true;
+            } catch (BlobVersionConflictException e) {
+                // another writer changed it since the read: read it again and decide again
+                lastFailure = e;
+            } catch (Exception e) {
+                lastFailure = e;
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Repository [{}] conditional write of index.latest for [{}] failed",
+                        metadata.name(),
+                        newGen
+                    ),
+                    e
+                );
+            }
+        }
+        logger.warn(
+            new ParameterizedMessage(
+                "Repository [{}] could not confirm that index.latest names generation [{}], so superseded index-N blobs are left in "
+                    + "place. If this repository is not the basis of a URL repository, setting [{}] to [false] stops these writes",
+                metadata.name(),
+                newGen,
+                SUPPORT_URL_REPO.getKey()
+            ),
+            lastFailure
+        );
+        return false;
     }
 
     /**

@@ -144,6 +144,120 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         assertIsNoop(updatedClusterState, completeShard);
     }
 
+    /**
+     * A promotion guard scoped to the repository rather than to the entry would leave an entry that has started a shard unable to
+     * start the rest, finish or finalize, holding its index names so that every pass defers the same entry: a fixed point that
+     * neither a delete removal nor an election breaks.
+     * <p>
+     * Three concurrent snapshots over two indices the repository has never held. The middle entry is the mixed holder: one shard
+     * started, one queued behind the first entry. It must be allowed to finish. The third entry has begun nothing, so it is genuinely
+     * waiting for a rebind and must not be started -- which is what makes the assertion about the middle entry discriminating rather
+     * than a blanket ungating.
+     */
+    public void testMixedEntryIsPromotedWhileAnAllQueuedEntryOfTheSameRepositoryIsNot() throws Exception {
+        final String repoName = "test-repo";
+        final String firstIndexName = "index-1";
+        final String secondIndexName = "index-2";
+        final String dataNodeId = uuid();
+        // One identifier per index name, shared by every entry that holds it, which is the invariant the repository enforces.
+        final IndexId firstIndexId = indexId(firstIndexName);
+        final IndexId secondIndexId = indexId(secondIndexName);
+        final ShardId firstShardId = new ShardId(index(firstIndexName), 0);
+        final ShardId secondShardId = new ShardId(index(secondIndexName), 0);
+
+        final Snapshot running = snapshot(repoName, "snapshot-running");
+        final Snapshot mixed = snapshot(repoName, "snapshot-mixed");
+        final Snapshot waiting = snapshot(repoName, "snapshot-waiting");
+        final ClusterState state = stateWithSnapshots(
+            snapshotEntry(running, Collections.singletonList(firstIndexId), shardsMap(firstShardId, initShardStatus(dataNodeId))),
+            snapshotEntry(
+                mixed,
+                Arrays.asList(firstIndexId, secondIndexId),
+                Map.of(firstShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED, secondShardId, initShardStatus(dataNodeId))
+            ),
+            snapshotEntry(
+                waiting,
+                Collections.singletonList(secondIndexId),
+                shardsMap(secondShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+            )
+        );
+        // Both shards the three entries contend for come free in the same batch, so each queued shard is a candidate the guard has
+        // to answer for rather than one the state never offered it.
+        final List<SnapshotsService.ShardSnapshotUpdate> completions = Arrays.asList(
+            successUpdate(running, firstShardId, dataNodeId),
+            successUpdate(mixed, secondShardId, dataNodeId)
+        );
+
+        final SnapshotsInProgress gated = SnapshotsService.executeShardSnapshotUpdates(
+            state,
+            completions,
+            repository -> repository.equals(repoName)
+        ).resultingState.custom(SnapshotsInProgress.TYPE);
+        assertThat(gated.entries().get(0).state(), is(SnapshotsInProgress.State.SUCCESS));
+        assertThat(
+            "an entry that has already started a shard has settled its identity and must be allowed to finish",
+            gated.entries().get(1).shards().get(firstShardId).state(),
+            is(SnapshotsInProgress.ShardState.INIT)
+        );
+        assertThat(gated.entries().get(1).shards().get(secondShardId).state(), is(SnapshotsInProgress.ShardState.SUCCESS));
+        assertThat(
+            "an entry of which nothing has begun is still waiting for its identity and must not be started",
+            gated.entries().get(2).shards().get(secondShardId).state(),
+            is(SnapshotsInProgress.ShardState.QUEUED)
+        );
+
+        final SnapshotsInProgress ungated = SnapshotsService.executeShardSnapshotUpdates(
+            state,
+            completions,
+            repository -> false
+        ).resultingState.custom(SnapshotsInProgress.TYPE);
+        assertThat(ungated.entries().get(2).shards().get(secondShardId).state(), is(SnapshotsInProgress.ShardState.INIT));
+    }
+
+    /**
+     * A clone that has begun nothing is not started by a completing shard snapshot while a reconciliation is owed for its repository:
+     * only the reconciliation pass starts such a clone then, because started here it would count as begun and a failed finalization
+     * read would fail it. With nothing owed the completing shard starts it.
+     */
+    public void testQueuedCloneIsNotStartedByACompletingShardWhileAReconciliationIsOwed() throws Exception {
+        final String repoName = "test-repo";
+        final String indexName = "index-1";
+        final String dataNodeId = uuid();
+        final IndexId indexId = indexId(indexName);
+        final RepositoryShardId repositoryShardId = new RepositoryShardId(indexId, 0);
+        final Snapshot plainSnapshot = snapshot(repoName, "test-snapshot");
+        final Snapshot targetSnapshot = snapshot(repoName, "target-snapshot");
+        final ShardId routingShardId = new ShardId(index(indexName), 0);
+        final ClusterState state = stateWithSnapshots(
+            snapshotEntry(plainSnapshot, Collections.singletonList(indexId), shardsMap(routingShardId, initShardStatus(dataNodeId))),
+            cloneEntry(
+                targetSnapshot,
+                snapshot(repoName, "source-snapshot").getSnapshotId(),
+                clonesMap(repositoryShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+            )
+        );
+        final SnapshotsService.ShardSnapshotUpdate completeShard = successUpdate(plainSnapshot, routingShardId, dataNodeId);
+
+        final SnapshotsInProgress gated = SnapshotsService.executeShardSnapshotUpdates(
+            state,
+            Collections.singletonList(completeShard),
+            repository -> repository.equals(repoName)
+        ).resultingState.custom(SnapshotsInProgress.TYPE);
+        assertThat(gated.entries().get(0).state(), is(SnapshotsInProgress.State.SUCCESS));
+        assertThat(
+            "a completing shard must not start a clone that has begun nothing while a reconciliation is owed",
+            gated.entries().get(1).clones().get(repositoryShardId).state(),
+            is(SnapshotsInProgress.ShardState.QUEUED)
+        );
+
+        final SnapshotsInProgress ungated = SnapshotsService.executeShardSnapshotUpdates(
+            state,
+            Collections.singletonList(completeShard),
+            repository -> false
+        ).resultingState.custom(SnapshotsInProgress.TYPE);
+        assertThat(ungated.entries().get(1).clones().get(repositoryShardId).state(), is(SnapshotsInProgress.ShardState.INIT));
+    }
+
     public void testUpdateSnapshotMultipleShards() throws Exception {
         final String repoName = "test-repo";
         final Snapshot sn1 = snapshot(repoName, "snapshot-1");
@@ -939,7 +1053,8 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
     }
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState;
+        // No repository of this state is waiting for its identity to be re-derived, which is the case every test here is about.
+        return SnapshotsService.executeShardSnapshotUpdates(state, Arrays.asList(updates), repoName -> false).resultingState;
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(
