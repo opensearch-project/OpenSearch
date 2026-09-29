@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
@@ -953,6 +954,52 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         long checksum = createTranslogGeneration(reused, 23, true);
         assertFalse(reuseManager.downloadTranslogIfChanged("12", "23", reused, String.valueOf(checksum)));
         assertEquals(afterDownload, reuseTracker.allUploaded());
+    }
+
+    /**
+     * A generation's two files are written one after the other, so a download that dies between them must not leave a
+     * stale checkpoint beside a fresh translog: the next reconciliation reads the footer at the checkpoint's offset, and
+     * a stale checkpoint with the same offset would locate the new footer and trust the pair. The download therefore
+     * removes both local files before the remote is contacted, in either mode, so no partial outcome can be trusted.
+     */
+    public void testDownloadTranslogRemovesStaleLocalFilesBeforeFetching() throws IOException {
+        for (boolean metadataMode : new boolean[] { false, true }) {
+            TranslogTransferManager manager = new TranslogTransferManager(
+                shardId,
+                transferService,
+                remoteBaseTransferPath.add(TRANSLOG.getName()),
+                remoteBaseTransferPath.add(METADATA.getName()),
+                tracker,
+                remoteTranslogTransferTracker,
+                DefaultRemoteStoreSettings.INSTANCE,
+                metadataMode
+            );
+            Path location = createTempDir();
+            long staleChecksum = createTranslogGeneration(location, 23, true);
+            Path translogPath = location.resolve("translog-23.tlog");
+            Path checkpointPath = location.resolve("translog-23.ckp");
+            assertTrue(manager.isLocalGenerationCurrent(location, 23, String.valueOf(staleChecksum)));
+
+            // The remote fails on the very first request; record what was still on disk at that moment.
+            AtomicBoolean checkpointPresentAtFetch = new AtomicBoolean(true);
+            AtomicBoolean translogPresentAtFetch = new AtomicBoolean(true);
+            Answer<Object> failFirstFetch = invocation -> {
+                checkpointPresentAtFetch.set(Files.exists(checkpointPath));
+                translogPresentAtFetch.set(Files.exists(translogPath));
+                throw new IOException("simulated failure before any byte was written");
+            };
+            when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(failFirstFetch);
+            when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(failFirstFetch);
+
+            expectThrows(IOException.class, () -> manager.downloadTranslog("12", "23", location));
+
+            assertFalse("checkpoint must be gone before the remote is contacted", checkpointPresentAtFetch.get());
+            assertFalse("translog must be gone before the remote is contacted", translogPresentAtFetch.get());
+            assertFalse(Files.exists(checkpointPath));
+            assertFalse(Files.exists(translogPath));
+            // Whatever the next attempt finds, it cannot be trusted.
+            assertFalse(manager.isLocalGenerationCurrent(location, 23, String.valueOf(staleChecksum)));
+        }
     }
 
     /**

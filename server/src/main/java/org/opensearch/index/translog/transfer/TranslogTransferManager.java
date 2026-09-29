@@ -445,6 +445,14 @@ public class TranslogTransferManager {
         );
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        // Remove any local copy of this generation before the first byte is fetched. Each download below deletes the
+        // file it is about to write, but the two files are written one after the other, so a crash in between could
+        // otherwise leave a fresh translog beside a stale checkpoint of the same generation. That pair is what
+        // isLocalGenerationCurrent reconciles on the next attempt, and a stale checkpoint whose offset happens to
+        // equal the new one would locate the new footer and pass. Deleting the checkpoint first turns every partial
+        // outcome into "checkpoint missing", which is never trusted.
+        deleteFileIfExists(location.resolve(ckpFileName));
+        deleteFileIfExists(location.resolve(translogFilename));
         if (isTranslogMetadataEnabled == false) {
             // Download Checkpoint file, translog file from remote to local FS
             downloadToFS(ckpFileName, location, primaryTerm, false);
