@@ -273,7 +273,12 @@ public class InternalEngine extends Engine {
             );
             throttle = new IndexingThrottler();
             try {
-                store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                // A pull-based index has no translog (NoOpTranslogManager), so this can only fail: there is no
+                // global checkpoint to select a safe commit against, and under remote store the commit's
+                // TRANSLOG_UUID belongs to whichever copy uploaded the segments.
+                if (engineConfig.getIndexSettings().getIndexMetadata().useIngestionSource() == false) {
+                    store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                }
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
                 String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
