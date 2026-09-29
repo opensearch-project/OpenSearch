@@ -202,6 +202,7 @@ import org.opensearch.index.translog.RemoteStoreFenceOwnership;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
@@ -240,6 +241,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -3314,14 +3316,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig.setDownloadRemoteTranslogOnInit(false);
         }
 
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
 
-        if (isSnapshotV2Restore()) {
-            translogConfig.setDownloadRemoteTranslogOnInit(true);
+            if (isSnapshotV2Restore()) {
+                translogConfig.setDownloadRemoteTranslogOnInit(true);
+            }
+
+            getIndexer().translogManager()
+                .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
         }
+    }
 
-        getIndexer().translogManager()
-            .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+    /**
+     * On a remote-store shard the local translog directory is a cache of the remote copy, and the download that fills it
+     * reuses a local generation whose footer matches the checksum the remote advertises. If such a generation turns out
+     * to be corrupt inside its operations - rot that an intact footer cannot reveal - opening or replaying the translog
+     * throws {@link TranslogCorruptedException}, the shard fails, and the next recovery would reuse the very same bytes
+     * and fail the same way until {@code index.allocation.max_retries} leaves the shard unassigned.
+     * <p>
+     * Since the remote store holds an intact copy, delete the local directory so that the next attempt starts from the
+     * remote store instead. This is what a recovery did unconditionally before local generations were reused; it is now
+     * done only once the local copy has been proven wrong. Shards without a remote translog are left alone - their local
+     * translog is the only copy, and discarding it would lose data.
+     */
+    private void discardCorruptLocalRemoteTranslog(Exception failure) {
+        if (indexSettings.isRemoteTranslogStoreEnabled() == false
+            || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
+            return;
+        }
+        final Path translogLocation = shardPath().resolveTranslog();
+        logger.warn(
+            () -> new ParameterizedMessage(
+                "local translog at [{}] is corrupt; deleting it so that the next recovery downloads it from the remote store",
+                translogLocation
+            ),
+            failure
+        );
+        try {
+            IOUtils.rm(translogLocation);
+        } catch (IOException e) {
+            failure.addSuppressed(e);
+        }
     }
 
     /**
@@ -3345,7 +3384,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
+        }
         assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
             : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getIndexer().translogManager().skipTranslogRecovery();
