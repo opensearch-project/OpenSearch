@@ -23,7 +23,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.ReadAccessContext;
 import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyService;
@@ -90,12 +89,9 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -919,14 +915,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 ClusterState clusterState = clusterService.state();
-                List<String> requestConcreteIndices = resolveConcreteIndices(clusterState, request.indicesOptions(), request.indices());
+                Map<String, List<String>> concreteIndicesByTable = resolveConcreteIndicesByTable(request.getPlan(), clusterState);
+                List<String> concreteIndices = concreteIndicesByTable.values()
+                    .stream()
+                    .flatMap(List::stream)
+                    .distinct()
+                    .sorted()
+                    .toList();
                 ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
-                    ReadAccessContext.of(requestConcreteIndices)
-                );
-                Map<String, List<String>> concreteIndicesByTable = resolveConcreteIndicesByTable(
-                    request.getPlan(),
-                    clusterState,
-                    requestConcreteIndices
+                    ReadAccessContext.of(concreteIndices)
                 );
                 RelNode securedPlan = logicalPlanDlsRewriter.rewrite(request.getPlan(), readAccessPolicy, concreteIndicesByTable);
                 executeInternal(
@@ -959,28 +956,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         });
     }
 
-    private List<String> resolveConcreteIndices(ClusterState clusterState, IndicesOptions indicesOptions, String... indexExpressions) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, indicesOptions, true, indexExpressions);
-        Arrays.sort(concreteIndices);
-        return List.of(concreteIndices);
-    }
-
-    private Map<String, List<String>> resolveConcreteIndicesByTable(
-        RelNode logicalPlan,
-        ClusterState clusterState,
-        List<String> requestConcreteIndices
-    ) {
-        Set<String> authorizedIndices = new HashSet<>(requestConcreteIndices);
+    private Map<String, List<String>> resolveConcreteIndicesByTable(RelNode logicalPlan, ClusterState clusterState) {
         Map<String, List<String>> concreteIndicesByTable = new LinkedHashMap<>();
         for (String tableExpression : RelNodeUtils.extractTableExpressions(logicalPlan)) {
             List<String> concreteIndices = IndexResolution.resolve(tableExpression, clusterState, indexNameExpressionResolver)
                 .concreteIndexNames()
                 .stream()
                 .sorted()
-                .filter(authorizedIndices::contains)
                 .toList();
             if (concreteIndices.isEmpty()) {
-                throw new OpenSearchException("No authorized concrete indices were resolved for table [" + tableExpression + "]");
+                throw new OpenSearchException("No concrete indices were resolved for table [" + tableExpression + "]");
             }
             concreteIndicesByTable.put(tableExpression, concreteIndices);
         }
