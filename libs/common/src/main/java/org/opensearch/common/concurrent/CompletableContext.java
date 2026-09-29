@@ -93,9 +93,13 @@ public class CompletableContext<T> {
      * @param listener listener to add
      */
     public void addRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        // added before the check on purpose: a listener that lands after the completion sweep has passed is
+        // picked up here, one that lands before it is picked up by the sweep, and remove() decides which of the
+        // two notifies it. Checking first and adding only if not done would strand a listener added in between,
+        // because the sweep runs once and does not see it.
         removableListeners.add(listener);
         if (completableFuture.isDone()) {
-            notifyRemovableListeners();
+            notifyRemovableListener(listener);
         }
     }
 
@@ -110,7 +114,7 @@ public class CompletableContext<T> {
     }
 
     /**
-     * Number of removable listeners that are waiting to be notified.
+     * Number of removable listeners that are waiting to be notified. Only meant for tests.
      *
      * @return number of listeners
      */
@@ -119,24 +123,24 @@ public class CompletableContext<T> {
     }
 
     private void notifyRemovableListeners() {
+        for (BiConsumer<T, ? super Exception> listener : removableListeners) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    private void notifyRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        // whoever takes the listener out of the set owns notifying it, so a listener that is added or removed
+        // while this context is completing is notified exactly once, or not at all once it has been removed
+        if (removableListeners.remove(listener) == false) {
+            return;
+        }
         // only reached once the future is done, so resultNow / exceptionNow do not throw
-        final T result;
-        final Exception failure;
         if (completableFuture.isCompletedExceptionally()) {
             final Throwable t = completableFuture.exceptionNow();
             assert !(t instanceof Error) : "Cannot be error";
-            result = null;
-            failure = (Exception) t;
+            listener.accept(null, (Exception) t);
         } else {
-            result = completableFuture.resultNow();
-            failure = null;
-        }
-        for (BiConsumer<T, ? super Exception> listener : removableListeners) {
-            // whoever takes the listener out of the set owns notifying it, so a listener that is added or removed
-            // while this context is completing is notified exactly once, or not at all once it has been removed
-            if (removableListeners.remove(listener)) {
-                listener.accept(result, failure);
-            }
+            listener.accept(completableFuture.resultNow(), null);
         }
     }
 }

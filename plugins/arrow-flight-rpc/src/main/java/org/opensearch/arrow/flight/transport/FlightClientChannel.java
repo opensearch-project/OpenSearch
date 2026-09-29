@@ -279,6 +279,8 @@ class FlightClientChannel implements TcpChannel {
 
     @Override
     public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // added before the check on purpose: close() walks the list once, so a listener added after that walk is
+        // notified here, one added before it is notified by close(), and remove() decides which of the two does it
         removableCloseListeners.add(listener);
         if (closeFuture.isDone()) {
             notifyRemovableListener(listener);
