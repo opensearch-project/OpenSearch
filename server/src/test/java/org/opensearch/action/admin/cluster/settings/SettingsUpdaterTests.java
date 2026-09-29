@@ -39,6 +39,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -54,6 +56,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -531,6 +534,61 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
             }
             assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(unknownSetting.getKey())));
             assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(unknownSetting.getKey())));
+        }
+    }
+
+    /**
+     * The two withdrawn snapshot resilience keys, present in persisted cluster state: the first update that changes
+     * another setting archives the key, every further update that changes a setting is then rejected until the
+     * archived key is deleted, and a delete that names the original key is rejected as not recognized. The flag is
+     * locked on so that this test fails if either key is registered: a registered key is valid with the flag on, so
+     * it would not be archived.
+     */
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testWithdrawnSnapshotResilienceKeyIsArchivedAndBlocksUpdatesUntilDeleted() {
+        final String balance = BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey();
+        for (final String[] kv : new String[][] {
+            { "snapshot.repository.max_outstanding_ops", "8" },
+            { "snapshot.delete.cleanup_stale_blobs", "false" } }) {
+            final String key = kv[0];
+            final SettingsUpdater updater = new SettingsUpdater(
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            final ClusterState before = ClusterState.builder(new ClusterName("cluster"))
+                .metadata(Metadata.builder().persistentSettings(Settings.builder().put(key, kv[1]).build()))
+                .build();
+            final ClusterState archived = updater.updateSettings(
+                before,
+                Settings.EMPTY,
+                Settings.builder().put(balance, 0.7).build(),
+                logger
+            );
+            assertThat(archived.metadata().persistentSettings().get(ARCHIVED_SETTINGS_PREFIX + key), equalTo(kv[1]));
+            assertThat(archived.metadata().persistentSettings().keySet(), not(hasItem(key)));
+            final SettingsException blocked = expectThrows(
+                SettingsException.class,
+                () -> updater.updateSettings(archived, Settings.EMPTY, Settings.builder().put(balance, 0.8).build(), logger)
+            );
+            assertThat(blocked.getMessage(), containsString("unknown setting [" + ARCHIVED_SETTINGS_PREFIX + key + "]"));
+            final SettingsException bareNull = expectThrows(
+                SettingsException.class,
+                () -> updater.updateSettings(before, Settings.EMPTY, Settings.builder().putNull(key).build(), logger)
+            );
+            assertThat(bareNull.getMessage(), containsString("persistent setting [" + key + "], not recognized"));
+            final ClusterState cleared = updater.updateSettings(
+                archived,
+                Settings.EMPTY,
+                Settings.builder().putNull(ARCHIVED_SETTINGS_PREFIX + "*").build(),
+                logger
+            );
+            assertThat(cleared.metadata().persistentSettings().keySet(), not(hasItem(ARCHIVED_SETTINGS_PREFIX + key)));
+            assertThat(
+                updater.updateSettings(cleared, Settings.EMPTY, Settings.builder().put(balance, 0.8).build(), logger)
+                    .metadata()
+                    .persistentSettings()
+                    .get(balance),
+                equalTo("0.8")
+            );
         }
     }
 

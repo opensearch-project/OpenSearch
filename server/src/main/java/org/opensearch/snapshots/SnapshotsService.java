@@ -320,8 +320,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static final String IO_TIMEOUT_KEY = "snapshot.repository.io_timeout";
-    private static final String MAX_OUTSTANDING_OPS_KEY = "snapshot.repository.max_outstanding_ops";
-    private static final String CLEANUP_STALE_BLOBS_KEY = "snapshot.delete.cleanup_stale_blobs";
 
     /**
      * Setting that specifies the time budget, on the cluster-manager node, for a snapshot finalization or deletion and for the
@@ -346,34 +344,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return value;
         },
         snapshotResilienceValidator(IO_TIMEOUT_KEY),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Setting that specifies the maximum number of outstanding (dispatched but uncompleted) cluster-manager-side
-     * repository blob operations per repository. Past this limit, further operations fail fast with a
-     * "repository unreachable" error instead of parking another thread.
-     * Only modifiable when the snapshot resilience feature flag is enabled.
-     */
-    public static final Setting<Integer> SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING = Setting.intSetting(
-        MAX_OUTSTANDING_OPS_KEY,
-        4,
-        1,
-        snapshotResilienceValidator(MAX_OUTSTANDING_OPS_KEY),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Setting that controls whether a successful snapshot delete should opportunistically reclaim storage
-     * orphaned by previously interrupted deletes.
-     * Only modifiable when the snapshot resilience feature flag is enabled.
-     */
-    public static final Setting<Boolean> SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING = Setting.boolSetting(
-        CLEANUP_STALE_BLOBS_KEY,
-        true,
-        snapshotResilienceValidator(CLEANUP_STALE_BLOBS_KEY),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
