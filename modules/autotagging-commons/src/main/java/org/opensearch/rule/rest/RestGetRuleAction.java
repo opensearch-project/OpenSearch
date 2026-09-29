@@ -52,8 +52,11 @@ public class RestGetRuleAction extends BaseRestHandler {
 
     private final AutoTaggingRegistry registry;
 
-    /** Creates the handler with this node's feature type registry. */
-
+    /**
+     * Creates the handler with this node's feature type registry.
+     *
+     * @param registry this node's feature type registry
+     */
     public RestGetRuleAction(AutoTaggingRegistry registry) {
         this.registry = registry;
     }

@@ -38,7 +38,11 @@ import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
 public class RestDeleteRuleAction extends BaseRestHandler {
     private final AutoTaggingRegistry registry;
 
-    /** Creates the handler with this node's feature type registry. */
+    /**
+     * Creates the handler with this node's feature type registry.
+     *
+     * @param registry this node's feature type registry
+     */
     public RestDeleteRuleAction(AutoTaggingRegistry registry) {
         this.registry = registry;
     }
