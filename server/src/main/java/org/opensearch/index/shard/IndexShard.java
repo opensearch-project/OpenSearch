@@ -142,6 +142,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -833,6 +834,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
+                        // Refresh the primary operation policy in case it has changed since the start of recovery.
+                        // No primary-origin operation can have run yet, so this is safe without blocking operations.
+                        getIndexer().refreshPrimaryOperationPolicy();
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
@@ -917,6 +921,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
+                            // This shard is about to start serving primary-origin operations, so the primary operation
+                            // policy has to match the index settings as they are now so refresh the policy.
+                            getIndexer().refreshPrimaryOperationPolicy();
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
@@ -2777,6 +2784,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
+    /**
+     * Re-resolves this shard's primary operation policy against the current index settings, blocking
+     * operations for the duration so that no operation observes a policy change mid-flight. This is the
+     * cheap alternative to {@link #resetToWriteableEngine()} for a plugin whose policy is keyed off an
+     * updatable setting and that has nothing else to rebuild when that setting changes.
+     *
+     * @throws InterruptedException if the calling thread is interrupted
+     * @throws TimeoutException if timed out waiting for in-flight operations to finish
+     *
+     * @opensearch.internal
+     */
+    @ExperimentalApi
+    public void refreshPrimaryOperationPolicy() throws InterruptedException, TimeoutException {
+        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> getIndexer().refreshPrimaryOperationPolicy());
+    }
+
+    /**
+     * Returns the {@link PrimaryOperationPolicy} in effect for this shard.
+     *
+     * @throws AlreadyClosedException if the shard's engine is closed
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return getIndexer().getPrimaryOperationPolicy();
+    }
+
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
         return mergedSegmentTransferTracker;
     }
@@ -4554,6 +4587,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + primaryContext
                 + "]";
 
+        // The target's engine was built at the start of the recovery; refresh so the relocated primary uses the
+        // policy matching the settings as they are now
+        getIndexer().refreshPrimaryOperationPolicy();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
