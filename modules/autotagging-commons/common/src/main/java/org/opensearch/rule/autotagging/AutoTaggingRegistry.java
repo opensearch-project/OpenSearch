@@ -9,6 +9,7 @@
 package org.opensearch.rule.autotagging;
 
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,22 +26,41 @@ public class AutoTaggingRegistry {
      * featureTypesRegistryMap should be concurrently readable but not concurrently writable.
      * The registration of FeatureType should only be done during boot-up.
      */
-    public static final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
+    private Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
+    private boolean frozen;
+    static final String TRANSPORT_READER_NAME = "autotagging_feature_type";
     /**
      * Max chars a feature type can assume
      */
     public static final int MAX_FEATURE_TYPE_NAME_LENGTH = 30;
 
     /**
-     * Make the class un-initialisable
+     * Creates a registry owned by one node.
      */
-    private AutoTaggingRegistry() {}
+    public AutoTaggingRegistry() {}
+
+    /** Prevents registration after node initialization. */
+    public void freeze() {
+        featureTypesRegistryMap = Map.copyOf(featureTypesRegistryMap);
+        frozen = true;
+    }
+
+    /**
+     * Registers a reader before extension components are available. Resolution is deferred
+     * until deserialization, preserving the existing feature-name-only wire format.
+     */
+    public NamedWriteableRegistry.Entry getTransportReader() {
+        return new NamedWriteableRegistry.Entry(FeatureType.class, TRANSPORT_READER_NAME, in -> getFeatureType(in.readString()));
+    }
 
     /**
      * Registers the new feature type
      * @param featureType
      */
-    public static void registerFeatureType(FeatureType featureType) {
+    public void registerFeatureType(FeatureType featureType) {
+        if (frozen) {
+            throw new IllegalStateException("Feature type registration is closed");
+        }
         validateFeatureType(featureType);
         String name = featureType.getName();
         if (featureTypesRegistryMap.containsKey(name) && featureTypesRegistryMap.get(name) != featureType) {
@@ -70,14 +90,13 @@ public class AutoTaggingRegistry {
     }
 
     /**
-     * Retrieves the registered {@link FeatureType} instance based on class name and feature type name.
-     * This method assumes that FeatureTypes are singletons, meaning that each unique
-     * (className, featureTypeName) pair corresponds to a single, globally shared instance.
+     * Retrieves the registered {@link FeatureType} instance by feature type name.
+     * Each feature name resolves to the instance registered on this node.
      *
      * @param featureTypeName The name of the feature type.
      */
-    public static FeatureType getFeatureType(String featureTypeName) {
-        FeatureType featureType = featureTypesRegistryMap.get(featureTypeName);
+    public FeatureType getFeatureType(String featureTypeName) {
+        FeatureType featureType = featureTypeName == null ? null : featureTypesRegistryMap.get(featureTypeName);
         if (featureType == null) {
             throw new ResourceNotFoundException(
                 "Couldn't find a feature type with name: " + featureTypeName + ". Make sure you have registered it."

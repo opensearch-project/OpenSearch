@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
@@ -55,7 +56,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
         assertEquals(2, otherResponse.getRules().size());
@@ -72,7 +73,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
         assertEquals(0, otherResponse.getRules().size());

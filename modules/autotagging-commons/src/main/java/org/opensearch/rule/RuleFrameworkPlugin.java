@@ -17,6 +17,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
@@ -75,11 +76,18 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry = new RulePersistenceServiceRegistry();
     private final RuleRoutingServiceRegistry ruleRoutingServiceRegistry = new RuleRoutingServiceRegistry();
     private final List<RuleFrameworkExtension> ruleFrameworkExtensions = new ArrayList<>();
+    private final AutoTaggingRegistry autoTaggingRegistry = new AutoTaggingRegistry();
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(autoTaggingRegistry.getTransportReader());
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         // We are consuming the extensions at this place to ensure that the RulePersistenceService is initialised
         ruleFrameworkExtensions.forEach(this::consumeFrameworkExtension);
+        autoTaggingRegistry.freeze();
         return List.of(
             new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
             new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class),
@@ -98,7 +106,12 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction(), new RestCreateRuleAction(), new RestUpdateRuleAction());
+        return List.of(
+            new RestGetRuleAction(autoTaggingRegistry),
+            new RestDeleteRuleAction(autoTaggingRegistry),
+            new RestCreateRuleAction(autoTaggingRegistry),
+            new RestUpdateRuleAction(autoTaggingRegistry)
+        );
     }
 
     @Override
@@ -109,6 +122,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     @Override
     public Collection<Module> createGuiceModules() {
         return List.of(b -> {
+            b.bind(AutoTaggingRegistry.class).toInstance(autoTaggingRegistry);
             b.bind(RulePersistenceServiceRegistry.class).toInstance(rulePersistenceServiceRegistry);
             b.bind(RuleRoutingServiceRegistry.class).toInstance(ruleRoutingServiceRegistry);
         });
@@ -126,7 +140,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
 
     private void consumeFrameworkExtension(RuleFrameworkExtension ruleFrameworkExtension) {
         FeatureType featureType = ruleFrameworkExtension.getFeatureTypeSupplier().get();
-        AutoTaggingRegistry.registerFeatureType(featureType);
+        autoTaggingRegistry.registerFeatureType(featureType);
         rulePersistenceServiceRegistry.register(featureType, ruleFrameworkExtension.getRulePersistenceServiceSupplier().get());
         ruleRoutingServiceRegistry.register(featureType, ruleFrameworkExtension.getRuleRoutingServiceSupplier().get());
 

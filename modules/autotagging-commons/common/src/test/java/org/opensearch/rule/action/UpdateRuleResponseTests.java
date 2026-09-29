@@ -13,6 +13,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
         UpdateRuleResponse response = new UpdateRuleResponse(ruleOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
         UpdateRuleResponse otherResponse = new UpdateRuleResponse(streamInput);
         assertEqualRule(response.getRule(), otherResponse.getRule(), false);
     }

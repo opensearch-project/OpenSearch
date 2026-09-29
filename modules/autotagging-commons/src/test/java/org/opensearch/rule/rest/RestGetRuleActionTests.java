@@ -11,6 +11,7 @@ package org.opensearch.rule.rest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rule.InMemoryRuleProcessingServiceTests;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -26,7 +27,10 @@ public class RestGetRuleActionTests extends OpenSearchTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestGetRuleAction();
+        AutoTaggingRegistry registry = new AutoTaggingRegistry();
+        registry.registerFeatureType(InMemoryRuleProcessingServiceTests.WLMFeatureType.WLM);
+        registry.freeze();
+        action = new RestGetRuleAction(registry);
     }
 
     public void testGetName() {

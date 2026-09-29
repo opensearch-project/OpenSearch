@@ -46,7 +46,7 @@ public class DeleteRuleRequest extends ActionRequest {
     public DeleteRuleRequest(StreamInput in) throws IOException {
         super(in);
         this.ruleId = in.readString();
-        this.featureType = FeatureType.from(in.readString());
+        this.featureType = FeatureType.from(in);
     }
 
     @Override

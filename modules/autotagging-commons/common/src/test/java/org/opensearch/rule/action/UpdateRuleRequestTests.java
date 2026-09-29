@@ -38,7 +38,7 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, request.getFeatureType());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
         UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());
@@ -55,7 +55,7 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
         assertNull(request.getFeatureValue());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
+        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
         UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());

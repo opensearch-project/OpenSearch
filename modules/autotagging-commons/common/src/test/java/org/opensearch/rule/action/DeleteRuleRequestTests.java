@@ -23,7 +23,7 @@ public class DeleteRuleRequestTests extends OpenSearchTestCase {
         DeleteRuleRequest request = new DeleteRuleRequest(_ID_ONE, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
+        StreamInput in = RuleTestUtils.namedInput(out.bytes().streamInput());
         DeleteRuleRequest deserialized = new DeleteRuleRequest(in);
         assertEquals(request.getRuleId(), deserialized.getRuleId());
         assertEquals(request.getFeatureType(), deserialized.getFeatureType());

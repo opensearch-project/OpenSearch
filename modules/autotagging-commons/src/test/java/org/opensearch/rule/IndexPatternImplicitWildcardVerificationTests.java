@@ -10,7 +10,6 @@ package org.opensearch.rule;
 
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
@@ -33,10 +32,6 @@ public class IndexPatternImplicitWildcardVerificationTests extends OpenSearchTes
 
     public enum IndexFeatureType implements FeatureType {
         INSTANCE;
-
-        static {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
-        }
 
         @Override
         public String getName() {

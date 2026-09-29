@@ -22,6 +22,7 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.action.UpdateRuleResponse;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule.Builder;
 import org.opensearch.transport.client.node.NodeClient;
@@ -39,10 +40,13 @@ import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
  */
 @ExperimentalApi
 public class RestUpdateRuleAction extends BaseRestHandler {
-    /**
-     * constructor for RestUpdateRuleAction
-     */
-    public RestUpdateRuleAction() {}
+    private final AutoTaggingRegistry registry;
+
+    /** Creates the handler with this node's feature type registry. */
+
+    public RestUpdateRuleAction(AutoTaggingRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public String getName() {
@@ -56,7 +60,7 @@ public class RestUpdateRuleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
+        final FeatureType featureType = registry.getFeatureType(request.param(FEATURE_TYPE));
         try (XContentParser parser = request.contentParser()) {
             Builder builder = Builder.fromXContent(parser, featureType);
             UpdateRuleRequest updateRuleRequest = new UpdateRuleRequest(
