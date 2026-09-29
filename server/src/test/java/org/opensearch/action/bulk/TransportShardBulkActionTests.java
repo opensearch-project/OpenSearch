@@ -1467,6 +1467,50 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
+    public void testGetReplicationModeWithRemoteStoreFencing() {
+        // With the object-store fence enforcing stale-primary fencing on every (request-durability) translog upload,
+        // replicas come off the write path entirely - no primary term validation fanout.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(
+                true,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .build()
+            )
+        );
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithRemoteStoreFencingAndAsyncDurability() {
+        // ASYNC durability only validates the fence at the sync interval, so the per-operation term validation fanout
+        // must be retained.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(
+                true,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                    .build()
+            )
+        );
+        assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithFencingOnNonRemoteIndex() {
+        // The setting is inert without remote store; fencing must not take replicas off the write path.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(false, Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true).build())
+        );
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
     private TransportShardBulkAction createAction() {
         return new TransportShardBulkAction(
             Settings.EMPTY,

@@ -106,6 +106,7 @@ configurations.all {
     force 'com.google.guava:failureaccess:1.0.1'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
     force 'org.checkerframework:checker-qual:3.43.0'
+    force 'org.jspecify:jspecify:1.0.1'
     force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
     force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"

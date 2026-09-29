@@ -19,6 +19,8 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Map;
+
 public class MetricTranslatorTests extends OpenSearchTestCase {
 
     private final ConversionContext ctx = TestUtils.createContext();
@@ -69,5 +71,24 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     public void testAggregateFieldName() {
         AvgMetricTranslator translator = new AvgMetricTranslator();
         assertEquals("avg_price", translator.getAggregateFieldName(new AvgAggregationBuilder("avg_price").field("price")));
+    }
+
+    /** User-supplied meta must be echoed back on the response aggregation, like classic search. */
+    public void testMetadataEchoedInInternalAggregation() {
+        Map<String, Object> meta = Map.of("owner", "pricing-team", "revision", 3);
+
+        assertEquals(meta, new AvgMetricTranslator().toInternalAggregation("a", 1.0, meta).getMetadata());
+        assertEquals(meta, new SumMetricTranslator().toInternalAggregation("s", 1.0, meta).getMetadata());
+        assertEquals(meta, new MinMetricTranslator().toInternalAggregation("mn", 1.0, meta).getMetadata());
+        assertEquals(meta, new MaxMetricTranslator().toInternalAggregation("mx", 1.0, meta).getMetadata());
+
+        // Echoed even when the metric has no value (empty result)
+        assertEquals(meta, new AvgMetricTranslator().toInternalAggregation("a", null, meta).getMetadata());
+    }
+
+    /** Requests without meta keep rendering without a meta section. */
+    public void testNullMetadataStaysNull() {
+        assertNull(new AvgMetricTranslator().toInternalAggregation("a", 1.0, null).getMetadata());
+        assertNull(new MaxMetricTranslator().toInternalAggregation("mx", null, null).getMetadata());
     }
 }

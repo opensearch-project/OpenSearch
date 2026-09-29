@@ -86,6 +86,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -1917,6 +1918,12 @@ public class Node implements Closeable {
                 }
             });
             injector = modules.createInjector();
+
+            // Register the index creation validators for mapping updates as well, so a mapping
+            // rejected at creation cannot be introduced later through PUT _mapping.
+            final MetadataMappingService metadataMappingServiceInstance = injector.getInstance(MetadataMappingService.class);
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getIndexCreationValidators().forEach(metadataMappingServiceInstance::addIndexCreationValidator));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it

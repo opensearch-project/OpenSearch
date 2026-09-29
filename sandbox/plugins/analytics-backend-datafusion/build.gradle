@@ -104,6 +104,13 @@ dependencies {
   // Tests run on a flat classpath; pull arrow-base in so ArrowNativeAllocator
   // is reachable for unit tests that exercise the listener mirror.
   testImplementation project(':plugins:arrow-base')
+  // Parquet writer for doc-values reader fixtures: the tests round-trip a file written by the
+  // production NativeParquetWriter through the new read path. Test-only, so no main-source
+  // dependency on the format plugin.
+  testImplementation project(':sandbox:plugins:parquet-data-format')
+  // NativeParquetWriter records IO stats through this SPI; the parquet plugin has it compileOnly
+  // and gets it at runtime from its parent, so the fixtures need it explicitly here.
+  testImplementation project(':sandbox:libs:plugin-stats-spi')
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 
 }
@@ -127,6 +134,8 @@ task cargoTest(type: Exec) {
   description = 'Run Rust unit + fuzz tests for opensearch-datafusion crate'
   group = 'verification'
   workingDir rustWorkspaceDir
+  // cargo cannot read the workspace manifest until [patch.crates-io]'s path exists.
+  dependsOn ':sandbox:libs:dataformat-native:preparePatchedParquet'
 
   def cargoExecutable = 'cargo'
   def possibleCargoPaths = [

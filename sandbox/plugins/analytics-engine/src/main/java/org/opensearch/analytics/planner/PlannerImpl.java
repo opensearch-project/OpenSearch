@@ -44,6 +44,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCorrelateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -57,8 +58,10 @@ import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchUncollectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
@@ -419,6 +422,7 @@ public class PlannerImpl {
             // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
+                    new OpenSearchValuesCharNormalizeRule(),
                     FILTER_PROJECT_TRANSPOSE_DETERMINISTIC,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
@@ -524,7 +528,9 @@ public class PlannerImpl {
                     new OpenSearchJoinRule(context),
                     new OpenSearchSortRule(context),
                     new OpenSearchUnionRule(context),
-                    new OpenSearchValuesRule(context)
+                    new OpenSearchValuesRule(context),
+                    new OpenSearchUncollectRule(context),
+                    new OpenSearchCorrelateRule(context)
                 )
             )
             .run(input, listener);

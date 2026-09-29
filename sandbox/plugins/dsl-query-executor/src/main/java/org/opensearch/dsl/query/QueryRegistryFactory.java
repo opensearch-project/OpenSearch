@@ -25,6 +25,9 @@ public class QueryRegistryFactory {
         registry.register(new MatchAllQueryTranslator());
         registry.register(new ExistsQueryTranslator());
         registry.register(new RangeQueryTranslator());
+        registry.register(new BoolQueryTranslator(registry));
+        registry.register(new PrefixQueryTranslator());
+        registry.register(new WildcardQueryTranslator());
         // TODO: add other query translators
         return registry;
     }

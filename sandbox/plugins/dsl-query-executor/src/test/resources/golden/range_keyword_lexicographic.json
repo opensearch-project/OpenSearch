@@ -19,22 +19,43 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(>=($2, CAST('apple':VARCHAR):VARCHAR), <=($2, CAST('dell':VARCHAR):VARCHAR))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[AND(>=($2, CAST('apple':VARCHAR):VARCHAR), <=($2, CAST('dell':VARCHAR):VARCHAR))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultFieldNames": [
+    "name",
+    "price",
+    "brand",
+    "rating"
+  ],
   "mockResultRows": [
-    ["laptop", 999, "BrandA", 4.5]
+    [
+      "laptop",
+      999,
+      "BrandA",
+      4.5
+    ]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 1,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          }
+        }
+      ]
     }
   }
 }

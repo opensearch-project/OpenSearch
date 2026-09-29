@@ -402,10 +402,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         URL url = URI.create(urlString).toURL();
         assert "https".equals(url.getProtocol()) : "Use of https protocol is required";
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-        urlConnection.addRequestProperty("User-Agent", "opensearch-plugin-installer");
-        urlConnection.setRequestMethod("HEAD");
-        urlConnection.connect();
-        return urlConnection.getResponseCode() == 200;
+        try {
+            urlConnection.addRequestProperty("User-Agent", "opensearch-plugin-installer");
+            urlConnection.setRequestMethod("HEAD");
+            urlConnection.connect();
+            return urlConnection.getResponseCode() == 200;
+        } finally {
+            urlConnection.disconnect();
+        }
     }
 
     /** Returns all the official plugin names that look similar to pluginId. **/
@@ -686,10 +690,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     URL openUrl(String urlString) throws IOException {
         URL checksumUrl = URI.create(urlString).toURL();
         HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection();
-        if (connection.getResponseCode() == 404) {
-            return null;
+        try {
+            if (connection.getResponseCode() == 404) {
+                return null;
+            }
+            return checksumUrl;
+        } finally {
+            connection.disconnect();
         }
-        return checksumUrl;
     }
 
     private Path unzip(Path zip, Path pluginsDir) throws IOException, UserException {

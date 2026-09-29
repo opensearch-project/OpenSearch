@@ -88,6 +88,7 @@ import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpContentEncoder;
+import io.netty.handler.codec.http.HttpDecoderConfig;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -440,12 +441,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 }
             };
 
-            final HttpServerCodec sourceCodec = new HttpServerCodec(
-                handlingSettings.getMaxInitialLineLength(),
-                handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize()
-            );
+            final HttpDecoderConfig config = new HttpDecoderConfig();
+            config.setMaxInitialLineLength(handlingSettings.getMaxInitialLineLength());
+            config.setMaxHeaderSize(handlingSettings.getMaxHeaderSize());
+            config.setMaxChunkSize(handlingSettings.getMaxChunkSize());
 
+            final HttpServerCodec sourceCodec = new HttpServerCodec(config, transport.pipelineMaxDepth);
             final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
                 sourceCodec,
                 upgradeCodecFactory,
