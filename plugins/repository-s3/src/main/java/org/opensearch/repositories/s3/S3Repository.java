@@ -39,11 +39,8 @@ import software.amazon.awssdk.services.s3.model.StorageClass;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Priority;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -64,13 +61,11 @@ import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
 import java.nio.file.Path;
@@ -79,6 +74,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -504,26 +500,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        Priority repositoryUpdatePriority,
-        ActionListener<RepositoryData> listener
-    ) {
-        super.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            repositoryUpdatePriority,
-            listener
-        );
+    public Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
+        return blobStoreAbandonableSnapshotFinalization();
     }
 
     @Override

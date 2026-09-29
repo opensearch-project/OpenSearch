@@ -42,6 +42,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -63,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -191,6 +193,53 @@ public interface Repository extends LifecycleComponent {
         ActionListener<RepositoryData> listener
     ) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * A finalization entrypoint that also takes the attempt its caller shares with it. It finalizes as
+     * {@link #finalizeSnapshot(ShardGenerations, long, Metadata, SnapshotInfo, Version, Function, Priority, ActionListener)}
+     * does.
+     * <p>
+     * The implementation calls {@code attempt.startGenerationWrite()} before it writes anything that makes the snapshot
+     * part of the repository, and writes nothing of that kind if it returns false. It may consult {@code isAbandoned()}
+     * earlier to stop sooner. Once {@code startGenerationWrite()} has returned true the attempt can no longer be abandoned,
+     * so the call runs to its own completion or failure.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    @FunctionalInterface
+    interface AbandonableSnapshotFinalization {
+        void finalizeSnapshot(
+            ShardGenerations shardGenerations,
+            long repositoryStateId,
+            Metadata clusterMetadata,
+            SnapshotInfo snapshotInfo,
+            Version repositoryMetaVersion,
+            Function<ClusterState, ClusterState> stateTransformer,
+            Priority repositoryUpdatePriority,
+            SnapshotFinalizationAttempt attempt,
+            ActionListener<RepositoryData> listener
+        );
+    }
+
+    /**
+     * The finalization entrypoint this repository hands out for time-budgeted finalizations, or empty. Empty by default.
+     * A caller that puts a time budget on a finalization finalizes through the returned entrypoint, and falls back to
+     * {@link #finalizeSnapshot(ShardGenerations, long, Metadata, SnapshotInfo, Version, Function, Priority, ActionListener)},
+     * unbudgeted, when nothing is returned.
+     * <p>
+     * An implementation returns one only for a finalization path it owns and declares, and only while a check of its
+     * store has found that the store evaluates conditional-write preconditions for this client. The answer is
+     * synchronous, involves no I/O and reads no cluster state. It is read per operation and must not be cached: it may be
+     * empty until an asynchronous check completes, and it is empty while the repository is read-only, not strictly
+     * consistent or configured for shallow copies. When present it is the same object. {@link FilterRepository} does not
+     * forward it: a decorator that wants it overrides this method and maps the wrapped entrypoint, passing the same
+     * attempt.
+     */
+    @ExperimentalApi
+    default Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
+        return Optional.empty();
     }
 
     /**
