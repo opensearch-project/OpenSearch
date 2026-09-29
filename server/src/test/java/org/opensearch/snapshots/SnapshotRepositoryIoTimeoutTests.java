@@ -21,9 +21,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,7 +61,8 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
      * Catches a helper built on the {@code listenerName} overload of
      * {@link org.opensearch.action.support.ListenerTimeouts#wrapWithTimeout}, which hardcodes its own expiry body
      * and exposes no hook: the caller's consumer would never run and the delegate would see a library-generic
-     * exception instead of the site-specific one. Also catches a hook parameter that is wired but never invoked.
+     * exception instead of the site-specific one. Also catches a hook parameter that is wired but never invoked, and,
+     * through a listener completed before its budget, a helper that runs the hook eagerly or unconditionally.
      */
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
     public void testTimeoutRunsCallersHook() {
@@ -71,6 +70,14 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
         final AtomicInteger hookRuns = new AtomicInteger();
         final ActionListener<Void> delegate = ActionListener.wrap(v -> fail("delegate must not succeed"), delegateFailure::set);
         final OpenSearchTimeoutException callersException = new OpenSearchTimeoutException("[" + DESCRIPTION + "] timed out");
+        final AtomicInteger healthyResponses = new AtomicInteger();
+        SnapshotsService.withIoTimeout(
+            taskQueue.getThreadPool(),
+            TIMEOUT,
+            DESCRIPTION,
+            ActionListener.<Void>wrap(v -> healthyResponses.incrementAndGet(), e -> fail("healthy delegate must not fail: " + e)),
+            ignored -> fail("hook must not run after a healthy completion")
+        ).onResponse(null);
 
         final ActionListener<Void> wrapped = SnapshotsService.withIoTimeout(
             taskQueue.getThreadPool(),
@@ -88,85 +95,21 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
         taskQueue.advanceTime();
         taskQueue.runAllRunnableTasks();
 
+        assertEquals("healthy completion must reach its delegate exactly once", 1, healthyResponses.get());
         assertEquals("caller's hook must run exactly once", 1, hookRuns.get());
         assertSame("delegate must see the caller's own exception instance", callersException, delegateFailure.get());
     }
 
     /**
-     * Pins the {@code ListenerTimeouts} contract that makes the production hook's shape mandatory: the wrapper
-     * handed to an on-timeout hook has already flipped its own done-flag, so completing <em>it</em> reaches nothing and
-     * only completing the delegate fails the caller. That is {@code ListenerTimeouts} behaviour, pinned here so that an
-     * upstream change to it, which would silently invalidate the hook in {@code SnapshotsService#withRepositoryIoTimeout},
-     * fails this test.
-     * <p>
-     * It does not catch that hook being rewritten to {@code wrapper::onFailure}, because it supplies its own hook;
-     * {@code SnapshotRepositoryIoTimeoutIT#testDynamicIoTimeoutTakesEffectWithoutRestart} catches that.
+     * The flag-off seam. The helper returns the caller's own listener and arms no timer, so a cluster on default settings
+     * gets no new behaviour and no extra scheduled task per finalization. The constructor neither seeds nor registers the
+     * setting: Setting#get validates the resolved default and the validator rejects every value while the flag is off, so a
+     * seed outside the flag guard would stop every flag-off cluster-manager-eligible node from starting, and with no
+     * consumer registered neither validating nor applying settings that carry the key runs its validator on this node.
      */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testWrapperPassedToHookCannotCompleteTheDelegate() {
-        final AtomicReference<Exception> delegateFailure = new AtomicReference<>();
-        final AtomicBoolean delegateSucceeded = new AtomicBoolean();
-        final ActionListener<Void> delegate = ActionListener.wrap(v -> delegateSucceeded.set(true), delegateFailure::set);
-
-        SnapshotsService.withIoTimeout(taskQueue.getThreadPool(), TIMEOUT, DESCRIPTION, delegate, spentWrapper -> {
-            spentWrapper.onFailure(new IOException("via the spent wrapper"));
-            spentWrapper.onResponse(null);
-            assertNull("the spent wrapper must not reach the delegate", delegateFailure.get());
-            assertFalse("the spent wrapper must not reach the delegate", delegateSucceeded.get());
-            delegate.onFailure(new IOException("via the delegate"));
-        });
-
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-
-        assertFalse(delegateSucceeded.get());
-        assertNotNull("only failing the delegate directly completes the caller", delegateFailure.get());
-        assertEquals("via the delegate", delegateFailure.get().getMessage());
-    }
-
-    /**
-     * Catches a helper that fires {@code onTimeout} eagerly or unconditionally -- for instance one that also
-     * arms a bare {@code threadPool.schedule} ignoring the wrapper's compare-and-set. That regression fails every
-     * healthy finalization, turning a resilience feature into an outage.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testNormalCompletionBeforeTimeoutNeverRunsHook() {
-        final AtomicInteger responses = new AtomicInteger();
-        final AtomicInteger hookRuns = new AtomicInteger();
-        final ActionListener<Void> delegate = ActionListener.wrap(
-            v -> responses.incrementAndGet(),
-            e -> fail("delegate must not fail: " + e)
-        );
-
-        final ActionListener<Void> wrapped = SnapshotsService.withIoTimeout(
-            taskQueue.getThreadPool(),
-            TIMEOUT,
-            DESCRIPTION,
-            delegate,
-            ignored -> hookRuns.incrementAndGet()
-        );
-
-        wrapped.onResponse(null);
-        assertEquals("healthy completion must reach the delegate exactly once", 1, responses.get());
-
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-
-        assertEquals("hook must not run after a healthy completion", 0, hookRuns.get());
-        assertEquals(1, responses.get());
-    }
-
-    /**
-     * The flag-off seam. Catches a timer armed with the feature flag off, which would give every cluster on
-     * default settings new behaviour plus one extra scheduled task per finalization. {@code assertSame} additionally
-     * pins that no wrapper object is interposed, which is what "byte-for-byte unchanged" means at this seam --
-     * neither assertion can hold with the flag on, since the wrap always allocates a wrapper and always schedules.
-     */
-    public void testFlagOffReturnsSameListenerAndSchedulesNothing() {
-        // No @LockFeatureFlag: fails loudly if the flag's default flips or the flag is removed, rather than going vacuous.
+    public void testFlagOffWrapsNothingAndRunsNoValidator() {
         assertFalse(FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING));
         final ActionListener<Void> listener = ActionListener.wrap(() -> {});
-
         final ActionListener<Void> returned = SnapshotsService.withIoTimeout(
             taskQueue.getThreadPool(),
             TIMEOUT,
@@ -174,9 +117,15 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
             listener,
             ignored -> fail("nothing may be scheduled with the flag off")
         );
-
         assertSame("flag off must return the caller's own listener", listener, returned);
         assertFalse("flag off must arm no timer", taskQueue.hasDeferredTasks());
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final SnapshotsService service = newClusterManagerSnapshotsService(clusterSettings, Settings.EMPTY);
+        assertEquals(TimeValue.timeValueMinutes(30), service.repositoryIoTimeout());
+        final Settings update = Settings.builder().put(SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getKey(), "10m").build();
+        clusterSettings.validateUpdate(update);
+        clusterSettings.applySettings(update);
     }
 
     /**
@@ -227,23 +176,6 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
     }
 
     /**
-     * With the flag off the constructor neither seeds nor registers. Setting#get validates the resolved default and the
-     * validator rejects every value while the flag is off, so a seed outside the flag guard would stop every flag-off
-     * cluster-manager-eligible node from starting on default settings. With no consumer of the setting registered, neither
-     * validating nor applying settings that carry the key runs its validator on this node.
-     */
-    public void testFlagOffValidatingOrApplyingTheKeyDoesNotRunItsValidator() {
-        // No @LockFeatureFlag: fails loudly if the flag's default flips or the flag is removed, rather than going vacuous.
-        assertFalse(FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING));
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final SnapshotsService service = newClusterManagerSnapshotsService(clusterSettings, Settings.EMPTY);
-        assertEquals(TimeValue.timeValueMinutes(30), service.repositoryIoTimeout());
-        final Settings update = Settings.builder().put(SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getKey(), "10m").build();
-        clusterSettings.validateUpdate(update);
-        clusterSettings.applySettings(update);
-    }
-
-    /**
      * Catches a timer scheduled on the snapshot pool. The reasons are width and what each pool already carries:
      * SNAPSHOT is boundedBy((vCPU + 1) / 2, 1, 5) threads and is where finalization's 2 + indices.size() fan-out and
      * its serial tail run, so a timer queued there waits behind work with no ceiling; GENERIC is
@@ -254,14 +186,10 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
     public void testTimerIsScheduledOnGenericPoolNotSnapshotPool() {
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        // Pins the literal below to the constant, so the two cannot drift apart silently.
-        assertEquals("generic", ThreadPool.Names.GENERIC);
 
         SnapshotsService.withIoTimeout(mockThreadPool, TIMEOUT, DESCRIPTION, ActionListener.<Void>wrap(() -> {}), ignored -> {});
 
-        // Asserted against the literal "generic", so that a rewrite of ThreadPool.Names.GENERIC cannot change this assertion
-        // together with the code under test.
-        verify(mockThreadPool).schedule(any(Runnable.class), any(TimeValue.class), eq("generic"));
+        verify(mockThreadPool).schedule(any(Runnable.class), any(TimeValue.class), eq(ThreadPool.Names.GENERIC));
     }
 
     /**

@@ -10,7 +10,6 @@ package org.opensearch.snapshots;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -18,18 +17,15 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
@@ -41,7 +37,6 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
-import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.search.SearchHit;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -58,30 +53,24 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * End-to-end coverage for the time budget on snapshot finalization: when one finalization outlives its budget, only its
@@ -99,13 +88,6 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     private static final String INDEX = "test-idx";
 
     /**
-     * A second index, in no parked snapshot and never deleted. It exists so that the assertion on a recorded snapshot's
-     * index set has something to be true of: with {@link #INDEX} deleted and nothing else in the cluster, "the snapshot
-     * does not name the deleted index" would hold of an empty index set and prove nothing.
-     */
-    private static final String SURVIVING_INDEX = "surviving-idx";
-
-    /**
      * An index held by the queued snapshot and by nothing else, so that a refusal to delete it is attributable to the
      * queued snapshot's own in-progress marker. Without a second index the queued snapshot would share
      * {@link #INDEX} with the parked one, and every refusal would be explained by the parked marker alone.
@@ -113,9 +95,6 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     private static final String QUEUED_INDEX = "queued-idx";
 
     private static final String IO_TIMEOUT_KEY = "snapshot.repository.io_timeout";
-
-    /** The setting's own default, restored before any trailing snapshot so that snapshot never races a short budget. */
-    private static final String DEFAULT_IO_TIMEOUT = "30m";
 
     /** The snapshot whose finalization is parked inside the repository and therefore outlives its budget. */
     private static final String PARKED = "parked-snapshot";
@@ -163,102 +142,126 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // The base class returns only MockRepository.Plugin, which can neither observe the attempt a finalization is
-        // given nor park a finalization.
         return Collections.singletonList(FinalizationParkingMockRepositoryPlugin.class);
     }
 
     /**
-     * A non-partial create keeps the index-delete gate shut ({@code SnapshotsService.snapshottingIndices} filters on
-     * {@code partial() == false} and nothing else) while its entry is present. A budget that expires before the
-     * finalization started writing the repository generation removes the entry, so the index can be deleted while the
-     * stopped call is still parked; released, the call is refused and records nothing. No recorded snapshot names the
-     * deleted index, because the stopped call never writes the repository generation. The inherited repository
-     * consistency check stays enabled.
+     * A finalization whose budget expires while it writes its metadata is refused once those writes complete, before the
+     * repository generation or {@code index.latest} moves. One whose budget expires before it enters the repository is
+     * stopped, and while the stopped call is still parked the snapshot queued behind it, a delete of its index (refused
+     * until the budget expires), a retry under its name, a repository cleanup and unregistering the repository all run.
+     * Released, the stopped call writes nothing at the root; registered again at the same location, the repository points
+     * at the committed generation and records exactly one snapshot under the name, the retry.
      */
-    public void testDeletingTheIndexOfAStoppedFinalizationLeavesItInNoRecordedSnapshot() throws Exception {
-        final String clusterManagerNode = startClusterWithFencingRepository();
-        createIndexWithContent(SURVIVING_INDEX);
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        // The finalization boundary, not the blob layer: the two index-delete attempts below are cluster-manager work
-        // that reads repository data on the way in, and a blob-level block would park that too.
-        repository.parkOnceFinalizationStarts();
-        // 30s, so that the control showing the gate shut fits inside the budget; it is one delete round-trip, and if it is
-        // missed the control fails saying the gate was already open.
-        setIoTimeout("30s");
-
-        final RepositoryData beforeFinalization = getRepositoryData(REPO);
-        final ActionFuture<CreateSnapshotResponse> parked = startSnapshot(clusterManagerNode, PARKED);
-        try {
-            assertBusy(() -> assertNotNull("the finalization never parked inside the repository", repository.parkedFinalization()));
-
-            // Control 1, and the reachability half of the question: the gate is shut while the marker is present.
-            // Without it this test could not tell a gate that lifted from an index that was never gated at all.
-            final SnapshotInProgressException gated = expectThrows(
-                SnapshotInProgressException.class,
-                () -> client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get()
-            );
-            assertThat(gated.getMessage(), containsString("Cannot delete indices that are being snapshotted"));
-            assertThat(gated.getMessage(), containsString(INDEX));
-
-            awaitAbandonment(parked, PARKED);
-
-            // Control 2: the expiry removed the entry, so the gate is open while the stopped call is still parked.
-            assertAcked(client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get());
-        } finally {
-            repository.releaseParkedFinalization();
-        }
-
-        awaitNoMoreRunningOperations(clusterManagerNode);
-        assertBusy(
-            () -> assertTrue(
-                internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repositoriesWithCallsPastBudget().isEmpty()
-            )
-        );
-        assertNothingRecorded(beforeFinalization, PARKED);
-
-        // And the other half: whatever the repository does end up recording must not name the deleted index. The
-        // trailing snapshot is also what gives the enabled consistency check a root blob to check.
-        assertRepositoryStillUsable("snap-after-the-index-was-deleted");
-        assertNoRecordedSnapshotReferences(INDEX, SURVIVING_INDEX);
-    }
-
-    /**
-     * A finalization whose budget expires while it writes the repository generation only has its caller answered: a retry
-     * under its name and a delete of its index are refused while it runs, so the repository never records two snapshots
-     * with one name. It lands after the retry was refused; the record stays single across a cluster-manager restart,
-     * deletes of other snapshots keep working, and the snapshot restores.
-     */
-    public void testRetryUnderATimedOutNameIsRefusedWhileTheCallRuns() throws Exception {
+    public void testStoppedFinalizationReleasesItsQueueIndexAndName() throws Exception {
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         final Path repoPath = randomRepoPath();
         createEnforcingRepository(repoPath);
         createIndexWithContent(INDEX);
         proveRepository(clusterManagerNode);
-        index(INDEX, "_doc", "second_id", "foo", "baz");
-        refresh(INDEX);
+        createIndexWithContent(QUEUED_INDEX);
+        final Set<String> documents = documentIds(QUEUED_INDEX);
+        createSnapshot(REPO, "other", Collections.singletonList(QUEUED_INDEX));
+        final FinalizationParkingMockRepository repository = parkingRepository(clusterManagerNode, REPO);
+
+        final long committed = getRepositoryData(REPO).getGenId();
+        final Set<String> rootBlobsBeforeMetadata = rootBlobNames(repoPath);
+        repository.pauseOnce(FinalizationParkingMockRepository.Pause.METADATA_WRITE);
+        setIoTimeout("5s");
+        final ActionFuture<CreateSnapshotResponse> duringMetadata = startSnapshot(clusterManagerNode, "during-metadata");
+        try {
+            waitForBlock(clusterManagerNode, REPO, TimeValue.timeValueSeconds(60L));
+            assertThat(awaitAbandonment(duringMetadata, "during-metadata").getMessage(), containsString("so it will not be recorded"));
+        } finally {
+            unblockNode(REPO, clusterManagerNode);
+        }
+        assertBusy(
+            () -> assertTrue(
+                internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repositoriesWithCallsPastBudget().isEmpty()
+            )
+        );
+        final Set<String> writtenDuringMetadata = new HashSet<>(rootBlobNames(repoPath));
+        writtenDuringMetadata.removeAll(rootBlobsBeforeMetadata);
+        assertThat("the refusal must come after the metadata writes", writtenDuringMetadata, hasItem(startsWith("snap-")));
+        assertThat(getRepositoryData(REPO).getGenId(), equalTo(committed));
+        assertThat(indexLatest(repoPath), equalTo(committed));
+
+        repository.pauseOnce(FinalizationParkingMockRepository.Pause.PRE_ENTRY);
+        setIoTimeout("10s");
+        final ActionFuture<CreateSnapshotResponse> timedOut = startSnapshot(clusterManagerNode, RETRIED, INDEX);
+        final ActionFuture<CreateSnapshotResponse> queued;
+        final Set<String> rootBlobsBeforeRelease;
+        try {
+            repository.awaitPaused();
+            final SnapshotInProgressException gated = expectThrows(
+                SnapshotInProgressException.class,
+                () -> client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get()
+            );
+            assertThat(gated.getMessage(), containsString("Cannot delete indices that are being snapshotted"));
+            setIoTimeout("1h");
+            queued = startSnapshot(clusterManagerNode, QUEUED, QUEUED_INDEX);
+            awaitQueuedBehindTheParkedFinalization(clusterManagerNode, RETRIED);
+            awaitAbandonment(timedOut, RETRIED);
+
+            assertAcked(client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get());
+            assertThat(queued.actionGet(TimeValue.timeValueSeconds(60L)).getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+            final SnapshotInfo retried = client(clusterManagerNode).admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, RETRIED)
+                .setIndices(QUEUED_INDEX)
+                .setWaitForCompletion(true)
+                .get()
+                .getSnapshotInfo();
+            assertThat("a same-name retry must run its normal flow", retried.state(), is(SnapshotState.SUCCESS));
+            clusterAdmin().prepareCleanupRepository(REPO).get();
+            rootBlobsBeforeRelease = rootBlobNames(repoPath);
+            assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
+        } finally {
+            repository.release();
+        }
+        assertBusy(
+            () -> assertTrue(
+                internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repositoriesWithCallsPastBudget().isEmpty()
+            )
+        );
+        awaitNoMoreRunningOperations(clusterManagerNode);
+        createEnforcingRepository(repoPath);
+
+        assertThat("the stopped call must write nothing at the root", rootBlobNames(repoPath), equalTo(rootBlobsBeforeRelease));
+        assertOneSnapshotNamed(repoPath, getRepositoryData(REPO).getGenId(), RETRIED);
+        assertThat(snapshotNames(getRepositoryData(REPO).getSnapshotIds()), equalTo(Set.of("other", QUEUED, RETRIED)));
+        assertRestoresDocuments(RETRIED, QUEUED_INDEX, documents);
+        assertRestoresDocuments(QUEUED, QUEUED_INDEX, documents);
+    }
+
+    /**
+     * A finalization whose budget expires while it writes the repository generation only has its caller answered: a retry
+     * under its name and a delete of its index are refused while it runs, so the repository never records two snapshots
+     * with one name. It lands after the retry was refused as the one commit, the record stays single across a
+     * cluster-manager restart, and the snapshot restores.
+     */
+    public void testRetryUnderATimedOutNameIsRefusedWhileTheCallRuns() throws Exception {
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final Path repoPath = randomRepoPath();
+        createEnforcingRepository(repoPath);
+        createIndexWithContent(INDEX);
+        proveRepository(clusterManagerNode);
         final Set<String> documents = documentIds(INDEX);
-        createSnapshot(REPO, "other-1", Collections.singletonList(INDEX));
-        createSnapshot(REPO, "other-2", Collections.singletonList(INDEX));
         final long generation = getRepositoryData(REPO).getGenId();
 
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        // The call starts writing the repository generation before it enters the repository, so wherever the budget
-        // expires it lands in the writing window, where the call is not given up on.
-        repository.claimWritingOnce();
-        repository.setBlockOnWriteIndexFile();
+        final FinalizationParkingMockRepository repository = parkingRepository(clusterManagerNode, REPO);
+        repository.pauseOnce(FinalizationParkingMockRepository.Pause.POST_CLAIM);
         setIoTimeout("1s");
         final ActionFuture<CreateSnapshotResponse> timedOut = startSnapshot(clusterManagerNode, RETRIED);
         try {
-            waitForBlock(clusterManagerNode, REPO, TimeValue.timeValueSeconds(60L));
+            repository.awaitPaused();
             setIoTimeout("1h");
-            awaitAbandonment(timedOut, RETRIED);
-            final Throwable writing = ExceptionsHelper.unwrap(
-                expectThrows(Exception.class, () -> timedOut.actionGet(TimeValue.timeValueSeconds(60L))),
-                OpenSearchTimeoutException.class
+            assertThat(
+                awaitAbandonment(timedOut, RETRIED).getMessage(),
+                containsString("it was already writing the repository generation and may still complete")
             );
-            assertThat(writing.getMessage(), containsString("it was already writing the repository generation and may still complete"));
             final InvalidSnapshotNameException refused = expectThrows(
                 InvalidSnapshotNameException.class,
                 () -> client(clusterManagerNode).admin().cluster().prepareCreateSnapshot(REPO, RETRIED).setIndices(INDEX).get()
@@ -266,11 +269,9 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             assertThat(refused.getMessage(), containsString("already in-progress"));
             expectThrows(SnapshotInProgressException.class, () -> client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get());
         } finally {
-            unblockNode(REPO, clusterManagerNode);
+            repository.release();
         }
         awaitClusterState(clusterManagerNode, state -> repositoryGeneration(state) == generation + 1 && nothingInProgress(state));
-        // Waits for the pointer rather than assuming it is written before the generation is published. A replacement deletes the
-        // old pointer before moving the new one in, so a missing file is retried like a stale one.
         assertBusy(() -> {
             final long latest;
             try {
@@ -283,15 +284,13 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
 
         assertOneSnapshotNamed(repoPath, generation + 1, RETRIED);
         assertThat(getSnapshot(REPO, RETRIED).state(), is(SnapshotState.SUCCESS));
-        assertAcked(startDeleteSnapshot(REPO, "other-1").get());
 
         internalCluster().restartNode(clusterManagerNode);
         ensureGreen(INDEX);
-        final long afterRestart = getRepositoryData(REPO).getGenId();
-        assertOneSnapshotNamed(repoPath, afterRestart, RETRIED);
-        assertAcked(startDeleteSnapshot(REPO, "other-2").get());
+        assertThat(getRepositoryData(REPO).getGenId(), equalTo(generation + 1));
+        assertOneSnapshotNamed(repoPath, generation + 1, RETRIED);
 
-        assertRestoresDocuments(RETRIED, documents);
+        assertRestoresDocuments(RETRIED, INDEX, documents);
         final InvalidSnapshotNameException exists = expectThrows(
             InvalidSnapshotNameException.class,
             () -> clusterAdmin().prepareCreateSnapshot(REPO, RETRIED).setIndices(INDEX).get()
@@ -300,71 +299,44 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     }
 
     /**
-     * A snapshot started while a timed-out finalization is still running takes its shard generation from that
-     * finalization, so when both land the shard's index lists both, and deleting the later one leaves the earlier one
-     * restorable.
+     * A snapshot started while a timed-out finalization is still running takes its shard generations, and the index id of
+     * an index that finalization snapshots first, from that finalization. When both land each shard's index lists both
+     * and the new index is recorded against one index id, and deleting the later one leaves the earlier one restorable.
      */
     public void testSnapshotStartedAfterATimeoutKeepsTheShardLineage() throws Exception {
         final String clusterManagerNode = startClusterWithFencingRepository();
         createSnapshot(REPO, "s0", Collections.singletonList(INDEX));
         index(INDEX, "_doc", "second_id", "foo", "baz");
         flush(INDEX);
+        createIndexWithContent(NEW_INDEX);
         final Set<String> documents = documentIds(INDEX);
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkWritingFinalizationOf("s1");
+        final Set<String> newDocuments = documentIds(NEW_INDEX);
+        final FinalizationParkingMockRepository repository = parkingRepository(clusterManagerNode, REPO);
+        repository.pauseOnce(FinalizationParkingMockRepository.Pause.POST_CLAIM);
         setIoTimeout("1s");
 
-        final ActionFuture<CreateSnapshotResponse> first = startSnapshot(clusterManagerNode, "s1");
+        final ActionFuture<CreateSnapshotResponse> first = startSnapshot(clusterManagerNode, "s1", INDEX, NEW_INDEX);
         final ActionFuture<CreateSnapshotResponse> second;
         try {
-            repository.awaitParked();
+            repository.awaitPaused();
             setIoTimeout("1h");
             awaitAbandonment(first, "s1");
-            second = startSnapshot(clusterManagerNode, "s2");
+            second = startSnapshot(clusterManagerNode, "s2", INDEX, NEW_INDEX);
             awaitClusterState(clusterManagerNode, state -> shardsDone(state, "s2"));
         } finally {
-            repository.releaseParkedFinalization();
+            repository.release();
         }
         assertThat(second.actionGet(TimeValue.timeValueSeconds(60L)).getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         awaitNoMoreRunningOperations(clusterManagerNode);
 
         final RepositoryData repositoryData = getRepositoryData(REPO);
         assertThat(snapshotNames(repositoryData.getSnapshotIds()), equalTo(Set.of("s0", "s1", "s2")));
+        assertThat(snapshotNames(repositoryData.getSnapshots(repositoryData.resolveIndexId(NEW_INDEX))), equalTo(Set.of("s1", "s2")));
         assertThat("the shard index lost a snapshot", shardIndexSnapshotNames(repositoryData, INDEX), hasItems("s1", "s2"));
+        assertThat("the shard index lost a snapshot", shardIndexSnapshotNames(repositoryData, NEW_INDEX), hasItems("s1", "s2"));
         assertAcked(startDeleteSnapshot(REPO, "s2").get());
-        assertRestoresDocuments("s1", documents);
-    }
-
-    /**
-     * A snapshot of a new index started while a timed-out finalization of that index is still running reuses its index
-     * id, so both are recorded against one index id.
-     */
-    public void testSnapshotOfANewIndexAfterATimeoutReusesItsIndexId() throws Exception {
-        final String clusterManagerNode = startClusterWithFencingRepository();
-        createIndexWithContent(NEW_INDEX);
-        final Set<String> documents = documentIds(NEW_INDEX);
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkWritingFinalizationOf("x1");
-        setIoTimeout("1s");
-
-        final ActionFuture<CreateSnapshotResponse> first = startSnapshot(clusterManagerNode, "x1", NEW_INDEX);
-        final ActionFuture<CreateSnapshotResponse> second;
-        try {
-            repository.awaitParked();
-            setIoTimeout("1h");
-            awaitAbandonment(first, "x1");
-            second = startSnapshot(clusterManagerNode, "x2", NEW_INDEX);
-            awaitClusterState(clusterManagerNode, state -> shardsDone(state, "x2"));
-        } finally {
-            repository.releaseParkedFinalization();
-        }
-        assertThat(second.actionGet(TimeValue.timeValueSeconds(60L)).getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        awaitNoMoreRunningOperations(clusterManagerNode);
-
-        final RepositoryData repositoryData = getRepositoryData(REPO);
-        final IndexId indexId = repositoryData.resolveIndexId(NEW_INDEX);
-        assertThat(snapshotNames(repositoryData.getSnapshots(indexId)), equalTo(Set.of("x1", "x2")));
-        assertRestoresDocuments("x1", documents);
+        assertRestoresDocuments("s1", INDEX, documents);
+        assertRestoresDocuments("s1", NEW_INDEX, newDocuments);
     }
 
     /**
@@ -383,14 +355,14 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             QUEUED_INDEX,
             indexSettingsNoReplicas(1).put("index.routing.allocation.require._name", secondDataNode).build()
         );
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkWritingFinalizationOf(PARKED);
+        final FinalizationParkingMockRepository repository = parkingRepository(clusterManagerNode, REPO);
+        repository.pauseOnce(FinalizationParkingMockRepository.Pause.POST_CLAIM);
         setIoTimeout("1s");
 
         final ActionFuture<CreateSnapshotResponse> parked = startSnapshot(clusterManagerNode, PARKED, INDEX);
         final ActionFuture<CreateSnapshotResponse> onLeavingNode;
         try {
-            repository.awaitParked();
+            repository.awaitPaused();
             setIoTimeout("1h");
             awaitAbandonment(parked, PARKED);
             assertNotNull("a call writing the generation must keep its entry", inProgressEntry(clusterManagerNode, PARKED));
@@ -400,210 +372,12 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondDataNode));
             awaitClusterState(clusterManagerNode, state -> shardsDone(state, QUEUED));
         } finally {
-            repository.releaseParkedFinalization();
+            repository.release();
         }
         onLeavingNode.actionGet(TimeValue.timeValueSeconds(60L));
         awaitNoMoreRunningOperations(clusterManagerNode);
-        assertThat("the timed-out finalization was ended a second time", repository.finalizationsOf(PARKED), equalTo(1));
+        assertThat("the timed-out finalization was ended a second time", repository.entrypointFinalizationsOf(PARKED), equalTo(1));
         assertAcked(client().admin().indices().prepareDelete(QUEUED_INDEX).get());
-    }
-
-    /**
-     * Once a finalization is stopped by its budget before it wrote the repository generation, repository cleanup and
-     * unregistering the repository are admitted while the stopped call is still parked, because that call writes no root
-     * generation. Released, it is refused and leaves nothing at the root; the repository registered again at the same
-     * location points at the committed generation, and the snapshot taken before restores every document.
-     */
-    public void testStoppedFinalizationAdmitsCleanupAndUnregistration() throws Exception {
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        final Path repoPath = randomRepoPath();
-        createEnforcingRepository(repoPath);
-        createIndexWithContent(INDEX);
-        proveRepository(clusterManagerNode);
-        final Set<String> documents = documentIds(INDEX);
-        createSnapshot(REPO, "retained", Collections.singletonList(INDEX));
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkFinalizationOf(PARKED);
-        setIoTimeout("1s");
-
-        final ActionFuture<CreateSnapshotResponse> parked = startSnapshot(clusterManagerNode, PARKED);
-        try {
-            repository.awaitParked();
-            setIoTimeout("1h");
-            awaitAbandonment(parked, PARKED);
-            clusterAdmin().prepareCleanupRepository(REPO).get();
-            assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
-        } finally {
-            repository.releaseParkedFinalization();
-        }
-        awaitNoMoreRunningOperations(clusterManagerNode);
-        createEnforcingRepository(repoPath);
-
-        final String parkedUuid = repository.finalizedSnapshotUuid(PARKED);
-        assertNotNull(parkedUuid);
-        assertThat(rootBlobNames(repoPath), not(hasItem("snap-" + parkedUuid + ".dat")));
-        assertThat(rootBlobNames(repoPath), not(hasItem("meta-" + parkedUuid + ".dat")));
-        final long committed = getRepositoryData(REPO).getGenId();
-        assertThat(indexLatest(repoPath), equalTo(committed));
-        assertThat(rootBlobNames(repoPath), hasItem(BlobStoreRepository.INDEX_FILE_PREFIX + committed));
-        assertRestoresDocuments("retained", documents);
-    }
-
-    /**
-     * Characterisation of a known limit, not a guarantee. A snapshot started while another finalization is
-     * still running inherits that finalization's shard generation, which lists the other snapshot's name. If that
-     * finalization then fails, as a finalization stopped by its budget does, a later snapshot under its name fails at the
-     * shard level as a duplicate.
-     */
-    public void testFailedFinalizationNameStaysInTheInheritedShardIndex() throws Exception {
-        final String clusterManagerNode = startClusterWithFencingRepository();
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkFinalizationOf(RETRIED);
-
-        final ActionFuture<CreateSnapshotResponse> failed = startSnapshot(clusterManagerNode, RETRIED);
-        final ActionFuture<CreateSnapshotResponse> inheriting;
-        try {
-            repository.awaitParked();
-            inheriting = startSnapshot(clusterManagerNode, "inheriting");
-            awaitClusterState(clusterManagerNode, state -> shardsDone(state, "inheriting"));
-        } finally {
-            repository.failParkedFinalization();
-        }
-        expectThrows(Exception.class, () -> failed.actionGet(TimeValue.timeValueSeconds(60L)));
-        assertThat(inheriting.actionGet(TimeValue.timeValueSeconds(60L)).getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        awaitNoMoreRunningOperations(clusterManagerNode);
-        assertThat(snapshotNames(getRepositoryData(REPO).getSnapshotIds()), equalTo(Set.of("inheriting")));
-
-        final SnapshotInfo retried = clusterAdmin().prepareCreateSnapshot(REPO, RETRIED)
-            .setIndices(INDEX)
-            .setWaitForCompletion(true)
-            .get()
-            .getSnapshotInfo();
-        assertThat(retried.shardFailures(), hasSize(1));
-        assertThat(retried.shardFailures().get(0).reason(), containsString("Duplicate snapshot name [" + RETRIED + "]"));
-    }
-
-    /**
-     * A finalization whose budget expires before it started writing the repository generation is stopped, and everything
-     * it was holding back runs while the stopped call is still parked: the snapshot queued behind it, a delete of its
-     * index, a retry under its name and a repository cleanup. Released, the stopped call is refused and writes nothing,
-     * and the repository records exactly one snapshot under the name, the retry.
-     */
-    public void testBudgetExpiryBeforeTheGenerationWriteReleasesEverything() throws Exception {
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
-        final Path repoPath = randomRepoPath();
-        createEnforcingRepository(repoPath);
-        createIndexWithContent(INDEX);
-        proveRepository(clusterManagerNode);
-        createIndexWithContent(QUEUED_INDEX);
-        final Set<String> documents = documentIds(QUEUED_INDEX);
-        createSnapshot(REPO, "other", Collections.singletonList(QUEUED_INDEX));
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        repository.parkFinalizationOf(RETRIED);
-        setIoTimeout("10s");
-
-        final ActionFuture<CreateSnapshotResponse> timedOut = startSnapshot(clusterManagerNode, RETRIED, INDEX);
-        final ActionFuture<CreateSnapshotResponse> queued;
-        final Set<String> rootBlobsBeforeRelease;
-        try {
-            repository.awaitParked();
-            setIoTimeout("1h");
-            queued = startSnapshot(clusterManagerNode, QUEUED, QUEUED_INDEX);
-            awaitQueuedBehindTheParkedFinalization(clusterManagerNode, RETRIED);
-            awaitAbandonment(timedOut, RETRIED);
-
-            assertAcked(client(clusterManagerNode).admin().indices().prepareDelete(INDEX).get());
-            assertThat(queued.actionGet(TimeValue.timeValueSeconds(60L)).getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-            final SnapshotInfo retried = client(clusterManagerNode).admin()
-                .cluster()
-                .prepareCreateSnapshot(REPO, RETRIED)
-                .setIndices(QUEUED_INDEX)
-                .setWaitForCompletion(true)
-                .get()
-                .getSnapshotInfo();
-            assertThat("a same-name retry must run its normal flow", retried.state(), is(SnapshotState.SUCCESS));
-            clusterAdmin().prepareCleanupRepository(REPO).get();
-            rootBlobsBeforeRelease = rootBlobNames(repoPath);
-        } finally {
-            repository.releaseParkedFinalization();
-        }
-        assertBusy(
-            () -> assertTrue(
-                internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repositoriesWithCallsPastBudget().isEmpty()
-            )
-        );
-        awaitNoMoreRunningOperations(clusterManagerNode);
-
-        assertThat("the stopped call must write nothing at the root", rootBlobNames(repoPath), equalTo(rootBlobsBeforeRelease));
-        final long generation = repositoryGeneration(internalCluster().clusterService(clusterManagerNode).state());
-        assertOneSnapshotNamed(repoPath, generation, RETRIED);
-        assertThat(snapshotNames(getRepositoryData(REPO).getSnapshotIds()), equalTo(Set.of("other", QUEUED, RETRIED)));
-        assertRestoresDocuments(RETRIED, documents);
-        assertRestoresDocuments(QUEUED, documents);
-    }
-
-    /**
-     * A shallow-copy snapshot is finalized without a budget, even on a repository that hands out an entrypoint: the
-     * service finalizes it through the narrow overload, with normal priority. A full-copy snapshot on a repository of the
-     * same type goes through the entrypoint.
-     */
-    public void testShallowCopySnapshotIsNotBudgeted() throws Exception {
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        createRepository(
-            "shallow-repo",
-            FinalizationParkingMockRepositoryPlugin.TYPE,
-            Settings.builder()
-                .put("location", randomRepoPath())
-                .put("test_entrypoint", true)
-                .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
-        );
-        createRepository(
-            "full-copy-repo",
-            FinalizationParkingMockRepositoryPlugin.TYPE,
-            Settings.builder().put("location", randomRepoPath()).put("test_entrypoint", true)
-        );
-        createIndexWithContent(INDEX);
-
-        createSnapshot("shallow-repo", "shallow", Collections.singletonList(INDEX));
-        final FinalizationParkingMockRepository shallow = parkingRepository(clusterManagerNode, "shallow-repo");
-        assertThat("a shallow-copy finalization must not use the entrypoint", shallow.entrypointFinalizationsOf("shallow"), equalTo(0));
-        assertThat(shallow.narrowFinalizationsOf("shallow"), equalTo(1));
-        assertThat(shallow.narrowPriorityOf("shallow"), equalTo(Priority.NORMAL));
-
-        createSnapshot("full-copy-repo", "full-copy", Collections.singletonList(INDEX));
-        final FinalizationParkingMockRepository fullCopy = parkingRepository(clusterManagerNode, "full-copy-repo");
-        assertThat("a full-copy finalization must use the entrypoint", fullCopy.entrypointFinalizationsOf("full-copy"), equalTo(1));
-        assertThat(fullCopy.narrowFinalizationsOf("full-copy"), equalTo(0));
-    }
-
-    /**
-     * Every snapshot the repository actually recorded must name the index that survived and must not name the one that
-     * was deleted while a finalization was parked. Read back through {@code _snapshot} rather than off
-     * {@link RepositoryData} alone so the root blob, the {@code snap-} blob and the index lookup all have to agree;
-     * {@code RepositoryData}'s own index set is then asserted too, because a dangling {@code IndexId} there is what
-     * {@code BlobStoreTestUtil.assertIndexUUIDs} trips on.
-     */
-    private void assertNoRecordedSnapshotReferences(String deletedIndex, String survivingIndex) {
-        final List<SnapshotInfo> recorded = clusterAdmin().prepareGetSnapshots(REPO).get().getSnapshots();
-        assertThat("nothing was recorded at all, so this assertion would be vacuous", recorded, not(empty()));
-        for (SnapshotInfo snapshotInfo : recorded) {
-            assertThat(
-                "snapshot [" + snapshotInfo.snapshotId() + "] names an index that was deleted mid-finalization",
-                snapshotInfo.indices(),
-                not(hasItem(deletedIndex))
-            );
-            assertThat(
-                "the surviving index is missing, so the assertion above holds of nothing",
-                snapshotInfo.indices(),
-                hasItem(survivingIndex)
-            );
-        }
-        final Set<String> recordedIndices = getRepositoryData(REPO).getIndices().keySet();
-        assertThat(recordedIndices, not(hasItem(deletedIndex)));
-        assertThat(recordedIndices, hasItem(survivingIndex));
     }
 
     private Set<String> documentIds(String index) {
@@ -616,10 +390,11 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
         return ids;
     }
 
-    /** Restores the one index {@code snapshotName} holds under a new name and requires exactly {@code expected}. */
-    private void assertRestoresDocuments(String snapshotName, Set<String> expected) {
-        final String restored = "restored-" + snapshotName;
+    /** Restores {@code index} from {@code snapshotName} under a new name and requires exactly {@code expected}. */
+    private void assertRestoresDocuments(String snapshotName, String index, Set<String> expected) {
+        final String restored = "restored-" + snapshotName + "-" + index;
         final RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot(REPO, snapshotName)
+            .setIndices(index)
             .setRenamePattern("(.+)")
             .setRenameReplacement(restored)
             .setWaitForCompletion(true)
@@ -730,8 +505,7 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
      */
     private void proveRepository(String clusterManagerNode) throws Exception {
         createSnapshot(REPO, "warm-up", Collections.singletonList(INDEX));
-        final FinalizationParkingMockRepository repository = fencingRepository(clusterManagerNode);
-        // Read once the snapshot has made the repository strictly consistent and before its delete: this read starts the probe.
+        final FinalizationParkingMockRepository repository = parkingRepository(clusterManagerNode, REPO);
         assertTrue(repository.abandonableSnapshotFinalization().isEmpty());
         assertAcked(startDeleteSnapshot(REPO, "warm-up").get());
         assertTrue("the store probe did not complete", repository.awaitConditionalWriteProbe(TimeValue.timeValueSeconds(30L)));
@@ -747,12 +521,6 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
         return (FinalizationParkingMockRepository) repository;
     }
 
-    private FinalizationParkingMockRepository fencingRepository(String node) {
-        final Repository repository = internalCluster().getInstance(RepositoriesService.class, node).repository(REPO);
-        assertThat(repository, instanceOf(FinalizationParkingMockRepository.class));
-        return (FinalizationParkingMockRepository) repository;
-    }
-
     private void setIoTimeout(String value) {
         assertAcked(
             clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(IO_TIMEOUT_KEY, value).build()).get()
@@ -764,30 +532,31 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     }
 
     /** Non-partial by default, which is what makes the entry gate an index delete at all. */
-    private ActionFuture<CreateSnapshotResponse> startSnapshot(String viaNode, String snapshotName, String index) {
+    private ActionFuture<CreateSnapshotResponse> startSnapshot(String viaNode, String snapshotName, String... indices) {
         return client(viaNode).admin()
             .cluster()
             .prepareCreateSnapshot(REPO, snapshotName)
             .setWaitForCompletion(true)
-            .setIndices(index)
+            .setIndices(indices)
             .execute();
     }
 
     /**
-     * Waits, bounded, for the create call to fail with the finalization budget's own exception. Bounded because the
-     * defect this catches is a finalization that never returns: unbounded, the run would die on the suite timeout with
-     * no attribution, which reads as infrastructure trouble rather than as this test failing.
+     * Waits, bounded, for the create call to fail with the finalization budget's own exception, and returns it. Bounded
+     * because the defect this catches is a finalization that never returns: unbounded, the run would die on the suite
+     * timeout with no attribution, which reads as infrastructure trouble rather than as this test failing.
      * <p>
      * The exception type is asserted by unwrapping rather than by the {@code expectThrows}, which tolerates a wrapping
      * transport exception instead of ruling one out: a repository error or a rejected schedule would satisfy the
      * {@code expectThrows} and then fail the assertions below, which is the point.
      */
-    private void awaitAbandonment(ActionFuture<CreateSnapshotResponse> future, String snapshotName) {
+    private Throwable awaitAbandonment(ActionFuture<CreateSnapshotResponse> future, String snapshotName) {
         final Exception failure = expectThrows(Exception.class, () -> future.actionGet(TimeValue.timeValueSeconds(60L)));
         final Throwable timeout = ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class);
         assertNotNull("expected an OpenSearchTimeoutException, got [" + failure + "]", timeout);
         assertThat(timeout.getMessage(), containsString("finalize snapshot ["));
         assertThat(timeout.getMessage(), containsString(snapshotName));
+        return timeout;
     }
 
     private SnapshotId awaitQueuedBehindTheParkedFinalization(String node, String parkedSnapshot) throws Exception {
@@ -828,66 +597,26 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
     }
 
     /**
-     * The repository must hold no record of the snapshot and must still be on the committed generation it was on before,
-     * so the refused finalization committed nothing.
+     * A {@link MockRepository} that pauses one finalization at the point a test arms, so that its budget expires there. A
+     * pause is armed once and taken by the first call that reaches it.
      */
-    private void assertNothingRecorded(RepositoryData beforeFinalization, String snapshotName) {
-        final RepositoryData afterFinalization = getRepositoryData(REPO);
-        assertThat(afterFinalization.getSnapshotIds(), empty());
-        assertThat(afterFinalization.getGenId(), equalTo(beforeFinalization.getGenId()));
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(REPO).setSnapshots(snapshotName).get());
-    }
+    public static class FinalizationParkingMockRepository extends MockRepository {
 
-    /**
-     * A stopped finalization's removal, or the call's own completion, has to hand the repository on, and a snapshot
-     * taken afterwards is what proves it did - without this, nothing here distinguishes "the budget worked" from "the
-     * budget wedged the repository".
-     * <p>
-     * Bounded deliberately: with no timeout, a token that was never released shows up as the whole suite hanging,
-     * which reads as infrastructure trouble rather than as this test failing.
-     */
-    private void assertRepositoryStillUsable(String snapshotName) {
-        // Restore the default budget first. This snapshot is meant to fail only if the repository is wedged, so it must
-        // not also be racing the short budget the test set -- that would reintroduce a timing dependency.
-        setIoTimeout(DEFAULT_IO_TIMEOUT);
-        final CreateSnapshotResponse response = startFullSnapshot(REPO, snapshotName).actionGet(TimeValue.timeValueSeconds(60L));
-        assertThat(response.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        assertThat("the abandoned snapshot must not have been recorded", getRepositoryData(REPO).getSnapshotIds(), hasSize(1));
-    }
+        /** Where the next finalization is paused. */
+        enum Pause {
+            /** Holds the finalization before it enters the repository, until {@link #release()}. */
+            PRE_ENTRY,
+            /** Blocks the finalization's first blob write, which writes its metadata, until {@link #unblock()}. */
+            METADATA_WRITE,
+            /** Starts the finalization's generation write, then holds it before it enters the repository, until {@link #release()}. */
+            POST_CLAIM
+        }
 
-    /**
-     * A {@link MockRepository} that parks a chosen finalization at the finalization entrypoint, capturing the whole call
-     * without entering the repository, so its budget expires while it holds the per-repository operation token and nothing
-     * else on the repository is held. An override rather than {@code blockOnceFinalizationStarts}, whose blob-level block
-     * also parks the repository-data read a second snapshot needs before it can take its in-progress marker.
-     */
-    public static class FinalizationParkingMockRepository extends SnapshotFinalizationFencingIT.FencingMockRepository {
+        private final AtomicReference<Pause> armed = new AtomicReference<>();
 
-        /** Resumes the parked call; given a failure, answers the call with it instead of running it. */
-        private final AtomicReference<Consumer<Exception>> parked = new AtomicReference<>();
-
-        private final CountDownLatch parkedSignal = new CountDownLatch(1);
-
-        private volatile boolean parkOnceFinalizationStarts;
-
-        private volatile String parkFinalizationOf;
-
-        private volatile String parkWritingFinalizationOf;
-
-        private volatile boolean claimWritingOnce;
-
-        private final Map<String, AtomicInteger> finalizations = new ConcurrentHashMap<>();
-
-        private final Map<String, String> finalizedUuids = new ConcurrentHashMap<>();
-
-        /** Set by the repository setting {@code test_entrypoint}: hand out a counting entrypoint that runs the narrow body. */
-        private final boolean testEntrypoint;
+        private final AtomicReference<Runnable> paused = new AtomicReference<>();
 
         private final Map<String, AtomicInteger> entrypointFinalizations = new ConcurrentHashMap<>();
-
-        private final Map<String, AtomicInteger> narrowFinalizations = new ConcurrentHashMap<>();
-
-        private final Map<String, Priority> narrowPriorities = new ConcurrentHashMap<>();
 
         /** Guarded by this. */
         private Optional<AbandonableSnapshotFinalization> entrypoint = Optional.empty();
@@ -900,7 +629,15 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             RecoverySettings recoverySettings
         ) {
             super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
-            testEntrypoint = metadata.settings().getAsBoolean("test_entrypoint", false);
+        }
+
+        void pauseOnce(Pause pause) {
+            armed.set(pause);
+        }
+
+        /** Waits, bounded, for a finalization to be held. */
+        void awaitPaused() throws Exception {
+            assertBusy(() -> assertNotNull("no finalization was paused", paused.get()), 60L, TimeUnit.SECONDS);
         }
 
         int entrypointFinalizationsOf(String snapshotName) {
@@ -908,125 +645,44 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             return count == null ? 0 : count.get();
         }
 
-        int narrowFinalizationsOf(String snapshotName) {
-            final AtomicInteger count = narrowFinalizations.get(snapshotName);
-            return count == null ? 0 : count.get();
-        }
-
-        Priority narrowPriorityOf(String snapshotName) {
-            return narrowPriorities.get(snapshotName);
-        }
-
-        @Override
-        public void finalizeSnapshot(
-            ShardGenerations shardGenerations,
-            long repositoryStateId,
-            Metadata clusterMetadata,
-            SnapshotInfo snapshotInfo,
-            Version repositoryMetaVersion,
-            Function<ClusterState, ClusterState> stateTransformer,
-            Priority repositoryUpdatePriority,
-            ActionListener<RepositoryData> listener
-        ) {
-            final String snapshotName = snapshotInfo.snapshotId().getName();
-            narrowFinalizations.computeIfAbsent(snapshotName, k -> new AtomicInteger()).incrementAndGet();
-            narrowPriorities.put(snapshotName, repositoryUpdatePriority);
-            super.finalizeSnapshot(
-                shardGenerations,
-                repositoryStateId,
-                clusterMetadata,
-                snapshotInfo,
-                repositoryMetaVersion,
-                stateTransformer,
-                repositoryUpdatePriority,
-                listener
-            );
-        }
-
-        /** Parks the first finalization made through this repository, so its budget expires while it is still held. */
-        void parkOnceFinalizationStarts() {
-            parkOnceFinalizationStarts = true;
-        }
-
-        /** Parks the first finalization of the named snapshot made through this repository. */
-        void parkFinalizationOf(String snapshotName) {
-            parkFinalizationOf = snapshotName;
-        }
-
         /**
-         * Parks the first finalization of the named snapshot after it has started writing the repository generation, as a
-         * declarer does before it writes anything that makes the snapshot part of the repository: a budget that expires
-         * while it is parked lands in the writing window.
-         */
-        void parkWritingFinalizationOf(String snapshotName) {
-            parkWritingFinalizationOf = snapshotName;
-        }
-
-        /**
-         * The next finalization starts writing the repository generation before it enters the repository, so a budget
-         * that expires while it is blocked further in lands in the writing window.
-         */
-        void claimWritingOnce() {
-            claimWritingOnce = true;
-        }
-
-        /** The parked finalization, or null if none has been parked yet or the parked one has already been released. */
-        Object parkedFinalization() {
-            return parked.get();
-        }
-
-        /** Waits, bounded, for a finalization to be parked. */
-        void awaitParked() throws InterruptedException {
-            assertTrue("no finalization was parked", parkedSignal.await(60L, TimeUnit.SECONDS));
-        }
-
-        /** How many finalizations of the named snapshot this repository was handed. */
-        int finalizationsOf(String snapshotName) {
-            final AtomicInteger count = finalizations.get(snapshotName);
-            return count == null ? 0 : count.get();
-        }
-
-        /** The uuid of the last finalization of the named snapshot this repository was handed, or null. */
-        String finalizedSnapshotUuid(String snapshotName) {
-            return finalizedUuids.get(snapshotName);
-        }
-
-        /**
-         * Resumes the parked finalization, and the real finalization runs. If its budget expired before it started
+         * Resumes the held finalization, and the real finalization runs. If its budget expired before it started
          * writing the repository generation, it is refused at its first check and releases nothing, because the
          * budget's removal already took its entry out and handed the repository on; otherwise it completes or fails as
          * usual.
          * <p>
-         * A no-op when nothing is parked, so it is safe in the {@code finally} the inherited
-         * {@code verifyNoLeakedListeners} requires it to be called from - a test that failed before the park happened
+         * A no-op when nothing is held, so it is safe in the {@code finally} the inherited
+         * {@code verifyNoLeakedListeners} requires it to be called from - a test that failed before the pause happened
          * must report its own failure rather than a null here.
          */
-        void releaseParkedFinalization() {
-            final Consumer<Exception> resume = parked.getAndSet(null);
+        void release() {
+            final Runnable resume = paused.getAndSet(null);
             if (resume != null) {
-                resume.accept(null);
-            }
-        }
-
-        /** Answers the parked finalization with a repository failure instead of running it. A no-op when nothing is parked. */
-        void failParkedFinalization() {
-            final Consumer<Exception> resume = parked.getAndSet(null);
-            if (resume != null) {
-                resume.accept(new IOException("simulated repository failure"));
+                resume.run();
             }
         }
 
         /**
          * The entrypoint the service budgets finalizations through: the inherited one, mapped so that a finalization can
-         * be parked and counted, or with {@code test_entrypoint} a counting one that runs the narrow body. Mapped once,
-         * so the answer is the same object on every call once present.
+         * be paused and counted. Mapped once, so the answer is the same object on every call once present.
          */
         @Override
         public synchronized Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
             if (entrypoint.isEmpty()) {
-                if (testEntrypoint) {
-                    entrypoint = Optional.of(
-                        (
+                entrypoint = super.abandonableSnapshotFinalization().map(
+                    inherited -> (
+                        shardGenerations,
+                        repositoryStateId,
+                        clusterMetadata,
+                        snapshotInfo,
+                        repositoryMetaVersion,
+                        stateTransformer,
+                        repositoryUpdatePriority,
+                        attempt,
+                        listener) -> {
+                        entrypointFinalizations.computeIfAbsent(snapshotInfo.snapshotId().getName(), k -> new AtomicInteger())
+                            .incrementAndGet();
+                        final Runnable call = () -> inherited.finalizeSnapshot(
                             shardGenerations,
                             repositoryStateId,
                             clusterMetadata,
@@ -1035,78 +691,21 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
                             stateTransformer,
                             repositoryUpdatePriority,
                             attempt,
-                            listener) -> {
-                            entrypointFinalizations.computeIfAbsent(snapshotInfo.snapshotId().getName(), k -> new AtomicInteger())
-                                .incrementAndGet();
-                            super.finalizeSnapshot(
-                                shardGenerations,
-                                repositoryStateId,
-                                clusterMetadata,
-                                snapshotInfo,
-                                repositoryMetaVersion,
-                                stateTransformer,
-                                repositoryUpdatePriority,
-                                listener
-                            );
+                            listener
+                        );
+                        if (armed.compareAndSet(Pause.METADATA_WRITE, null)) {
+                            setBlockOnAnyFiles(true);
+                        } else if (armed.compareAndSet(Pause.POST_CLAIM, null)) {
+                            attempt.startGenerationWrite();
+                            paused.set(call);
+                            return;
+                        } else if (armed.compareAndSet(Pause.PRE_ENTRY, null)) {
+                            paused.set(call);
+                            return;
                         }
-                    );
-                } else {
-                    entrypoint = super.abandonableSnapshotFinalization().map(
-                        inherited -> (
-                            shardGenerations,
-                            repositoryStateId,
-                            clusterMetadata,
-                            snapshotInfo,
-                            repositoryMetaVersion,
-                            stateTransformer,
-                            repositoryUpdatePriority,
-                            attempt,
-                            listener) -> {
-                            final String snapshotName = snapshotInfo.snapshotId().getName();
-                            entrypointFinalizations.computeIfAbsent(snapshotName, k -> new AtomicInteger()).incrementAndGet();
-                            finalizations.computeIfAbsent(snapshotName, k -> new AtomicInteger()).incrementAndGet();
-                            finalizedUuids.put(snapshotName, snapshotInfo.snapshotId().getUUID());
-                            final Consumer<Exception> call = failure -> {
-                                if (failure != null) {
-                                    listener.onFailure(failure);
-                                    return;
-                                }
-                                inherited.finalizeSnapshot(
-                                    shardGenerations,
-                                    repositoryStateId,
-                                    clusterMetadata,
-                                    snapshotInfo,
-                                    repositoryMetaVersion,
-                                    stateTransformer,
-                                    repositoryUpdatePriority,
-                                    attempt,
-                                    listener
-                                );
-                            };
-                            if (claimWritingOnce) {
-                                claimWritingOnce = false;
-                                attempt.startGenerationWrite();
-                            }
-                            if (snapshotName.equals(parkWritingFinalizationOf)) {
-                                parkWritingFinalizationOf = null;
-                                attempt.startGenerationWrite();
-                                parked.set(call);
-                                parkedSignal.countDown();
-                                return;
-                            }
-                            if (parkOnceFinalizationStarts || snapshotName.equals(parkFinalizationOf)) {
-                                // Disarmed on the way in and never rearmed: the snapshot queued behind the parked one,
-                                // and the trailing snapshot each test ends with, must finalize for real.
-                                parkOnceFinalizationStarts = false;
-                                parkFinalizationOf = null;
-                                parked.set(call);
-                                parkedSignal.countDown();
-                                return;
-                            }
-                            call.accept(null);
-                        }
-                    );
-                }
+                        call.run();
+                    }
+                );
             }
             return entrypoint;
         }

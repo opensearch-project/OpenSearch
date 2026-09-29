@@ -133,10 +133,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
     private final Settings settings;
 
-    /**
-     * Calls into a repository on this node that outlived the time budget they were given and have not returned yet,
-     * keyed by the flag each call sets when it returns. In memory only; a change of cluster manager does not clear it.
-     */
+    /** Repository names keyed by per-call completion flags for operations that outlive their timeout. */
     private final Map<AtomicBoolean, String> callsPastBudget = ConcurrentCollections.newConcurrentMap();
 
     public RepositoriesService(
@@ -639,8 +636,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
-     * Records that a call into {@code repository} outlived its time budget. Leaves no entry once {@link #callReturned} has
-     * been called with the same flag, whichever of the two runs first.
+     * Records a call that outlived its timeout. Use one flag per call; once {@link #callReturned(AtomicBoolean)} has been
+     * called with the same flag no record remains, whichever of the two runs first.
      */
     @ExperimentalApi
     public void callPastBudget(AtomicBoolean returned, String repository) {
@@ -650,14 +647,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    /** Records that the call identified by {@code returned} has returned. */
+    /** Marks the call identified by {@code returned} as complete. */
     @ExperimentalApi
     public void callReturned(AtomicBoolean returned) {
         returned.set(true);
         callsPastBudget.remove(returned);
     }
 
-    /** The repositories with at least one call recorded by {@link #callPastBudget} that has not returned. */
+    /** Returns repositories with calls that outlived their timeout and have not completed. */
     @ExperimentalApi
     public Set<String> repositoriesWithCallsPastBudget() {
         return Set.copyOf(callsPastBudget.values());

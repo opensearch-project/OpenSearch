@@ -32,7 +32,6 @@
 
 package org.opensearch.snapshots;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
@@ -150,7 +149,6 @@ import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -255,7 +253,6 @@ import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
-import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -335,11 +332,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     @Nullable
     private MockEventuallyConsistentRepository.Context blobStoreContext;
 
-    // Finalization capture for the budget tests, test code only. With captureFinalization set, the next finalization
-    // handed to a repository is held before it enters the repository, and capturedFinalization resumes it with the
-    // arguments it was given. With holdFinalizationAnswer set, the next finalization runs, and its successful answer,
-    // which the repository gives after the commit has removed the in-progress entry, is held in heldFinalizationAnswer.
-    // Each flag disarms itself on use.
     private boolean captureFinalization;
     private boolean holdFinalizationAnswer;
     @Nullable
@@ -347,31 +339,16 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     @Nullable
     private Runnable heldFinalizationAnswer;
 
-    // Finalization capability doubles for the tests below, test code only. The fs repository counts its narrow
-    // finalizations, its generation writes and its capability reads, and while declareTestEntrypoint is
-    // set it hands out a test-local entrypoint that counts its calls, records the attempt it is given and runs the
-    // narrow finalization of its superclass. A repository whose settings set conditional_writes is the enforcing mock
-    // store instead, whose entrypoint comes from the blob store factory; one named filtered-* wraps a test fs repository in
-    // a FilterRepository.
     private boolean declareTestEntrypoint;
     private final AtomicInteger narrowFinalizations = new AtomicInteger();
     private final AtomicInteger entrypointFinalizations = new AtomicInteger();
-    private final AtomicInteger capabilityReads = new AtomicInteger();
     private final AtomicInteger generationWrites = new AtomicInteger();
     @Nullable
     private SnapshotFinalizationAttempt entrypointAttempt;
-    // The next finalization through the enforcing type starts writing the repository generation before it is held.
-    private boolean holdWritingFinalization;
-    @Nullable
-    private volatile BlobStoreRepository filteredDelegate;
 
-    // Per repository name: the next finalization on a repository in captureFinalizationOn is held, and resumed by the
-    // runnable left in capturedFinalizations under that name.
     private final Set<String> captureFinalizationOn = new HashSet<>();
     private final Map<String, Runnable> capturedFinalizations = new HashMap<>();
 
-    // The next holdFinalizationReads repository-data reads that the cluster manager's fs repository gets while the
-    // repository has a completed in-progress entry are held, unanswered, in heldFinalizationReads.
     private int holdFinalizationReads;
     private final List<ActionListener<RepositoryData>> heldFinalizationReads = new ArrayList<>();
 
@@ -1385,12 +1362,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final PlainActionFuture<CreateSnapshotResponse> warmUp = startSnapshot(repoName, "warm-up");
         runUntil(warmUp::isDone, TimeUnit.MINUTES.toMillis(1L));
         final MockRepository repository = (MockRepository) clusterManagerNode.repositoriesService.repository(repoName);
-        // Read once the snapshot has made the repository strictly consistent and before its delete: this read starts the probe.
         assertTrue("not proven before the probe", repository.abandonableSnapshotFinalization().isEmpty());
         final PlainActionFuture<AcknowledgedResponse> deleted = PlainActionFuture.newFuture();
         client().admin().cluster().prepareDeleteSnapshot(repoName, "warm-up").execute(deleted);
         runUntil(deleted::isDone, TimeUnit.MINUTES.toMillis(1L));
-        // The probe was submitted to the generic pool; running what is runnable runs it to completion.
         deterministicTaskQueue.runAllRunnableTasks();
         try {
             assertTrue("the store probe did not complete", repository.awaitConditionalWriteProbe(TimeValue.ZERO));
@@ -1513,111 +1488,25 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     }
 
     /**
-     * A budget that expires while the finalization is writing the repository generation only answers the caller: the
-     * call keeps its entry, its name and the repository, a same-name retry is refused and the snapshot queued behind it
-     * waits; released, the call records the snapshot, the only one under its name, and the queued one then finalizes.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBudgetExpiryWhileWritingTheGenerationOnlyAnswersTheCaller() {
-        blobStoreContext = null;
-        setupTestCluster(1, 1);
-        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
-        final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
-        createRepoAndIndexWithDocuments(ENFORCING_MOCK_STORE, randomIntBetween(1, 10));
-        proveRepository(clusterManagerNode);
-
-        holdWritingFinalization = true;
-        captureFinalization = true;
-        final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("n");
-        runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
-        assertTrue(entrypointAttempt.isWritingGeneration());
-        final SnapshotId writing = inProgressEntry(clusterManagerNode, "n").snapshot().getSnapshotId();
-        final PlainActionFuture<CreateSnapshotResponse> queued = startSnapshot("queued");
-        awaitShardsDone(clusterManagerNode, "queued");
-
-        runPast(budget);
-
-        assertTrue(first.isDone());
-        final Throwable timeout = ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, first::actionGet),
-            OpenSearchTimeoutException.class
-        );
-        assertNotNull(timeout);
-        assertThat(timeout.getMessage(), containsString("it was already writing the repository generation and may still complete"));
-        assertNotNull("a call writing the generation must keep its entry", inProgressEntry(clusterManagerNode, "n"));
-        assertFalse("the snapshot queued behind it must wait", queued.isDone());
-        final PlainActionFuture<CreateSnapshotResponse> retry = startSnapshot("n");
-        runUntil(retry::isDone, TimeUnit.MINUTES.toMillis(1L));
-        final Throwable refused = ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, retry::actionGet),
-            InvalidSnapshotNameException.class
-        );
-        assertNotNull("a same-name retry must be refused while the call writes the generation", refused);
-        assertThat(refused.getMessage(), containsString("already in-progress"));
-
-        capturedFinalization.run();
-        runUntil(() -> queued.isDone() && inProgressEntry(clusterManagerNode, "n") == null, TimeUnit.MINUTES.toMillis(1L));
-        assertEquals(SnapshotState.SUCCESS, queued.actionGet().getSnapshotInfo().state());
-        final RepositoryData repositoryData = getRepositoryData(clusterManagerNode.repositoriesService.repository("repo"));
-        assertEquals(Set.of("n", "queued"), snapshotNames(repositoryData));
-        assertEquals("the one snapshot named n must be the call that was writing", Set.of(writing), snapshotIdsNamed(repositoryData, "n"));
-        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
-    }
-
-    /**
-     * The service hands the entrypoint its own attempt, which reports abandoned once the budget has expired. A declarer
-     * that answers success without having claimed the call, after its budget took the outcome, is neither answered nor
-     * handed on a second time: the repository moves on once, and a later snapshot runs.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testDeclarerThatSkipsTheClaimIsHandedOnOnce() throws Exception {
-        blobStoreContext = null;
-        declareTestEntrypoint = true;
-        setupTestCluster(1, 1);
-        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
-        final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
-        createRepoAndIndexWithDocuments(randomIntBetween(1, 10));
-
-        captureFinalization = true;
-        final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("first");
-        runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
-        assertEquals(1, entrypointFinalizations.get());
-        assertEquals(0, narrowFinalizations.get());
-        assertFalse("not abandoned before the budget expires", entrypointAttempt.isAbandoned());
-        runPast(budget);
-        assertTrue("abandoned once the budget has expired", entrypointAttempt.isAbandoned());
-        assertTrue("the budget must have taken the outcome", first.isDone());
-
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(SnapshotsService.class))) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "the late success is neither answered nor handed on",
-                    SnapshotsService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*completed after its time budget took the outcome*"
-                )
-            );
-            capturedFinalization.run();
-            deterministicTaskQueue.runAllRunnableTasks();
-            appender.assertAllExpectationsMatched();
-        }
-
-        final PlainActionFuture<CreateSnapshotResponse> second = startSnapshot("second");
-        runUntil(second::isDone, TimeUnit.MINUTES.toMillis(1L));
-        assertEquals("the repository must have been handed on", SnapshotState.SUCCESS, second.actionGet().getSnapshotInfo().state());
-    }
-
-    /**
      * With the feature flag off a finalization has no budget, even on a repository that hands out an entrypoint: however
-     * long it is held, its caller is not answered, and it finalizes through the narrow overload without reading the
-     * repository's capability.
+     * long it is held, its caller is not answered, and it finalizes through the narrow overload. A store that enforces
+     * conditional writes is not probed.
      */
-    public void testFinalizationIsNotBudgetedWithTheFlagOff() throws IOException {
+    public void testFinalizationIsNotBudgetedWithTheFlagOff() throws IOException, InterruptedException {
         blobStoreContext = null;
         declareTestEntrypoint = true;
         setupTestCluster(1, 1);
         final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
         createRepoAndIndexWithDocuments(randomIntBetween(1, 10));
+        final PlainActionFuture<AcknowledgedResponse> created = PlainActionFuture.newFuture();
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            "repo2",
+            FsRepository.TYPE,
+            Settings.builder().put(ENFORCING_MOCK_STORE).put("location", randomAlphaOfLength(10)),
+            created
+        );
+        runUntil(created::isDone, TimeUnit.MINUTES.toMillis(1L));
 
         captureFinalization = true;
         final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("first");
@@ -1637,7 +1526,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         runUntil(first::isDone, TimeUnit.MINUTES.toMillis(1L));
         assertEquals(SnapshotState.SUCCESS, first.actionGet().getSnapshotInfo().state());
         assertEquals("the narrow override must be reached", 1, narrowFinalizations.get());
-        assertEquals("the capability must not be read with the flag off", 0, capabilityReads.get());
         assertEquals(1, generationWrites.get());
         final BlobStoreRepository repository = (BlobStoreRepository) clusterManagerNode.repositoriesService.repository("repo");
         final SnapshotId snapshotId = getRepositoryData(repository).getSnapshotIds().iterator().next();
@@ -1646,91 +1534,21 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         assertTrue(rootBlobs.contains("snap-" + snapshotId.getUUID() + ".dat"));
         assertTrue(rootBlobs.contains("meta-" + snapshotId.getUUID() + ".dat"));
         assertEquals("with the flag off the entrypoint must not be used", 0, entrypointFinalizations.get());
-        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
-    }
 
-    /**
-     * A budget that expires before the finalization started writing the repository generation stops it. Its entry is
-     * removed and its caller is told it will not be recorded; the snapshot queued behind it and the delete waiting behind
-     * it run, and a retry under the same name runs its normal flow. Released later, the stopped call records nothing and
-     * hands nothing on.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBudgetExpiryBeforeTheGenerationWriteStopsTheFinalization() {
-        blobStoreContext = null;
-        setupTestCluster(1, 1);
-        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
-        final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
-        final int documents = randomIntBetween(1, 10);
-        createRepoAndIndexWithDocuments(ENFORCING_MOCK_STORE, documents);
-        proveRepository(clusterManagerNode);
-        final PlainActionFuture<CreateSnapshotResponse> other = startSnapshot("other");
-        runUntil(other::isDone, TimeUnit.MINUTES.toMillis(1L));
-
-        captureFinalization = true;
-        final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("n");
-        runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
-        final PlainActionFuture<CreateSnapshotResponse> queued = startSnapshot("queued");
-        awaitShardsDone(clusterManagerNode, "queued");
-        final PlainActionFuture<AcknowledgedResponse> deleted = PlainActionFuture.newFuture();
-        client().admin().cluster().prepareDeleteSnapshot("repo", "other").execute(deleted);
-        runUntil(
-            () -> clusterManagerNode.clusterService.state()
-                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
-                .hasDeletionsInProgress(),
-            TimeUnit.MINUTES.toMillis(1L)
-        );
-
-        runPast(budget);
-
-        assertTrue("the stopped finalization's caller must be answered", first.isDone());
-        final Throwable timeout = ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, first::actionGet),
-            OpenSearchTimeoutException.class
-        );
-        assertNotNull(timeout);
-        assertThat(timeout.getMessage(), containsString("so it will not be recorded"));
-        assertThat(timeout.getMessage(), containsString("the new cluster manager finalizes the snapshot again and may record it"));
-        assertNull("the stopped finalization's entry must be removed", inProgressEntry(clusterManagerNode, "n"));
-        assertEquals(
-            "the stopped call must stay recorded as past its budget until it returns",
-            Set.of("repo"),
-            clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget()
-        );
-        runUntil(() -> queued.isDone() && deleted.isDone(), TimeUnit.MINUTES.toMillis(1L));
-        assertEquals("the snapshot queued behind it must run", SnapshotState.SUCCESS, queued.actionGet().getSnapshotInfo().state());
-        assertTrue("the delete waiting behind it must run", deleted.actionGet().isAcknowledged());
-
-        final PlainActionFuture<CreateSnapshotResponse> retry = startSnapshot("n");
-        runUntil(retry::isDone, TimeUnit.MINUTES.toMillis(1L));
-        assertEquals("a same-name retry must run its normal flow", SnapshotState.SUCCESS, retry.actionGet().getSnapshotInfo().state());
-        final SnapshotId retried = retry.actionGet().getSnapshotInfo().snapshotId();
-
-        final int generationWritesBefore = generationWrites.get();
-        capturedFinalization.run();
+        final PlainActionFuture<CreateSnapshotResponse> second = startSnapshot("repo2", "second");
+        runUntil(second::isDone, TimeUnit.MINUTES.toMillis(1L));
+        final MockRepository enforcing = (MockRepository) clusterManagerNode.repositoriesService.repository("repo2");
+        assertTrue("with the flag off the capability must stay empty", enforcing.abandonableSnapshotFinalization().isEmpty());
         deterministicTaskQueue.runAllRunnableTasks();
-        assertEquals(
-            "the stopped call's failure exit must release the record",
-            Set.of(),
-            clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget()
-        );
-        assertEquals("the released call must write no repository generation", generationWritesBefore, generationWrites.get());
-        final Repository repository = clusterManagerNode.repositoriesService.repository("repo");
-        final RepositoryData repositoryData = getRepositoryData(repository);
-        assertEquals(Set.of("queued", "n"), snapshotNames(repositoryData));
-        assertEquals("the only snapshot named n must be the retry", Set.of(retried), snapshotIdsNamed(repositoryData, "n"));
-        final RepositoryMetadata repositoryMetadata = clusterManagerNode.clusterService.state()
-            .metadata()
-            .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-            .repository("repo");
-        assertEquals(repositoryMetadata.pendingGeneration(), repositoryMetadata.generation());
-        assertEquals(documents, restoreAndCount("n"));
+        assertEquals("no conditional write with the flag off", 0L, enforcing.conditionalWriteCount());
+        assertFalse("no probe with the flag off", enforcing.awaitConditionalWriteProbe(TimeValue.ZERO));
         assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
     }
 
     /**
-     * A finalization whose own repository-data read outlives the budget is failed alone, with that read's timeout. The
-     * snapshot queued behind it then reads for itself and finalizes, and the delete waiting behind both runs.
+     * A finalization whose own repository-data read outlives the budget is failed alone, with that read's timeout. Each
+     * snapshot queued behind it then reads for itself under its own budget: the second, whose read also outlives it,
+     * fails alone as well, the third finalizes, and the delete waiting behind them runs.
      */
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
     public void testFinalizationWhoseOwnReadTimesOutFailsAlone() {
@@ -1745,22 +1563,26 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         holdFinalizationReads = 1;
         final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("first");
         runUntil(() -> heldFinalizationReads.size() == 1, TimeUnit.MINUTES.toMillis(1L));
-        final PlainActionFuture<CreateSnapshotResponse> queued = startSnapshot("queued");
-        awaitShardsDone(clusterManagerNode, "queued");
+        final PlainActionFuture<CreateSnapshotResponse> second = startSnapshot("second");
+        awaitShardsDone(clusterManagerNode, "second");
+        final PlainActionFuture<CreateSnapshotResponse> third = startSnapshot("third");
+        awaitShardsDone(clusterManagerNode, "third");
         final PlainActionFuture<AcknowledgedResponse> deleted = startDeleteWaiting(clusterManagerNode, "old");
+        holdFinalizationReads = 1;
 
         runPast(budget);
 
         assertFailedByItsReadTimeout(first, budget);
-        assertTrue("queued must finish", queued.isDone());
-        assertEquals(
-            "a finalization whose own read timed out must fail only that finalization",
-            SnapshotState.SUCCESS,
-            snapshotStateOf(queued)
-        );
+        assertEquals("the second snapshot must read for itself", 2, heldFinalizationReads.size());
+        assertFalse(second.isDone());
+
+        runPast(budget);
+
+        assertFailedByItsReadTimeout(second, budget);
+        assertEquals(SnapshotState.SUCCESS, snapshotStateOf(third));
         assertTrue("the delete waiting behind them must run", deleted.isDone());
         assertTrue(deleted.actionGet().isAcknowledged());
-        assertEquals(Set.of("queued"), snapshotNames(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo"))));
+        assertEquals(Set.of("third"), snapshotNames(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo"))));
         assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
     }
 
@@ -1787,54 +1609,17 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         heldFinalizationReads.get(0).onFailure(new RepositoryException("repo", "injected read failure"));
         runUntil(() -> first.isDone() && queued.isDone() && deleted.isDone(), TimeUnit.MINUTES.toMillis(1L));
 
-        assertNull(snapshotStateOf(first));
-        assertNull("a genuine read failure fails the repository's pending tasks, as without the feature", snapshotStateOf(queued));
-        expectThrows(Exception.class, deleted::actionGet);
+        for (PlainActionFuture<?> future : List.of(first, queued, deleted)) {
+            final Throwable failure = ExceptionsHelper.unwrap(expectThrows(Exception.class, future::actionGet), RepositoryException.class);
+            assertNotNull("a genuine read failure fails the repository's pending tasks, as without the feature", failure);
+            assertThat(failure.getMessage(), containsString("injected read failure"));
+        }
         assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
 
-        // The failed snapshots leave the shard generations they wrote. Deleting "old" rewrites the shard's index and removes
-        // them, which the after-test repository consistency check needs.
         final PlainActionFuture<AcknowledgedResponse> deletedAgain = PlainActionFuture.newFuture();
         client().admin().cluster().prepareDeleteSnapshot("repo", "old").execute(deletedAgain);
         runUntil(deletedAgain::isDone, TimeUnit.MINUTES.toMillis(1L));
         assertTrue(deletedAgain.actionGet().isAcknowledged());
-    }
-
-    /**
-     * Each finalization answers for its own read: when the read of the snapshot queued behind also outlives the budget,
-     * that snapshot fails alone as well, and the delete waiting behind both still runs.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testEachFinalizationAnswersForItsOwnRead() {
-        blobStoreContext = null;
-        setupTestCluster(1, 1);
-        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
-        final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
-        createRepoAndIndexWithDocuments(randomIntBetween(1, 10));
-        final PlainActionFuture<CreateSnapshotResponse> old = startSnapshot("old");
-        runUntil(old::isDone, TimeUnit.MINUTES.toMillis(1L));
-
-        holdFinalizationReads = 1;
-        final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("first");
-        runUntil(() -> heldFinalizationReads.size() == 1, TimeUnit.MINUTES.toMillis(1L));
-        final PlainActionFuture<CreateSnapshotResponse> queued = startSnapshot("queued");
-        awaitShardsDone(clusterManagerNode, "queued");
-        final PlainActionFuture<AcknowledgedResponse> deleted = startDeleteWaiting(clusterManagerNode, "old");
-        holdFinalizationReads = 1;
-
-        runPast(budget);
-
-        assertFailedByItsReadTimeout(first, budget);
-        assertEquals("the queued snapshot must read for itself", 2, heldFinalizationReads.size());
-        assertFalse(queued.isDone());
-
-        runPast(budget);
-
-        assertFailedByItsReadTimeout(queued, budget);
-        assertTrue("each finalization answers for its own read, and the delete behind them still runs", deleted.isDone());
-        assertTrue(deleted.actionGet().isAcknowledged());
-        assertEquals(Set.of(), snapshotNames(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo"))));
-        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
     }
 
     /**
@@ -1868,7 +1653,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         capturedFinalization.run();
         runUntil(second::isDone, TimeUnit.MINUTES.toMillis(1L));
         assertEquals(SnapshotState.SUCCESS, snapshotStateOf(second));
-        // The entry has no driver while this node stays cluster manager; the re-drive a newly elected one runs ends it.
         redriveCompletedSnapshots(clusterManagerNode.snapshotsService);
         runUntil(() -> inProgressEntry(clusterManagerNode, "first") == null, TimeUnit.MINUTES.toMillis(1L));
         assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
@@ -2006,7 +1790,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         proveRepository(clusterManagerNode, "repo");
         proveRepository(clusterManagerNode, "repo2");
 
-        // Snapshot s1 on repo, held before it runs, outlives its budget.
         captureFinalizationOn.add("repo");
         final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot("repo", "s1");
         runUntil(() -> capturedFinalizations.containsKey("repo"), TimeUnit.MINUTES.toMillis(1L));
@@ -2016,7 +1799,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             ExceptionsHelper.unwrap(expectThrows(Exception.class, first::actionGet), OpenSearchTimeoutException.class)
         );
 
-        // Snapshot s2 on repo2 starts while s1 is past its budget and has not returned.
         captureFinalizationOn.add("repo2");
         final int narrowBefore = narrowFinalizations.get();
         final PlainActionFuture<CreateSnapshotResponse> second = startSnapshot("repo2", "s2");
@@ -2033,7 +1815,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         capturedFinalizations.remove("repo").run();
         runUntil(() -> inProgressEntry(clusterManagerNode, "s1") == null, TimeUnit.MINUTES.toMillis(1L));
 
-        // s1 has returned, so snapshot s3 on repo2 is budgeted again.
         captureFinalizationOn.add("repo2");
         final PlainActionFuture<CreateSnapshotResponse> third = startSnapshot("repo2", "s3");
         runUntil(() -> capturedFinalizations.containsKey("repo2"), TimeUnit.MINUTES.toMillis(1L));
@@ -2045,95 +1826,67 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     }
 
     /**
+     * A shallow-copy snapshot is not budgeted, even on a repository that hands out an entrypoint: held past the budget,
+     * its finalization is not answered, and released it records the snapshot.
+     */
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testShallowCopySnapshotIsNotBudgeted() {
+        blobStoreContext = null;
+        declareTestEntrypoint = true;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        createRepoAndIndexWithDocuments(
+            Settings.builder().put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true).build(),
+            randomIntBetween(1, 10)
+        );
+
+        captureFinalization = true;
+        final PlainActionFuture<CreateSnapshotResponse> shallow = startSnapshot("shallow");
+        runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
+        runPast(clusterManagerNode.snapshotsService.repositoryIoTimeout());
+        assertFalse("a shallow-copy finalization must not be answered by a budget", shallow.isDone());
+
+        capturedFinalization.run();
+        runUntil(shallow::isDone, TimeUnit.MINUTES.toMillis(1L));
+        assertEquals(SnapshotState.SUCCESS, shallow.actionGet().getSnapshotInfo().state());
+    }
+
+    /**
      * With the feature flag on and no entrypoint handed out, a finalization is not budgeted: held past the budget it is
      * not answered and keeps its entry, and released it records the snapshot. Holds for a repository that hands out
      * nothing, and for a FilterRepository over one that does, because FilterRepository does not forward the capability.
      */
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testNoTimerWithoutAnEntrypoint() throws IOException {
-        assertNoTimerWithoutAnEntrypoint(false);
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testNoTimerThroughAFilterRepository() throws IOException {
-        assertNoTimerWithoutAnEntrypoint(true);
-    }
-
-    private void assertNoTimerWithoutAnEntrypoint(boolean filtered) throws IOException {
+    public void testNoTimerWithoutAUsableEntrypoint() {
         blobStoreContext = null;
-        declareTestEntrypoint = filtered;
         setupTestCluster(1, 1);
         final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
         final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
-        final int documents = randomIntBetween(1, 10);
-        createRepoAndIndexWithDocuments(documents);
-        final String repoName = filtered ? "filtered-repo" : "repo";
-        if (filtered) {
-            final PlainActionFuture<AcknowledgedResponse> created = PlainActionFuture.newFuture();
-            OpenSearchIntegTestCase.putRepository(
-                client().admin().cluster(),
-                repoName,
-                FsRepository.TYPE,
-                Settings.builder().put("location", randomAlphaOfLength(10)),
-                created
-            );
-            runUntil(created::isDone, TimeUnit.MINUTES.toMillis(1L));
-        }
+        createRepoAndIndexWithDocuments(randomIntBetween(1, 10));
+        final PlainActionFuture<AcknowledgedResponse> created = PlainActionFuture.newFuture();
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            "filtered-repo",
+            FsRepository.TYPE,
+            Settings.builder().put("location", randomAlphaOfLength(10)),
+            created
+        );
+        runUntil(created::isDone, TimeUnit.MINUTES.toMillis(1L));
 
-        captureFinalization = true;
-        final PlainActionFuture<CreateSnapshotResponse> first = startSnapshot(repoName, "first");
-        runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
-        runPast(budget);
+        for (String repoName : List.of("repo", "filtered-repo")) {
+            declareTestEntrypoint = repoName.equals("filtered-repo");
+            capturedFinalization = null;
+            captureFinalization = true;
+            final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot(repoName, repoName + "-snapshot");
+            runUntil(() -> capturedFinalization != null, TimeUnit.MINUTES.toMillis(1L));
+            runPast(budget);
 
-        assertFalse("a finalization without an entrypoint must not be answered by a budget", first.isDone());
-        assertNotNull("its entry must stay", inProgressEntry(clusterManagerNode, "first"));
-        assertEquals(0, entrypointFinalizations.get());
+            assertFalse("[" + repoName + "] must not be answered by a budget", snapshot.isDone());
+            assertNotNull("its entry must stay", inProgressEntry(clusterManagerNode, repoName + "-snapshot"));
 
-        capturedFinalization.run();
-        runUntil(first::isDone, TimeUnit.MINUTES.toMillis(1L));
-        assertEquals(SnapshotState.SUCCESS, first.actionGet().getSnapshotInfo().state());
-        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
-        final RepositoryData repositoryData = getRepositoryData(repository);
-        final SnapshotId snapshotId = repositoryData.getSnapshotIds().iterator().next();
-        assertEquals("first", snapshotId.getName());
-        final BlobStoreRepository blobStore = filtered ? filteredDelegate : (BlobStoreRepository) repository;
-        final Set<String> rootBlobs = blobNames(blobStore.blobStore().blobContainer(blobStore.basePath()));
-        assertTrue(rootBlobs.contains("snap-" + snapshotId.getUUID() + ".dat"));
-        assertTrue(rootBlobs.contains("meta-" + snapshotId.getUUID() + ".dat"));
-        assertFalse(blobNames(blobStore.shardContainer(repositoryData.resolveIndexId("test"), 0)).isEmpty());
-        assertEquals(documents, restoreAndCount(repoName, "first"));
-    }
-
-    /**
-     * With the feature flag off a full create, delete and cleanup cycle on a store that claims and enforces conditional
-     * writes makes no conditional write and runs no probe, and the capability stays empty.
-     */
-    public void testFlagOffCycleNeverProbes() {
-        blobStoreContext = null;
-        setupTestCluster(1, 1);
-        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
-        createRepoAndIndexWithDocuments(ENFORCING_MOCK_STORE, randomIntBetween(1, 10));
-        final MockRepository repository = (MockRepository) clusterManagerNode.repositoriesService.repository("repo");
-
-        final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot("snapshot");
-        runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
-        final PlainActionFuture<AcknowledgedResponse> deleted = PlainActionFuture.newFuture();
-        client().admin().cluster().prepareDeleteSnapshot("repo", "snapshot").execute(deleted);
-        runUntil(deleted::isDone, TimeUnit.MINUTES.toMillis(1L));
-        assertTrue("with the flag off the capability must stay empty", repository.abandonableSnapshotFinalization().isEmpty());
-        final PlainActionFuture<CleanupRepositoryResponse> cleaned = PlainActionFuture.newFuture();
-        client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest("repo"), cleaned);
-        runUntil(cleaned::isDone, TimeUnit.MINUTES.toMillis(1L));
-        deterministicTaskQueue.runAllRunnableTasks();
-
-        for (TestClusterNodes.TestClusterNode node : testClusterNodes.nodes.values()) {
-            final MockRepository nodeRepository = (MockRepository) node.repositoriesService.repository("repo");
-            assertEquals("no conditional write with the flag off", 0L, nodeRepository.conditionalWriteCount());
-            try {
-                assertFalse("no probe with the flag off", nodeRepository.awaitConditionalWriteProbe(TimeValue.ZERO));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            capturedFinalization.run();
+            runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+            assertEquals(SnapshotState.SUCCESS, snapshot.actionGet().getSnapshotInfo().state());
         }
     }
 
@@ -3453,7 +3206,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         }
                         final Repository fs = testFsRepository(metadata, environment);
                         if (metadata.name().startsWith("filtered")) {
-                            filteredDelegate = (BlobStoreRepository) fs;
                             return new FilterRepository(fs) {
                                 @Override
                                 public void finalizeSnapshot(
@@ -3559,12 +3311,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {
-                        // No thread-name check: the repository is created on the test thread.
+                        // eliminate thread name check as we create repo in the test thread
                     }
 
                     @Override
                     public Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
-                        capabilityReads.incrementAndGet();
                         return declareTestEntrypoint ? testEntrypoint : Optional.empty();
                     }
 
@@ -3637,15 +3388,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {
-                        // No thread-name check: the repository is created on the test thread.
+                        // eliminate thread name check as we create repo in the test thread
                     }
 
                     @Override
                     public synchronized Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
-                        // Maps the inherited entrypoint, passing the service's attempt through, so that the finalization
-                        // can be held like any other. It keeps the first mapped entrypoint instead of reading the inherited
-                        // answer on every call: a shortcut these tests can take because this repository stays writable,
-                        // strictly consistent and not shallow once proven, not what the accessor's contract allows.
                         if (entrypoint.isEmpty()) {
                             entrypoint = super.abandonableSnapshotFinalization().map(
                                 inherited -> (
@@ -3660,10 +3407,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                                     listener) -> {
                                     entrypointFinalizations.incrementAndGet();
                                     entrypointAttempt = attempt;
-                                    if (holdWritingFinalization) {
-                                        holdWritingFinalization = false;
-                                        attempt.startGenerationWrite();
-                                    }
                                     finalizeThroughCapture(
                                         metadata.name(),
                                         l -> inherited.finalizeSnapshot(

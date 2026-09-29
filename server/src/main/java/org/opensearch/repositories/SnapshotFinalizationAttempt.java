@@ -13,7 +13,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * One snapshot finalization's outcome, shared by the caller that gave it a time budget and the repository that runs it.
+ * Coordinates a caller's timeout with a repository's generation publication for one snapshot finalization. The caller
+ * calls {@link #abandon()} when its timeout fires and {@link #exit()} when the repository call returns; at most one of
+ * them succeeds, and that caller path completes the caller and releases the repository. The repository calls only
+ * {@link #isAbandoned()} and {@link #startGenerationWrite()}.
  *
  * @opensearch.experimental
  */
@@ -29,30 +32,40 @@ public final class SnapshotFinalizationAttempt {
 
     private final AtomicReference<State> state = new AtomicReference<>(State.RUNNING);
 
-    /** Caller: gives up on a finalization that has not started writing the repository generation; false once it has, or has returned. */
+    /**
+     * Attempts to abandon the operation before generation publication is claimed.
+     *
+     * @return {@code true} if this call abandoned the operation; {@code false} if publication was claimed or the operation
+     *         had already ended
+     */
     public boolean abandon() {
         return state.compareAndSet(State.RUNNING, State.ABANDONED);
     }
 
-    /** Repository: whether the caller has given up. */
+    /** Returns whether the operation was abandoned before publication. */
     public boolean isAbandoned() {
         return state.get() == State.ABANDONED;
     }
 
     /**
-     * Repository: called before it writes anything that makes the snapshot part of the repository. False means the caller
-     * gave up first and nothing may be written; once true, the caller can no longer give up on the call.
+     * Attempts to claim generation publication.
+     *
+     * @return {@code true} if publication was claimed by this or an earlier call; {@code false} after abandonment or completion
      */
     public boolean startGenerationWrite() {
         return state.compareAndSet(State.RUNNING, State.WRITING) || state.get() == State.WRITING;
     }
 
-    /** Caller: whether the finalization is writing the repository generation and has not returned. */
+    /** Returns whether publication was claimed and the repository call remains active. */
     public boolean isWritingGeneration() {
         return state.get() == State.WRITING;
     }
 
-    /** Caller: claims the outcome when the call returns. False means the caller gave up first and already owns it. */
+    /**
+     * Marks a running or publishing operation complete.
+     *
+     * @return {@code true} if this call completed the operation; {@code false} after abandonment or prior completion
+     */
     public boolean exit() {
         return state.compareAndSet(State.RUNNING, State.EXITED) || state.compareAndSet(State.WRITING, State.EXITED);
     }

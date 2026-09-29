@@ -2661,10 +2661,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
-     * The finalization entrypoint for a subclass that declares {@link #abandonableSnapshotFinalization()} for its own
-     * finalization path, or empty while {@link #timeBudgetsSupported()} does not hold. The entrypoint runs this class's
-     * finalization body directly, so it bypasses the declaring class's 7- and 8-argument {@code finalizeSnapshot}; it
-     * still reaches {@code writeIndexGen}. A subclass of a declaring class inherits the declaration.
+     * Returns this class's abandonment-aware finalization entry point when time budgets are supported, for a subclass that
+     * declares it. The entry point bypasses overrides of the public finalization methods but retains dispatch through protected
+     * {@link #writeIndexGen}, and a subclass of a declaring class inherits the declaration.
      */
     protected final Optional<AbandonableSnapshotFinalization> blobStoreAbandonableSnapshotFinalization() {
         return timeBudgetsSupported() ? abandonableSnapshotFinalization : Optional.empty();
@@ -2716,8 +2715,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // number_of_shards) has increased.
                 Set<String> updatedIndexIds = writeNewIndexShardPaths(existingRepositoryData, updatedRepositoryData, snapshotId);
                 cleanupRedundantSnapshotShardPaths(updatedIndexIds);
-                // The claim: once it succeeds the attempt can no longer be abandoned, so writeIndexGen is never refused;
-                // anything placed between the two would run where a timeout only answers the caller.
+                // After this claim succeeds, timeout may complete the caller but cannot prevent generation publication.
                 failIfAbandoned(attempt.startGenerationWrite() == false, snapshotId);
                 writeIndexGen(
                     updatedRepositoryData,
@@ -2769,14 +2767,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, onUpdateFailure);
     }
 
-    /**
-     * Refuses to go on finalizing a snapshot whose caller has abandoned it, so this call does not record a snapshot its
-     * caller was told had been stopped. No refusal leaves an index-N blob or a reserved generation. Blobs already written
-     * stay in the repository, unreferenced: the shard data at every check, the snapshot's metadata blobs after the first,
-     * and the shard-path blobs written just before the last, which is also where the repository claims the call.
-     *
-     * @throws SnapshotException if the caller has abandoned this snapshot
-     */
     private void failIfAbandoned(boolean abandoned, SnapshotId snapshotId) {
         if (abandoned) {
             throw new SnapshotException(
@@ -3463,10 +3453,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return TESTS_FILE + seed;
     }
 
-    /**
-     * What this instance has established about its store's conditional writes. UNKNOWN until a probe decides, and again after an
-     * inconclusive one; PROBING while one runs; PROVEN or UNPROVEN once decided, both terminal for the instance.
-     */
     private enum ConditionalWriteProof {
         UNKNOWN,
         PROBING,
@@ -3480,20 +3466,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final AtomicInteger conditionalWriteProbes = new AtomicInteger();
 
-    /**
-     * Whether a probe of this instance's store has passed: the endpoint evaluated both conditional-write preconditions
-     * and versioned a plain overwrite for this client. Reads only this instance.
-     */
     private boolean conditionalWritesProven() {
         return conditionalWriteProof.get() == ConditionalWriteProof.PROVEN;
     }
 
-    /**
-     * Whether this repository may hand out its time-budgeted entrypoints: only with the feature flag on, on a writable, strictly
-     * consistent, non-system repository not configured for shallow copies, whose store a probe has proven. While none of the
-     * exclusions holds and nothing is decided, a call submits a probe to the generic pool when none is running and fewer than
-     * {@link #MAX_CONDITIONAL_WRITE_PROBES} have run. Performs no I/O on the calling thread and reads no cluster state.
-     */
     private boolean timeBudgetsSupported() {
         if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false
             || isReadOnly()
@@ -3515,11 +3491,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return conditionalWritesProven();
     }
 
-    /**
-     * Probes, on a fresh container, whether the store evaluates both conditional-write preconditions and versions a plain
-     * overwrite. A container that reports no support, or a write that must conflict and does not, decides UNPROVEN; any other
-     * failure leaves the question open, for at most {@link #MAX_CONDITIONAL_WRITE_PROBES} probes in all.
-     */
     private void probeConditionalWrites() {
         BlobContainer container = null;
         ConditionalWriteProof outcome;
@@ -3599,7 +3570,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return ConditionalWriteProof.PROVEN;
     }
 
-    /** A conditional write of {@code value}: the new version token if it was accepted, null if its precondition failed. */
     @Nullable
     private static String writeConditionally(BlobContainer container, String blob, long value, @Nullable String expectedVersionToken)
         throws IOException {

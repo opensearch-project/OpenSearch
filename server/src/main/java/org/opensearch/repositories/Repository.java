@@ -196,14 +196,8 @@ public interface Repository extends LifecycleComponent {
     }
 
     /**
-     * A finalization entrypoint that also takes the attempt its caller shares with it. It finalizes as
-     * {@link #finalizeSnapshot(ShardGenerations, long, Metadata, SnapshotInfo, Version, Function, Priority, ActionListener)}
-     * does.
-     * <p>
-     * The implementation calls {@code attempt.startGenerationWrite()} before it writes anything that makes the snapshot
-     * part of the repository, and writes nothing of that kind if it returns false. It may consult {@code isAbandoned()}
-     * earlier to stop sooner. Once {@code startGenerationWrite()} has returned true the attempt can no longer be abandoned,
-     * so the call runs to its own completion or failure.
+     * Finalizes a snapshot using {@link SnapshotFinalizationAttempt} to coordinate timeout with generation publication.
+     * Publication requires a successful {@link SnapshotFinalizationAttempt#startGenerationWrite()} claim.
      *
      * @opensearch.experimental
      */
@@ -224,18 +218,9 @@ public interface Repository extends LifecycleComponent {
     }
 
     /**
-     * The finalization entrypoint this repository hands out for time-budgeted finalizations, or empty. Empty by default.
-     * A caller that puts a time budget on a finalization finalizes through the returned entrypoint, and falls back to
-     * {@link #finalizeSnapshot(ShardGenerations, long, Metadata, SnapshotInfo, Version, Function, Priority, ActionListener)},
-     * unbudgeted, when nothing is returned.
-     * <p>
-     * An implementation returns one only for a finalization path it owns and declares, and only while a check of its
-     * store has found that the store evaluates conditional-write preconditions for this client. The answer is
-     * synchronous, involves no I/O and reads no cluster state. It is read per operation and must not be cached: it may be
-     * empty until an asynchronous check completes, and it is empty while the repository is read-only, not strictly
-     * consistent or configured for shallow copies. When present it is the same object. {@link FilterRepository} does not
-     * forward it: a decorator that wants it overrides this method and maps the wrapped entrypoint, passing the same
-     * attempt.
+     * Returns an abandonment-aware finalization entry point for writable, strictly consistent full-copy repositories with
+     * verified store-enforced conditional writes. Evaluate this I/O-free capability check for each operation. A decorator
+     * that exposes the capability must pass the same {@link SnapshotFinalizationAttempt} to the wrapped entry point.
      */
     @ExperimentalApi
     default Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {

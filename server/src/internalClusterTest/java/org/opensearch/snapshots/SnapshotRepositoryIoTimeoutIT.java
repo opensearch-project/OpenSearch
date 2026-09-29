@@ -60,7 +60,6 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // The base class returns only MockRepository.Plugin, which cannot park getRepositoryData.
         return Collections.singletonList(ParkingMockRepositoryPlugin.class);
     }
 
@@ -72,18 +71,12 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
      * left held. A double release would be caught by leaveRepoLoop's assert, under -ea only.
      */
     public void testLateRepositoryDataCompletionAfterTimeoutIsDropped() throws Exception {
-        // The drop is observable synchronously on this thread only through finalizeSnapshotEntry's token assert, so
-        // this test genuinely requires assertions. Stated rather than left implicit: with -da the delivered completion
-        // would finalize asynchronously and the negative checks below would race it, and most likely win.
         assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
         final ParkingMockRepository repository = startClusterAndParkFinalizationReads();
         try {
             setIoTimeout("5s");
             final ActionFuture<CreateSnapshotResponse> future = startSnapshot("snap-dropped");
             assertBusy(() -> assertNotNull("finalization read never parked", repository.parkedListener()));
-            // Asserts *why* it failed, not merely that it did: every assertion below is about the timeout scenario,
-            // and a rejected schedule or a repository error would otherwise satisfy a bare expectThrows and leave the
-            // rest of the test checking a different scenario than the one it is named for.
             awaitBudgetExpiry(future);
         } finally {
             repository.stopParkingFinalizationReads();
@@ -91,11 +84,8 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
 
         final ActionListener<RepositoryData> parked = repository.parkedListener();
         assertBusy(() -> assertTrue(clusterManagerSnapshotsService().assertAllListenersResolved()));
-        // Must be a no-op. If the completion were delivered, finalizeSnapshotEntry's token assert fires on this thread,
-        // so this call not throwing is the load-bearing assertion; the two below are corroboration.
         parked.onResponse(getRepositoryData(REPO));
 
-        // Both of these must be asserted before the trailing snapshot below, which records one.
         final List<SnapshotInfo> listed = clusterAdmin().prepareGetSnapshots(REPO).setIgnoreUnavailable(true).get().getSnapshots();
         assertThat("the dropped read must not have recorded the snapshot", listed, empty());
         assertThat(snapshotsInProgressEntries(), empty());
@@ -122,8 +112,6 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
             final ActionFuture<CreateSnapshotResponse> future = startSnapshot("snap-dynamic");
             assertBusy(() -> assertNotNull("finalization read never parked", repository.parkedListener()));
 
-            // Bounded at 60s, far under the 30m default: a construction-time capture of the budget fails here rather
-            // than running the suite into its own timeout.
             awaitBudgetExpiry(future);
             assertThat("the expiry removed the in-progress entry", snapshotsInProgressEntries(), empty());
         } finally {
@@ -164,8 +152,6 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
      * reads as infrastructure trouble rather than as this test failing.
      */
     private void assertRepositoryStillUsable(String snapshotName) {
-        // Restore the default budget first. This snapshot is meant to fail only if the repository is wedged, so it must
-        // not also be racing the 1s or 5s budget the caller set -- that would reintroduce a timing dependency.
         setIoTimeout(TimeValue.timeValueMinutes(30).getStringRep());
         final CreateSnapshotResponse response = startFullSnapshot(REPO, snapshotName).actionGet(TimeValue.timeValueSeconds(60L));
         assertThat(response.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
@@ -251,11 +237,6 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
 
         @Override
         public void getRepositoryData(ActionListener<RepositoryData> listener) {
-            // Discriminates on the in-progress marker rather than on a call count. That excludes the read at snapshot
-            // start, which runs inside executeConsistentStateUpdate before an entry for this repository exists, but it
-            // does not exclude the downstream read inside BlobStoreRepository#finalizeSnapshot: that one runs with the
-            // entry present, so it would be parked too and would clobber the reference set below. It is unreachable
-            // here only because the first read is parked and never completes. It is also unbudgeted.
             if (parkFinalizationReads && hasSnapshotInProgress()) {
                 parked.set(listener);
                 return;

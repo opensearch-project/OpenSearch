@@ -186,14 +186,9 @@ public class MockRepository extends FsRepository {
     private volatile boolean blocked = false;
     private volatile boolean setThrowExceptionWhileDelete;
 
-    /**
-     * Opt-in, by the repository setting {@code conditional_writes}: this repository's containers claim conditional
-     * writes and serve them from one versioned view shared by every instance in the JVM, keyed by absolute blob path,
-     * in which every write bumps the version: plain, atomic, conditional and delete. Test support only.
-     */
+    /** Enables JVM-wide versioned conditional-write emulation for tests. */
     private final boolean conditionalWrites;
 
-    /** The absolute repository location that prefixes every key of {@link #BLOB_VERSIONS}. */
     private final String blobVersionRoot;
 
     private static final Object BLOB_VERSION_LOCK = new Object();
@@ -203,13 +198,8 @@ public class MockRepository extends FsRepository {
 
     private static final AtomicLong BLOB_VERSION_COUNTER = new AtomicLong();
 
-    /** When set, writes other than {@code writeBlobAtomicWithMetadata} ignore {@code failIfAlreadyExists} and overwrite, as S3 does. */
-    private volatile boolean overwriteMode;
-
-    /** Exact root blob names that park, once each, a plain or atomic write, a conditional write or a versioned read of that blob. */
     private final AtomicReference<String> blockOnceOnRootWrite = new AtomicReference<>();
     private final AtomicReference<String> blockOnceOnConditionalRootWrite = new AtomicReference<>();
-    private final AtomicReference<String> blockOnceOnVersionedRootRead = new AtomicReference<>();
     private volatile boolean blockedOnRootBlob;
 
     private final Semaphore conditionalWriteProbesDone = new Semaphore(0);
@@ -249,7 +239,6 @@ public class MockRepository extends FsRepository {
         return overrideSettings(super.getMetadata(), env);
     }
 
-    /** Under the {@code conditional_writes} opt-in this repository declares the finalization entrypoint for its own path. */
     @Override
     public Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
         return conditionalWrites ? blobStoreAbandonableSnapshotFinalization() : Optional.empty();
@@ -300,7 +289,6 @@ public class MockRepository extends FsRepository {
         blockOnReadIndexMeta = false;
         blockOnceOnRootWrite.set(null);
         blockOnceOnConditionalRootWrite.set(null);
-        blockOnceOnVersionedRootRead.set(null);
         blockedOnRootBlob = false;
         this.notifyAll();
     }
@@ -367,35 +355,21 @@ public class MockRepository extends FsRepository {
         this.failOnIndexLatest = failOnIndexLatest;
     }
 
-    /** When set, writes other than {@code writeBlobAtomicWithMetadata} ignore {@code failIfAlreadyExists} and overwrite, as S3 does. */
-    public void setOverwriteMode(boolean overwriteMode) {
-        this.overwriteMode = overwriteMode;
-    }
-
-    /** Parks the next plain or atomic write of the root blob with exactly this name, once, until {@link #unblock()}. */
+    /** Blocks the next plain or atomic write of this root blob until {@link #unblock()}. */
     public void setBlockOnceOnRootWrite(String blobName) {
         blockOnceOnRootWrite.set(blobName);
     }
 
-    /** Parks the next conditional write of the root blob with exactly this name, once, until {@link #unblock()}. */
+    /** Blocks the next conditional write of this root blob until {@link #unblock()}. */
     public void setBlockOnceOnConditionalRootWrite(String blobName) {
         blockOnceOnConditionalRootWrite.set(blobName);
     }
 
-    /** Parks the next versioned read of the root blob with exactly this name, once, until {@link #unblock()}. */
-    public void setBlockOnceOnVersionedRootRead(String blobName) {
-        blockOnceOnVersionedRootRead.set(blobName);
-    }
-
-    /**
-     * Waits for the next conditional-write probe of this repository's store to complete, which it signals by deleting
-     * its probe container, and returns whether one did within the timeout.
-     */
     public boolean awaitConditionalWriteProbe(TimeValue timeout) throws InterruptedException {
         return conditionalWriteProbesDone.tryAcquire(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    /** How many conditional writes were made through this repository's containers. */
+    /** Returns the number of conditional-write attempts made through this repository. */
     public long conditionalWriteCount() {
         return conditionalWriteCount.get();
     }
@@ -554,12 +528,11 @@ public class MockRepository extends FsRepository {
                 return blobVersionRoot + '/' + path().buildAsString() + blobName;
             }
 
-            /** Under {@link #BLOB_VERSION_LOCK}: the blob's current version, or a fresh one for a blob not seen yet. */
+            /** Returns the current blob version. The caller must hold {@link #BLOB_VERSION_LOCK}. */
             private String currentVersion(String blobName) {
                 return BLOB_VERSIONS.computeIfAbsent(versionKey(blobName), k -> Long.toString(BLOB_VERSION_COUNTER.incrementAndGet()));
             }
 
-            /** Runs one write and, under the opt-in, bumps the blob's version in the same critical section. */
             private void versionedWrite(String blobName, CheckedRunnable<IOException> write) throws IOException {
                 if (conditionalWrites == false) {
                     write.run();
@@ -571,11 +544,6 @@ public class MockRepository extends FsRepository {
                 }
             }
 
-            private boolean effectiveFailIfAlreadyExists(boolean requested) {
-                return requested && overwriteMode == false;
-            }
-
-            /** Parks, and disarms the park point, if {@code blobName} is the root blob it is armed for. */
             private void maybeBlockOnceOnRootBlob(AtomicReference<String> parkPoint, String blobName) throws IOException {
                 final String armed = parkPoint.get();
                 if (blobName.equals(armed) && path().equals(basePath()) && parkPoint.compareAndSet(armed, null)) {
@@ -594,7 +562,6 @@ public class MockRepository extends FsRepository {
                 if (conditionalWrites == false) {
                     return super.readBlobWithVersion(blobName);
                 }
-                maybeBlockOnceOnRootBlob(blockOnceOnVersionedRootRead, blobName);
                 synchronized (BLOB_VERSION_LOCK) {
                     try (InputStream stream = super.readBlob(blobName)) {
                         return new VersionedBlob(stream.readAllBytes(), currentVersion(blobName));
@@ -675,8 +642,6 @@ public class MockRepository extends FsRepository {
                 }
                 final String name = path().toArray()[path().toArray().length - 1];
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
-                // A conditional-write probe deletes its own tests- container last. Repository verification also uses tests-
-                // containers, and writes master.dat or data-*.dat into them, which a probe never does.
                 if (path().parent().equals(basePath())
                     && name.startsWith("tests-")
                     && blobs.keySet().stream().noneMatch(blob -> blob.equals("master.dat") || blob.startsWith("data-"))) {
@@ -735,10 +700,7 @@ public class MockRepository extends FsRepository {
                     blockExecutionAndMaybeWait(blobName);
                 }
                 maybeBlockOnceOnRootBlob(blockOnceOnRootWrite, blobName);
-                versionedWrite(
-                    blobName,
-                    () -> super.writeBlob(blobName, inputStream, blobSize, effectiveFailIfAlreadyExists(failIfAlreadyExists))
-                );
+                versionedWrite(blobName, () -> super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists));
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -765,19 +727,18 @@ public class MockRepository extends FsRepository {
                     }
                 }
                 maybeBlockOnceOnRootBlob(blockOnceOnRootWrite, blobName);
-                final boolean failIfExists = effectiveFailIfAlreadyExists(failIfAlreadyExists);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfExists);
+                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    versionedWrite(blobName, () -> fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfExists));
+                    versionedWrite(blobName, () -> fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists));
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    versionedWrite(blobName, () -> super.writeBlobAtomic(blobName, inputStream, blobSize, failIfExists));
+                    versionedWrite(blobName, () -> super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists));
                 }
             }
 
@@ -795,16 +756,7 @@ public class MockRepository extends FsRepository {
                     && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
-                versionedWrite(
-                    blobName,
-                    () -> super.writeBlobWithMetadata(
-                        blobName,
-                        inputStream,
-                        blobSize,
-                        effectiveFailIfAlreadyExists(failIfAlreadyExists),
-                        metadata
-                    )
-                );
+                versionedWrite(blobName, () -> super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata));
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -829,14 +781,7 @@ public class MockRepository extends FsRepository {
                 }
                 versionedWrite(
                     blobName,
-                    () -> super.writeBlobWithMetadata(
-                        blobName,
-                        inputStream,
-                        blobSize,
-                        effectiveFailIfAlreadyExists(failIfAlreadyExists),
-                        metadata,
-                        cryptoMetadata
-                    )
+                    () -> super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, cryptoMetadata)
                 );
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still

@@ -275,10 +275,9 @@ public interface BlobContainer {
      * {@code false} here: the calls work, but the guarantee callers actually want does not hold. Emulation is not
      * support.
      * <p>
-     * The distinction matters to both callers of this flag. Remote store primary fencing uses a conditional write to
-     * exclude a writer it cannot see, and an emulated precondition would let two nodes both believe they hold the fence,
-     * which is worse than running unfenced, since the shard would report itself protected. A snapshot repository reads it as
-     * the claim that its conditional-write probe then tests.
+     * The distinction matters because the one caller of this flag, remote store primary fencing, uses a conditional
+     * write to exclude a writer it cannot see. An emulated precondition would let two nodes both believe they hold the
+     * fence, which is worse than running unfenced, since the shard would report itself protected.
      */
     @ExperimentalApi
     default boolean isConditionalWriteSupported() {

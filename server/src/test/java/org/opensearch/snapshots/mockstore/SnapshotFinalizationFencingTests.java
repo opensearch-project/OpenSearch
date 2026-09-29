@@ -103,20 +103,14 @@ public class SnapshotFinalizationFencingTests extends OpenSearchTestCase {
             assertTrue(attempt.abandon());
             final SnapshotException thrown = expectThrows(SnapshotException.class, () -> finalizeWith(repository, snapshotId, attempt));
 
-            // The repository wraps a finalization failure before handing it to the listener, so the abandonment refusal
-            // arrives as the cause. Asserting only on the outer exception would pass for any finalization failure
-            // whatsoever, which would make this test unable to distinguish the behaviour it is named for.
             assertThat(thrown.getMessage(), containsString(snapshotId.getName()));
             assertThat(thrown.getCause(), instanceOf(SnapshotException.class));
             assertThat(thrown.getCause().getMessage(), containsString("abandoned before finalization completed"));
 
-            // Read before anything could clean up: the first check precedes every root write, so the refusal leaves no
-            // new root blob behind, and in particular no snap- blob and no index-N.
             final Set<String> rootBlobsAfter = rootBlobs(repository);
             assertThat(rootBlobsAfter, equalTo(rootBlobsBefore));
             assertThat(rootBlobsAfter, not(hasItem("snap-" + snapshotId.getUUID() + ".dat")));
 
-            // The outcome that actually matters: the snapshot is absent and no generation was consumed.
             final RepositoryData afterwards = PlainActionFuture.<RepositoryData, Exception>get(repository::getRepositoryData);
             assertThat(afterwards.getSnapshotIds(), empty());
             assertThat(afterwards.getGenId(), equalTo(generationBefore));
@@ -137,7 +131,6 @@ public class SnapshotFinalizationFencingTests extends OpenSearchTestCase {
             final long generationBefore = PlainActionFuture.<RepositoryData, Exception>get(repository::getRepositoryData).getGenId();
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
             final SnapshotFinalizationAttempt attempt = new SnapshotFinalizationAttempt();
-            // A new index whose shards are laid out by a hashed prefix, so the finalization writes its shard paths.
             final IndexId indexId = new IndexId("hashed-index", UUIDs.randomBase64UUID(), PathType.HASHED_PREFIX.getCode());
             final IndexMetadata indexMetadata = IndexMetadata.builder(indexId.getName())
                 .settings(
@@ -201,8 +194,6 @@ public class SnapshotFinalizationFencingTests extends OpenSearchTestCase {
     private ClusterService clusterService;
 
     private BlobStoreRepository createRepository() throws Exception {
-        // A committed empty generation, so that the repository is strictly consistent and may hand out the entrypoint, and
-        // no index.latest pointer, which these tests do not read.
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "testRepo",
             "mockEventuallyConsistent",
@@ -225,9 +216,6 @@ public class SnapshotFinalizationFencingTests extends OpenSearchTestCase {
                 return blobStoreAbandonableSnapshotFinalization();
             }
         };
-        // The repository must see cluster state before it starts, exactly as the real repositories service arranges.
-        // Without it the generation it believes in does not match the one in its metadata, and reading repository data
-        // takes the corrupted-repository branch instead of the normal one.
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
         repository.updateState(clusterService.state());
         repository.start();

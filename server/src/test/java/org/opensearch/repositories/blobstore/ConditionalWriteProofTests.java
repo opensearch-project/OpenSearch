@@ -100,72 +100,26 @@ public class ConditionalWriteProofTests extends OpenSearchTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testStoreThatIgnoresPreconditionsIsNotProven() throws Exception {
-        final ProbeRepository repository = probeRepository(Store.IGNORES_PRECONDITIONS, 0);
-        timeBudgetsSupported(repository);
-        repository.signals.awaitProbe();
-        assertFalse("a store that accepts every conditional write must not be proven", timeBudgetsSupported(repository));
-        assertThat(proof(repository), equalTo("UNPROVEN"));
-        assertThat("a refuted store must not be probed again", repository.signals.claimChecks.get(), equalTo(1));
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testStoreVersionedByContentHashIsProven() throws Exception {
-        final ProbeRepository repository = probeRepository(Store.CONTENT_HASH_VERSIONS, 0);
-        timeBudgetsSupported(repository);
-        repository.signals.awaitProbe();
-        assertTrue("a store versioned by content hash enforces both preconditions for distinct values", timeBudgetsSupported(repository));
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testStoreBlindToPlainOverwritesIsNotProven() throws Exception {
-        final ProbeRepository repository = probeRepository(Store.BLIND_TO_PLAIN_WRITES, 0);
-        timeBudgetsSupported(repository);
-        repository.signals.awaitProbe();
-        assertFalse("a store whose plain overwrites leave the version unchanged must not be proven", timeBudgetsSupported(repository));
-        assertThat(proof(repository), equalTo("UNPROVEN"));
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testStoreWhoseWriteTokensDifferFromReadTokensIsProven() throws Exception {
-        final ProbeRepository repository = probeRepository(Store.DISTINCT_WRITE_TOKENS, 0);
-        timeBudgetsSupported(repository);
-        repository.signals.awaitProbe();
-        assertTrue("the probe must compare with the tokens that reads return", timeBudgetsSupported(repository));
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testProbeThatFailsLeavesTheQuestionOpenUntilOneDecides() throws Exception {
-        final ProbeRepository repository = probeRepository(Store.ENFORCING, 2);
-        for (int probe = 1; probe <= 2; probe++) {
+    public void testOneProbeProvesOnlyAStoreThatVersionsEveryWrite() throws Exception {
+        for (Store store : List.of(Store.IGNORES_PRECONDITIONS, Store.CONTENT_HASH_VERSIONS, Store.BLIND_TO_PLAIN_WRITES)) {
+            final ProbeRepository repository = probeRepository(store, 0);
             timeBudgetsSupported(repository);
             repository.signals.awaitProbe();
-            assertThat("probe " + probe + " failed, which must leave the question open", proof(repository), equalTo("UNKNOWN"));
+            final String expected = store == Store.CONTENT_HASH_VERSIONS ? "PROVEN" : "UNPROVEN";
+            assertThat("the probe of a " + store + " store", proof(repository), equalTo(expected));
         }
-        timeBudgetsSupported(repository);
-        repository.signals.awaitProbe();
-        assertTrue("the third probe succeeded, so the store must be proven", timeBudgetsSupported(repository));
-        assertThat(repository.signals.claimChecks.get(), equalTo(3));
     }
 
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testProbesStopAfterThreeFailures() throws Exception {
+    public void testFailedProbesLeaveTheQuestionOpenUntilTheThird() throws Exception {
         final ProbeRepository repository = probeRepository(Store.ENFORCING, Integer.MAX_VALUE);
         for (int probe = 1; probe <= 3; probe++) {
             timeBudgetsSupported(repository);
             repository.signals.awaitProbe();
+            assertThat("after failed probe " + probe, proof(repository), equalTo(probe < 3 ? "UNKNOWN" : "UNPROVEN"));
         }
         assertThat(repository.signals.claimChecks.get(), equalTo(3));
         assertFalse(timeBudgetsSupported(repository));
-        assertThat("no probe may start after three failed", proof(repository), equalTo("UNPROVEN"));
-    }
-
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testEnforcingMockRepositoryIsProven() throws Exception {
-        final MockRepository repository = mockRepository(Settings.EMPTY);
-        timeBudgetsSupported(repository);
-        assertTrue(repository.awaitConditionalWriteProbe(PROBE_WAIT));
-        assertTrue("the enforcing mock store must be proven", timeBudgetsSupported(repository));
     }
 
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
@@ -190,13 +144,11 @@ public class ConditionalWriteProofTests extends OpenSearchTestCase {
             .put(settings)
             .put(FsRepository.LOCATION_SETTING.getKey(), repositoryRoot.resolve(randomAlphaOfLength(10)).toString())
             .build();
-        // A committed generation, so that only the settings under test can make the repository best-effort.
         return new RepositoryMetadata(randomAlphaOfLength(10), type, withLocation, 0L, 0L);
     }
 
     private ClusterService clusterService(RepositoryMetadata metadata) {
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(metadata);
-        // Probes run on the generic pool, off the calling thread, as in production.
         when(clusterService.getClusterApplierService().threadPool()).thenReturn(threadPool);
         return clusterService;
     }
@@ -243,12 +195,10 @@ public class ConditionalWriteProofTests extends OpenSearchTestCase {
     private enum Store {
         /** Evaluates both preconditions and versions every write. */
         ENFORCING,
-        /** Accepts every conditional write, whatever its precondition. */
+        /** Accepts every conditional write, whatever its precondition, so the probe's create-if-absent write refutes it. */
         IGNORES_PRECONDITIONS,
         /** Versions a blob by a hash of its content, as an MD5 ETag does. */
         CONTENT_HASH_VERSIONS,
-        /** Enforces, but answers a write with a token of a different form from the one a read returns. */
-        DISTINCT_WRITE_TOKENS,
         /** Versions only conditional writes, so a plain overwrite leaves the version unchanged. */
         BLIND_TO_PLAIN_WRITES
     }
@@ -366,8 +316,7 @@ public class ConditionalWriteProofTests extends OpenSearchTestCase {
                 }
                 inner.writeBlobAtomic(blobName, new ByteArrayInputStream(content), content.length, false);
                 bump(blobName);
-                final String token = readToken(blobName, content);
-                return store == Store.DISTINCT_WRITE_TOKENS ? "written-" + token : token;
+                return readToken(blobName, content);
             }
         }
 

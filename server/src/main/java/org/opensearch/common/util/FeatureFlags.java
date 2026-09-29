@@ -140,8 +140,8 @@ public class FeatureFlags {
     );
 
     /**
-     * Gates the snapshot resilience work: time budgets on the cluster manager's snapshot finalizations and on the repository
-     * reads they wait on, and the handling those budgets need to be safe. Off by default.
+     * Gates the snapshot resilience optimizations (timeout budgets, circuit breaker, retry foundation).
+     * Default off for the first minor, flipped on in the next, removed one minor later.
      */
     public static final String SNAPSHOT_RESILIENCE = FEATURE_FLAG_PREFIX + "snapshot_resilience.enabled";
     public static final Setting<Boolean> SNAPSHOT_RESILIENCE_SETTING = Setting.boolSetting(SNAPSHOT_RESILIENCE, false, Property.NodeScope);

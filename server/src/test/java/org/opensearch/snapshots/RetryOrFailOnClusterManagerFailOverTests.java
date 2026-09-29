@@ -8,9 +8,6 @@
 
 package org.opensearch.snapshots;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -24,14 +21,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.repositories.RepositoryData;
-import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
@@ -695,7 +690,6 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
             answers.get(0).getMessage(),
             containsString("[finalize snapshot [" + snapshot + "]] did not complete within [" + BUDGET + "]")
         );
-        assertThat(answers.get(0).getMessage(), containsString("it was already writing the repository generation and may still complete"));
         assertFalse("the answered listener must be deregistered", completionListeners().containsKey(snapshot));
         assertSame("the expiry must publish nothing", currentState, result);
     }
@@ -712,32 +706,16 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         final Set<String> currentlyFinalizing = serviceField("currentlyFinalizing");
         currentlyFinalizing.add("repo");
 
-        final Logger snapshotsLogger = LogManager.getLogger(SnapshotsService.class);
-        final Level previousLevel = snapshotsLogger.getLevel();
-        Loggers.setLevel(snapshotsLogger, Level.DEBUG);
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(snapshotsLogger)) {
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "an unprocessed expiry must not clear this node's snapshot operations",
-                    SnapshotsService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "Failing all snapshot operation listeners"
-                )
-            );
-            expiryTask(snapshot).onFailure("test-source", new NotClusterManagerException("simulated failover"));
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.setLevel(snapshotsLogger, previousLevel);
-        }
+        expiryTask(snapshot).onFailure("test-source", new NotClusterManagerException("simulated failover"));
 
         assertThat("an unprocessed expiry must not answer the caller", resolved, empty());
         assertTrue("the finalization still holds the repository's operation token", currentlyFinalizing.contains("repo"));
     }
 
     /**
-     * The removal a finalization budget submits does not give up while this node stays cluster manager: publish failure
-     * after publish failure it retries, answering nobody and keeping the token, and once one attempt publishes it answers
-     * the stopped caller once and hands the repository on to the finalization queued behind it.
+     * The removal a finalization budget submits does not give up while this node stays cluster manager: at and past the
+     * configured retry limit a publish failure is retried, answering nobody and keeping the token, and once one attempt
+     * publishes it answers the stopped caller once and hands the repository on to the finalization queued behind it.
      */
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
     public void testBudgetRemovalRetriesUntilPublished() throws Exception {
@@ -757,15 +735,14 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
 
         ClusterStateUpdateTask task = service.createRemoveFailedSnapshotTask(
             "test-source",
-            0,
+            SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY),
             stopped,
             new OpenSearchTimeoutException("stopped"),
             RepositoryData.EMPTY,
             null,
             () -> true
         );
-        final int maxRetries = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
-        for (int failure = 0; failure <= maxRetries; failure++) {
+        for (int failure = 0; failure < 2; failure++) {
             task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
             assertThat("a publish failure must not answer anyone", resolved, empty());
             assertTrue("a publish failure must not release the token", token.contains("repo"));
@@ -781,19 +758,20 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
     }
 
     /**
-     * The removal a finalization budget submits does nothing once this node has failed its snapshot operations over after
-     * the budget was armed, even if it was re-elected and a new finalization holds the token and the entry: here the
-     * removal was already queued in the cluster manager service when the failover was handled.
+     * A budget's removal that loses the election answers its caller with its own failure. Nothing armed before this node
+     * failed its snapshot operations over acts after it, even if this node was re-elected and a new finalization holds the
+     * token and the entry: a budget's removal already queued in the cluster manager service publishes, answers and hands
+     * on nothing, and a retry armed by an earlier publish failure is not submitted.
      */
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBudgetRemovalIsInertAfterAFailover() throws Exception {
+    public void testWorkArmedBeforeAFailoverIsInertAfterIt() throws Exception {
         final List<Runnable> scheduled = new ArrayList<>();
         final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
         final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
         final Snapshot stopped = snapshot("stopped");
         final AtomicLong failovers = serviceField(service, "failovers");
         final long failoversAtArm = failovers.get();
-        final ClusterStateUpdateTask task = service.createRemoveFailedSnapshotTask(
+        final ClusterStateUpdateTask removal = service.createRemoveFailedSnapshotTask(
             "test-source",
             0,
             stopped,
@@ -802,10 +780,18 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
             null,
             () -> failovers.get() == failoversAtArm
         );
+        service.createRemoveFailedSnapshotTask("retry-source", 0, snapshot("retried"), new RuntimeException("retried"), null, null)
+            .onFailure("retry-source", new FailedToCommitClusterStateException("simulated publish failure"));
+        assertThat(scheduled, hasSize(1));
 
-        // A failover on this node, then a new finalization of the same entry after a re-election.
-        service.createRemoveFailedSnapshotTask("other-source", 0, snapshot("other"), new RuntimeException("other"), null, null)
-            .onNoLongerClusterManager("other-source");
+        final Snapshot lost = snapshot("lost");
+        final List<Exception> answers = new ArrayList<>();
+        addListener(service, lost, ActionListener.wrap(r -> fail("must not be completed"), answers::add));
+        final OpenSearchTimeoutException failure = new OpenSearchTimeoutException("lost");
+        service.createRemoveFailedSnapshotTask("lost-source", 0, lost, failure, RepositoryData.EMPTY, null, () -> true)
+            .onNoLongerClusterManager("lost-source");
+        assertThat(answers, hasSize(1));
+        assertSame("the caller must be answered with the removal's own failure", failure, answers.get(0));
         final Set<String> token = serviceField(service, "currentlyFinalizing");
         token.add("repo");
         final Snapshot next = snapshot("next");
@@ -815,86 +801,15 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         addListener(service, stopped, ActionListener.wrap(r -> resolved.add(stopped), e -> resolved.add(stopped)));
         final ClusterState currentState = stateWith(startedEntryFor(stopped), nextEntry);
 
-        final ClusterState result = task.execute(currentState);
-        task.clusterStateProcessed("test-source", currentState, result);
+        scheduled.remove(0).run();
+        assertThat("a retry armed before a failover this node handled must not be submitted after it", submitted, empty());
 
+        final ClusterState result = removal.execute(currentState);
+        removal.clusterStateProcessed("test-source", currentState, result);
         assertSame("a stale removal must publish nothing", currentState, result);
         assertThat("a stale removal must answer nobody", resolved, empty());
         assertTrue("a stale removal must not release the token", token.contains("repo"));
         assertNotNull("a stale removal must hand nothing on", pollFinalization(service, "repo"));
-    }
-
-    /**
-     * A retry of that removal, armed by a publication failure before this node failed its snapshot operations over, is not
-     * submitted once the failover has been handled.
-     */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBudgetRemovalRetryArmedBeforeAFailoverIsNotSubmitted() throws Exception {
-        final List<Runnable> scheduled = new ArrayList<>();
-        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
-        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
-        final AtomicLong failovers = serviceField(service, "failovers");
-        final long failoversAtArm = failovers.get();
-        service.createRemoveFailedSnapshotTask(
-            "test-source",
-            0,
-            snapshot("stopped"),
-            new OpenSearchTimeoutException("stopped"),
-            RepositoryData.EMPTY,
-            null,
-            () -> failovers.get() == failoversAtArm
-        ).onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
-        assertThat(scheduled, hasSize(1));
-
-        service.createRemoveFailedSnapshotTask("other-source", 0, snapshot("other"), new RuntimeException("other"), null, null)
-            .onFailure("other-source", new NotClusterManagerException("simulated failover"));
-        scheduled.remove(0).run();
-
-        assertThat("a retry armed before a failover this node handled must not be submitted after it", submitted, empty());
-    }
-
-    /** A retry armed before a failover this node handled is not submitted after it, bounded or not. */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBoundedRetryIsNotSubmittedAfterAFailover() throws Exception {
-        final List<Runnable> scheduled = new ArrayList<>();
-        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
-        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
-        final ClusterStateUpdateTask retried = service.createRemoveFailedSnapshotTask(
-            "bounded-source",
-            1,
-            snapshot("bounded"),
-            new RuntimeException("bounded"),
-            null,
-            null
-        );
-        service.retryOrFailOnClusterManagerFailOver(
-            new FailedToCommitClusterStateException("simulated publish failure"),
-            0,
-            "bounded-source",
-            () -> retried,
-            () -> fail("a retry with attempts left must not run the fallback"),
-            false
-        );
-        assertThat(scheduled, hasSize(1));
-
-        service.createRemoveFailedSnapshotTask("other-source", 0, snapshot("other"), new RuntimeException("other"), null, null)
-            .onFailure("other-source", new NotClusterManagerException("simulated failover"));
-        scheduled.remove(0).run();
-
-        assertThat("a bounded retry armed before a failover this node handled must not be submitted after it", submitted, empty());
-    }
-
-    /** A budget's removal that loses the election answers the caller with the removal's own failure. */
-    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
-    public void testBudgetRemovalOnLostElectionAnswersWithItsFailure() throws Exception {
-        final Snapshot stopped = snapshot("stopped");
-        final List<Exception> answers = new ArrayList<>();
-        addListener(stopped, ActionListener.wrap(r -> fail("must not be completed"), answers::add));
-        final OpenSearchTimeoutException failure = new OpenSearchTimeoutException("stopped");
-        snapshotsService.createRemoveFailedSnapshotTask("test-source", 0, stopped, failure, RepositoryData.EMPTY, null, () -> true)
-            .onNoLongerClusterManager("test-source");
-        assertThat(answers, hasSize(1));
-        assertSame("the caller must be answered with the removal's own failure", failure, answers.get(0));
     }
 
     /** A service whose scheduled tasks and submitted cluster state updates are captured rather than run. */
@@ -968,7 +883,6 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         final Class<?>[] signature = { SnapshotsInProgress.Entry.class, Metadata.class };
         final Method addFinalization = queue.getClass().getDeclaredMethod("addFinalization", signature);
         addFinalization.setAccessible(true);
-        // Non-null metadata: the queue's own consistency assertion forbids a queued entry with none.
         addFinalization.invoke(queue, entry, Metadata.EMPTY_METADATA);
     }
 

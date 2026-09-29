@@ -201,7 +201,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     // Set of snapshots that are currently being ended by this node
     private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
 
-    // Counts failAllListenersOnMasterFailOver runs, so work armed before one can tell it is stale.
+    // Epoch used to discard work scheduled before failover.
     private final AtomicLong failovers = new AtomicLong();
 
     // Set of currently initializing clone operations
@@ -269,14 +269,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static final String CLEANUP_STALE_BLOBS_KEY = "snapshot.delete.cleanup_stale_blobs";
 
     /**
-     * Setting that specifies the time budget, on the cluster-manager node, for a snapshot finalization and for the
-     * repository-data read it waits on. The read is budgeted on every repository; when it expires, only its snapshot fails
-     * and the repository moves on. The finalization is budgeted only where the repository hands out a budgeted
-     * finalization entrypoint, and not while another finalization on this node has outlived its budget and not returned.
-     * One that expires before it starts writing the repository generation is stopped: its caller is answered with a
-     * timeout and the call records nothing. One that expires while writing it has its caller answered with a timeout but
-     * keeps running, keeps its in-progress entry and may still complete. The budget includes time spent waiting for a
-     * repository thread. Applies, and is modifiable, only when the snapshot resilience feature flag is enabled.
+     * Setting that specifies the time budget for snapshot repository I/O operations on the cluster-manager node
+     * (finalization, deletion). Operations exceeding this budget are treated as failures.
+     * Only modifiable when the snapshot resilience feature flag is enabled.
      */
     public static final Setting<TimeValue> SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING = new Setting<>(
         IO_TIMEOUT_KEY,
@@ -323,13 +318,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile int maxConcurrentOperations;
 
-    /**
-     * Live mirror of {@link #SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING}. Seeded from the default, which runs the parser but no
-     * validator, so it is safe with the flag off and on nodes where the cluster-manager-only seed in the constructor never runs.
-     */
     private volatile TimeValue repositoryIoTimeout = SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
 
-    // Visible for testing
     TimeValue repositoryIoTimeout() {
         return repositoryIoTimeout;
     }
@@ -381,8 +371,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             retryBackoff = SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.get(settings);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRIES_SETTING, i -> maxRetries = i);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING, t -> retryBackoff = t);
-            // A node with the snapshot resilience flag off neither seeds this mirror nor registers a consumer, so applying a
-            // cluster state or restoring global state that carries the key does not run its validator there.
             if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)) {
                 repositoryIoTimeout = SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.get(settings);
                 clusterService.getClusterSettings()
@@ -2233,8 +2221,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 };
                 final String description = "get repository data for [" + repoName + "]";
                 final long failoversAtRead = failovers.get();
-                // On budget expiry only this snapshot fails; the wrapper drops the read's late answer, which would otherwise
-                // finalize a failed snapshot on a repository the next operation holds.
                 repositoriesService.repository(repoName)
                     .getRepositoryData(
                         withRepositoryIoTimeout(
@@ -2276,14 +2262,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private void finalizeSnapshotEntry(SnapshotsInProgress.Entry entry, Metadata metadata, RepositoryData repositoryData) {
         assert currentlyFinalizing.contains(entry.repository());
-        // Shared with the repository and the timer: a timer that fires before the generation write gives up on the call,
-        // which the repository then refuses; after it the timer only answers the caller, and answers nobody once the commit
-        // has removed the entry. Whichever side takes the outcome is the only one that hands the repository on.
+        // Before publication, timeout may release repository serialization; afterwards, repository completion releases it.
         final SnapshotFinalizationAttempt attempt = new SnapshotFinalizationAttempt();
-        // Set by every exit below. While a timer that fired first has this call recorded and it is unset, no finalization
-        // that starts on this node is given a budget.
+        // Any repository call still running after timeout disables new finalization budgets on this node.
         final AtomicBoolean returned = new AtomicBoolean();
-        // Read once, so the budget, the exceptions and the log line agree even if the setting changes mid-flight.
+        // Snapshot the setting so scheduling, logging, and exceptions use one budget.
         final TimeValue budget = repositoryIoTimeout;
         final Optional<Repository.AbandonableSnapshotFinalization> abandonable = abandonableFinalization(entry);
         final Scheduler.Cancellable finalizationTimeout = abandonable.isPresent()
@@ -2403,11 +2386,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static final String FINALIZATION_TIMEOUT_SOURCE = "abandon timed out snapshot finalization";
 
-    /**
-     * The finalization entrypoint to budget this entry's finalization with, or empty to finalize it as without the feature:
-     * empty with the feature flag off, while a finalization on this node has outlived its budget and not returned, for a
-     * shallow-copy entry, and when the repository hands out none.
-     */
     private Optional<Repository.AbandonableSnapshotFinalization> abandonableFinalization(SnapshotsInProgress.Entry entry) {
         if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false
             || repositoriesService.repositoriesWithCallsPastBudget().isEmpty() == false
@@ -2422,14 +2400,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Arms the finalization budget as a side timer rather than a {@link ListenerTimeouts} wrapper, which would drop the
-     * call's late completion: once the generation write has started, that completion is what releases the per-repository
-     * token. On firing, the timer records the call with {@link RepositoriesService#callPastBudget}, then stops a
-     * finalization that has not started the generation write, or answers the caller of one that is writing it. Every exit
-     * of {@link #finalizeSnapshotEntry} calls {@link RepositoriesService#callReturned}.
-     *
-     * @return the timer, which every exit of {@link #finalizeSnapshotEntry} must cancel, or {@code null} when the timer
-     *         could not be scheduled. {@code null} means this finalization is unbudgeted.
+     * Arms a side timer rather than a {@link ListenerTimeouts} wrapper, which would drop the late completion that releases
+     * the repository once the generation write has started. Every finalization exit must cancel it; {@code null} means the
+     * finalization runs without a timeout.
      */
     @Nullable
     private Scheduler.Cancellable armFinalizationTimeout(
@@ -2442,9 +2415,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Snapshot snapshot = entry.snapshot();
         final long failoversAtArm = failovers.get();
         try {
-            // GENERIC, not SNAPSHOT: the finalization this timer bounds can occupy every SNAPSHOT thread.
+            // Use GENERIC because finalization can saturate SNAPSHOT.
             return threadPool.schedule(() -> {
-                repositoriesService.callPastBudget(returned, entry.repository()); // first: recorded before anything is handed on
+                // Record the over-budget call before listener completion can admit another budgeted operation.
+                repositoriesService.callPastBudget(returned, entry.repository());
                 if (attempt.abandon()) {
                     logger.warn(
                         "[{}] finalization did not complete within [{}] before it started writing the repository generation; it will "
@@ -2477,9 +2451,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }, budget, ThreadPool.Names.GENERIC);
         } catch (OpenSearchRejectedExecutionException e) {
-            // Deliberately not narrowed to isExecutorShutdown(), for the same reason withIoTimeout is not: the caller
-            // already holds the per-repository operation token, so letting any rejection escape would leak it.
-            // Unbudgeted is the flag-off behaviour.
+            // Continue without a timeout; propagating rejection would retain the repository operation token.
             logger.warn("Could not schedule the finalization timeout for [{}], finalizing without a time budget", snapshot);
             return null;
         }
@@ -2551,8 +2523,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 leaveRepoLoop(repository);
             }
         } else if (repositoryData == null) {
-            // Nothing to hand on, so this finalization reads for itself, as endSnapshot does when handed null. A failed read
-            // fails this finalization alone, and its removal hands the repository on.
             final String description = "get repository data for [" + repository + "]";
             final long failoversAtRead = failovers.get();
             repositoriesService.repository(repository).getRepositoryData(withRepositoryIoTimeout(description, new ActionListener<>() {
@@ -2612,8 +2582,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (deletionToRun == null) {
                     runNextQueuedOperation(repositoryData, repository, false);
                 } else if (repositoryData == null) {
-                    // Reached only after a finalization that had no repository data to hand on: the delete reads for itself,
-                    // as it does when a newly elected cluster manager runs it.
                     deleteSnapshotsFromRepository(deletionToRun, newState.nodes().getMinNodeVersion());
                 } else {
                     deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
@@ -2788,11 +2756,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
-    /**
-     * Fails one snapshot whose finalization holds its repository with no repository data to hand on, and nothing else. Its
-     * removal retries until published and then hands the repository on, whose next operation reads for itself; it does nothing
-     * if this node has failed its snapshot operations over since {@code failoversAtRead}.
-     */
+    /** Fails only this finalization; queued work reloads repository data before resuming. */
     private void failFinalizationAlone(Snapshot snapshot, Exception failure, long failoversAtRead) {
         final String source = "remove snapshot metadata";
         clusterService.submitStateUpdateTask(
@@ -2812,11 +2776,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return createRemoveFailedSnapshotTask(source, attempt, snapshot, failure, repositoryData, listener, null);
     }
 
-    /**
-     * @param current non-null only for a removal submitted by a finalization that holds its repository: it retries until
-     *                published, does nothing once {@code current} is false, and hands the repository on even when it has
-     *                no repository data
-     */
+    /** @param current optional predicate that remains true while this finalization holds the repository operation token */
     ClusterStateUpdateTask createRemoveFailedSnapshotTask(
         String source,
         int attempt,
@@ -2903,15 +2863,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         };
     }
 
-    /**
-     * Cluster state update task for an expired finalization budget. It publishes no change: it answers the caller with a
-     * timeout only while the snapshot's in-progress entry is still present, and leaves the entry, the per-repository
-     * operation token and the finalization queue as they are. Submitted only when the budget expires after the
-     * finalization started writing the repository generation.
-     *
-     * @param inFlight the snapshot whose finalization outlived the budget
-     * @param budget   the budget that expired, named in the caller's exception and in the log line
-     */
     ClusterStateUpdateTask createFinalizationExpiryTask(Snapshot inFlight, TimeValue budget) {
         return new ClusterStateUpdateTask() {
 
@@ -2919,15 +2870,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                // Read only. The entry leaves cluster state in the update that commits the generation (the stateTransformer
-                // in finalizeSnapshotEntry) or in the failure removal, so present means not committed.
                 stillFinalizing = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).snapshot(inFlight) != null;
                 return currentState;
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                // Nothing was read, so nothing is known about the commit; the call's own exits answer its caller.
                 logger.debug(() -> new ParameterizedMessage("[{}] finalization budget expiry not processed", inFlight), e);
             }
 
@@ -3645,8 +3593,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Handles a cluster-state-update onFailure by either retrying (if the publish failed but this node is still the
      * cluster-manager) or falling back to the existing failover behavior. Without this, a publish failure on a stable
-     * cluster-manager strands the in-progress snapshot marker forever, blocking index deletion and close. A retry is not
-     * submitted if this node has failed its snapshot operations over since the publish failed.
+     * cluster-manager strands the in-progress snapshot marker forever, blocking index deletion and close.
+     * A retry is not submitted if this node has failed its snapshot operations over since the publish failed.
      *
      * @param e               the exception from onFailure
      * @param attempt         current attempt number (0-based)
@@ -3704,9 +3652,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final long failoversAtFailure = failovers.get();
         try {
             threadPool.schedule(() -> {
-                // No chain, bounded or not, retries past a failover handled while this retry waited: that failover has already
-                // answered and released what the chain held, and this node may be cluster manager again by now, running the same
-                // work afresh, which a retried task that does not check for this itself would act on a second time.
                 if (failovers.get() == failoversAtFailure) {
                     clusterService.submitStateUpdateTask(source, taskFactory.get());
                 } else {
@@ -3715,8 +3660,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }, delay, ThreadPool.Names.GENERIC);
         } catch (OpenSearchRejectedExecutionException ex) {
             if (retryUntilPublished) {
-                // GENERIC is a scaling pool, so a rejection means the node is shutting down; failing the queued work then lets its
-                // transport handlers return.
+                // Run the fallback so queued transport requests complete.
                 logger.warn("Retry scheduling rejected for [{}] during shutdown; failing queued work with it", source);
             } else {
                 logger.warn("Retry scheduling rejected for [{}], falling back to failover handling", source);
@@ -3735,24 +3679,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Puts a time budget on a repository I/O listener. The budget bounds the <i>answer</i>, not the I/O: on expiry
-     * {@code onTimeout} resolves the listener while the call it was waiting on continues, and whatever that call
-     * eventually returns is discarded. How long it continues for is the repository implementation's business -- the
-     * object-store clients bound each request themselves, whereas a filesystem repository read has no bound of its own
-     * and can stay in an uninterruptible wait. Only wrap a listener whose failure arm, or the expiry hook passed here, winds
-     * the operation down on its own.
-     * <p>
-     * Visible for testing: the pool and the budget are parameters so unit tests need no {@link SnapshotsService};
-     * {@link #withRepositoryIoTimeout} is its production caller. The repository-data read at delete start in
-     * {@link #deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry, Version)} is not budgeted.
-     *
-     * @param threadPool  schedules the timer
-     * @param timeout     the budget to apply
-     * @param description names the operation in the log line emitted if the timer cannot be scheduled
-     * @param listener    the listener to bound
-     * @param onTimeout   called with the wrapper, which is already spent -- it must complete {@code listener} itself
-     *                    or wind the operation down another way
-     * @return {@code listener} itself when the feature flag is off or the timer could not be scheduled
+     * Bounds when {@code listener} is completed, not the repository I/O: on expiry {@code onTimeout} runs and the call's late
+     * answer is discarded, so wrap only a listener whose timeout path winds the operation down itself.
      */
     static <T> ActionListener<T> withIoTimeout(
         ThreadPool threadPool,
@@ -3765,46 +3693,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return listener;
         }
         try {
-            // GENERIC, not SNAPSHOT: SNAPSHOT has at most five threads and also runs the finalization writes. The timer shares
-            // GENERIC (at least four threads) with the reads it times, acceptable because each is made under its repository's
-            // token, so a repository has at most one in flight apart from reads whose budget expired; a failover can leave
-            // one more, started under the token it cleared.
+            // Use GENERIC so timeout delivery cannot be starved by SNAPSHOT.
             return ListenerTimeouts.wrapWithTimeout(threadPool, timeout, ThreadPool.Names.GENERIC, listener, onTimeout);
         } catch (OpenSearchRejectedExecutionException e) {
-            // Deliberately not narrowed to isExecutorShutdown(): callers acquire the per-repository operation token
-            // before reaching here, so letting any rejection escape would leak it. Unbudgeted is the flag-off behaviour.
+            // Continue without a timeout because callers already hold the repository operation token.
             logger.warn("Could not schedule I/O timeout for [{}], proceeding without a time budget", description);
             return listener;
         }
     }
 
-    /**
-     * The form a call site uses when it needs nothing of its own on expiry: the delegate is failed with the timeout. The
-     * overload below supplies the pool and the budget, so no call site can pass a stale budget.
-     */
     private <T> ActionListener<T> withRepositoryIoTimeout(String description, ActionListener<T> listener) {
         return withRepositoryIoTimeout(description, listener, listener::onFailure);
     }
 
-    /**
-     * The same, with the expiry handed to {@code onExpiry} instead of to the delegate, for a caller whose own budget must
-     * wind its operation down differently from a failure of the call. The delegate is then never completed, and a late
-     * answer of the call is dropped.
-     */
     private <T> ActionListener<T> withRepositoryIoTimeout(
         String description,
         ActionListener<T> listener,
         Consumer<OpenSearchTimeoutException> onExpiry
     ) {
-        // Read once, so the budget and the timeout message agree even if the setting changes mid-flight.
+        // Snapshot the setting so scheduling and the timeout message use one budget.
         final TimeValue budget = repositoryIoTimeout;
         return withIoTimeout(
             this.threadPool,
             budget,
             description,
             listener,
-            // Hands onExpiry the exception, never the wrapper the hook is given: that wrapper's done-flag is already set, so
-            // completing it would not reach the delegate.
+            // Build a new timeout exception; the wrapper listener has already completed.
             ignored -> onExpiry.accept(new OpenSearchTimeoutException("[" + description + "] timed out after [" + budget + "]"))
         );
     }
