@@ -1,9 +1,17 @@
 ---
 "Nodes hot threads accepts a valid snapshots value":
+  - skip:
+      features: allowed_warnings
+  # The runner picks a random path from the API spec, which includes the deprecated
+  # hot threads routes, so a deprecation warning may or may not be returned.
   - do:
       nodes.hot_threads:
         snapshots: 3
         threads: 1
+      allowed_warnings:
+        - '[/_cluster/nodes/hot_threads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead.'
+        - '[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead.'
+        - '[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead.'
 
 ---
 "Nodes hot threads rejects an excessive snapshots value":
