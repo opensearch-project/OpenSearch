@@ -23,6 +23,10 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.ReadAccessContext;
+import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
@@ -45,6 +49,8 @@ import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.IndexResolution;
+import org.opensearch.analytics.planner.LogicalPlanDlsRewriter;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -84,8 +90,12 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -134,6 +144,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final PlannerSettings plannerSettings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
+    private final ReadAccessPolicyService readAccessPolicyService;
+    private final LogicalPlanDlsRewriter logicalPlanDlsRewriter;
 
     @Inject
     public DefaultPlanExecutor(
@@ -149,6 +161,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         AnalyticsSearchSlowLog analyticsSearchSlowLog,
         AnalyticsStatsCollector statsCollector,
+        ReadAccessPolicyService readAccessPolicyService,
+        LogicalPlanDlsRewriter logicalPlanDlsRewriter,
         // Feature-branch (MPP) additions — appended last so upstream constructor extensions don't collide.
         MppStrategyMetrics mppStrategyMetrics,
         ShuffleBufferManager shuffleBufferManager
@@ -201,6 +215,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
+        this.readAccessPolicyService = readAccessPolicyService;
+        this.logicalPlanDlsRewriter = logicalPlanDlsRewriter;
     }
 
     /** Visible for testing: the live per-node concurrent-shard-request limit (reflects dynamic updates). */
@@ -902,9 +918,20 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         });
         ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
+                ClusterState clusterState = clusterService.state();
+                List<String> requestConcreteIndices = resolveConcreteIndices(clusterState, request.indicesOptions(), request.indices());
+                ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+                    ReadAccessContext.of(requestConcreteIndices)
+                );
+                Map<String, List<String>> concreteIndicesByTable = resolveConcreteIndicesByTable(
+                    request.getPlan(),
+                    clusterState,
+                    requestConcreteIndices
+                );
+                RelNode securedPlan = logicalPlanDlsRewriter.rewrite(request.getPlan(), readAccessPolicy, concreteIndicesByTable);
                 executeInternal(
                     (AnalyticsQueryTask) task,
-                    request.getPlan(),
+                    securedPlan,
                     request.getQueryCtx(),
                     request.isProfile(),
                     ActionListener.wrap(result -> {
@@ -930,6 +957,34 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 );
             }
         });
+    }
+
+    private List<String> resolveConcreteIndices(ClusterState clusterState, IndicesOptions indicesOptions, String... indexExpressions) {
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, indicesOptions, true, indexExpressions);
+        Arrays.sort(concreteIndices);
+        return List.of(concreteIndices);
+    }
+
+    private Map<String, List<String>> resolveConcreteIndicesByTable(
+        RelNode logicalPlan,
+        ClusterState clusterState,
+        List<String> requestConcreteIndices
+    ) {
+        Set<String> authorizedIndices = new HashSet<>(requestConcreteIndices);
+        Map<String, List<String>> concreteIndicesByTable = new LinkedHashMap<>();
+        for (String tableExpression : RelNodeUtils.extractTableExpressions(logicalPlan)) {
+            List<String> concreteIndices = IndexResolution.resolve(tableExpression, clusterState, indexNameExpressionResolver)
+                .concreteIndexNames()
+                .stream()
+                .sorted()
+                .filter(authorizedIndices::contains)
+                .toList();
+            if (concreteIndices.isEmpty()) {
+                throw new OpenSearchException("No authorized concrete indices were resolved for table [" + tableExpression + "]");
+            }
+            concreteIndicesByTable.put(tableExpression, concreteIndices);
+        }
+        return concreteIndicesByTable;
     }
 
     /**
