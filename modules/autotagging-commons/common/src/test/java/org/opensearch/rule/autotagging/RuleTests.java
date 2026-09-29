@@ -31,7 +31,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         AutoTaggingRegistry registry = new AutoTaggingRegistry();
         registry.registerFeatureType(FEATURE_TYPE);
-        registry.freeze();
         return new NamedWriteableRegistry(List.of(registry.getTransportReader()));
     }
 

@@ -174,7 +174,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             AutoTaggingRegistry registry = internalCluster().getInstance(AutoTaggingRegistry.class, node);
             FeatureType featureType = registry.getFeatureType(WorkloadGroupFeatureType.NAME);
             assertTrue("Feature type must belong to one node", instances.add(featureType));
-            assertThrows(IllegalStateException.class, () -> registry.registerFeatureType(featureType));
         }
     }
 

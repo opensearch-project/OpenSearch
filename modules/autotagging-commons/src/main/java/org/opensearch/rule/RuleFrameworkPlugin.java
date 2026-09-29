@@ -87,7 +87,6 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         // We are consuming the extensions at this place to ensure that the RulePersistenceService is initialised
         ruleFrameworkExtensions.forEach(this::consumeFrameworkExtension);
-        autoTaggingRegistry.freeze();
         return List.of(
             new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
             new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class),

@@ -42,8 +42,6 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
         // Transport readers are collected before extension components are created.
         var readers = new NamedWriteableRegistry(List.of(other.getTransportReader()));
         other.registerFeatureType(localFeature);
-        other.freeze();
-        registry.freeze();
         assertSame(RuleTestUtils.MockRuleFeatureType.INSTANCE, registry.getFeatureType(FEATURE_TYPE_NAME));
         assertSame(localFeature, other.getFeatureType(FEATURE_TYPE_NAME));
         try (var out = new BytesStreamOutput()) {
@@ -59,15 +57,8 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
         }
     }
 
-    public void testRegistrationCannotChangeAfterFreeze() {
-        registry.freeze();
-        assertThrows(IllegalStateException.class, () -> registry.registerFeatureType(RuleTestUtils.MockRuleFeatureType.INSTANCE));
-        assertSame(RuleTestUtils.MockRuleFeatureType.INSTANCE, registry.getFeatureType(FEATURE_TYPE_NAME));
-    }
-
     public void testUnknownFeatureIsNotResolvedFromAnotherRegistry() throws Exception {
         AutoTaggingRegistry emptyRegistry = new AutoTaggingRegistry();
-        emptyRegistry.freeze();
         var readers = new NamedWriteableRegistry(List.of(emptyRegistry.getTransportReader()));
         try (var out = new BytesStreamOutput()) {
             registry.getFeatureType(FEATURE_TYPE_NAME).writeTo(out);

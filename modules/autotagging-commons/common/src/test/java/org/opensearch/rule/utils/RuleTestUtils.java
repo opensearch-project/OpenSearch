@@ -27,7 +27,6 @@ public class RuleTestUtils {
         for (FeatureType featureType : featureTypes) {
             registry.registerFeatureType(featureType);
         }
-        registry.freeze();
         return new NamedWriteableRegistry(List.of(registry.getTransportReader()));
     }
 

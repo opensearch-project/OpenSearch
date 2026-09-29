@@ -29,7 +29,6 @@ public class RestGetRuleActionTests extends OpenSearchTestCase {
     public void setUpAction() {
         AutoTaggingRegistry registry = new AutoTaggingRegistry();
         registry.registerFeatureType(InMemoryRuleProcessingServiceTests.WLMFeatureType.WLM);
-        registry.freeze();
         action = new RestGetRuleAction(registry);
     }
 

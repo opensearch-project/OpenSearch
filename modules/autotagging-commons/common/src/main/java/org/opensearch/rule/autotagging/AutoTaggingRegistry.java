@@ -26,8 +26,7 @@ public class AutoTaggingRegistry {
      * featureTypesRegistryMap should be concurrently readable but not concurrently writable.
      * The registration of FeatureType should only be done during boot-up.
      */
-    private Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
-    private boolean frozen;
+    private final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
     static final String TRANSPORT_READER_NAME = "autotagging_feature_type";
     /**
      * Max chars a feature type can assume
@@ -38,12 +37,6 @@ public class AutoTaggingRegistry {
      * Creates a registry owned by one node.
      */
     public AutoTaggingRegistry() {}
-
-    /** Prevents registration after node initialization. */
-    public void freeze() {
-        featureTypesRegistryMap = Map.copyOf(featureTypesRegistryMap);
-        frozen = true;
-    }
 
     /**
      * Registers a reader before extension components are available. Resolution is deferred
@@ -58,9 +51,6 @@ public class AutoTaggingRegistry {
      * @param featureType
      */
     public void registerFeatureType(FeatureType featureType) {
-        if (frozen) {
-            throw new IllegalStateException("Feature type registration is closed");
-        }
         validateFeatureType(featureType);
         String name = featureType.getName();
         if (featureTypesRegistryMap.containsKey(name) && featureTypesRegistryMap.get(name) != featureType) {
