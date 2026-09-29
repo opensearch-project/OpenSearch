@@ -37,8 +37,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -58,6 +60,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.CRC32;
 
 import static org.opensearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 import static org.opensearch.index.translog.Translog.TRANSLOG_FILE_SUFFIX;
@@ -73,6 +76,87 @@ import static org.hamcrest.core.IsNot.not;
  */
 public class TestTranslog {
     private static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("^translog-(\\d+)\\.(tlog|ckp)$");
+
+    /**
+     * Writes a closed translog generation (header + a few operation bytes, optionally followed by a
+     * {@link TranslogFooter}) and its numbered checkpoint file at {@code location}, laid out exactly as
+     * {@link TranslogWriter#closeIntoReader()} leaves them for a remote-enabled translog. Returns the content
+     * checksum, i.e. the CRC32 over {@code [0, checkpoint.offset)} that the footer carries.
+     */
+    public static long createTranslogGeneration(Random random, Path location, long generation, boolean withFooter) throws IOException {
+        Path translogPath = location.resolve(Translog.getFilename(generation));
+        Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(generation));
+        Files.createFile(translogPath);
+        try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+            TranslogHeader header = new TranslogHeader(UUIDs.randomBase64UUID(random), 1);
+            header.write(channel, true);
+            byte[] operationBytes = new byte[RandomNumbers.randomIntBetween(random, 4, 64)];
+            random.nextBytes(operationBytes);
+            channel.write(ByteBuffer.wrap(operationBytes));
+            long offset = channel.position();
+            CRC32 crc = new CRC32();
+            crc.update(Files.readAllBytes(translogPath), 0, Math.toIntExact(offset));
+            long contentChecksum = crc.getValue();
+            if (withFooter) {
+                TranslogFooter.write(channel, contentChecksum, true);
+            }
+            Checkpoint checkpoint = new Checkpoint(offset, 1, generation, 0, 0, 0, generation, SequenceNumbers.NO_OPS_PERFORMED);
+            Checkpoint.write(FileChannel::open, checkpointPath, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+            return contentChecksum;
+        }
+    }
+
+    /**
+     * Flips one byte inside the body of the last operation of a randomly chosen generation that holds operations, and
+     * returns the corrupted translog file. The operation's size prefix, the numbered checkpoint and any
+     * {@link TranslogFooter} are left intact, so the generation still passes every structural check and the rot only
+     * surfaces as a per-operation checksum failure when the operation is read.
+     */
+    public static Path corruptLastOperationOfRandomGeneration(Random random, Path translogDir) throws IOException {
+        List<Path> nonEmpty = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir, "translog-*" + TRANSLOG_FILE_SUFFIX)) {
+            for (Path translogPath : stream) {
+                Checkpoint checkpoint = readCheckpointOfGeneration(translogDir, translogPath);
+                if (checkpoint != null && checkpoint.numOps > 0) {
+                    nonEmpty.add(translogPath);
+                }
+            }
+        }
+        assertThat("expected at least one generation with operations in " + translogDir, nonEmpty, not(empty()));
+        nonEmpty.sort(Comparator.naturalOrder());
+        Path victim = RandomPicks.randomFrom(random, nonEmpty);
+        Checkpoint checkpoint = readCheckpointOfGeneration(translogDir, victim);
+        // The last operation ends at checkpoint.offset with its 4-byte checksum; six bytes back is inside its body.
+        long position = checkpoint.offset - 6;
+        try (FileChannel channel = FileChannel.open(victim, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            ByteBuffer one = ByteBuffer.allocate(1);
+            channel.read(one, position);
+            one.flip();
+            byte original = one.get();
+            one.clear();
+            one.put((byte) (original ^ 0x1)).flip();
+            channel.write(one, position);
+        }
+        return victim;
+    }
+
+    /**
+     * Reads the checkpoint describing {@code translogPath}: its numbered checkpoint for a closed generation, or
+     * {@code translog.ckp} for the current writer's generation, which has no numbered checkpoint yet. Returns
+     * {@code null} if neither describes this generation.
+     */
+    private static Checkpoint readCheckpointOfGeneration(Path translogDir, Path translogPath) throws IOException {
+        long generation = Translog.parseIdFromFileName(translogPath);
+        Path checkpointPath = translogDir.resolve(Translog.getCommitCheckpointFileName(generation));
+        if (Files.exists(checkpointPath) == false) {
+            checkpointPath = translogDir.resolve(CHECKPOINT_FILE_NAME);
+            if (Files.exists(checkpointPath) == false) {
+                return null;
+            }
+        }
+        Checkpoint checkpoint = Checkpoint.read(checkpointPath);
+        return checkpoint.generation == generation ? checkpoint : null;
+    }
 
     /**
      * Corrupts random translog file (translog-N.tlog or translog-N.ckp or translog.ckp) from the given translog directory, ignoring

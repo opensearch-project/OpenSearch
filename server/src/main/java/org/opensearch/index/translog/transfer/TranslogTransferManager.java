@@ -30,8 +30,11 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogCorruptedException;
+import org.opensearch.index.translog.TranslogFooter;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -365,6 +368,74 @@ public class TranslogTransferManager {
         remoteTranslogTransferTracker.incrementTotalUploadsFailed();
     }
 
+    /**
+     * Makes generation {@code generation} available at {@code location}, downloading it only when the local copy
+     * cannot be proven identical to the remote one (see {@link #isLocalGenerationCurrent}). A reused local copy is
+     * registered with the file transfer tracker exactly as a downloaded one would be, so it is neither re-uploaded
+     * on the next sync nor fetched again. This is the only path that marks a file as present without downloading
+     * it: the verification and the tracker update are deliberately kept in one place so that the tracker can never
+     * be told about a generation whose content has not been checked.
+     *
+     * @param expectedChecksum the content checksum the remote metadata advertises for the generation, or
+     *                         {@code null} if it advertises none (in which case the generation is always downloaded)
+     * @return {@code true} if the generation was downloaded, {@code false} if the local copy was reused
+     */
+    public boolean downloadTranslogIfChanged(String primaryTerm, String generation, Path location, @Nullable String expectedChecksum)
+        throws IOException {
+        long gen = Long.parseLong(generation);
+        if (isLocalGenerationCurrent(location, gen, expectedChecksum)) {
+            // Mirror what downloadToFS / recoverCkpFileUsingMetadata register for a real download: the checkpoint
+            // file is only tracked as a remote object when it is uploaded as one.
+            fileTransferTracker.add(Translog.getFilename(gen), true);
+            if (isTranslogMetadataEnabled == false) {
+                fileTransferTracker.add(Translog.getCommitCheckpointFileName(gen), true);
+            }
+            return false;
+        }
+        downloadTranslog(primaryTerm, generation, location);
+        return true;
+    }
+
+    /**
+     * Decides whether generation {@code generation} can be served from the local translog directory instead of
+     * being downloaded again. The local copy is reused only when all of the following hold:
+     * <ul>
+     *   <li>the remote metadata advertises a content checksum for the generation (older uploads do not)</li>
+     *   <li>both the {@code .tlog} and the {@code .ckp} file are present locally</li>
+     *   <li>the local checkpoint passes its own CRC and belongs to this generation</li>
+     *   <li>the local translog carries a {@link TranslogFooter} whose checksum equals the advertised one</li>
+     * </ul>
+     * Any failure to establish this - including a truncated file, a missing footer or an I/O error - falls back to
+     * downloading, which is exactly what happens today.
+     */
+    // Visible for testing
+    boolean isLocalGenerationCurrent(Path location, long generation, @Nullable String expectedChecksum) {
+        if (expectedChecksum == null) {
+            return false;
+        }
+        try {
+            Long localChecksum = TranslogFooter.readGenerationChecksum(location, generation);
+            boolean current = localChecksum != null && localChecksum.longValue() == Long.parseLong(expectedChecksum);
+            if (current) {
+                logger.debug("local translog generation {} matches remote checksum {}; skipping download", generation, expectedChecksum);
+            } else {
+                logger.debug(
+                    "local translog generation {} has checksum {} but remote advertises {}; downloading",
+                    generation,
+                    localChecksum,
+                    expectedChecksum
+                );
+            }
+            return current;
+        } catch (IOException | TranslogCorruptedException | NumberFormatException e) {
+            // TranslogCorruptedException is unchecked and is what Checkpoint.read throws for a checkpoint that fails
+            // its own CRC; a corrupt local checkpoint must fall back to a download like any other doubt. The
+            // download path deletes the local files before writing, so nothing stale survives it.
+            logger.debug(() -> new ParameterizedMessage("unable to reconcile local translog generation {}; downloading", generation), e);
+            return false;
+        }
+    }
+
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
         logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
@@ -374,6 +445,14 @@ public class TranslogTransferManager {
         );
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        // Remove any local copy of this generation before the first byte is fetched. Each download below deletes the
+        // file it is about to write, but the two files are written one after the other, so a crash in between could
+        // otherwise leave a fresh translog beside a stale checkpoint of the same generation. That pair is what
+        // isLocalGenerationCurrent reconciles on the next attempt, and a stale checkpoint whose offset happens to
+        // equal the new one would locate the new footer and pass. Deleting the checkpoint first turns every partial
+        // outcome into "checkpoint missing", which is never trusted.
+        deleteFileIfExists(location.resolve(ckpFileName));
+        deleteFileIfExists(location.resolve(translogFilename));
         if (isTranslogMetadataEnabled == false) {
             // Download Checkpoint file, translog file from remote to local FS
             downloadToFS(ckpFileName, location, primaryTerm, false);
@@ -415,8 +494,8 @@ public class TranslogTransferManager {
 
     private Map<String, String> downloadToFS(String fileName, Path location, String primaryTerm, boolean withMetadata) throws IOException {
         Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
+        // downloadToFS method will be called only when we want to download the file.
+        // Therefore, we delete the file if it exists.
         deleteFileIfExists(filePath);
 
         Map<String, String> metadata = null;
@@ -571,8 +650,24 @@ public class TranslogTransferManager {
                     snapshot -> String.valueOf(snapshot.getPrimaryTerm())
                 )
             );
+
+        // Advertise the content checksum of every generation that carries a footer, so a downloader holding the
+        // same bytes locally can skip fetching them. Footer-less generations are simply absent from the map.
+        Map<String, String> generationChecksumMap = transferSnapshot.getTranslogFileSnapshots()
+            .stream()
+            .filter(snapshot -> snapshot instanceof TranslogFileSnapshot)
+            .map(snapshot -> (TranslogFileSnapshot) snapshot)
+            .filter(snapshot -> snapshot.getTranslogContentChecksum() != null)
+            .collect(
+                Collectors.toMap(
+                    snapshot -> String.valueOf(snapshot.getGeneration()),
+                    snapshot -> String.valueOf(snapshot.getTranslogContentChecksum())
+                )
+            );
+
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+        translogTransferMetadata.setGenerationToChecksumMapper(new HashMap<>(generationChecksumMap));
 
         return new TransferFileSnapshot(
             translogTransferMetadata.getFileName(),
