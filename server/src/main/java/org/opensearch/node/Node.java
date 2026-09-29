@@ -55,6 +55,7 @@ import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTaskRequestOperationsListener;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.StreamSearchTransportService;
+import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.arrow.spi.NativeAllocator;
@@ -225,6 +226,7 @@ import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugin.stats.NativeAllocatorStatsRegistry;
+import org.opensearch.plugins.AccessPolicyProviderPlugin;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.BlockCacheRegistry;
@@ -1760,6 +1762,9 @@ public class Node implements Closeable {
                 : Optional.empty();
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
+            final ReadAccessPolicyService readAccessPolicyService = new ReadAccessPolicyService(
+                pluginsService.filterPlugins(AccessPolicyProviderPlugin.class)
+            );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,
                 registry,
@@ -1778,6 +1783,7 @@ public class Node implements Closeable {
                 b.bind(NodeService.class).toInstance(nodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                 b.bind(PluginsService.class).toInstance(pluginsService);
+                b.bind(ReadAccessPolicyService.class).toInstance(readAccessPolicyService);
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
