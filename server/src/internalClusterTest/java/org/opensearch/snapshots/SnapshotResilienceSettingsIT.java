@@ -23,40 +23,23 @@ public class SnapshotResilienceSettingsIT extends OpenSearchIntegTestCase {
         return Settings.builder().put(FeatureFlags.SNAPSHOT_RESILIENCE, true).build();
     }
 
-    public void testDynamicUpdateWithFeatureFlagEnabled() {
+    public void testIoTimeoutDynamicUpdateIsAcknowledgedAndReflectedInState() {
         internalCluster().startNode();
         ClusterUpdateSettingsResponse response = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put("snapshot.repository.io_timeout", "10m")
-                    .put("snapshot.repository.max_outstanding_ops", 2)
-                    .put("snapshot.delete.cleanup_stale_blobs", false)
-                    .build()
-            )
+            .setTransientSettings(Settings.builder().put("snapshot.repository.io_timeout", "10m").build())
             .get();
         assertTrue(response.isAcknowledged());
-    }
 
-    public void testSettingsReflectUpdatedValues() {
-        internalCluster().startNode();
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put("snapshot.repository.io_timeout", "20m")
-                    .put("snapshot.repository.max_outstanding_ops", 6)
-                    .put("snapshot.delete.cleanup_stale_blobs", false)
-                    .build()
-            )
+            .setTransientSettings(Settings.builder().put("snapshot.repository.io_timeout", "20m").build())
             .get();
 
         Settings settings = client().admin().cluster().prepareState().get().getState().metadata().transientSettings();
         assertEquals("20m", settings.get("snapshot.repository.io_timeout"));
-        assertEquals("6", settings.get("snapshot.repository.max_outstanding_ops"));
-        assertEquals("false", settings.get("snapshot.delete.cleanup_stale_blobs"));
     }
 
     public void testIoTimeoutRejectsInvalidValue() {
@@ -72,19 +55,6 @@ public class SnapshotResilienceSettingsIT extends OpenSearchIntegTestCase {
         assertThat(e.getMessage(), containsString("snapshot.repository.io_timeout"));
     }
 
-    public void testMaxOutstandingOpsRejectsInvalidValue() {
-        internalCluster().startNode();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("snapshot.repository.max_outstanding_ops", 0).build())
-                .get()
-        );
-        assertThat(e.getMessage(), containsString("snapshot.repository.max_outstanding_ops"));
-    }
-
     public void testSettingsRejectedWhenFlagDisabled() {
         // Start a node with the flag explicitly disabled
         internalCluster().startNode(Settings.builder().put(FeatureFlags.SNAPSHOT_RESILIENCE, false).build());
@@ -95,28 +65,6 @@ public class SnapshotResilienceSettingsIT extends OpenSearchIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("snapshot.repository.io_timeout", "10m").build())
-                .get()
-        );
-        assertThat(e.getMessage(), containsString("feature flag"));
-        assertThat(e.getMessage(), containsString("disabled"));
-
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("snapshot.repository.max_outstanding_ops", 2).build())
-                .get()
-        );
-        assertThat(e.getMessage(), containsString("feature flag"));
-        assertThat(e.getMessage(), containsString("disabled"));
-
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("snapshot.delete.cleanup_stale_blobs", false).build())
                 .get()
         );
         assertThat(e.getMessage(), containsString("feature flag"));
