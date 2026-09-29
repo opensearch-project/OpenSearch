@@ -80,7 +80,11 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(autoTaggingRegistry.getTransportReader());
+        return ruleFrameworkExtensions.stream().map(extension -> {
+            // Components are created after readers are registered, so defer obtaining the instance.
+            Supplier<FeatureType> featureTypeSupplier = extension.getFeatureTypeSupplier();
+            return new NamedWriteableRegistry.Entry(FeatureType.class, extension.getFeatureTypeName(), in -> featureTypeSupplier.get());
+        }).toList();
     }
 
     @Override
@@ -140,6 +144,9 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     private void consumeFrameworkExtension(RuleFrameworkExtension ruleFrameworkExtension) {
         FeatureType featureType = ruleFrameworkExtension.getFeatureTypeSupplier().get();
         autoTaggingRegistry.registerFeatureType(featureType);
+        if (featureType.getName().equals(ruleFrameworkExtension.getFeatureTypeName()) == false) {
+            throw new IllegalStateException("Registered feature name does not match the extension's declared feature name");
+        }
         rulePersistenceServiceRegistry.register(featureType, ruleFrameworkExtension.getRulePersistenceServiceSupplier().get());
         ruleRoutingServiceRegistry.register(featureType, ruleFrameworkExtension.getRuleRoutingServiceSupplier().get());
 

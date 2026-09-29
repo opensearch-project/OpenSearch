@@ -10,10 +10,10 @@ package org.opensearch.rule.utils;
 
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -23,11 +23,11 @@ import static org.junit.Assert.assertEquals;
 
 public class RuleTestUtils {
     public static NamedWriteableRegistry namedWriteableRegistry(FeatureType... featureTypes) {
-        AutoTaggingRegistry registry = new AutoTaggingRegistry();
+        List<NamedWriteableRegistry.Entry> readers = new ArrayList<>();
         for (FeatureType featureType : featureTypes) {
-            registry.registerFeatureType(featureType);
+            readers.add(new NamedWriteableRegistry.Entry(FeatureType.class, featureType.getName(), in -> featureType));
         }
-        return new NamedWriteableRegistry(List.of(registry.getTransportReader()));
+        return new NamedWriteableRegistry(readers);
     }
 
     public static final String _ID_ONE = "e9f35a73-ece2-3fa7-857e-7c1af877fc75";

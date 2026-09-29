@@ -935,6 +935,11 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
 
         @Override
+        public String getFeatureTypeName() {
+            return WorkloadGroupFeatureType.NAME;
+        }
+
+        @Override
         public void setAttributes(List<Attribute> attributes) {
             for (Attribute attribute : attributes) {
                 if (attribute.getName().equals(PRINCIPAL_ATTRIBUTE_NAME)) {

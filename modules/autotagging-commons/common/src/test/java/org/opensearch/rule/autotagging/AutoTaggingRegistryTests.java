@@ -39,13 +39,12 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
                 return Map.of();
             }
         };
-        // Transport readers are collected before extension components are created.
-        var readers = new NamedWriteableRegistry(List.of(other.getTransportReader()));
+        var readers = RuleTestUtils.namedWriteableRegistry(localFeature);
         other.registerFeatureType(localFeature);
         assertSame(RuleTestUtils.MockRuleFeatureType.INSTANCE, registry.getFeatureType(FEATURE_TYPE_NAME));
         assertSame(localFeature, other.getFeatureType(FEATURE_TYPE_NAME));
         try (var out = new BytesStreamOutput()) {
-            RuleTestUtils.MockRuleFeatureType.INSTANCE.writeTo(out);
+            out.writeNamedWriteable(RuleTestUtils.MockRuleFeatureType.INSTANCE);
             try (var raw = out.bytes().streamInput()) {
                 assertEquals(FEATURE_TYPE_NAME, raw.readString());
                 assertEquals(0, raw.available());
@@ -59,11 +58,11 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
 
     public void testUnknownFeatureIsNotResolvedFromAnotherRegistry() throws Exception {
         AutoTaggingRegistry emptyRegistry = new AutoTaggingRegistry();
-        var readers = new NamedWriteableRegistry(List.of(emptyRegistry.getTransportReader()));
+        var readers = new NamedWriteableRegistry(List.of());
         try (var out = new BytesStreamOutput()) {
-            registry.getFeatureType(FEATURE_TYPE_NAME).writeTo(out);
+            out.writeNamedWriteable(registry.getFeatureType(FEATURE_TYPE_NAME));
             try (var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), readers)) {
-                assertThrows(ResourceNotFoundException.class, () -> FeatureType.from(in));
+                assertThrows(IllegalArgumentException.class, () -> FeatureType.from(in));
             }
         }
         assertThrows(ResourceNotFoundException.class, () -> emptyRegistry.getFeatureType(null));

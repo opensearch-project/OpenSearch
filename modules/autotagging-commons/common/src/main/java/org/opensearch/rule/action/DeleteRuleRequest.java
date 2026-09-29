@@ -53,7 +53,7 @@ public class DeleteRuleRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(ruleId);
-        featureType.writeTo(out);
+        out.writeNamedWriteable(featureType);
     }
 
     @Override

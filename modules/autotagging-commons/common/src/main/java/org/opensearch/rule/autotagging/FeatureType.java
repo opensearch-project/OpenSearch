@@ -102,12 +102,12 @@ public interface FeatureType extends NamedWriteable {
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
+        // The named-writeable name identifies the node-local instance; there is no additional payload.
     }
 
     @Override
     default String getWriteableName() {
-        return AutoTaggingRegistry.TRANSPORT_READER_NAME;
+        return getName();
     }
 
     /**
@@ -117,7 +117,6 @@ public interface FeatureType extends NamedWriteable {
      * @throws IOException
      */
     static FeatureType from(StreamInput in) throws IOException {
-        // The existing wire format contains only the feature name, without a reader-name prefix.
-        return in.readNamedWriteable(FeatureType.class, AutoTaggingRegistry.TRANSPORT_READER_NAME);
+        return in.readNamedWriteable(FeatureType.class);
     }
 }

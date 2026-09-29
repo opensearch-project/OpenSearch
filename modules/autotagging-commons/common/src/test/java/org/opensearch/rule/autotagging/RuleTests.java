@@ -15,11 +15,11 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rule.RuleUtils;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,9 +29,7 @@ import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRI
 public class RuleTests extends AbstractSerializingTestCase<Rule> {
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        AutoTaggingRegistry registry = new AutoTaggingRegistry();
-        registry.registerFeatureType(FEATURE_TYPE);
-        return new NamedWriteableRegistry(List.of(registry.getTransportReader()));
+        return RuleTestUtils.namedWriteableRegistry(FEATURE_TYPE);
     }
 
     public static final String TEST_ATTR1_NAME = "test_attr1";

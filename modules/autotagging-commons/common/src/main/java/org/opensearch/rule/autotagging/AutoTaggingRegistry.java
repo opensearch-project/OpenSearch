@@ -9,7 +9,6 @@
 package org.opensearch.rule.autotagging;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +26,6 @@ public class AutoTaggingRegistry {
      * The registration of FeatureType should only be done during boot-up.
      */
     private final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
-    static final String TRANSPORT_READER_NAME = "autotagging_feature_type";
     /**
      * Max chars a feature type can assume
      */
@@ -37,14 +35,6 @@ public class AutoTaggingRegistry {
      * Creates a registry owned by one node.
      */
     public AutoTaggingRegistry() {}
-
-    /**
-     * Registers a reader before extension components are available. Resolution is deferred
-     * until deserialization, preserving the existing feature-name-only wire format.
-     */
-    public NamedWriteableRegistry.Entry getTransportReader() {
-        return new NamedWriteableRegistry.Entry(FeatureType.class, TRANSPORT_READER_NAME, in -> getFeatureType(in.readString()));
-    }
 
     /**
      * Registers the new feature type
