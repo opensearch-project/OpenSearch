@@ -8,8 +8,6 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -39,10 +37,11 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
         assertNull(request.validate());
         assertNull(request.getSearchAfter());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, request.getFeatureType());
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
-        GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
+        GetRuleRequest otherRequest = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            GetRuleRequest::new
+        );
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }
@@ -58,10 +57,11 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
             RuleTestUtils.MockRuleFeatureType.INSTANCE
         );
         assertNull(request.getId());
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
-        GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
+        GetRuleRequest otherRequest = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            GetRuleRequest::new
+        );
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }

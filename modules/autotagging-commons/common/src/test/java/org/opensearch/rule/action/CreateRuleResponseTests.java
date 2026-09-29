@@ -8,9 +8,7 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.autotagging.Rule;
@@ -30,10 +28,11 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
      */
     public void testSerialization() throws IOException {
         CreateRuleResponse response = new CreateRuleResponse(ruleOne);
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
-        CreateRuleResponse otherResponse = new CreateRuleResponse(streamInput);
+        CreateRuleResponse otherResponse = copyWriteable(
+            response,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            CreateRuleResponse::new
+        );
         Rule responseRule = response.getRule();
         Rule otherResponseRule = otherResponse.getRule();
         assertEqualRule(responseRule, otherResponseRule, false);

@@ -8,8 +8,6 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -36,10 +34,11 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
         assertEquals(_ID_ONE, request.getId());
         assertNull(request.validate());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, request.getFeatureType());
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
-        UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
+        UpdateRuleRequest otherRequest = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            UpdateRuleRequest::new
+        );
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());
         assertEquals(request.getDescription(), otherRequest.getDescription());
@@ -53,10 +52,11 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
         UpdateRuleRequest request = new UpdateRuleRequest(_ID_ONE, null, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertNull(request.getDescription());
         assertNull(request.getFeatureValue());
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = RuleTestUtils.namedInput(out.bytes().streamInput());
-        UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
+        UpdateRuleRequest otherRequest = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            UpdateRuleRequest::new
+        );
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());
         assertEquals(request.getDescription(), otherRequest.getDescription());
