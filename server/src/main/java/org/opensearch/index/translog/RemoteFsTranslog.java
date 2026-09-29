@@ -44,7 +44,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -299,16 +298,11 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             }
 
             // Only generations inside the remote range can be reused; everything else is removed, as the unconditional
-            // wipe this replaces did for every file. translog.ckp is the exception: a stale one may name a generation
-            // from a previous remote state, but it is left in place until the download has succeeded and then
-            // overwritten from the latest generation's checkpoint at the end of this method, so the directory is
-            // never without a top-level checkpoint for longer than that final copy. Any exception before then aborts
-            // the download, and with it the engine open.
+            // wipe this replaces did for every file. That includes the top-level translog.ckp, which is recreated from
+            // the latest generation's checkpoint once every generation is in place; a download that fails before then
+            // leaves the directory without one, and with it the engine open fails, exactly as before.
             for (Path file : FileSystemUtils.files(location)) {
                 String fileName = file.getFileName().toString();
-                if (Translog.CHECKPOINT_FILE_NAME.equals(fileName)) {
-                    continue;
-                }
                 try {
                     long generation = parseIdFromFileName(fileName, STRICT_TLOG_OR_CKP_PATTERN);
                     if (generation < minGeneration || generation > maxGeneration) {
@@ -346,12 +340,10 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 
             // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
-            // existence of translog.ckp file work in the same way. Any stale translog.ckp kept through the download
-            // is replaced here.
+            // existence of translog.ckp file work in the same way
             Files.copy(
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
-                location.resolve(Translog.CHECKPOINT_FILE_NAME),
-                StandardCopyOption.REPLACE_EXISTING
+                location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
         } else {
             // When code flow reaches this block, it means we don't have any translog files uploaded to remote store.

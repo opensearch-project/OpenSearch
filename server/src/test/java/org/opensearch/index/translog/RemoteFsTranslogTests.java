@@ -1981,23 +1981,23 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     /**
-     * A stale top-level translog.ckp is not deleted up front; it survives the download and is replaced with the
-     * latest generation's checkpoint at the end, so the directory is never left without one if the download fails.
+     * A stale top-level translog.ckp is removed with the other out-of-range files before the download starts, so a
+     * download that fails leaves the directory without one rather than with a checkpoint naming a generation from a
+     * previous remote state; a successful download recreates it from the latest generation's checkpoint.
      */
-    public void testStaleTopLevelCheckpointSurvivesDownloadAndIsReplaced() throws IOException {
+    public void testStaleTopLevelCheckpointIsRemovedUpFrontAndRecreated() throws IOException {
         Path location = createTempDir();
         createTranslogGeneration(location, 1);
         long checksum2 = createTranslogGeneration(location, 2);
-        byte[] staleCheckpoint = randomByteArrayOfLength(randomIntBetween(8, 32));
-        Files.write(location.resolve(Translog.CHECKPOINT_FILE_NAME), staleCheckpoint);
+        Files.write(location.resolve(Translog.CHECKPOINT_FILE_NAME), randomByteArrayOfLength(randomIntBetween(8, 32)));
 
-        // A failing download leaves the stale checkpoint where it was.
+        // A failing download has already removed the stale checkpoint.
         TranslogTransferManager failing = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
         when(failing.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenThrow(new IOException("boom"));
         expectThrows(IOException.class, () -> RemoteFsTranslog.download(failing, location, logger, false, 0));
-        assertArrayEquals(staleCheckpoint, Files.readAllBytes(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
+        assertFalse(Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
 
-        // A successful one replaces it with the latest generation's checkpoint.
+        // A successful one recreates it from the latest generation's checkpoint.
         TranslogTransferManager succeeding = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
         when(succeeding.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenReturn(false);
         RemoteFsTranslog.download(succeeding, location, logger, false, 0);
