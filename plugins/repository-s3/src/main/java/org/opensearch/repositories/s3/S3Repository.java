@@ -38,7 +38,6 @@ import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobPath;
@@ -49,7 +48,6 @@ import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -59,18 +57,15 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.NativeStoreRepository;
-import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
-import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.threadpool.Scheduler;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -505,13 +500,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
-    ) {
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+    public Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+        return blobStoreAbandonableSnapshotDelete();
     }
 
     @Override

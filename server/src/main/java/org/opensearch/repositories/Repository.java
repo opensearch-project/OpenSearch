@@ -243,6 +243,39 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
+     * Performs a full-copy deletion coordinated through {@link SnapshotDeletionAttempt}. After expiry, implementations must
+     * not start destructive work, but may let in-flight I/O finish. They must claim generation publication through
+     * {@link SnapshotDeletionAttempt#claimCommit()}, report one publication outcome, and record subsequent cleanup failures
+     * on the attempt. Repositories that derive generations from blob listings cannot safely implement this protocol.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    @FunctionalInterface
+    interface AbandonableSnapshotDelete {
+        void deleteSnapshots(
+            Collection<SnapshotId> snapshotIds,
+            long repositoryStateId,
+            Version repositoryMetaVersion,
+            SnapshotDeletionAttempt deletion,
+            ActionListener<RepositoryData> listener
+        );
+    }
+
+    /**
+     * Returns the abandonment-aware full-copy delete available for the current operation. Call for each operation and do not
+     * cache the result. This capability requires a writable, strictly consistent repository without shallow copies and
+     * verified store-enforced conditional writes. The check must perform no I/O or cluster-state reads. A decorator that
+     * exposes the capability must pass the same {@link SnapshotDeletionAttempt} to the wrapped entrypoint.
+     *
+     * @return the abandonment-aware delete entrypoint, or empty
+     */
+    @ExperimentalApi
+    default Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+        return Optional.empty();
+    }
+
+    /**
      * Deletes snapshots and releases respective lock files from remote store repository.
      *
      * @param snapshotIds                           snapshot ids

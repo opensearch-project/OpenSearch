@@ -32,21 +32,34 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -55,6 +68,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -62,25 +76,33 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryCleanupResult;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.SnapshotDeletionAttempt;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotShardPaths;
 import org.opensearch.snapshots.SnapshotShardPaths.ShardInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,25 +110,38 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.calculateMaxWithinIntLimit;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -125,6 +160,37 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
     static final String REPO_TYPE = "fsLike";
 
+    static final String DIVERTING_REPO_TYPE = "fsLikeDiverting";
+
+    static final AtomicInteger divertedNarrowDeletes = new AtomicInteger();
+
+    static final String COUNTING_REPO_TYPE = "fsLikeCounting";
+    static final AtomicInteger countedDeleteInternalCalls = new AtomicInteger();
+    static final AtomicInteger countedGenerationWrites = new AtomicInteger();
+
+    static final String INJECTING_REPO_TYPE = "fsLikeInjecting";
+    static final AtomicBoolean failShardBlobDeleteOnce = new AtomicBoolean();
+    static final AtomicInteger injectedShardBlobDeleteFailures = new AtomicInteger();
+
+    static volatile boolean conditionalWrites;
+    static volatile boolean failIndexLatestWrites;
+    static final AtomicInteger plainIndexLatestWrites = new AtomicInteger();
+    static final AtomicInteger conditionalIndexLatestWrites = new AtomicInteger();
+    static final AtomicReference<CountDownLatch[]> parkNextIndexLatestWrite = new AtomicReference<>();
+    static final AtomicReference<CountDownLatch[]> parkNextIndexNWrite = new AtomicReference<>();
+
+    enum StoreBehaviour {
+        ENFORCING,
+        IGNORES_PRECONDITIONS
+    }
+
+    static volatile StoreBehaviour storeBehaviour = StoreBehaviour.ENFORCING;
+    // Guarded by this map.
+    static final Map<Path, Long> blobVersions = new HashMap<>();
+    static final Semaphore probesDone = new Semaphore(0);
+    static final AtomicInteger probeClaimChecks = new AtomicInteger();
+    static final AtomicInteger conditionalWriteCalls = new AtomicInteger();
+
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(FsLikeRepoPlugin.class);
     }
@@ -139,7 +205,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return Collections.singletonMap(
+            final Map<String, Repository.Factory> factories = new HashMap<>();
+            factories.put(
                 REPO_TYPE,
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
                     @Override
@@ -148,7 +215,259 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
                     }
                 }
             );
+            factories.put(
+                DIVERTING_REPO_TYPE,
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                    @Override
+                    protected void assertSnapshotOrGenericThread() {}
+
+                    @Override
+                    protected BlobStore createBlobStore() throws Exception {
+                        final FsBlobStore store = (FsBlobStore) super.createBlobStore();
+                        return new InjectingFsBlobStore(store.bufferSizeInBytes(), store.path(), isReadOnly());
+                    }
+
+                    @Override
+                    public void deleteSnapshots(
+                        Collection<SnapshotId> snapshotIds,
+                        long repositoryStateId,
+                        Version repositoryMetaVersion,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        divertedNarrowDeletes.incrementAndGet();
+                        listener.onFailure(new RepositoryException(metadata.name(), "diverted"));
+                    }
+                }
+            );
+            factories.put(
+                COUNTING_REPO_TYPE,
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                    @Override
+                    protected void assertSnapshotOrGenericThread() {}
+
+                    @Override
+                    protected BlobStore createBlobStore() throws Exception {
+                        final FsBlobStore store = (FsBlobStore) super.createBlobStore();
+                        return new InjectingFsBlobStore(store.bufferSizeInBytes(), store.path(), isReadOnly());
+                    }
+
+                    @Override
+                    public void deleteSnapshotsInternal(
+                        Collection<SnapshotId> snapshotIds,
+                        long repositoryStateId,
+                        Version repositoryMetaVersion,
+                        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+                        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+                        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+                        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
+                        boolean isShallowSnapshotV2,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        countedDeleteInternalCalls.incrementAndGet();
+                        super.deleteSnapshotsInternal(
+                            snapshotIds,
+                            repositoryStateId,
+                            repositoryMetaVersion,
+                            remoteStoreLockManagerFactory,
+                            remoteSegmentStoreDirectoryFactory,
+                            remoteStorePinnedTimestampService,
+                            snapshotIdsPinnedTimestampMap,
+                            isShallowSnapshotV2,
+                            listener
+                        );
+                    }
+
+                    @Override
+                    protected void writeIndexGen(
+                        RepositoryData repositoryData,
+                        long expectedGen,
+                        Version version,
+                        Function<ClusterState, ClusterState> stateFilter,
+                        Priority repositoryUpdatePriority,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        countedGenerationWrites.incrementAndGet();
+                        super.writeIndexGen(repositoryData, expectedGen, version, stateFilter, repositoryUpdatePriority, listener);
+                    }
+                }
+            );
+            factories.put(
+                INJECTING_REPO_TYPE,
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                    @Override
+                    protected void assertSnapshotOrGenericThread() {}
+
+                    @Override
+                    protected BlobStore createBlobStore() throws Exception {
+                        final FsBlobStore store = (FsBlobStore) super.createBlobStore();
+                        return new InjectingFsBlobStore(store.bufferSizeInBytes(), store.path(), isReadOnly());
+                    }
+
+                    @Override
+                    public Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+                        return blobStoreAbandonableSnapshotDelete();
+                    }
+                }
+            );
+            return factories;
         }
+    }
+
+    static final class InjectingFsBlobStore extends FsBlobStore {
+        InjectingFsBlobStore(int bufferSizeInBytes, Path path, boolean readonly) throws IOException {
+            super(bufferSizeInBytes, path, readonly);
+        }
+
+        @Override
+        public BlobContainer blobContainer(BlobPath path) {
+            try {
+                return new InjectingFsBlobContainer(this, path, buildAndCreate(path));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    static final class InjectingFsBlobContainer extends FsBlobContainer {
+        InjectingFsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
+            super(blobStore, blobPath, path);
+        }
+
+        @Override
+        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+            if (blobNames.stream().anyMatch(name -> name.contains("indices/")) && failShardBlobDeleteOnce.compareAndSet(true, false)) {
+                injectedShardBlobDeleteFailures.incrementAndGet();
+                throw new IOException("injected shard blob delete failure");
+            }
+            synchronized (blobVersions) {
+                super.deleteBlobsIgnoringIfNotExists(blobNames);
+                for (String blobName : blobNames) {
+                    bumpOnPlainWrite(blobName);
+                }
+            }
+        }
+
+        @Override
+        public boolean isConditionalWriteSupported() {
+            if (isProbeContainer()) {
+                probeClaimChecks.incrementAndGet();
+            }
+            return conditionalWrites;
+        }
+
+        @Override
+        public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+            if (conditionalWrites == false) {
+                return super.readBlobWithVersion(blobName);
+            }
+            synchronized (blobVersions) {
+                final byte[] content;
+                try (InputStream stream = readBlob(blobName)) {
+                    content = stream.readAllBytes();
+                }
+                return new VersionedBlob(content, versionToken(blobName));
+            }
+        }
+
+        @Override
+        public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+            synchronized (blobVersions) {
+                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                bumpOnPlainWrite(blobName);
+            }
+        }
+
+        @Override
+        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+            throws IOException {
+            if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                beforeIndexLatestWrite(plainIndexLatestWrites);
+            }
+            if (path().toArray().length == 0 && blobName.matches(BlobStoreRepository.INDEX_FILE_PREFIX + "[0-9]+")) {
+                park(parkNextIndexNWrite.getAndSet(null));
+            }
+            synchronized (blobVersions) {
+                super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                bumpOnPlainWrite(blobName);
+            }
+        }
+
+        @Override
+        public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+            throws IOException {
+            if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                beforeIndexLatestWrite(conditionalIndexLatestWrites);
+            }
+            conditionalWriteCalls.incrementAndGet();
+            if (conditionalWrites == false) {
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+            final byte[] content = inputStream.readAllBytes();
+            synchronized (blobVersions) {
+                if (storeBehaviour != StoreBehaviour.IGNORES_PRECONDITIONS) {
+                    final String current = blobExists(blobName) ? versionToken(blobName) : null;
+                    if (Objects.equals(expectedVersionToken, current) == false) {
+                        throw new BlobVersionConflictException("[" + blobName + "] is not at version [" + expectedVersionToken + "]");
+                    }
+                }
+                super.writeBlobAtomic(blobName, new ByteArrayInputStream(content), content.length, false);
+                blobVersions.merge(path.resolve(blobName), 1L, Long::sum);
+                return versionToken(blobName);
+            }
+        }
+
+        @Override
+        public DeleteResult delete() throws IOException {
+            final boolean probe = isProbeContainer()
+                && listBlobs().keySet().stream().noneMatch(name -> name.equals("master.dat") || name.startsWith("data-"));
+            final DeleteResult result = super.delete();
+            if (probe) {
+                probesDone.release();
+            }
+            return result;
+        }
+
+        private boolean isProbeContainer() {
+            final String[] parts = path().toArray();
+            return parts.length == 1 && parts[0].startsWith("tests-");
+        }
+
+        private String versionToken(String blobName) {
+            return "v" + blobVersions.getOrDefault(path.resolve(blobName), 0L);
+        }
+
+        private void bumpOnPlainWrite(String blobName) {
+            if (conditionalWrites) {
+                blobVersions.merge(path.resolve(blobName), 1L, Long::sum);
+            }
+        }
+
+        private static void beforeIndexLatestWrite(AtomicInteger attempts) throws IOException {
+            attempts.incrementAndGet();
+            park(parkNextIndexLatestWrite.getAndSet(null));
+            if (failIndexLatestWrites) {
+                throw new IOException("injected index.latest write failure");
+            }
+        }
+
+        private static void park(CountDownLatch[] park) throws IOException {
+            if (park != null) {
+                park[0].countDown();
+                try {
+                    if (park[1].await(30, TimeUnit.SECONDS) == false) {
+                        throw new IOException("a parked write was never released");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put("thread_pool.snapshot.max", 4).build();
     }
 
     public void testRetrieveSnapshots() throws Exception {
@@ -273,6 +592,43 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         );
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testAbandonedDeletionCommitsNothing() throws Exception {
+        final BlobStoreRepository repository = declaringRepository("abandoned-commits-nothing");
+        final RepositoryData initial = addRandomSnapshotsToRepoData(RepositoryData.EMPTY, false);
+        writeIndexGen(repository, initial, RepositoryData.EMPTY_REPO_GEN);
+        final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+
+        final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long generationBefore = committed.getGenId();
+        final long pointerBefore = repository.readSnapshotIndexLatestBlob();
+        final SnapshotId toDelete = committed.getSnapshotIds().iterator().next();
+
+        final SnapshotDeletionAttempt deletion = new SnapshotDeletionAttempt();
+        deletion.expire(ActionListener.wrap(() -> {}));
+
+        final PlainActionFuture<RepositoryData> future = PlainActionFuture.newFuture();
+        entrypoint.deleteSnapshots(Collections.singleton(toDelete), generationBefore, Version.CURRENT, deletion, future);
+        final RepositoryException failure = expectThrows(RepositoryException.class, () -> future.actionGet(TimeValue.timeValueSeconds(30)));
+        assertFalse(
+            "no index-N blob may be written for an abandoned deletion",
+            repository.blobContainer().blobExists(BlobStoreRepository.INDEX_FILE_PREFIX + (generationBefore + 1))
+        );
+        assertThat(failure.getMessage(), containsString("was abandoned before its generation commit"));
+
+        final RepositoryData afterwards = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        assertThat("the generation must not have moved", afterwards.getGenId(), equalTo(generationBefore));
+        assertTrue(
+            "the snapshot must still be recorded, so a later deletion can still remove it",
+            afterwards.getSnapshotIds().contains(toDelete)
+        );
+        assertThat(
+            "the pointer must still name the generation that is committed",
+            repository.readSnapshotIndexLatestBlob(),
+            equalTo(pointerBefore)
+        );
+    }
+
     public void testBadChunksize() throws Exception {
         final Client client = client();
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
@@ -318,10 +674,575 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertNoDeprecationWarnings();
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testIndexLatestIsWrittenAfterTheCommitOnlyOnAProvenStore() throws Exception {
+        final RemoteStorePinnedTimestampService pinning = mock(RemoteStorePinnedTimestampService.class);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(pinning).unpinTimestamp(anyLong(), anyString(), any());
+        for (String writer : List.of(
+            "generation-write",
+            "narrow",
+            "lock-file",
+            "pinned-timestamp",
+            "ignores-preconditions",
+            "claims-nothing",
+            "budgeted"
+        )) {
+            final BlobStoreRepository repository = declaringRepository("pointer-order-" + writer);
+            writeIndexGen(repository, withSnapshots("a"), RepositoryData.EMPTY_REPO_GEN);
+            final boolean budgeted = writer.equals("budgeted");
+            final Repository.AbandonableSnapshotDelete entrypoint = budgeted ? proveDeclared(repository) : null;
+            final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+            final long generation = committed.getGenId();
+            final SnapshotId toDelete = committed.getSnapshotIds().iterator().next();
+            conditionalWrites = budgeted || writer.equals("ignores-preconditions");
+            storeBehaviour = writer.equals("ignores-preconditions") ? StoreBehaviour.IGNORES_PRECONDITIONS : StoreBehaviour.ENFORCING;
+            final long seen;
+            try {
+                if (writer.equals("ignores-preconditions") || writer.equals("claims-nothing")) {
+                    assertNeverHandedOut(repository);
+                    assertEquals("[" + writer + "] the probe asks the store once, and not again once refuted", 1, probeClaimChecks.get());
+                    if (writer.equals("claims-nothing")) {
+                        assertEquals("[" + writer + "] and makes no conditional write", 0, conditionalWriteCalls.get());
+                    }
+                }
+                plainIndexLatestWrites.set(0);
+                conditionalIndexLatestWrites.set(0);
+                seen = indexLatestWhenTheGenerationCommits(repository, generation, f -> {
+                    if (budgeted) {
+                        entrypoint.deleteSnapshots(
+                            Collections.singleton(toDelete),
+                            generation,
+                            Version.CURRENT,
+                            new SnapshotDeletionAttempt(),
+                            f
+                        );
+                    } else if (writer.equals("narrow")) {
+                        repository.deleteSnapshots(Collections.singleton(toDelete), generation, Version.CURRENT, f);
+                    } else if (writer.equals("lock-file")) {
+                        repository.deleteSnapshotsAndReleaseLockFiles(
+                            Collections.singleton(toDelete),
+                            generation,
+                            Version.CURRENT,
+                            null,
+                            f
+                        );
+                    } else if (writer.equals("pinned-timestamp")) {
+                        repository.deleteSnapshotsWithPinnedTimestamp(Map.of(toDelete, 1L), generation, Version.CURRENT, null, pinning, f);
+                    } else {
+                        repository.writeIndexGen(committed, generation, Version.CURRENT, Function.identity(), Priority.NORMAL, f);
+                    }
+                });
+            } finally {
+                conditionalWrites = false;
+                storeBehaviour = StoreBehaviour.ENFORCING;
+            }
+            assertEquals("[" + writer + "] index.latest when the generation commits", budgeted ? generation : generation + 1, seen);
+            assertEquals(
+                "[" + writer + "] index.latest once the writer answered",
+                generation + 1,
+                repository.readSnapshotIndexLatestBlob()
+            );
+            assertEquals("[" + writer + "] plain index.latest writes", budgeted ? 0 : 1, plainIndexLatestWrites.get());
+            assertEquals("[" + writer + "] conditional index.latest writes", budgeted ? 1 : 0, conditionalIndexLatestWrites.get());
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testIndexLatestNamesTheLastCommitWhenWritersRaceOnAProvenStore() throws Exception {
+        for (String race : List.of(
+            "delayed-delete/generation-write",
+            "delayed-delete/narrow-delete",
+            "delayed-delete/cleanup",
+            "delayed-delete/budgeted-delete",
+            "losing-write/budgeted-delete",
+            "losing-write/cleanup"
+        )) {
+            final boolean delayedDelete = race.startsWith("delayed-delete/");
+            final String writer = race.substring(race.indexOf('/') + 1);
+            final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+            final BlobStoreRepository repository = putRepository("race-" + race.replace('/', '-'), INJECTING_REPO_TYPE, location);
+            writeIndexGen(repository, withSnapshots("a", "b"), RepositoryData.EMPTY_REPO_GEN);
+            final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+            final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+            final long generation = committed.getGenId();
+            final Iterator<SnapshotId> ids = committed.getSnapshotIds().iterator();
+            final SnapshotId first = ids.next();
+            final SnapshotId second = ids.next();
+            final CountDownLatch parked = new CountDownLatch(1);
+            final CountDownLatch release = new CountDownLatch(1);
+            final PlainActionFuture<RepositoryData> parkedWriter = PlainActionFuture.newFuture();
+            conditionalWrites = true;
+            (delayedDelete ? parkNextIndexLatestWrite : parkNextIndexNWrite).set(new CountDownLatch[] { parked, release });
+            try {
+                try {
+                    if (delayedDelete) {
+                        entrypoint.deleteSnapshots(
+                            Collections.singleton(first),
+                            generation,
+                            Version.CURRENT,
+                            new SnapshotDeletionAttempt(),
+                            parkedWriter
+                        );
+                    } else {
+                        repository.writeIndexGen(
+                            committed,
+                            generation,
+                            Version.CURRENT,
+                            Function.identity(),
+                            Priority.NORMAL,
+                            parkedWriter
+                        );
+                    }
+                    assertTrue("[" + race + "] the parked writer never reached its write", parked.await(30, TimeUnit.SECONDS));
+                    final RepositoryData current = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+                    plainIndexLatestWrites.set(0);
+                    conditionalIndexLatestWrites.set(0);
+                    if (writer.equals("generation-write")) {
+                        writeIndexGen(repository, current, current.getGenId());
+                    } else if (writer.equals("narrow-delete")) {
+                        PlainActionFuture.<RepositoryData, Exception>get(
+                            f -> repository.deleteSnapshots(Collections.singleton(second), current.getGenId(), Version.CURRENT, f)
+                        );
+                    } else if (writer.equals("budgeted-delete")) {
+                        PlainActionFuture.<RepositoryData, Exception>get(
+                            f -> entrypoint.deleteSnapshots(
+                                Collections.singleton(second),
+                                current.getGenId(),
+                                Version.CURRENT,
+                                new SnapshotDeletionAttempt(),
+                                f
+                            )
+                        );
+                    } else {
+                        Files.write(
+                            location.resolve(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(UUIDs.randomBase64UUID())),
+                            new byte[] { 1 }
+                        );
+                        PlainActionFuture.<RepositoryCleanupResult, Exception>get(
+                            f -> repository.cleanup(current.getGenId(), Version.CURRENT, null, null, f)
+                        );
+                    }
+                    assertEquals(
+                        "[" + race + "] the writer that ran must have committed the next generation",
+                        generation + 2,
+                        OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId()
+                    );
+                    assertEquals("[" + race + "] and must not write index.latest with a plain write", 0, plainIndexLatestWrites.get());
+                    assertTrue("[" + race + "] it writes index.latest with a conditional write", conditionalIndexLatestWrites.get() > 0);
+                    if (delayedDelete) {
+                        assertFalse(
+                            "[" + race + "] it must have removed index-(N+1), so a lowered index.latest would name no blob",
+                            Files.exists(location.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + (generation + 1)))
+                        );
+                    }
+                    plainIndexLatestWrites.set(0);
+                    conditionalIndexLatestWrites.set(0);
+                } finally {
+                    release.countDown();
+                    parkNextIndexLatestWrite.set(null);
+                    parkNextIndexNWrite.set(null);
+                }
+                if (delayedDelete) {
+                    parkedWriter.actionGet(TimeValue.timeValueSeconds(30));
+                } else {
+                    expectThrows(Exception.class, () -> parkedWriter.actionGet(TimeValue.timeValueSeconds(30)));
+                }
+            } finally {
+                conditionalWrites = false;
+                parkNextIndexLatestWrite.set(null);
+                parkNextIndexNWrite.set(null);
+            }
+            assertEquals(
+                "[" + race + "] the parked writer, once released, must write no index.latest",
+                0,
+                plainIndexLatestWrites.get() + conditionalIndexLatestWrites.get()
+            );
+            assertEquals(
+                "[" + race + "] index.latest must name the generation that committed last",
+                generation + 2,
+                repository.readSnapshotIndexLatestBlob()
+            );
+            assertTrue(Files.exists(location.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + (generation + 2))));
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testABudgetedDeleteConfirmsIndexLatestWhateverItHeld() throws Exception {
+        for (String held : List.of("valid", "dangling", "malformed", "missing")) {
+            final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+            final BlobStoreRepository repository = putRepository("pointer-" + held, INJECTING_REPO_TYPE, location);
+            writeIndexGen(repository, withSnapshots("a"), RepositoryData.EMPTY_REPO_GEN);
+            final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+            final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+            final long generation = committed.getGenId();
+            final SnapshotId toDelete = committed.getSnapshotIds().iterator().next();
+            final Path pointer = location.resolve(BlobStoreRepository.INDEX_LATEST_BLOB);
+            if (held.equals("dangling")) {
+                Files.write(pointer, Numbers.longToBytes(1000L));
+            } else if (held.equals("malformed")) {
+                Files.write(pointer, new byte[] { 1, 2, 3 });
+            } else if (held.equals("missing")) {
+                Files.delete(pointer);
+            }
+            conditionalWrites = true;
+            try {
+                PlainActionFuture.<RepositoryData, Exception>get(
+                    f -> entrypoint.deleteSnapshots(
+                        Collections.singleton(toDelete),
+                        generation,
+                        Version.CURRENT,
+                        new SnapshotDeletionAttempt(),
+                        f
+                    )
+                );
+            } finally {
+                conditionalWrites = false;
+            }
+            assertEquals(
+                "[" + held + "] index.latest must now name the committed generation",
+                Long.BYTES + ":" + (generation + 1),
+                Files.size(pointer) + ":" + repository.readSnapshotIndexLatestBlob()
+            );
+            assertEquals(
+                "[" + held + "] and the index-N blobs it supersedes are removed",
+                Set.of(BlobStoreRepository.INDEX_FILE_PREFIX + (generation + 1)),
+                rootIndexN(location)
+            );
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testARepositoryThatDoesNotDeclareTheEntrypointKeepsItsOverrides() throws Exception {
+        conditionalWrites = true;
+        try {
+            final BlobStoreRepository counting = putRepository(
+                "counting-repo",
+                COUNTING_REPO_TYPE,
+                OpenSearchIntegTestCase.randomRepoPath(node().settings())
+            );
+            twoRealSnapshotsReturningTheFirst("counting-repo");
+            assertTrue("a repository that does not declare hands out no entrypoint", counting.abandonableSnapshotDelete().isEmpty());
+            countedDeleteInternalCalls.set(0);
+            countedGenerationWrites.set(0);
+            assertTrue(client().admin().cluster().prepareDeleteSnapshot("counting-repo", "first").get().isAcknowledged());
+            assertEquals("the delete goes through the public deleteSnapshotsInternal", 1, countedDeleteInternalCalls.get());
+            assertEquals("and its generation through the protected writeIndexGen", 1, countedGenerationWrites.get());
+
+            final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+            final BlobStoreRepository diverting = putRepository("diverting-repo", DIVERTING_REPO_TYPE, location);
+            final SnapshotId diverted = twoRealSnapshotsReturningTheFirst("diverting-repo");
+            assertTrue("nor does one that overrides the narrow delete", diverting.abandonableSnapshotDelete().isEmpty());
+            divertedNarrowDeletes.set(0);
+            final Exception failure = expectThrows(
+                Exception.class,
+                () -> client().admin().cluster().prepareDeleteSnapshot("diverting-repo", "first").get()
+            );
+            assertEquals("its narrow override answers the delete", 1, divertedNarrowDeletes.get());
+            assertTrue(
+                "with the override's own failure",
+                ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> String.valueOf(t.getMessage()).contains("diverted")).isPresent()
+            );
+            final RepositoryData after = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(diverting);
+            assertTrue("the snapshot is still recorded", after.getSnapshotIds().contains(diverted));
+            assertTrue(
+                "its root blob is still there",
+                Files.exists(location.resolve(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(diverted.getUUID())))
+            );
+            final IndexId indexId = after.getIndices().values().iterator().next();
+            try (Stream<Path> blobs = Files.walk(location)) {
+                assertTrue(
+                    "and so are its shard blobs",
+                    blobs.anyMatch(blob -> blob.toString().contains(BlobStoreRepository.INDICES_DIR + "/" + indexId.getId() + "/"))
+                );
+            }
+            final String restored = "restored-" + indexId.getName();
+            assertEquals(
+                0,
+                client().admin()
+                    .cluster()
+                    .prepareRestoreSnapshot("diverting-repo", "first")
+                    .setRenamePattern(indexId.getName())
+                    .setRenameReplacement(restored)
+                    .setWaitForCompletion(true)
+                    .get()
+                    .getRestoreInfo()
+                    .failedShards()
+            );
+            ensureGreen(restored);
+            client().admin().indices().prepareRefresh(restored).get();
+            assertEquals(
+                "the restored index holds every document the snapshot took",
+                5L,
+                client().prepareSearch(restored).setSize(0).get().getHits().getTotalHits().value()
+            );
+        } finally {
+            conditionalWrites = false;
+        }
+    }
+
+    private static void assertNeverHandedOut(BlobStoreRepository repository) throws InterruptedException {
+        probesDone.drainPermits();
+        probeClaimChecks.set(0);
+        conditionalWriteCalls.set(0);
+        assertTrue("no entrypoint is handed out before a probe of the store passes", repository.abandonableSnapshotDelete().isEmpty());
+        assertTrue("the store probe did not complete", probesDone.tryAcquire(30, TimeUnit.SECONDS));
+        assertTrue("nor once a probe of the store has failed", repository.abandonableSnapshotDelete().isEmpty());
+        assertTrue("nor on a later read", repository.abandonableSnapshotDelete().isEmpty());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testAnUnconfirmedIndexLatestKeepsEveryIndexNItMayName() throws Exception {
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+        final BlobStoreRepository repository = putRepository("unconfirmed-pointer", INJECTING_REPO_TYPE, location);
+        writeIndexGen(repository, withSnapshots("a"), RepositoryData.EMPTY_REPO_GEN);
+        for (int i = 0; i < 3; i++) {
+            final RepositoryData current = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+            writeIndexGen(repository, current, current.getGenId());
+        }
+        final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+        final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long generation = committed.getGenId();
+        final SnapshotId toDelete = committed.getSnapshotIds().iterator().next();
+        final Path belowThePointer = location.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + (generation - 3));
+        Files.write(belowThePointer, new byte[] { 1 });
+        final Path staleRootBlob = location.resolve(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(toDelete.getUUID()));
+        Files.write(staleRootBlob, new byte[] { 1 });
+        plainIndexLatestWrites.set(0);
+        conditionalIndexLatestWrites.set(0);
+        conditionalWrites = true;
+        failIndexLatestWrites = true;
+        try {
+            PlainActionFuture.<RepositoryData, Exception>get(
+                f -> entrypoint.deleteSnapshots(
+                    Collections.singleton(toDelete),
+                    generation,
+                    Version.CURRENT,
+                    new SnapshotDeletionAttempt(),
+                    f
+                )
+            );
+            Files.write(location.resolve(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(UUIDs.randomBase64UUID())), new byte[] { 1 });
+            PlainActionFuture.<RepositoryCleanupResult, Exception>get(
+                f -> repository.cleanup(generation + 1, Version.CURRENT, null, null, f)
+            );
+        } finally {
+            failIndexLatestWrites = false;
+            conditionalWrites = false;
+        }
+        assertTrue("the entrypoint stays handed out", repository.abandonableSnapshotDelete().isPresent());
+        assertEquals("a proven store's index.latest is written only by conditional writes", 0, plainIndexLatestWrites.get());
+        assertTrue("and conditional writes were made", conditionalIndexLatestWrites.get() > 0);
+        assertEquals(
+            "both writers committed",
+            generation + 2,
+            OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId()
+        );
+        final long pointer = repository.readSnapshotIndexLatestBlob();
+        assertEquals("the failed writes left index.latest where it was", generation, pointer);
+        assertTrue(
+            "the index-N blob index.latest still names must survive both cleanups",
+            Files.exists(location.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + pointer))
+        );
+        assertFalse("an index-N below the confirmed pointer is still removed", Files.exists(belowThePointer));
+        assertFalse("and the rest of the cleanup still runs", Files.exists(staleRootBlob));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testAnExpiryDuringTheCommitIsAnsweredWithTheCommittedGeneration() throws Exception {
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+        final BlobStoreRepository repository = putRepository("commit-in-flight", INJECTING_REPO_TYPE, location);
+        writeIndexGen(repository, withSnapshots("a", "b"), RepositoryData.EMPTY_REPO_GEN);
+        final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+        final RepositoryData committed = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long generation = committed.getGenId();
+        final SnapshotId toDelete = committed.getSnapshotIds().iterator().next();
+        final Path deletedSnapshotBlob = location.resolve(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(toDelete.getUUID()));
+        Files.write(deletedSnapshotBlob, new byte[] { 1 });
+        final SnapshotDeletionAttempt attempt = new SnapshotDeletionAttempt();
+        final PlainActionFuture<RepositoryData> answeredOnExpiry = PlainActionFuture.newFuture();
+        final List<SnapshotDeletionAttempt.Expiry> expiries = new CopyOnWriteArrayList<>();
+        final String name = repository.getMetadata().name();
+        final ClusterStateListener expireAtCommit = event -> {
+            if (committedGeneration(event.state(), name) == generation + 1 && expiries.isEmpty()) {
+                expiries.add(attempt.expire(answeredOnExpiry));
+            }
+        };
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener(expireAtCommit);
+        conditionalWrites = true;
+        try {
+            final PlainActionFuture<RepositoryData> deleted = PlainActionFuture.newFuture();
+            entrypoint.deleteSnapshots(Collections.singleton(toDelete), generation, Version.CURRENT, attempt, deleted);
+            deleted.actionGet(TimeValue.timeValueSeconds(30));
+        } finally {
+            conditionalWrites = false;
+            clusterService.removeListener(expireAtCommit);
+        }
+        assertEquals(
+            "the expiry must have arrived while the commit was in flight",
+            List.of(SnapshotDeletionAttempt.Expiry.PENDING),
+            expiries
+        );
+        final RepositoryData answered = answeredOnExpiry.actionGet(TimeValue.timeValueSeconds(30));
+        assertEquals("the expiry is answered with the committed generation", generation + 1, answered.getGenId());
+        assertFalse(answered.getSnapshotIds().contains(toDelete));
+        assertEquals("index.latest must still name the generation before the commit", generation, repository.readSnapshotIndexLatestBlob());
+        assertTrue(
+            "the superseded index-N blob must be left",
+            Files.exists(location.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation))
+        );
+        assertTrue("and so must the deleted snapshot's root blob", Files.exists(deletedSnapshotBlob));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testAnAttemptAbandonedAtItsCommitStartsNoShardBlobDelete() throws Exception {
+        final BlobStoreRepository repository = declaringRepository("abandoned-at-commit");
+        final SnapshotId toDelete = twoRealSnapshotsReturningTheFirst("abandoned-at-commit");
+        final Repository.AbandonableSnapshotDelete entrypoint = proveDeclared(repository);
+        final long generation = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId();
+        final SnapshotDeletionAttempt attempt = new SnapshotDeletionAttempt();
+        final List<SnapshotDeletionAttempt.Expiry> expiries = new CopyOnWriteArrayList<>();
+        final ClusterStateListener expireAtCommit = event -> {
+            if (committedGeneration(event.state(), "abandoned-at-commit") == generation + 1 && expiries.isEmpty()) {
+                expiries.add(attempt.expire(ActionListener.wrap(() -> {})));
+            }
+        };
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener(expireAtCommit);
+        injectedShardBlobDeleteFailures.set(0);
+        failShardBlobDeleteOnce.set(true);
+        conditionalWrites = true;
+        final RepositoryData answered;
+        try {
+            final PlainActionFuture<RepositoryData> deleted = PlainActionFuture.newFuture();
+            entrypoint.deleteSnapshots(Collections.singleton(toDelete), generation, Version.CURRENT, attempt, deleted);
+            answered = deleted.actionGet(TimeValue.timeValueSeconds(30));
+        } finally {
+            conditionalWrites = false;
+            failShardBlobDeleteOnce.set(false);
+            clusterService.removeListener(expireAtCommit);
+        }
+        assertEquals("the attempt must expire while its commit is in flight", List.of(SnapshotDeletionAttempt.Expiry.PENDING), expiries);
+        assertEquals("the delete answers with the generation it committed", generation + 1, answered.getGenId());
+        assertEquals("an abandoned attempt must start no shard blob delete", 0, injectedShardBlobDeleteFailures.get());
+    }
+
+    private static Set<String> rootIndexN(Path location) throws IOException {
+        try (Stream<Path> blobs = Files.list(location)) {
+            return blobs.map(blob -> blob.getFileName().toString())
+                .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                .collect(Collectors.toSet());
+        }
+    }
+
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), Priority.NORMAL, f)
         );
+    }
+
+    private BlobStoreRepository putRepository(String name, String type, Path location) {
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            name,
+            type,
+            Settings.builder().put(node().settings()).put("location", location)
+        );
+        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(name);
+    }
+
+    private BlobStoreRepository declaringRepository(String name) {
+        return putRepository(name, INJECTING_REPO_TYPE, OpenSearchIntegTestCase.randomRepoPath(node().settings()));
+    }
+
+    private static Repository.AbandonableSnapshotDelete proveDeclared(BlobStoreRepository repository) throws InterruptedException {
+        probesDone.drainPermits();
+        final boolean previous = conditionalWrites;
+        conditionalWrites = true;
+        try {
+            assertTrue("no entrypoint is handed out before a probe of the store passes", repository.abandonableSnapshotDelete().isEmpty());
+            assertTrue("the store probe did not complete", probesDone.tryAcquire(30, TimeUnit.SECONDS));
+            final Optional<Repository.AbandonableSnapshotDelete> entrypoint = repository.abandonableSnapshotDelete();
+            assertTrue("a declaring repository over a proven store hands out the entrypoint", entrypoint.isPresent());
+            return entrypoint.get();
+        } finally {
+            conditionalWrites = previous;
+        }
+    }
+
+    private SnapshotId twoRealSnapshotsReturningTheFirst(String repositoryName) {
+        final String indexName = "idx-" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen();
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("text", "sometext").get();
+        }
+        client().admin().indices().prepareFlush(indexName).get();
+        final SnapshotId first = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, "first")
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get()
+            .getSnapshotInfo()
+            .snapshotId();
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, "second").setWaitForCompletion(true).setIndices(indexName).get();
+        return first;
+    }
+
+    private static RepositoryData withSnapshots(String... names) {
+        RepositoryData data = RepositoryData.EMPTY;
+        for (String name : names) {
+            data = data.addSnapshot(
+                new SnapshotId(name, UUIDs.randomBase64UUID()),
+                SnapshotState.SUCCESS,
+                Version.CURRENT,
+                ShardGenerations.EMPTY,
+                Collections.emptyMap(),
+                Collections.emptyMap()
+            );
+        }
+        return data;
+    }
+
+    private static long readIndexLatest(BlobStoreRepository repository) {
+        try {
+            return repository.readSnapshotIndexLatestBlob();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static long committedGeneration(ClusterState state, String repository) {
+        final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE);
+        final RepositoryMetadata metadata = repositories == null ? null : repositories.repository(repository);
+        return metadata == null ? RepositoryData.UNKNOWN_REPO_GEN : metadata.generation();
+    }
+
+    private long indexLatestWhenTheGenerationCommits(
+        BlobStoreRepository repository,
+        long from,
+        Consumer<ActionListener<RepositoryData>> write
+    ) throws Exception {
+        final String name = repository.getMetadata().name();
+        final List<Long> seen = new CopyOnWriteArrayList<>();
+        final ClusterStateListener atCommit = event -> {
+            if (committedGeneration(event.previousState(), name) == from && committedGeneration(event.state(), name) == from + 1) {
+                seen.add(readIndexLatest(repository));
+            }
+        };
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener(atCommit);
+        try {
+            PlainActionFuture.<RepositoryData, Exception>get(write::accept);
+        } finally {
+            clusterService.removeListener(atCommit);
+        }
+        assertThat("the generation commit must have been observed exactly once", seen, hasSize(1));
+        return seen.get(0);
     }
 
     private BlobStoreRepository setupRepo() {
@@ -530,7 +1451,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), any(), anyMap());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), any(), anyMap(), any());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -553,7 +1474,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             repositoryData,
             listener,
             mockSnapshotShardPaths,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            null
         );
 
         assertTrue("Cleanup did not complete within the expected time", latch.await(30, TimeUnit.SECONDS));
@@ -579,6 +1501,89 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         // Verify the total number of bytes and blobs deleted
         assertEquals("Total bytes deleted should be 150", 150L, combinedResult.bytesDeleted());
         assertEquals("Total blobs deleted should be 2", 2, combinedResult.blobsDeleted());
+    }
+
+    public void testAbandonmentStopsTheStaleIndexDrain() throws Exception {
+        final TestThreadPool oneDeletionThread = new TestThreadPool(
+            getTestName(),
+            Settings.builder().put("thread_pool.snapshot_deletion.max", 1).build()
+        );
+        final Path location = createTempDir();
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "stale-index-drain",
+            FsRepository.TYPE,
+            Settings.builder().put("location", location).build()
+        );
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(metadata);
+        when(clusterService.getClusterApplierService().threadPool()).thenReturn(oneDeletionThread);
+        final BlobStoreRepository repository = new FsRepository(
+            metadata,
+            TestEnvironment.newEnvironment(
+                Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .put(Environment.PATH_REPO_SETTING.getKey(), location)
+                    .build()
+            ),
+            xContentRegistry(),
+            clusterService,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        );
+        repository.start();
+        try {
+            final CountDownLatch enteredLatch = new CountDownLatch(1);
+            final CountDownLatch releaseLatch = new CountDownLatch(1);
+            final CountDownLatch doneLatch = new CountDownLatch(1);
+
+            final BlobContainer inFlight = mock(BlobContainer.class);
+            when(inFlight.delete()).thenAnswer(invocation -> {
+                enteredLatch.countDown();
+                releaseLatch.await();
+                return new DeleteResult(1, 100L);
+            });
+            final BlobContainer queuedBehind1 = mock(BlobContainer.class);
+            when(queuedBehind1.delete()).thenReturn(new DeleteResult(1, 100L));
+            final BlobContainer queuedBehind2 = mock(BlobContainer.class);
+            when(queuedBehind2.delete()).thenReturn(new DeleteResult(1, 100L));
+
+            final Map<String, BlobContainer> staleIndices = new LinkedHashMap<>();
+            staleIndices.put("in-flight-index", inFlight);
+            staleIndices.put("queued-index-1", queuedBehind1);
+            staleIndices.put("queued-index-2", queuedBehind2);
+
+            final SnapshotDeletionAttempt deletion = new SnapshotDeletionAttempt();
+            final GroupedActionListener<DeleteResult> listener = new GroupedActionListener<>(
+                ActionListener.wrap(results -> { doneLatch.countDown(); }, e -> {
+                    logger.error("Error draining the stale indices", e);
+                    doneLatch.countDown();
+                }),
+                1
+            );
+
+            repository.cleanupStaleIndices(
+                Collections.emptyList(),
+                staleIndices,
+                Collections.emptySet(),
+                null,
+                null,
+                RepositoryData.EMPTY,
+                listener,
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                deletion
+            );
+
+            assertTrue("the first index's cleanup never started", enteredLatch.await(30, TimeUnit.SECONDS));
+            deletion.expire(ActionListener.wrap(() -> {}));
+            releaseLatch.countDown();
+            assertTrue("the drain did not finish", doneLatch.await(30, TimeUnit.SECONDS));
+
+            verify(inFlight, times(1)).delete();
+            verify(queuedBehind1, never()).delete();
+            verify(queuedBehind2, never()).delete();
+        } finally {
+            repository.close();
+            ThreadPool.terminate(oneDeletionThread, 30, TimeUnit.SECONDS);
+        }
     }
 
     public void testGetMetadata() {

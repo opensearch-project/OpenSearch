@@ -76,6 +76,8 @@ public class FinalizationCapabilityDeclarationTests extends OpenSearchTestCase {
                     "[" + type + "] must not declare the finalization capability",
                     repository.abandonableSnapshotFinalization().isEmpty()
                 );
+                assertTrue("proven, so a declarer gets it", repository.blobStoreAbandonableSnapshotDelete().isPresent());
+                assertTrue("[" + type + "] must not declare the delete capability", repository.abandonableSnapshotDelete().isEmpty());
             } finally {
                 repository.close();
             }

@@ -36,10 +36,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -50,13 +52,17 @@ import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
+import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -252,6 +258,37 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
 
     public void testDeclaresTheFinalizationCapability() throws Exception {
         assertEquals(S3Repository.class, S3Repository.class.getMethod("abandonableSnapshotFinalization").getDeclaringClass());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    @SuppressForbidden(reason = "asserts which methods the repository classes declare themselves")
+    public void testDeclaresTheDeleteCapabilityWithoutOverridingTheDeletePath() throws Exception {
+        final List<String> deletePath = List.of("deleteSnapshots", "deleteSnapshotsInternal", "writeIndexGen");
+        for (Class<?> type : List.of(S3Repository.class, MeteredBlobStoreRepository.class)) {
+            for (Method method : type.getDeclaredMethods()) {
+                assertFalse(type.getSimpleName() + " overrides " + method.getName(), deletePath.contains(method.getName()));
+            }
+        }
+        assertNotNull(S3Repository.class.getDeclaredMethod("abandonableSnapshotDelete"));
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY, 0L, 0L);
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            s3repo.updateState(BlobStoreTestUtil.mockClusterService(metadata).state());
+            setConditionalWriteProof(s3repo, "UNPROVEN");
+            assertTrue("empty while the store is not proven", s3repo.abandonableSnapshotDelete().isEmpty());
+            setConditionalWriteProof(s3repo, "PROVEN");
+            assertTrue("present once the store is proven", s3repo.abandonableSnapshotDelete().isPresent());
+            assertSame(s3repo.abandonableSnapshotDelete().get(), s3repo.abandonableSnapshotDelete().get());
+        }
+    }
+
+    @SuppressForbidden(reason = "the proof state is private to BlobStoreRepository and must not gain a test seam")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static void setConditionalWriteProof(BlobStoreRepository repository, String state) throws Exception {
+        final Field field = BlobStoreRepository.class.getDeclaredField("conditionalWriteProof");
+        field.setAccessible(true);
+        final AtomicReference reference = (AtomicReference) field.get(repository);
+        final Class<?> type = reference.get().getClass();
+        reference.set(Enum.valueOf((Class<? extends Enum>) type.asSubclass(Enum.class), state));
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
