@@ -39,6 +39,7 @@ public class WorkloadGroupThrottleTracker {
      *         {@code null} if the bucket is already at the limit
      */
     public Releasable tryAcquire(String bucketKey, int nodeLimit) {
+        assert nodeLimit > 0 : "nodeLimit must be positive";
         // Check-and-increment in one per-key compute() region so the decision reads exactly the outstanding-permit count.
         // Doing it outside (increment, compare, roll back on a breach) would briefly publish a count including a pending
         // rollback, letting a concurrent acquire be refused against a slot that was actually free. admitted is set only on

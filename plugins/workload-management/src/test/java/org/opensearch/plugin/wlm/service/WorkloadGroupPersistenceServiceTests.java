@@ -9,7 +9,6 @@
 package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterName;
@@ -17,14 +16,11 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
@@ -536,19 +532,6 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         verify(listener).onFailure(any(RuntimeException.class));
     }
 
-    private static ClusterState clusterStateWithOldestNode(Version version) {
-        DiscoveryNode node = new DiscoveryNode(
-            "node-1",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Map.of(),
-            Set.of(),
-            version
-        );
-        return ClusterState.builder(new ClusterName("test"))
-            .nodes(DiscoveryNodes.builder().add(node).localNodeId("node-1").clusterManagerNodeId("node-1").build())
-            .build();
-    }
-
     private static Settings throttling(String by, Integer nodeLimit) {
         Settings.Builder builder = Settings.builder();
         if (by != null) {
@@ -560,40 +543,19 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         return builder.build();
     }
 
-    public void testValidateThrottlingRejectsClusterWithAPreThrottlingNode() {
-        // The throttling field is gated on the wire, so a pre-3.10 node in the cluster means the config is dropped in
-        // transit and the group silently comes back without it. Reject rather than return 200 for a no-op.
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
-                throttling(null, 5),
-                clusterStateWithOldestNode(Version.V_3_9_0)
-            )
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("requires every node to be on"));
-        assertTrue("the message must name the version actually found", e.getMessage().contains(Version.V_3_9_0.toString()));
-    }
-
-    public void testValidateThrottlingAcceptsWhenEveryNodeSupportsIt() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 5), clusterStateWithOldestNode(Version.V_3_10_0));
-    }
-
     public void testValidateThrottlingIgnoresAbsentAndEmptyConfig() {
-        // Nothing to honour, so an old node in the cluster is not a problem: this is the shape of an update that does
-        // not touch throttling at all, and of "throttling": null / {}.
-        ClusterState oldCluster = clusterStateWithOldestNode(Version.V_3_9_0);
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(null, oldCluster);
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(Settings.EMPTY, oldCluster);
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(null);
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(Settings.EMPTY);
     }
 
     public void testValidateThrottlingTreatsMissingByAsGroupScope() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9), clusterStateWithOldestNode(Version.V_3_10_0));
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9));
     }
 
     public void testValidateThrottlingTreatsNullByAsGroupScope() {
         Settings throttling = Settings.builder().putNull("by").put("node_limit", 9).build();
 
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling, clusterStateWithOldestNode(Version.V_3_10_0));
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling);
     }
 
     public void testUpdateValidationUsesMergedThrottlingConfig() {
@@ -609,7 +571,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             )
             .updatedAt(1690934400000L)
             .build();
-        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_10_0))
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
             .build();
         UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(
@@ -636,7 +598,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             )
             .updatedAt(1690934400000L)
             .build();
-        ClusterState clusterState = ClusterState.builder(clusterStateWithOldestNode(Version.V_3_10_0))
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
             .build();
         UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(

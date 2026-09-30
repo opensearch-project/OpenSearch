@@ -453,8 +453,10 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                     nodeLimit
                 );
                 recordThrottleStat(workloadGroupId, true);
+                onCounted.accept(true);
                 return null;
             }
+            // Unlike resource-limit rejection, a SOFT group also enforces the throttle when the node is not in duress.
             // Record the rejection without ever letting a stats failure swallow the 429.
             recordThrottleStat(workloadGroupId, false);
             throw new OpenSearchRejectedExecutionException(

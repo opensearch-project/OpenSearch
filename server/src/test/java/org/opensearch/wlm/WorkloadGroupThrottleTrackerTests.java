@@ -39,6 +39,15 @@ public class WorkloadGroupThrottleTrackerTests extends OpenSearchTestCase {
         assertEquals(1, tracker.inFlight("bucket"));
     }
 
+    public void testNonPositiveLimitIsRejectedBeforeCreatingBucket() {
+        WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
+        for (int nodeLimit : new int[] { 0, -1 }) {
+            AssertionError error = expectThrows(AssertionError.class, () -> tracker.tryAcquire("bucket", nodeLimit));
+            assertEquals("nodeLimit must be positive", error.getMessage());
+            assertEquals(0, tracker.bucketCount());
+        }
+    }
+
     public void testExactlyNAdmittedForLimitAboveOne() {
         WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
         int limit = randomIntBetween(2, 5);

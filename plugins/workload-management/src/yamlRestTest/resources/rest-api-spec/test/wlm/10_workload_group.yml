@@ -301,6 +301,17 @@
             }
           }
 
+  - do:
+      catch: /Effective throttle ceiling is 0/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 0
+            }
+          }
+
   # with group scope there is no other throttle key, so clearing node_limit disables throttling
   - do:
       update_workload_group_context:

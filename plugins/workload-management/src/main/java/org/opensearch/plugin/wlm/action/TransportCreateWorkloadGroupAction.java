@@ -67,11 +67,8 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
     }
 
     /**
-     * Validates the throttling config on the node that accepted the request, before forwarding. {@code clusterManagerOperation}
-     * alone is not enough: forwarding to a pre-{@code V_3_10_0} manager strips the wire-gated {@code throttling} field before
-     * the manager-side check sees it (and an older manager has no such check), yielding a 200 for a group persisted without
-     * throttling. Any node that can parse a {@code throttling} body is 3.10+, so checking here catches the pre-3.10 peer; the
-     * manager-side call stays authoritative.
+     * Validates principal-scoped throttling on the node that accepted the request before forwarding; the manager-side
+     * check remains authoritative.
      *
      * @param task task associated with the request
      * @param request create workload group request
@@ -81,8 +78,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
     protected void doExecute(Task task, CreateWorkloadGroupRequest request, ActionListener<CreateWorkloadGroupResponse> listener) {
         try {
             WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
-                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling(),
-                clusterService.state()
+                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
             );
         } catch (Exception e) {
             listener.onFailure(e);
@@ -99,8 +95,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
     ) {
         try {
             WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
-                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling(),
-                clusterState
+                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
             );
         } catch (Exception e) {
             listener.onFailure(e);

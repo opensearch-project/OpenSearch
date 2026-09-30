@@ -822,11 +822,8 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testThrottlingIsDroppedWhenWrittenToPreThrottlingPeer() throws IOException {
-        // This wire gate is why throttling must also be validated on the node that ACCEPTS a create/update, not only on the
-        // elected cluster-manager. When the coordinator is not the manager the request is serialized at the manager's
-        // version, so forwarding to a pre-3.10 manager omits the throttling bag entirely; that manager runs older plugin code
-        // with no such validation, persists a group without throttling and answers 200. The truncated stream stays
-        // well-formed, which is precisely why the loss is silent rather than an error.
+        // Pre-3.10 peers cannot receive throttling. Create/update requests must reject this wire format rather than
+        // forwarding a request that an older cluster-manager could acknowledge without persisting the limit.
         MutableWorkloadGroupFragment withThrottling = new MutableWorkloadGroupFragment(
             ResiliencyMode.ENFORCED,
             Map.of(ResourceType.MEMORY, 0.5),

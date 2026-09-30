@@ -10,9 +10,14 @@ package org.opensearch.plugin.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
@@ -26,6 +31,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugins.ActionPlugin;
@@ -47,11 +53,14 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 import org.opensearch.wlm.WorkloadManagementSettings;
+import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder;
 import org.joda.time.Instant;
 import org.junit.After;
 import org.junit.Before;
@@ -59,6 +68,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -144,14 +155,14 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         // the concurrency scenario, otherwise the requests are untagged and never throttled.
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
-            client().prepareSearch(indexName).setQuery(org.opensearch.index.query.QueryBuilders.matchAllQuery()).get();
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
             int after = getCompletions(workloadGroupId);
             assertTrue("Expected search to be tagged to the throttled workload group", after > before);
         }, 30, TimeUnit.SECONDS);
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch;
+        ActionFuture<SearchResponse> blockedSearch;
         try {
             // First search: blocks in the query phase, holding the single permit.
             blockedSearch = blockingSearch(indexName).execute();
@@ -213,21 +224,21 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
-            client().prepareSearch(indexName).setQuery(org.opensearch.index.query.QueryBuilders.matchAllQuery()).get();
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
             int after = getCompletions(workloadGroupId);
             assertTrue("Expected search to be tagged to the throttled workload group", after > before);
         }, 30, TimeUnit.SECONDS);
 
         // Open a scroll context with a cheap query so the initial search releases its permit immediately.
         String scrollId = client().prepareSearch(indexName)
-            .setQuery(org.opensearch.index.query.QueryBuilders.matchAllQuery())
+            .setQuery(QueryBuilders.matchAllQuery())
             .setSize(1)
             .setScroll(TIMEOUT)
             .get()
             .getScrollId();
         try {
             List<ScriptedBlockPlugin> plugins = initBlockFactory();
-            ActionFuture<org.opensearch.action.search.SearchResponse> blockedSearch;
+            ActionFuture<SearchResponse> blockedSearch;
             final String sid = scrollId;
             try {
                 blockedSearch = blockingSearch(indexName).execute();
@@ -289,15 +300,15 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         // Wait for rule propagation: a search tagged as alice must reach the group before the concurrency scenario.
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
-            searchAs("alice", indexName).setQuery(org.opensearch.index.query.QueryBuilders.matchAllQuery()).get();
+            searchAs("alice", indexName).setQuery(QueryBuilders.matchAllQuery()).get();
             int after = getCompletions(workloadGroupId);
             assertTrue("Expected search to be tagged to the throttled workload group", after > before);
         }, 30, TimeUnit.SECONDS);
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        ActionFuture<org.opensearch.action.search.SearchResponse> aliceBlocked;
-        ActionFuture<org.opensearch.action.search.SearchResponse> bobBlocked;
+        ActionFuture<SearchResponse> aliceBlocked;
+        ActionFuture<SearchResponse> bobBlocked;
         try {
             // alice's first search blocks in the query phase, holding her single per-user permit.
             aliceBlocked = blockingSearchAs("alice", indexName).execute();
@@ -347,35 +358,23 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     }
 
     private int getCompletions(String groupId) throws Exception {
-        return sumGroupStat(groupId, org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder::getCompletions);
+        return sumGroupStat(groupId, WorkloadGroupStatsHolder::getCompletions);
     }
 
     private int getThrottled(String groupId) throws Exception {
-        return sumGroupStat(groupId, org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder::getThrottled);
+        return sumGroupStat(groupId, WorkloadGroupStatsHolder::getThrottled);
     }
 
     /**
      * Sums one stat for a workload group across every node's WLM stats, read from the response objects directly. The
      * group may be absent from a node that has not registered it yet, which contributes nothing.
      */
-    private int sumGroupStat(
-        String groupId,
-        java.util.function.ToLongFunction<org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder> extractor
-    ) throws Exception {
-        org.opensearch.action.admin.cluster.wlm.WlmStatsRequest request = new org.opensearch.action.admin.cluster.wlm.WlmStatsRequest(
-            null,
-            new java.util.HashSet<>(Collections.singletonList(groupId)),
-            null
-        );
-        org.opensearch.action.admin.cluster.wlm.WlmStatsResponse response = client().execute(
-            org.opensearch.action.admin.cluster.wlm.WlmStatsAction.INSTANCE,
-            request
-        ).get();
+    private int sumGroupStat(String groupId, ToLongFunction<WorkloadGroupStatsHolder> extractor) throws Exception {
+        WlmStatsRequest request = new WlmStatsRequest(null, new HashSet<>(Collections.singletonList(groupId)), null);
+        WlmStatsResponse response = client().execute(WlmStatsAction.INSTANCE, request).get();
         long total = 0;
-        for (org.opensearch.wlm.stats.WlmStats nodeStats : response.getNodes()) {
-            org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder holder = nodeStats.getWorkloadGroupStats()
-                .getStats()
-                .get(groupId);
+        for (WlmStats nodeStats : response.getNodes()) {
+            WorkloadGroupStatsHolder holder = nodeStats.getWorkloadGroupStats().getStats().get(groupId);
             if (holder != null) {
                 total += extractor.applyAsLong(holder);
             }
@@ -384,15 +383,13 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Sums the current in-flight search gauge ({@link org.opensearch.action.search.SearchRequestStats#getTookCurrent()})
+     * Sums the current in-flight search gauge ({@link SearchRequestStats#getTookCurrent()})
      * across all data nodes. This is the counter incremented in {@code onRequestStart} and decremented in
      * {@code onRequestEnd}/{@code onRequestFailure}; a throttle rejection must never touch it.
      */
     private long currentInFlightSearches() {
         long total = 0;
-        for (org.opensearch.action.search.SearchRequestStats stats : internalCluster().getDataNodeInstances(
-            org.opensearch.action.search.SearchRequestStats.class
-        )) {
+        for (SearchRequestStats stats : internalCluster().getDataNodeInstances(SearchRequestStats.class)) {
             total += stats.getTookCurrent();
         }
         return total;
@@ -451,7 +448,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
-            client().prepareSearch(indexName).setQuery(org.opensearch.index.query.QueryBuilders.matchAllQuery()).get();
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
             assertTrue("Expected search to be tagged to the throttled workload group", getCompletions(workloadGroupId) > before);
         }, 30, TimeUnit.SECONDS);
 
@@ -459,9 +456,9 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         // A terms lookup with a subquery issues a full nested coordinator search during the rewrite phase. With zero
         // other load this must succeed: the outer request already paid for the bucket.
-        TermsLookup lookup = new TermsLookup(lookupIndex, null, "uid", org.opensearch.index.query.QueryBuilders.matchAllQuery());
+        TermsLookup lookup = new TermsLookup(lookupIndex, null, "uid", QueryBuilders.matchAllQuery());
         SearchResponse response = client().prepareSearch(indexName)
-            .setQuery(org.opensearch.index.query.QueryBuilders.termsLookupQuery("field", lookup))
+            .setQuery(QueryBuilders.termsLookupQuery("field", lookup))
             .execute()
             .actionGet(TIMEOUT);
         assertEquals(RestStatus.OK, response.status());
@@ -471,15 +468,10 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         // nested search, and each level can only see the ancestor chain it was handed. The middle request holds no permit of
         // its own -- it was exempted -- so unless an exempt request still advertises the bucket it is covered by, the
         // grandchild finds no covered ancestor, takes a fresh permit, and 429s the single request that spawned it.
-        TermsLookup innerLookup = new TermsLookup(secondLookupIndex, null, "uid", org.opensearch.index.query.QueryBuilders.matchAllQuery());
-        TermsLookup outerLookup = new TermsLookup(
-            lookupIndex,
-            null,
-            "uid",
-            org.opensearch.index.query.QueryBuilders.termsLookupQuery("uid", innerLookup)
-        );
+        TermsLookup innerLookup = new TermsLookup(secondLookupIndex, null, "uid", QueryBuilders.matchAllQuery());
+        TermsLookup outerLookup = new TermsLookup(lookupIndex, null, "uid", QueryBuilders.termsLookupQuery("uid", innerLookup));
         SearchResponse twoLevel = client().prepareSearch(indexName)
-            .setQuery(org.opensearch.index.query.QueryBuilders.termsLookupQuery("field", outerLookup))
+            .setQuery(QueryBuilders.termsLookupQuery("field", outerLookup))
             .execute()
             .actionGet(TIMEOUT);
         assertEquals(RestStatus.OK, twoLevel.status());
@@ -516,7 +508,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     // extractor. There is no such extractor here, so TestPrincipalPlugin below stands in for it, reading the username
     // from a test-only header and setting it on the task exactly as the real filter does. This exercises the real
     // plumbing (task field -> throttle admission) rather than simulating it.
-    private org.opensearch.transport.client.Client clientAs(String username) {
+    private Client clientAs(String username) {
         return client().filterWithHeader(Map.of(TestPrincipalPlugin.TEST_PRINCIPAL_HEADER, "username|" + username));
     }
 
@@ -610,7 +602,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        assertEquals(org.opensearch.action.DocWriteResponse.Result.CREATED, response.getResult());
+        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
     }
 
     private void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {

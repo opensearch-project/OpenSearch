@@ -96,8 +96,8 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
         public static final String REJECTIONS = "total_rejections";
         public static final String TOTAL_CANCELLATIONS = "total_cancellations";
         public static final String FAILURES = "failures";
-        public static final String THROTTLED = "total_throttled";
-        public static final String WOULD_THROTTLED = "total_would_throttle";
+        public static final String TOTAL_THROTTLED = "total_throttled";
+        public static final String TOTAL_WOULD_THROTTLE = "total_would_throttle";
         private long completions;
         private long rejections;
         private long failures;
@@ -221,8 +221,8 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             builder.field(REJECTIONS, rejections);
             // builder.field(FAILURES, failures);
             builder.field(TOTAL_CANCELLATIONS, cancellations);
-            builder.field(THROTTLED, throttled);
-            builder.field(WOULD_THROTTLED, wouldThrottle);
+            builder.field(TOTAL_THROTTLED, throttled);
+            builder.field(TOTAL_WOULD_THROTTLE, wouldThrottle);
 
             for (ResourceType resourceType : ResourceType.getSortedValues()) {
                 ResourceStats resourceStats1 = resourceStats.get(resourceType);

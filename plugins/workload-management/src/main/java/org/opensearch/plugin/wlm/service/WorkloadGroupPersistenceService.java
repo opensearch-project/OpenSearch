@@ -11,7 +11,6 @@ package org.opensearch.plugin.wlm.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -382,7 +381,7 @@ public class WorkloadGroupPersistenceService {
      * @throws IllegalArgumentException if the effective config cannot be enforced
      */
     public static void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
-        validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState), clusterState);
+        validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState));
     }
 
     static Settings getEffectiveThrottling(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
@@ -404,29 +403,16 @@ public class WorkloadGroupPersistenceService {
     }
 
     /**
-     * Rejects a throttling config the cluster cannot honour, which would otherwise return a 200 for a config that never
-     * takes effect: either a pre-{@link Version#V_3_10_0} node is present (throttling is wire-gated, so it is dropped when
-     * the request or cluster state crosses that node), or {@code by} keys on a principal but no principal attribute is
-     * registered (no bucket can be resolved, so the limit always fails open). Called from the transport actions, not a
-     * cluster-state applier, because throwing while applying cluster state wedges the cluster-manager.
+     * Rejects principal-scoped throttling when no principal attribute is registered: no bucket can be resolved, so the
+     * limit would always fail open. Called from the transport actions, not a cluster-state applier, because throwing
+     * while applying cluster state wedges the cluster-manager.
      *
-     * @param throttling   the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
-     * @param clusterState state used to read the oldest node version in the cluster
+     * @param throttling the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
      * @throws IllegalArgumentException if the config cannot be enforced
      */
-    public static void validateThrottlingIsEnforceable(Settings throttling, ClusterState clusterState) {
+    public static void validateThrottlingIsEnforceable(Settings throttling) {
         if (throttling == null || throttling.isEmpty()) {
             return;
-        }
-        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(Version.V_3_10_0)) {
-            throw new IllegalArgumentException(
-                "workload group throttling requires every node to be on "
-                    + Version.V_3_10_0
-                    + " or later, but the oldest node in the cluster is on "
-                    + minNodeVersion
-                    + ". The throttling config would be silently dropped; complete the upgrade first."
-            );
         }
         String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
         if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {

@@ -11,6 +11,7 @@ package org.opensearch.wlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
@@ -122,10 +123,9 @@ public class WorkloadGroupTask extends CancellableTask {
     /**
      * Marks this task's work as accounted for against a node-level throttle bucket, so a nested coordinator search on the
      * same node inherits the charge rather than taking a second permit (which would make the request compete with itself).
-     * Set both when this task took a permit and when it was admitted free because its parent was already counted; never set
-     * when the request was not throttled, so the charge lands on the first eligible search in a nested chain. Not cleared on
-     * release (the task is short-lived), and release is driven by the returned
-     * {@link org.opensearch.common.lease.Releasable}, not this flag, so marking cannot double-release.
+     * Set when this task took a permit, inherited its parent's charge, or was admitted over the limit in monitor mode;
+     * never set when no throttle applies. Not cleared on release (the task is short-lived), and release is driven by the returned
+     * {@link Releasable}, not this flag, so marking cannot double-release.
      *
      * @param throttleCounted whether this task's work is accounted for against a throttle bucket
      */
@@ -134,8 +134,8 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * Whether this task's work is accounted for against a node-level throttle bucket — either because it took the permit
-     * itself or because its parent was already counted. {@code false} if it was never throttled.
+     * Whether this task's work has already been accounted for by throttle admission, including observe-only admission in
+     * monitor mode. {@code false} if no throttle applied.
      */
     public boolean isThrottleCounted() {
         return throttleCounted;

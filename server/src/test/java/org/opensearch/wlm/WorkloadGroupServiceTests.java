@@ -717,6 +717,30 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalWouldThrottle());
     }
 
+    public void testAcquireThrottleMonitorModeDoesNotDoubleCountNestedSearch() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("node_limit", 1).build();
+        stubClusterStateWithGroup(throttledGroup("wg-1", throttling, MutableWorkloadGroupFragment.ResiliencyMode.MONITOR));
+
+        try (Releasable occupyingPermit = workloadGroupService.acquireThrottleOrReject(throttleTask("wg-1"), () -> false)) {
+            assertNotNull(occupyingPermit);
+            WorkloadGroupTask outer = throttleTask("wg-1");
+            assertNull(workloadGroupService.acquireThrottleOrReject(outer, () -> false));
+            assertTrue(outer.isThrottleCounted());
+
+            WorkloadGroupTask nested = throttleTask("wg-1");
+            assertNull(workloadGroupService.acquireThrottleOrReject(nested, outer::isThrottleCounted));
+            assertTrue(nested.isThrottleCounted());
+            assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalWouldThrottle());
+            assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+
+            WorkloadGroupTask independent = throttleTask("wg-1");
+            assertNull(workloadGroupService.acquireThrottleOrReject(independent, () -> false));
+            assertEquals(2, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalWouldThrottle());
+        }
+    }
+
     public void testAcquireThrottleEnforcedModeDoesNotCountWouldThrottle() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
