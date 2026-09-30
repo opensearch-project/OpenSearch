@@ -364,6 +364,30 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
         assertFalse("a delete removed from the cluster state must not stay marked", service.unpublishedDeletes.contains(delete.uuid()));
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStaleRetryDoesNotTakeMarkOfReclaimedDelete() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        claim(service, delete);
+        service.createRemoveSnapshotDeletionTask(0, delete, null, RepositoryData.EMPTY)
+            .onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        assertThat(scheduled, hasSize(1));
+
+        runFailoverHandling(service);
+        service.tryEnterRepoLoop(REPO);
+        service.deleteSnapshotsFromRepository(delete, RepositoryData.EMPTY, Version.CURRENT);
+        assertFalse("a worker has claimed the delete again", service.repositoryOperations.isNotRunning(delete.uuid()));
+        service.createRemoveSnapshotDeletionTask(0, delete, null, RepositoryData.EMPTY)
+            .onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        assertThat("the stale retry and the new one are both scheduled", scheduled, hasSize(2));
+
+        scheduled.remove(0).run();
+        assertThat("the retry scheduled before failover handling must be dropped", submitted, empty());
+        assertTrue("the dropped retry must leave the new mark in place", service.unpublishedDeletes.contains(delete.uuid()));
+        scheduled.remove(0).run();
+        assertThat("the new retry must take the mark and be submitted", submitted, hasSize(1));
+    }
+
     private void giveUpOnTheRemoval(SnapshotsService service, SnapshotDeletionsInProgress.Entry delete) {
         final int retries = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
         service.createRemoveSnapshotDeletionTask(retries, delete, null, RepositoryData.EMPTY)

@@ -132,6 +132,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -190,7 +191,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
 
     // Set of snapshots that are currently being ended by this node
-    private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
+    // Visible for testing
+    final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
+
+    // Incremented by each run of failover handling, so a scheduled cleanup retry can tell whether one ran.
+    private final AtomicLong failovers = new AtomicLong();
 
     // Set of currently initializing clone operations
     private final Set<Snapshot> initializingClones = Collections.synchronizedSet(new HashSet<>());
@@ -2547,7 +2552,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         () -> createStateWithoutSnapshotV2Task(source, attempt + 1),
                         () -> {
                             logger.error("Giving up on removing v2 snapshot state after {} attempts", attempt + 1);
-                        }
+                        },
+                        null
                     );
                 }
             }
@@ -2623,7 +2629,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         attempt,
                         source,
                         () -> createRemoveFailedSnapshotTask(source, attempt + 1, snapshot, failure, repositoryData, listener),
-                        fallback
+                        fallback,
+                        // Only a removal with repository data hands the repository on (see clusterStateProcessed).
+                        repositoryData == null
+                            ? null
+                            : () -> failSnapshotCompletionListeners(
+                                snapshot,
+                                new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
+                            )
                     );
                 } else {
                     fallback.run();
@@ -3422,6 +3435,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failListenersIgnoringException(listeners, wrapped);
                 }
                 assert snapshotDeletionListeners.isEmpty() : "No new listeners should have been added but saw " + snapshotDeletionListeners;
+                failovers.incrementAndGet();
             } else {
                 assert false : new AssertionError(
                     "Modifying snapshot state should only ever fail because we failed to publish new state",
@@ -3476,6 +3490,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Supplier<ClusterStateUpdateTask> taskFactory,
         Runnable failoverFallback
     ) {
+        // A no-op, not null: these retries are also dropped after failover handling, with nothing to clean up.
+        retryOrFailOnClusterManagerFailOver(e, attempt, source, taskFactory, failoverFallback, () -> {});
+    }
+
+    /**
+     * As above, but a retry scheduled before this node runs its failover handling is not submitted after it; {@code onDropped}
+     * runs instead. That handling has already failed the operation's listeners and released the repository, which another
+     * operation may hold by then. The operation's entry then waits for the next cluster-manager change or, for a marked delete,
+     * a repeated DELETE. A retry already submitted is not affected.
+     *
+     * @param taskFactory called when the retry fires, after the drop check; returns a new task, or {@code null} to skip the
+     *                    retry. It may take state, such as a delete's mark, so it must not run for a dropped retry.
+     * @param onDropped   cleanup to run if the retry is dropped, or {@code null} for a retry that hands no repository on and is
+     *                    never dropped
+     */
+    void retryOrFailOnClusterManagerFailOver(
+        Exception e,
+        int attempt,
+        String source,
+        Supplier<ClusterStateUpdateTask> taskFactory,
+        Runnable failoverFallback,
+        @Nullable Runnable onDropped
+    ) {
         if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class) != null) {
             failoverFallback.run();
             return;
@@ -3494,8 +3531,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final int nextAttempt = attempt + 1;
         final TimeValue delay = computeBackoff(retryBackoff, attempt);
         logger.info("Publish failed for [{}] (attempt {}), scheduling retry in [{}]", source, nextAttempt, delay);
+        final long failoversAtFailure;
+        // Failover handling holds this lock, so the count is read before or after all of its clearing.
+        synchronized (currentlyFinalizing) {
+            failoversAtFailure = failovers.get();
+        }
         try {
             threadPool.schedule(() -> {
+                // Before the factory: it may take state, such as a delete's re-added mark, that belongs to a newer attempt.
+                if (onDropped != null && failovers.get() != failoversAtFailure) {
+                    logger.warn("Dropping retry for [{}]: failover handling ran after it was scheduled", source);
+                    onDropped.run();
+                    return;
+                }
                 // Null when the retry is no longer wanted, for example after failover handling released the operation.
                 final ClusterStateUpdateTask retry = taskFactory.get();
                 if (retry != null) {
