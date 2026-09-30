@@ -276,8 +276,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-            // Lucene calls this once per window (~4096 docs). Rather than checking cancellation every window, only
-            // check once we've filled MAX_DOCS_PER_BITSET_CHECK docs (counted across calls).
+            // Delegate to the codec's bulk implementation, but bound each call since it bypasses
+            // the cancellation checks in nextDoc() and advance().
             for (int doc = in.docID(); doc < upTo; doc = in.docID()) {
                 if (docsSinceBitSetCheck >= MAX_DOCS_PER_BITSET_CHECK) {
                     queryCancellation.checkCancelled();

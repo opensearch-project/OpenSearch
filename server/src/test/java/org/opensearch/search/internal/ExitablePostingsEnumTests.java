@@ -232,8 +232,8 @@ public class ExitablePostingsEnumTests extends OpenSearchTestCase {
         assertEquals(2, delegate.scalarCalls);
     }
 
-    /** Check before the first fill, then once per MAX_DOCS_PER_BITSET_CHECK docs, not once per window. */
-    public void testBitSetCancellationCadenceAcrossCalls() throws IOException {
+    /** Even short bitset fills must check cancellation at the next call, regardless of the scalar sampling counter. */
+    public void testCancellationBetweenBitSetCalls() throws IOException {
         final int budget = 1 << 20; // MAX_DOCS_PER_BITSET_CHECK
         Cancellation cancellation = new Cancellation();
         BulkPostingsEnum delegate = new BulkPostingsEnum(0, 5_000_000, 1, 256);
@@ -241,13 +241,13 @@ public class ExitablePostingsEnumTests extends OpenSearchTestCase {
         FixedBitSet bits = new FixedBitSet(5_000_000);
 
         postings.intoBitSet(1000, bits, 0);
-        assertEquals(1, cancellation.checks); // checked before the first fill
+        assertEquals(1, cancellation.checks);
         postings.intoBitSet(budget, bits, 0);
-        assertEquals(1, cancellation.checks); // still under a budget's worth
+        assertEquals(1, cancellation.checks);
         postings.intoBitSet(budget + 100, bits, 0);
-        assertEquals(2, cancellation.checks); // budget hit -> check again
+        assertEquals(2, cancellation.checks);
         postings.intoBitSet(budget + 200, bits, 0);
-        assertEquals(2, cancellation.checks); // small fill -> no new check
+        assertEquals(2, cancellation.checks);
     }
 
     /** Preserve the first-call check and 8192-call interval across interleaved nextDoc and advance operations. */
