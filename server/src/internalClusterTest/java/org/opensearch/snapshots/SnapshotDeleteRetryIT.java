@@ -22,9 +22,11 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -92,6 +94,65 @@ public class SnapshotDeleteRetryIT extends AbstractSnapshotIntegTestCase {
         assertThat(getRepositoryData("test-repo").getSnapshotIds(), hasSize(1));
     }
 
+    public void testRepeatedDeleteFinishesGivenUpDelete() throws Exception {
+        final String clusterManager = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepository("test-repo", "mock");
+        createIndexWithContent("test-idx");
+        createFullSnapshot("test-repo", "snap-1");
+        createFullSnapshot("test-repo", "snap-2");
+
+        failDeleteRemovalPublishes(1 + SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY));
+        final Exception e = expectThrows(
+            Exception.class,
+            () -> startDeleteSnapshot("test-repo", "snap-1").actionGet(TimeValue.timeValueSeconds(60))
+        );
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Failed to update cluster state during repository operation"));
+        assertThat("the given-up delete stays in the cluster state", deletions(clusterManager).getEntries(), hasSize(1));
+
+        final ActionFuture<AcknowledgedResponse> queued = startDeleteSnapshot("test-repo", "snap-2");
+        assertBusy(() -> {
+            final List<SnapshotDeletionsInProgress.State> states = deletions(clusterManager).getEntries()
+                .stream()
+                .map(SnapshotDeletionsInProgress.Entry::state)
+                .collect(Collectors.toList());
+            assertEquals(
+                "the second delete is queued behind the given-up one",
+                List.of(SnapshotDeletionsInProgress.State.STARTED, SnapshotDeletionsInProgress.State.WAITING),
+                states
+            );
+        });
+
+        assertAcked(startDeleteSnapshot("test-repo", "snap-1").get(60, TimeUnit.SECONDS));
+        assertAcked(queued.get(60, TimeUnit.SECONDS));
+        assertEquals(clusterManager, internalCluster().getClusterManagerName());
+        awaitNoMoreRunningOperations();
+        assertThat(getRepositoryData("test-repo").getSnapshotIds(), empty());
+        createFullSnapshot("test-repo", "snap-3");
+    }
+
+    public void testRepeatedDeleteFinishesGivenUpFailedDelete() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepository("test-repo", "mock");
+        createIndexWithContent("test-idx");
+        createFullSnapshot("test-repo", "snap-1");
+
+        final String clusterManager = blockClusterManagerFromFinalizingSnapshotOnIndexFile("test-repo");
+        failDeleteRemovalPublishes(1 + SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY));
+        final ActionFuture<AcknowledgedResponse> delete = startDeleteSnapshot("test-repo", "snap-1");
+        waitForBlock(clusterManager, "test-repo", TimeValue.timeValueSeconds(30));
+        unblockNode("test-repo", clusterManager);
+        final Exception e = expectThrows(Exception.class, () -> delete.actionGet(TimeValue.timeValueSeconds(60)));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Failed to update cluster state during repository operation"));
+        assertThat("the given-up delete stays in the cluster state", deletions(clusterManager).getEntries(), hasSize(1));
+        assertThat(getRepositoryData("test-repo").getSnapshotIds(), hasSize(1));
+
+        assertAcked(startDeleteSnapshot("test-repo", "snap-1").get(60, TimeUnit.SECONDS));
+        awaitNoMoreRunningOperations();
+        assertThat(getRepositoryData("test-repo").getSnapshotIds(), empty());
+    }
+
     public void testNewClusterManagerFinishesDeleteWhoseRemovalIsRetrying() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -122,6 +183,10 @@ public class SnapshotDeleteRetryIT extends AbstractSnapshotIntegTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()), instanceOf(SnapshotMissingException.class));
         }
         createFullSnapshot("test-repo", "snap-2");
+    }
+
+    private static SnapshotDeletionsInProgress deletions(String node) {
+        return internalCluster().clusterService(node).state().custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
     }
 
     private void failDeleteRemovalPublishes(int count) {
