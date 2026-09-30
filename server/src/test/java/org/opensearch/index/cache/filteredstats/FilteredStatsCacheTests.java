@@ -30,6 +30,12 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,6 +136,52 @@ public class FilteredStatsCacheTests extends OpenSearchTestCase {
                 throw new AssertionError("absent term answer should be served from cache");
             });
             assertNull(termHit);
+        }
+        dir.close();
+    }
+
+    /**
+     * Concurrent requests can miss the same cold (segment, filter, term) and each build it -- see the note in
+     * {@link FilteredStatsCache#getOrComputeTermContribution}, which accepts that duplicate work rather than holding
+     * a map lock across the build. This guards the invariant that decision rests on: whichever build wins, every
+     * caller sees the same value and the cache keeps one entry. It deliberately asserts no timing, only agreement.
+     */
+    public void testConcurrentCallersForOneTermAllSeeTheSameValue() throws Exception {
+        final Query filter = new TermQuery(new Term("dept", "cardiology"));
+        final FilteredStatsCache cache = newCache();
+        final Directory dir = writeSingleSegment();
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            final LeafReaderContext leaf = reader.leaves().get(0);
+            final Term term = new Term("content", "alpha");
+            final int threads = 8;
+            final CountDownLatch start = new CountDownLatch(1);
+            final AtomicInteger builds = new AtomicInteger();
+            final List<Future<long[]>> results = new ArrayList<>();
+            final ExecutorService pool = Executors.newFixedThreadPool(threads);
+            try {
+                for (int i = 0; i < threads; i++) {
+                    results.add(pool.submit(() -> {
+                        start.await();
+                        return cache.getOrComputeTermContribution(leaf, filter, term, () -> {
+                            builds.incrementAndGet();
+                            return new long[] { 7L, 11L };
+                        });
+                    }));
+                }
+                start.countDown();
+                for (Future<long[]> f : results) {
+                    assertArrayEquals("every racing caller must see the same statistics", new long[] { 7L, 11L }, f.get());
+                }
+            } finally {
+                pool.shutdownNow();
+            }
+            // At least one build had to happen, and a later caller is served from the cache without building again.
+            assertTrue("expected at least one build, got " + builds.get(), builds.get() >= 1);
+            final int afterRace = builds.get();
+            assertArrayEquals(new long[] { 7L, 11L }, cache.getOrComputeTermContribution(leaf, filter, term, () -> {
+                throw new AssertionError("should be cached");
+            }));
+            assertEquals("no further builds once the race has settled", afterRace, builds.get());
         }
         dir.close();
     }

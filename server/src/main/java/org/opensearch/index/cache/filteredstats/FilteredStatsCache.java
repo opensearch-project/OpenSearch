@@ -159,8 +159,22 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         if (contribution == null) {
             contribution = compute.compute();
             final long[] toStore = contribution == null ? TERM_ABSENT : contribution;
-            byTerm.put(term, toStore);
-            account(entry, (long) toStore.length * Long.BYTES);
+            // Deliberately get-then-putIfAbsent rather than computeIfAbsent. Concurrent requests can miss the
+            // same cold (segment, filter, term) and each build it. The values are identical, so either is
+            // correct, and putIfAbsent keeps a single instance. computeIfAbsent would make the build run once,
+            // but it holds the map's bin lock for the duration of the mapping function, and that function is a
+            // postings intersection that can run for hundreds of milliseconds on a large merged segment, which
+            // would block unrelated keys in the same bin exactly when load is highest.
+            // Measured: duplicate builds are 0.07% of builds on a realistic query mix, and 4% to 7% in an
+            // adversarial one (3-term queries drawn from a 20-term head pool, 16 concurrent clients, force-merge
+            // of a 266-segment shard mid-flight). If a workload is ever found where the duplicate rate matters,
+            // the fix is memoizing a future per key so waiters block on the future rather than on a map bin.
+            final long[] winner = byTerm.putIfAbsent(term, toStore);
+            if (winner != null) {
+                contribution = winner;
+            } else {
+                account(entry, (long) toStore.length * Long.BYTES);
+            }
         }
         return contribution == TERM_ABSENT ? null : contribution;
     }

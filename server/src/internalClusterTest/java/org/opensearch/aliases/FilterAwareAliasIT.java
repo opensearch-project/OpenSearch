@@ -253,6 +253,82 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * Visible-subset statistics are summed per segment, so a multi-segment shard exercises a different code path than
+     * the effectively single-segment corpora the other tests build. This indexes in batches with a refresh after each
+     * so the shard holds many segments, then asserts the same equivalence: filtered_stats must equal a physically
+     * filtered index. Without this, dropping or double-counting one segment's contribution goes undetected.
+     */
+    public void testFilteredStatisticsAcrossManySegments() throws Exception {
+        assertAcked(
+            prepareCreate(INDEX).setMapping("dept", "type=keyword", "content", "type=text")
+                .setSettings(
+                    // The tiered merge policy collapses tiny segments immediately, which would make this test
+                    // silently single-segment. A high segments-per-tier and a 1-byte floor keep the batches apart.
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.merge.policy.segments_per_tier", 100)
+                        .put("index.merge.policy.max_merge_at_once", 2)
+                        .put("index.merge.policy.floor_segment", "1b")
+                )
+        );
+        assertAcked(
+            prepareCreate("patients_visible_only").setMapping("dept", "type=keyword", "content", "type=text")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        // 10 batches, each flushed to its own segment by an explicit refresh
+        for (int batch = 0; batch < 10; batch++) {
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < 50; i++) {
+                int id = batch * 50 + i;
+                bulk.add(
+                    client().prepareIndex(INDEX).setSource("dept", RESTRICTED_DEPT, "content", "filler " + RESTRICTED_TERM + " n" + id)
+                );
+                bulk.add(client().prepareIndex(INDEX).setSource("dept", VISIBLE_DEPT, "content", "cardio note " + id));
+                bulk.add(client().prepareIndex("patients_visible_only").setSource("dept", VISIBLE_DEPT, "content", "cardio note " + id));
+            }
+            assertFalse(bulk.get().hasFailures());
+            refresh(INDEX);
+            refresh("patients_visible_only");
+        }
+        client().prepareIndex(INDEX)
+            .setSource("dept", VISIBLE_DEPT, "content", "sample " + RESTRICTED_TERM + " " + ABSENT_TERM)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
+        client().prepareIndex("patients_visible_only")
+            .setSource("dept", VISIBLE_DEPT, "content", "sample " + RESTRICTED_TERM + " " + ABSENT_TERM)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
+
+        int segments = client().admin().indices().prepareSegments(INDEX).get().getIndices().get(INDEX).getShards().get(0).getShards()[0]
+            .getSegments()
+            .size();
+        assertTrue("corpus must span several segments for this test to mean anything, got " + segments, segments > 1);
+
+        addAlias("fs_multiseg", "pre_filter");
+        final String prop = "opensearch.filter_aware_alias.filtered_stats";
+        final String previous = System.getProperty(prop);
+        try {
+            System.setProperty(prop, "true");
+            float aliasScore = sampleScore("fs_multiseg", RESTRICTED_TERM);
+            float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
+            assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
+            assertEquals(
+                "filtered_stats must equal the physically-filtered index across " + segments + " segments",
+                physicalScore,
+                aliasScore,
+                0.01f
+            );
+        } finally {
+            if (previous == null) {
+                System.clearProperty(prop);
+            } else {
+                System.setProperty(prop, previous);
+            }
+        }
+    }
+
+    /**
      * Small-view guardrail: filtered statistics cost O(visible postings) to build, so above a configured
      * visible-doc budget the request falls back to the default constant_score behavior instead of paying that
      * cost. Asserts both sides of the switch on the same corpus and alias: with a generous budget the sample
