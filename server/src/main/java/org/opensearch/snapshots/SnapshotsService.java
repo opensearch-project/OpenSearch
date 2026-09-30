@@ -231,48 +231,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.Dynamic
     );
 
-    /**
-     * Returns a {@link Setting.Validator} that rejects updates when the snapshot resilience feature flag is disabled.
-     */
-    private static <T> Setting.Validator<T> snapshotResilienceValidator(String settingKey) {
-        return new Setting.Validator<T>() {
-            @Override
-            public void validate(T value) {
-                if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false) {
-                    throw new IllegalArgumentException(
-                        "setting ["
-                            + settingKey
-                            + "] cannot be modified while feature flag ["
-                            + FeatureFlags.SNAPSHOT_RESILIENCE
-                            + "] is disabled"
-                    );
-                }
-            }
-        };
-    }
-
-    private static final String IO_TIMEOUT_KEY = "snapshot.repository.io_timeout";
-
-    /**
-     * Setting that specifies the time budget for snapshot repository I/O operations on the cluster-manager node
-     * (finalization, deletion). Operations exceeding this budget are treated as failures.
-     * Only modifiable when the snapshot resilience feature flag is enabled.
-     */
-    public static final Setting<TimeValue> SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING = new Setting<>(
-        IO_TIMEOUT_KEY,
-        TimeValue.timeValueMinutes(30).getStringRep(),
-        (s) -> {
-            TimeValue value = TimeValue.parseTimeValue(s, IO_TIMEOUT_KEY);
-            if (value.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-                throw new IllegalArgumentException("setting [" + IO_TIMEOUT_KEY + "] must be at least [1s], got [" + value + "]");
-            }
-            return value;
-        },
-        snapshotResilienceValidator(IO_TIMEOUT_KEY),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
