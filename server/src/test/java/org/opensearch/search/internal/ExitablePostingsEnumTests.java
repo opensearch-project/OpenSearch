@@ -232,18 +232,42 @@ public class ExitablePostingsEnumTests extends OpenSearchTestCase {
         assertEquals(2, delegate.scalarCalls);
     }
 
-    /** Even short bitset fills must check cancellation at the next call, regardless of the scalar sampling counter. */
-    public void testCancellationBetweenBitSetCalls() throws IOException {
+    /** intoBitSet checks cancellation once per MAX_DOCS_PER_BITSET_CHECK span, accumulated across calls. */
+    public void testBitSetCancellationChecksOncePerBudgetAcrossCalls() throws IOException {
+        final int budget = 1 << 20; // MAX_DOCS_PER_BITSET_CHECK
         Cancellation cancellation = new Cancellation();
-        BulkPostingsEnum delegate = new BulkPostingsEnum(0, 30000, 1, 256);
+        BulkPostingsEnum delegate = new BulkPostingsEnum(0, 5_000_000, 1, 256);
         PostingsEnum postings = wrap(delegate, cancellation);
-        postings.nextDoc();
-        delegate.afterBulk = () -> cancellation.cancelled = true;
-        FixedBitSet bits = new FixedBitSet(30000);
-        postings.intoBitSet(10, bits, 0);
-        expectThrows(TaskCancelledException.class, () -> postings.intoBitSet(20, bits, 0));
-        assertEquals(10, postings.docID());
-        assertEquals(1, delegate.bitSetCalls);
+        FixedBitSet bits = new FixedBitSet(5_000_000);
+
+        // combined span still under budget -> no check
+        postings.intoBitSet(budget - 200, bits, 0);
+        assertEquals(0, cancellation.checks);
+        postings.intoBitSet(budget - 100, bits, 0);
+        assertEquals(0, cancellation.checks);
+
+        // crossing the budget -> one check, counter resets
+        postings.intoBitSet(budget + 50, bits, 0);
+        assertEquals(1, cancellation.checks);
+
+        postings.intoBitSet(budget + 100, bits, 0);
+        assertEquals(1, cancellation.checks);
+    }
+
+    /** A cancelled query isn't stopped by a sub-budget fill, but throws once the span crosses the budget. */
+    public void testBitSetCancellationThrowsOnceBudgetExceeded() throws IOException {
+        final int budget = 1 << 20;
+        Cancellation cancellation = new Cancellation();
+        cancellation.cancelled = true;
+        BulkPostingsEnum delegate = new BulkPostingsEnum(0, 5_000_000, 1, 256);
+        PostingsEnum postings = wrap(delegate, cancellation);
+        FixedBitSet bits = new FixedBitSet(5_000_000);
+
+        postings.intoBitSet(1000, bits, 0);
+        assertEquals(1000, postings.docID());
+        assertEquals(0, cancellation.checks);
+
+        expectThrows(TaskCancelledException.class, () -> postings.intoBitSet(budget + 10, bits, 0));
     }
 
     /** Preserve the first-call check and 8192-call interval across interleaved nextDoc and advance operations. */
@@ -262,15 +286,13 @@ public class ExitablePostingsEnumTests extends OpenSearchTestCase {
         assertEquals(8192, delegate.scalarCalls);
     }
 
-    /** An already-cancelled query must stop before entering either codec bulk operation. */
+    /** An already-cancelled query stops before entering the nextPostings bulk operation. */
     public void testCancelledBeforeBulkWork() throws IOException {
         Cancellation cancellation = new Cancellation();
         cancellation.cancelled = true;
         BulkPostingsEnum delegate = new BulkPostingsEnum(0, 30000, 1, 256);
         PostingsEnum postings = wrap(delegate, cancellation);
-        expectThrows(TaskCancelledException.class, () -> postings.intoBitSet(NO_MORE_DOCS, new FixedBitSet(30000), 0));
         expectThrows(TaskCancelledException.class, () -> postings.nextPostings(NO_MORE_DOCS, new DocAndFloatFeatureBuffer()));
-        assertEquals(0, delegate.bitSetCalls);
         assertEquals(0, delegate.batchCalls);
         assertEquals(0, postings.docID());
     }

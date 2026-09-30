@@ -243,6 +243,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private final QueryCancellation queryCancellation;
         private int calls;
+        // docs filled by intoBitSet since the last cancellation check, accumulated across calls
+        private int docsSinceBitSetCheck;
 
         ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
             super(in);
@@ -274,12 +276,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-            // Delegate to the codec's bulk implementation, but bound each call since it bypasses
-            // the cancellation checks in nextDoc() and advance().
+            // Lucene calls this one window at a time (~4096 docs). Instead of checking cancellation every window,
+            // accumulate the span across calls and only check every MAX_DOCS_PER_BITSET_CHECK docs.
             for (int doc = in.docID(); doc < upTo; doc = in.docID()) {
-                queryCancellation.checkCancelled();
                 final int limit = (int) Math.min((long) doc + MAX_DOCS_PER_BITSET_CHECK, upTo);
                 in.intoBitSet(limit, bitSet, offset);
+                docsSinceBitSetCheck += limit - doc;
+                if (docsSinceBitSetCheck >= MAX_DOCS_PER_BITSET_CHECK) {
+                    queryCancellation.checkCancelled();
+                    docsSinceBitSetCheck = 0;
+                }
             }
         }
 
