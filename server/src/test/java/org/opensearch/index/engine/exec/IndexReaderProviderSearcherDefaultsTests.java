@@ -27,12 +27,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
 /**
- * Pins the {@link Indexer} searcher default-method contract that {@link org.opensearch.index.shard.IndexShard}
- * relies on: the {@link Indexer#acquireSearcherSupplier} default throws (engine-backed indexers are dispatched
- * by the caller and must never reach it), and the {@link Indexer#acquireSearcher} default delegates to the
- * supplier with ownership of the supplier transferred to the returned searcher.
+ * Pins the {@link IndexReaderProvider} searcher defaults that {@link org.opensearch.index.shard.IndexShard} relies on:
+ * {@link IndexReaderProvider#acquireSearcherSupplier} throws, and {@link IndexReaderProvider#acquireSearcher}
+ * delegates to the supplier and transfers its ownership to the returned searcher.
  */
-public class IndexerSearcherDefaultsTests extends OpenSearchTestCase {
+public class IndexReaderProviderSearcherDefaultsTests extends OpenSearchTestCase {
 
     /** {@code Engine.Searcher} requires a non-null caching policy; queries in these tests never cache. */
     private static final org.apache.lucene.search.QueryCachingPolicy TRIVIAL_NEVER_CACHE =
@@ -46,17 +45,17 @@ public class IndexerSearcherDefaultsTests extends OpenSearchTestCase {
             }
         };
 
-    private Indexer callsRealDefaults() {
-        return mock(Indexer.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+    private IndexReaderProvider callsRealDefaults() {
+        return mock(IndexReaderProvider.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
     }
 
     public void testAcquireSearcherSupplierDefaultThrows() {
-        Indexer indexer = callsRealDefaults();
+        IndexReaderProvider provider = callsRealDefaults();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> indexer.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            () -> provider.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
         );
-        assertTrue("message names the indexer class: " + e.getMessage(), e.getMessage().contains("acquireSearcherSupplier"));
+        assertTrue("message names the method: " + e.getMessage(), e.getMessage().contains("acquireSearcherSupplier"));
     }
 
     public void testAcquireSearcherDefaultDelegatesAndTransfersSupplierOwnership() throws IOException {
@@ -84,10 +83,10 @@ public class IndexerSearcherDefaultsTests extends OpenSearchTestCase {
                 }
             };
 
-            Indexer indexer = callsRealDefaults();
-            doReturn(supplier).when(indexer).acquireSearcherSupplier(any(), any());
+            IndexReaderProvider provider = callsRealDefaults();
+            doReturn(supplier).when(provider).acquireSearcherSupplier(any(), any());
 
-            Engine.Searcher searcher = indexer.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity());
+            Engine.Searcher searcher = provider.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity());
             assertEquals("test", searcher.source());
             assertEquals(docs, searcher.getIndexReader().numDocs());
             assertFalse("supplier must stay open while the searcher is in use", supplierReleased.get());
@@ -113,12 +112,12 @@ public class IndexerSearcherDefaultsTests extends OpenSearchTestCase {
             }
         };
 
-        Indexer indexer = callsRealDefaults();
-        doReturn(supplier).when(indexer).acquireSearcherSupplier(any(), any());
+        IndexReaderProvider provider = callsRealDefaults();
+        doReturn(supplier).when(provider).acquireSearcherSupplier(any(), any());
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> indexer.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity())
+            () -> provider.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity())
         );
         assertEquals("simulated acquire failure", e.getMessage());
         assertTrue("the supplier must not leak when searcher acquisition fails", supplierReleased.get());

@@ -986,7 +986,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     /**
      * {@link DataFormatAwareReadOnlyEngine#acquireSearcherSupplier} serves the warm shard's searcher the same
-     * way the writable engine does; the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
+     * way the writable engine does; the {@link org.opensearch.index.engine.exec.IndexReaderProvider#acquireSearcher}
      * default delegates to it.
      */
     public void testAcquireSearcherSupplierContract() throws IOException {

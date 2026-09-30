@@ -1578,8 +1578,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     /**
      * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
-     * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.Indexer}
-     * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.Indexer#acquireSearcher}
+     * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.IndexReaderProvider}
+     * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.IndexReaderProvider#acquireSearcher}
      * default delegates to it.
      */
     public void testAcquireSearcherSupplierContract() throws IOException {

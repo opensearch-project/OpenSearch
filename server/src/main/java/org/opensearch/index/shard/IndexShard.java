@@ -2674,10 +2674,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        // Dispatched through the Indexer interface: EngineBackedIndexer delegates to its wrapped
-        // engine, format-aware indexers build a searcher from their own reader. IndexShard never
-        // references a concrete engine type.
-        return getIndexer().acquireSearcherSupplier(this::wrapSearcher, scope);
+        // Read-side dispatch: engine-backed shards delegate to the wrapped engine, data-format-aware
+        // shards build a searcher from their own reader.
+        return getReaderProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2694,8 +2693,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        // Dispatched through the Indexer interface; see acquireSearcherSupplier above.
-        return getIndexer().acquireSearcher(source, scope, this::wrapSearcher);
+        // Read-side dispatch; see acquireSearcherSupplier above.
+        return getReaderProvider().acquireSearcher(source, scope, this::wrapSearcher);
     }
 
     /**
