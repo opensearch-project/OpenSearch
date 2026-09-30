@@ -625,14 +625,15 @@ final class DocumentParser {
                 token = parser.nextToken();
             }
             innerParseObject(context, mapper, parser, currentFieldName, token);
-        } finally {
             if (nested.isNested()) {
+                // Success path only, so a failure here cannot mask the original parse exception.
                 nested(context, nested);
-                if (context.indexSettings().isPluggableDataFormatEnabled()) {
-                    // Close the element opened by startNestedElement in nestedContext. Emitted from a
-                    // finally so the pairing holds even when parsing the element fails midway.
-                    context.documentInput().endNestedElement();
-                }
+            }
+        } finally {
+            if (nested.isNested() && context.indexSettings().isPluggableDataFormatEnabled()) {
+                // Close the element opened by startNestedElement in nestedContext. Emitted from a
+                // finally so the pairing holds even when parsing the element fails midway.
+                context.documentInput().endNestedElement();
             }
         }
     }
@@ -862,12 +863,8 @@ final class DocumentParser {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        } else if (context.indexSettings().isPluggableDataFormatEnabled()) {
-            // Under a pluggable data format, IdFieldMapper.preParse routes _id into the
-            // DocumentInput (not context.doc()), so the classic Lucene _id field is legitimately
-            // absent on the parent Document here. The real nested signal is the startNestedElement
-            // boundary emitted below, not this vestigial vanilla Document tree.
-        } else {
+        } else if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
+            // Pluggable data formats write _id to the DocumentInput, so it is only required here on vanilla indices.
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
@@ -889,12 +886,9 @@ final class DocumentParser {
      * Handles ObjectMapper parsing with disable_objects logic.
      */
     private static void parseObjectMapper(ParseContext context, ObjectMapper objectMapper) throws IOException {
-        if (objectMapper.nested().isNested()) {
-            // A nested mapper must go through parseObjectOrNested even when disable_objects is set, so the
-            // per-element child document is still created. disable_objects only governs how the leaf names
-            // inside the element are resolved (literal dotted names), which innerParseObject already honors
-            // via resolvePathForParsing. Checking disableObjects first would silently drop the nested
-            // declaration and flatten the array into multi-valued root fields, losing element correlation.
+        if (objectMapper.nested().isNested() && context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Pluggable formats need the per-element scope even with disable_objects set; vanilla keeps
+            // the original ordering, where disable_objects flattens the array.
             parseObjectOrNested(context, objectMapper);
         } else if (objectMapper.disableObjects()) {
             parseDisableObjectsFields(context, objectMapper);

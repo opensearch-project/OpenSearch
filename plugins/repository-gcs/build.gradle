@@ -89,7 +89,7 @@ dependencies {
   runtimeOnly "io.opencensus:opencensus-contrib-http-util:0.31.1"
   implementation "com.google.apis:google-api-services-storage:v1-rev20250718-2.0.0"
 
-  implementation "org.checkerframework:checker-qual:3.52.1"
+  implementation "org.checkerframework:checker-qual:4.2.3"
 
   runtimeOnly libs.opentelemetry.api
   runtimeOnly libs.opentelemetry.common

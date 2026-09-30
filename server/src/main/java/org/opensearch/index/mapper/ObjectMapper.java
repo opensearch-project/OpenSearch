@@ -427,10 +427,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (type.equals(CONTENT_TYPE)) {
                     builder.nested = Nested.NO;
                 } else if (type.equals(NESTED_CONTENT_TYPE)) {
-                    // Nested mappings are supported under pluggable data formats: a format with a
-                    // native notion of nested documents stores each element in its own
-                    // representation; formats without one simply skip fields inside the nested
-                    // scope rather than indexing them.
                     nested = true;
                 } else {
                     throw new MapperParsingException(
@@ -701,11 +697,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
-    // Captured once at construction so canDeriveSource() (which takes no arguments, per the shared
-    // Mapper interface) can tell whether it's validating a nested mapper under a pluggable data
-    // format, where the format's native nested representation derives its own nested source, versus
-    // a vanilla index, where the generic per-mapper deriveSource() loop below does NOT read from
-    // nested child docs and would silently reconstruct nested arrays incorrectly.
+    // Captured at construction because canDeriveSource() takes no arguments; see that method.
     private final boolean pluggableDataFormatEnabled;
 
     ObjectMapper(
@@ -1097,12 +1089,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (this.enabled.value() == false) {
             throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled");
         }
-        // Nested is only permitted under derived-source mode when a pluggable data format is
-        // active: the format's native nested representation is what actually derives nested source
-        // there. On a vanilla index, deriveSource()'s generic per-mapper loop below does not read
-        // from nested child docs at all, so allowing it here would silently reconstruct nested
-        // arrays incorrectly — keep rejecting that case. The per-child-field validation below still
-        // runs either way, to catch unsupported leaf types within the nested object.
+        // Pluggable formats derive nested source natively; vanilla deriveSource() does not read nested child docs.
         if (this.nested.isNested() && this.pluggableDataFormatEnabled == false) {
             throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is nested");
         }
