@@ -302,6 +302,32 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         assertSame(DefaultPrimaryOperationPolicy.INSTANCE, newEngineConfig(factory, indexSettings).getPrimaryOperationPolicy());
     }
 
+    /**
+     * A shard can become a primary without a new engine, and therefore without a new config, so a single
+     * config must re-consult the plugins on every read rather than caching the answer from build time.
+     */
+    public void testPrimaryOperationPolicyReconsultedOnEachReadOfOneConfig() {
+        IndexSettings indexSettings = newIndexSettings();
+        AtomicReference<PrimaryOperationPolicy> pluginPolicy = new AtomicReference<>();
+        EnginePlugin plugin = new EnginePlugin() {
+            @Override
+            public Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings settings) {
+                return Optional.ofNullable(pluginPolicy.get());
+            }
+        };
+        EngineConfigFactory factory = new EngineConfigFactory(Collections.singletonList(plugin), indexSettings);
+        EngineConfig config = newEngineConfig(factory, indexSettings);
+        assertSame(DefaultPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+
+        // the plugin starts overriding the policy, e.g. because a setting it keys off was updated
+        pluginPolicy.set(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE);
+        assertSame(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+
+        // and a config copied from it carries the resolver rather than a stale resolved policy
+        pluginPolicy.set(null);
+        assertSame(DefaultPrimaryOperationPolicy.INSTANCE, config.toBuilder().build().getPrimaryOperationPolicy());
+    }
+
     private static IndexSettings newIndexSettings() {
         IndexMetadata meta = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
