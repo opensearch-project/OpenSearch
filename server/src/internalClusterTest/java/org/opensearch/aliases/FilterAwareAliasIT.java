@@ -329,6 +329,84 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * A term that exists in the index but in no visible document must return no hits, not fail the shard. Visible
+     * statistics for such a term are zero, and reporting that to Lucene as "absent" is not equivalent: absent means
+     * absent from the segment, so TermQuery.TermWeight leaves its scorer null while still building a scorer supplier
+     * from the term's real postings, and the supplier throws when asked. Any tenant searching for a term they do not
+     * have hits this, so it needs a test rather than only the equivalence assertions above.
+     */
+    public void testTermPresentInIndexButNotInViewReturnsNoHits() throws Exception {
+        // Own index, not the shared one: this test writes thousands of documents and toggles the same global
+        // filtered_stats property as its neighbours, so keeping its corpus separate stops it perturbing them.
+        final String index = "patients_view_absent";
+        assertAcked(
+            prepareCreate(index).setMapping("dept", "type=keyword", "content", "type=text")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareAliases()
+                .addAliasAction(
+                    AliasActions.add()
+                        .index(index)
+                        .alias("fs_absent")
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
+                        .enforcement("pre_filter")
+                )
+        );
+        final String prop = "opensearch.filter_aware_alias.filtered_stats";
+        final String previous = System.getProperty(prop);
+        try {
+            System.setProperty(prop, "true");
+            // hidden_only_term is planted exclusively in filtered-out documents, so it is present in the index and
+            // has zero visible occurrences. The corpus is spread over many segments and the view is large enough that
+            // Lucene builds a bulk scorer for the term: that is the path which asks the scorer supplier for a scorer,
+            // and a single-segment toy corpus never reaches it. size > 0 is required for the same reason.
+            for (int batch = 0; batch < 8; batch++) {
+                BulkRequestBuilder bulk = client().prepareBulk();
+                for (int i = 0; i < 200; i++) {
+                    bulk.add(client().prepareIndex(index).setSource("dept", VISIBLE_DEPT, "content", "cardio bulk " + i));
+                    bulk.add(client().prepareIndex(index).setSource("dept", RESTRICTED_DEPT, "content", "hidden_only_term " + i));
+                }
+                assertFalse(bulk.get().hasFailures());
+                refresh(index);
+            }
+            SearchResponse resp = client().prepareSearch("fs_absent")
+                .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
+                .setSize(10)
+                .get();
+            assertEquals("a term with no visible occurrences must match nothing", 0, resp.getHits().getHits().length);
+            assertEquals("and must not fail the shard", 0, resp.getFailedShards());
+
+            // Same shape with the absent term alongside a visible one, which is the multi-clause path.
+            SearchResponse mixed = client().prepareSearch("fs_absent")
+                .setQuery(QueryBuilders.matchQuery("content", "cardio hidden_only_term"))
+                .setSize(10)
+                .get();
+            assertEquals("mixed visible and view-absent terms must not fail the shard", 0, mixed.getFailedShards());
+            assertTrue("the visible term should still match", mixed.getHits().getHits().length > 0);
+
+            // And under dfs, where per-shard statistics are summed on the coordinator. The floor the local path
+            // substitutes must not be what the dfs phase reports, or the aggregated docFreq would move with the
+            // number of shards holding the term in filtered-out documents.
+            SearchResponse dfs = client().prepareSearch("fs_absent")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
+                .setSize(10)
+                .get();
+            assertEquals("dfs must not fail the shard either", 0, dfs.getFailedShards());
+            assertEquals("and must still match nothing", 0, dfs.getHits().getHits().length);
+        } finally {
+            if (previous == null) {
+                System.clearProperty(prop);
+            } else {
+                System.setProperty(prop, previous);
+            }
+        }
+    }
+
+    /**
      * Small-view guardrail: filtered statistics cost O(visible postings) to build, so above a configured
      * visible-doc budget the request falls back to the default constant_score behavior instead of paying that
      * cost. Asserts both sides of the switch on the same corpus and alias: with a generous budget the sample

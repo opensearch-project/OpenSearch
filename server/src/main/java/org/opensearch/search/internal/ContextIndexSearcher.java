@@ -583,7 +583,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // The third case -- the query phase of a dfs search (aggregatedDfs != null) -- must NOT recompute: it has to
         // read the pre-aggregated (already-filtered) stats, so it falls through to the aggregatedDfs branch below.
         if (useFilteredStatistics() && aggregatedDfs == null) {
-            return filteredTermStatistics(term);
+            TermStatistics visible = filteredTermStatistics(term);
+            if (visible == null) {
+                // No visible document contains the term. We cannot return null: to Lucene null means the term is
+                // absent from the index, and TermQuery.TermWeight then leaves its SimScorer null while still building
+                // a scorer supplier from the term's real postings, which throws as soon as the supplier is asked for a
+                // scorer. Hand back the smallest statistics TermStatistics permits instead. Nothing visible can match
+                // the term, so the value never reaches a score, and being a constant it says nothing about how many
+                // hidden documents hold the term. The dfs phase must not take this substitution, which is why it calls
+                // visibleSubsetTermStatistics rather than this method.
+                return new TermStatistics(term.bytes(), 1, 1);
+            }
+            return visible;
         }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
@@ -595,6 +606,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
+    }
+
+    /**
+     * Visible-subset term statistics for the dfs phase, which aggregates per-shard numbers on the coordinator. This
+     * returns null when the term occurs in no visible document, so a shard that holds the term only in filtered-out
+     * documents contributes nothing to the aggregate. {@link #termStatistics(Term, int, long)} substitutes a floor for
+     * that null because it feeds local scoring, and the two must not be confused: using the floor here would make the
+     * aggregated docFreq depend on how many shards hold the term invisibly.
+     */
+    public TermStatistics visibleSubsetTermStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
+        if (useFilteredStatistics() && aggregatedDfs == null) {
+            return filteredTermStatistics(term);
+        }
+        return super.termStatistics(term, docFreq, totalTermFreq);
     }
 
     @Override
@@ -752,8 +777,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         if (docFreq == 0) {
-            // Term does not occur in any visible document. Returning null matches Lucene's contract for an absent
-            // term and, per TermQuery.TermWeight, results in no scoring contribution over the visible subset.
+            // The term occurs in no visible document, so it contributes nothing to the visible subset. Null says
+            // exactly that, and the dfs phase needs it: a shard holding the term only in filtered-out documents must
+            // add nothing to the coordinator's aggregate, or the aggregated docFreq would move with the placement of
+            // hidden documents. Callers that go on to score locally must not pass this null to Lucene; see
+            // termStatistics(Term, int, long).
             return null;
         }
         // TermStatistics requires totalTermFreq >= docFreq (each doc contributes at least one occurrence).

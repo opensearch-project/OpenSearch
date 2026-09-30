@@ -74,8 +74,11 @@ public class DfsPhase {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
                     // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    // visibleSubsetTermStatistics, not termStatistics: a shard whose visible subset does not contain
+                    // the term must contribute nothing here, and the local-scoring override substitutes a floor for
+                    // that case which would inflate the coordinator's aggregated docFreq.
                     TermStatistics ts = filteredStatistics
-                        ? contextSearcher.termStatistics(term, docFreq, totalTermFreq)
+                        ? contextSearcher.visibleSubsetTermStatistics(term, docFreq, totalTermFreq)
                         : super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
