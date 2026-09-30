@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -768,6 +767,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public final String buildDescription() {
+        // Omits the query source, which may carry user data; indices/search_type/scroll are schema, not data.
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
@@ -776,17 +776,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (scroll != null) {
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
-        if (source != null) {
-            sb.append("source[");
-            try {
-                sb.append(source.toString(FORMAT_PARAMS));
-            } catch (final OpenSearchException ex) {
-                sb.append("<error: ").append(ex.getMessage()).append(">");
-            }
-            sb.append("]");
-        } else {
-            sb.append("source[]");
-        }
+        sb.append(source != null ? "source[<redacted>]" : "source[]");
         return sb.toString();
     }
 

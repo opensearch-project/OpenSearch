@@ -66,8 +66,10 @@ import java.util.function.IntConsumer;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
@@ -462,17 +464,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
     }
 
+    public void testDescriptionRedactsSourceLiteral() {
+        String marker = "totally-fake-marker-xyz123";
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker)));
+        String description = toDescription(request);
+        assertThat(description, not(containsString(marker)));
+        assertThat(description, equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"));
+    }
+
+    // The description never attempts to serialize the source, so a source that fails to serialize
+    // can't leak its error message either.
     public void testDescriptionOnSourceError() {
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
         GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().query(queryBuilder));
-        assertThat(
-            toDescription(request),
-            equalTo(
-                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
-            )
-        );
+        assertThat(toDescription(request), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"));
     }
 
     private String toDescription(SearchRequest request) {

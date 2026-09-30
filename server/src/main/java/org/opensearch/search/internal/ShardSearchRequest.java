@@ -498,14 +498,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return "shardId[" + shardId() + "]";
     }
 
+    // No longer carries the query source (see getDescription() above) — kept for binary compatibility.
     public String getMetadataSupplier() {
-        StringBuilder sb = new StringBuilder();
-        if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-        } else {
-            sb.append("source[]");
-        }
-        return sb.toString();
+        return "";
     }
 
     public Rewriteable<Rewriteable> getRewriteable() {

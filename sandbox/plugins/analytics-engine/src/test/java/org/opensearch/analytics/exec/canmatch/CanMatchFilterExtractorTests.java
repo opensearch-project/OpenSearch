@@ -21,6 +21,13 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -249,6 +256,66 @@ public class CanMatchFilterExtractorTests extends OpenSearchTestCase {
         // 2026-07-13 00:00:00 UTC = 1783900800000 epoch millis, GT bumps +1
         assertEquals(1783900800001L, range.min());
         assertEquals(Long.MAX_VALUE, range.max());
+    }
+
+    public void testMalformedTimestampLiteralNotLogged() throws IllegalAccessException {
+        String badLiteral = "not-a-real-date-xyz123";
+        RexNode castToTimestamp = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3),
+            rexBuilder.makeLiteral(badLiteral)
+        );
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BIGINT), 0),
+            castToTimestamp
+        );
+        RelNode plan = LogicalFilter.create(scan, condition);
+
+        Logger logger = LogManager.getLogger(CanMatchFilterExtractor.class);
+        CollectingAppender appender = new CollectingAppender("can_match_filter_extractor_test_appender");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Level originalLevel = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            // Fails open rather than throwing; the point here is what gets logged, not the bound value.
+            CanMatchFilterExtractor.extract(plan);
+            for (String formatted : appender.formattedMessages()) {
+                assertFalse("literal value must not be logged: " + formatted, formatted.contains(badLiteral));
+            }
+            String parseFailureLine = appender.formattedMessages()
+                .stream()
+                .filter(m -> m.contains("Failed to parse timestamp literal"))
+                .findFirst()
+                .orElse(null);
+            assertNotNull("expected a parse-failure log line", parseFailureLine);
+            assertTrue("literal length should still be logged", parseFailureLine.contains("len=" + badLiteral.length()));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            Loggers.setLevel(logger, originalLevel);
+        }
+    }
+
+    private static final class CollectingAppender extends AbstractAppender {
+        private final List<LogEvent> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        CollectingAppender(String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            events.add(event.toImmutable());
+        }
+
+        List<String> formattedMessages() {
+            List<String> out = new java.util.ArrayList<>();
+            for (LogEvent event : events) {
+                out.add(event.getMessage().getFormattedMessage());
+            }
+            return out;
+        }
+
     }
 
     public void testAndWithNonRangeSibling() {

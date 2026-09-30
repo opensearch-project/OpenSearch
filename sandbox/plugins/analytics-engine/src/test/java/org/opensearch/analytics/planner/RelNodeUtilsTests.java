@@ -22,12 +22,19 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.analytics.planner.RelNodeUtils.MAX_EXTRACT_INDICES_DEPTH;
 
 /**
- * Unit tests for {@link RelNodeUtils#extractIndices(RelNode)}.
+ * Unit tests for {@link RelNodeUtils#extractIndices(RelNode)} and {@link RelNodeUtils#logPlan}.
  */
 public class RelNodeUtilsTests extends OpenSearchTestCase {
 
@@ -217,6 +224,46 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
         schema.add(tableName, new MockTable());
         return RelBuilder.create(Frameworks.newConfigBuilder().defaultSchema(schema).build());
+    }
+
+    public void testLogPlanOmitsLiteralValues() throws IllegalAccessException {
+        RelBuilder b = builder();
+        RelNode plan = b.scan("customers").filter(b.equals(b.field("name"), b.literal("totally-fake-marker-xyz123"))).build();
+
+        Logger logger = LogManager.getLogger(RelNodeUtilsTests.class);
+        CollectingAppender appender = new CollectingAppender("rel_node_utils_test_appender");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Level originalLevel = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            RelNodeUtils.logPlan(logger, "test plan", plan);
+            LogEvent event = appender.lastEvent();
+            assertNotNull("expected logPlan to log at debug", event);
+            String formatted = event.getMessage().getFormattedMessage();
+            assertFalse("literal value must not be logged", formatted.contains("totally-fake-marker-xyz123"));
+            assertTrue("operator shape should still be logged", formatted.contains("LogicalFilter"));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            Loggers.setLevel(logger, originalLevel);
+        }
+    }
+
+    private static final class CollectingAppender extends AbstractAppender {
+        private LogEvent last;
+
+        CollectingAppender(String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            last = event.toImmutable();
+        }
+
+        LogEvent lastEvent() {
+            return last;
+        }
     }
 
     /** Minimal table implementation for RelBuilder schema registration. */

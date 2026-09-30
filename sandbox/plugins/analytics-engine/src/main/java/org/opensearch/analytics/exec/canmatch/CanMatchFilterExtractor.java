@@ -60,7 +60,8 @@ public final class CanMatchFilterExtractor {
         List<RelDataTypeField> fields = filterNode.getInput().getRowType().getFieldList();
         List<CanMatchFilter> filters = new ArrayList<>();
         extractFromCondition(condition, fields, filters);
-        logger.debug("can-match extractor: extracted {} filters from condition {}", filters.size(), condition);
+        // condition is omitted: RexNode#toString() renders every literal in the filter inline.
+        logger.debug("can-match extractor: extracted {} filters", filters.size());
         return filters;
     }
 
@@ -292,7 +293,13 @@ public final class CanMatchFilterExtractor {
             LocalDate date = LocalDate.parse(str);
             return date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         } catch (Exception e) {
-            logger.error("[can-match-extractor] Failed to parse timestamp string '{}': {}", str, e.getMessage());
+            // Fail-open: not an error. e.getMessage() is omitted too — DateTimeParseException embeds
+            // the input text verbatim, so only the length and exception type are logged.
+            logger.debug(
+                "[can-match-extractor] Failed to parse timestamp literal (len={}): {}",
+                str.length(),
+                e.getClass().getSimpleName()
+            );
             return Long.MIN_VALUE;
         }
     }
