@@ -136,15 +136,6 @@ public class FakeTcpChannel implements TcpChannel {
         closeContext.removeRemovableListener(listener);
     }
 
-    /**
-     * Number of removable close listeners that are currently registered on this channel.
-     *
-     * @return number of registered close listeners
-     */
-    public int numberOfCloseListeners() {
-        return closeContext.removableListeners();
-    }
-
     @Override
     public boolean isOpen() {
         return closeContext.isDone() == false;

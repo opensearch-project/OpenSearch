@@ -118,7 +118,7 @@ public class CompletableContext<T> {
      *
      * @return number of listeners
      */
-    public int removableListeners() {
+    int removableListenersSize() {
         return removableListeners.size();
     }
 

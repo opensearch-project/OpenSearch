@@ -27,12 +27,12 @@ public class CompletableContextTests extends OpenSearchTestCase {
         CompletableContext<Void> context = new CompletableContext<>();
         AtomicInteger notified = new AtomicInteger();
         context.addRemovableListener((v, e) -> notified.incrementAndGet());
-        assertEquals(1, context.removableListeners());
+        assertEquals(1, context.removableListenersSize());
 
         context.complete(null);
 
         assertEquals(1, notified.get());
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
     }
 
     public void testRemovedListenerIsNotNotified() {
@@ -42,7 +42,7 @@ public class CompletableContextTests extends OpenSearchTestCase {
 
         context.addRemovableListener(listener);
         context.removeRemovableListener(listener);
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
 
         context.complete(null);
 
@@ -53,7 +53,7 @@ public class CompletableContextTests extends OpenSearchTestCase {
         CompletableContext<Void> context = new CompletableContext<>();
         context.removeRemovableListener((v, e) -> fail("should not be notified"));
 
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
     }
 
     public void testListenerAddedAfterCompletionIsNotifiedImmediately() {
@@ -64,7 +64,7 @@ public class CompletableContextTests extends OpenSearchTestCase {
         context.addRemovableListener((v, e) -> notified.incrementAndGet());
 
         assertEquals(1, notified.get());
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
     }
 
     public void testRemovableListenerSeesTheResult() {
@@ -98,10 +98,10 @@ public class CompletableContextTests extends OpenSearchTestCase {
             added.add(listener);
             context.addRemovableListener(listener);
         }
-        assertEquals(listeners, context.removableListeners());
+        assertEquals(listeners, context.removableListenersSize());
 
         added.forEach(context::removeRemovableListener);
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
 
         context.complete(null);
     }
@@ -113,7 +113,7 @@ public class CompletableContextTests extends OpenSearchTestCase {
 
         context.addRemovableListener(listener);
         context.addRemovableListener(listener);
-        assertEquals(1, context.removableListeners());
+        assertEquals(1, context.removableListenersSize());
 
         context.complete(null);
 
@@ -159,6 +159,6 @@ public class CompletableContextTests extends OpenSearchTestCase {
         }
 
         assertEquals(listeners, notified.get());
-        assertEquals(0, context.removableListeners());
+        assertEquals(0, context.removableListenersSize());
     }
 }

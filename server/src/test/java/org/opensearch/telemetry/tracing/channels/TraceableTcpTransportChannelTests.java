@@ -21,11 +21,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,7 +47,7 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        tcpChannel = new FakeTcpChannel();
+        tcpChannel = spy(new FakeTcpChannel());
         delegate = mock(TcpTransportChannel.class);
         span = mock(Span.class);
         tracer = mock(Tracer.class);
@@ -66,7 +70,7 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
         TransportChannel channel = TraceableTcpTransportChannel.create(delegate, span, tracer);
 
         assertSame(delegate, channel);
-        assertEquals(0, tcpChannel.numberOfCloseListeners());
+        verify(tcpChannel, never()).addCloseListener(any(BiConsumer.class));
     }
 
     public void testSendResponseEndsSpanWithinScope() throws IOException {
@@ -92,13 +96,16 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
         verify(span, times(1)).endSpan();
     }
 
+    @SuppressWarnings("unchecked")
     public void testCloseListenerIsGivenBackOnceTheResponseIsSent() throws IOException {
         TransportChannel channel = TraceableTcpTransportChannel.create(delegate, span, tracer);
-        assertEquals(1, tcpChannel.numberOfCloseListeners());
+        ArgumentCaptor<BiConsumer<Void, ? super Exception>> listener = ArgumentCaptor.forClass(BiConsumer.class);
+        verify(tcpChannel).addCloseListener(listener.capture());
 
         channel.sendResponse(mock(TransportResponse.class));
 
-        assertEquals(0, tcpChannel.numberOfCloseListeners());
+        // the very listener that was registered is the one handed back
+        verify(tcpChannel).removeCloseListener(listener.getValue());
     }
 
     public void testCloseListenersDoNotAccumulateOverRequests() throws IOException {
@@ -112,7 +119,8 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
             TraceableTcpTransportChannel.create(delegate, requestSpan, tracer).sendResponse(mock(TransportResponse.class));
         }
 
-        assertEquals(0, tcpChannel.numberOfCloseListeners());
+        verify(tcpChannel, times(requests)).addCloseListener(any(BiConsumer.class));
+        verify(tcpChannel, times(requests)).removeCloseListener(any());
 
         // those spans are done, so closing the connection must not touch them again
         tcpChannel.close();
@@ -129,7 +137,6 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
         verify(span, times(1)).addEvent("The TransportChannel was closed without sending the response");
         verify(span, never()).setError(any());
         verify(span, times(1)).endSpan();
-        assertEquals(0, tcpChannel.numberOfCloseListeners());
     }
 
     public void testSpanIsEndedWhenTheChannelIsAlreadyClosed() {
