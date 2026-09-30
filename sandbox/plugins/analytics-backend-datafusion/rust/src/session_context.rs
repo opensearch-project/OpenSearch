@@ -312,12 +312,6 @@ pub async unsafe fn create_session_context(
         .with_collect_stat(true)
         .with_target_partitions(effective_partitions);
 
-    if let Some(sort_exprs) =
-        build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
-    {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     // Register under the planner's logical table name (alias / index pattern / index), shipped
     // explicitly as logicalTableName on the shard-scan instruction node. See
     // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
@@ -374,11 +368,18 @@ pub async unsafe fn create_session_context(
     // failing with "Cannot merge statistics with different number of columns". Non-widened
     // (single-index) scans keep full stats.
     // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
-    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
+    let mut listing_options = if resolved_schema.fields().len() != inferred_field_count {
         listing_options.with_collect_stat(false)
     } else {
         listing_options
     };
+    if let Some(sort_exprs) = build_file_sort_order(
+        &shard_view.sort_fields,
+        &shard_view.sort_orders,
+        resolved_schema.as_ref(),
+    ) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -744,14 +745,36 @@ fn try_acquire_budget(
 ///   the override isn't propagated yet. A wrong nulls claim at worst causes
 ///   DataFusion's per-file chain validator to reject the ordering and fall back
 ///   to a regular `SortExec` — never wrong results.
+///
+/// # Multi-value (LIST) sort fields
+///
+/// A LIST column has no native DataFusion ordering, so it is replaced with a
+/// scalar reduction of its elements using DataFusion's built-in nested
+/// functions: `array_min(col)` when the field sorts ascending, `array_max(col)`
+/// when it sorts descending. This mirrors the writer-side reduction chosen by
+/// `ParquetSortConfig::deriveMaxSortModes` (`index.sort.mode`, defaulting to
+/// MIN for ASC / MAX for DESC) so the declared ordering here matches the
+/// physical row order already on disk. There is no independent per-query
+/// sort-mode setting — direction is the only signal, exactly as it is for the
+/// writer's default branch.
+///
+/// The LIST argument is wrapped in a `CAST` to DataFusion's canonical
+/// `List(item: T)` type before the reduction. The query's `array_min(col)`
+/// acquires exactly that cast from the `TypeCoercion` analyzer (parquet names
+/// the child `element`, DataFusion's `Signature::array()` renames it `item`),
+/// and `EnforceSorting` compares sort keys structurally — without the same
+/// cast here the declared order would never satisfy the query's. See
+/// `build_projected_lex_ordering` in `table_provider.rs` for the indexed path.
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
+    schema: &arrow::datatypes::Schema,
 ) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
     if sort_fields.is_empty() {
         return None;
     }
     use datafusion::common::Column;
+    use datafusion::functions_nested::expr_fn::{array_max, array_min};
     use datafusion::logical_expr::{Expr, SortExpr};
     let sort_exprs: Vec<SortExpr> = sort_fields
         .iter()
@@ -759,9 +782,42 @@ pub(crate) fn build_file_sort_order(
         .map(|(name, order)| {
             let ascending = order.eq_ignore_ascii_case("asc");
             let nulls_first = ascending;
-            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
+            let column = Expr::Column(Column::from_name(name.clone()));
+            let key = match schema.field_with_name(name).map(|field| field.data_type()) {
+                Ok(list_type @ arrow::datatypes::DataType::List(child)) => {
+                    let coerced = arrow::datatypes::DataType::new_list(
+                        child.data_type().clone(),
+                        child.is_nullable(),
+                    );
+                    let arg = if *list_type == coerced {
+                        column
+                    } else {
+                        Expr::Cast(datafusion::logical_expr::Cast::new(
+                            Box::new(column),
+                            coerced,
+                        ))
+                    };
+                    if ascending {
+                        array_min(arg)
+                    } else {
+                        array_max(arg)
+                    }
+                }
+                _ => column,
+            };
+            key.sort(ascending, nulls_first)
         })
         .collect();
+    // Surfaces what the scan claims about the on-disk order (incl. the LIST
+    // reductions) so it can be verified end-to-end without EXPLAIN.
+    native_bridge_common::log_debug!(
+        "declared file sort order: [{}]",
+        sort_exprs
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     Some(sort_exprs)
 }
 
@@ -781,6 +837,72 @@ mod tests {
 
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
+
+    #[test]
+    fn file_sort_order_uses_array_min_for_asc_and_array_max_for_desc() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("tags", DataType::List(child), true),
+            Field::new("id", DataType::Int64, true),
+        ]);
+
+        for (order, ascending, reduction) in
+            [("asc", true, "array_min"), ("desc", false, "array_max")]
+        {
+            let ordering =
+                build_file_sort_order(&["tags".into()], &[order.into()], &schema).unwrap();
+            let rendered = format!("{}", ordering[0].expr);
+            assert!(
+                rendered.contains(reduction),
+                "{order} sort should use {reduction}, got: {rendered}"
+            );
+            assert_eq!(ordering[0].asc, ascending);
+            assert_eq!(ordering[0].nulls_first, ascending);
+        }
+
+        let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
+        assert!(!format!("{}", scalar[0].expr).contains("array_min"));
+        assert!(!format!("{}", scalar[0].expr).contains("array_max"));
+    }
+
+    /// Multi-key `index.sort.field=[id, tags]`: the scalar lead stays a bare
+    /// column and the LIST tiebreaker is reduced per its own direction. The
+    /// reduction is positional, mirroring the writer's per-column
+    /// `max_sort_modes`, so a LIST key in a non-lead slot must still be reduced.
+    #[test]
+    fn file_sort_order_reduces_list_tiebreaker_behind_scalar_lead() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("id", DataType::Int64, true),
+            Field::new("tags", DataType::List(child), true),
+        ]);
+
+        for (tie_order, tie_asc, reduction) in
+            [("asc", true, "array_min"), ("desc", false, "array_max")]
+        {
+            let ordering = build_file_sort_order(
+                &["id".into(), "tags".into()],
+                &["asc".into(), tie_order.into()],
+                &schema,
+            )
+            .unwrap();
+            assert_eq!(ordering.len(), 2, "both sort keys must be declared");
+
+            let lead = format!("{}", ordering[0].expr);
+            assert_eq!(
+                lead, "id",
+                "scalar lead must stay a bare column, got: {lead}"
+            );
+            assert!(ordering[0].asc);
+
+            let tie = format!("{}", ordering[1].expr);
+            assert!(
+                tie.contains(reduction) && tie.contains("tags"),
+                "LIST tiebreaker ({tie_order}) should be {reduction}(tags), got: {tie}"
+            );
+            assert_eq!(ordering[1].asc, tie_asc);
+        }
+    }
 
     #[tokio::test]
     async fn test_widen_schema_noop_when_plan_empty() {
