@@ -284,15 +284,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "); use a segment-consuming or read-only engine"
             );
         }
-        if (engineConfig.getPrimaryOperationPolicy() != DefaultPrimaryOperationPolicy.INSTANCE) {
-            throw new IllegalStateException(
-                "DataFormatAwareEngine does not support primary operation policy ["
-                    + engineConfig.getPrimaryOperationPolicy()
-                    + "] requested for shard ["
-                    + engineConfig.getShardId()
-                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
-            );
-        }
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
         this.logger = Loggers.getLogger(DataFormatAwareEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -1877,6 +1869,26 @@ public class DataFormatAwareEngine implements Indexer {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
+        }
+    }
+
+    @Override
+    public void refreshPrimaryOperationPolicy() {
+        // A plugin can key its policy off an updatable setting, so the combination this engine rejects at
+        // construction can also appear later. Fail here rather than silently ignoring the policy.
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
+    }
+
+    private static void ensureDefaultPrimaryOperationPolicy(EngineConfig engineConfig) {
+        final PrimaryOperationPolicy policy = engineConfig.getPrimaryOperationPolicy();
+        if (policy != DefaultPrimaryOperationPolicy.INSTANCE) {
+            throw new IllegalStateException(
+                "DataFormatAwareEngine does not support primary operation policy ["
+                    + policy
+                    + "] requested for shard ["
+                    + engineConfig.getShardId()
+                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
+            );
         }
     }
 
