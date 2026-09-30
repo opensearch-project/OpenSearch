@@ -8,32 +8,52 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.repositories.RepositoryData;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -593,4 +613,277 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         task.onFailure("test-source", new NotClusterManagerException("simulated"));
     }
 
+    private static SnapshotsInProgress.Entry startedEntryFor(Snapshot snapshot) {
+        return SnapshotsInProgress.startedEntry(
+            snapshot,
+            true,
+            false,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            1L,
+            1L,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Version.CURRENT,
+            false
+        );
+    }
+
+    private static final TimeValue BUDGET = TimeValue.timeValueSeconds(30);
+
+    private static Snapshot snapshot(String name) {
+        return new Snapshot("repo", new SnapshotId(name, UUIDs.randomBase64UUID()));
+    }
+
+    private static ClusterState stateWith(SnapshotsInProgress.Entry... entries) {
+        final String localNodeId = UUIDs.randomBase64UUID();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().localNodeId(localNodeId).clusterManagerNodeId(localNodeId).build())
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(List.of(entries)))
+            .build();
+    }
+
+    private ClusterStateUpdateTask expiryTask(Snapshot snapshot) {
+        return snapshotsService.createFinalizationExpiryTask(snapshot, BUDGET);
+    }
+
+    public void testExpiryAfterTheCommitAnswersNothing() throws Exception {
+        final Snapshot snapshot = snapshot("snap-1");
+        final Set<Snapshot> resolved = new HashSet<>();
+        recordResolutionOf(snapshot, resolved);
+        final ClusterState committed = stateWith();
+
+        final ClusterStateUpdateTask task = expiryTask(snapshot);
+        final ClusterState result = task.execute(committed);
+        task.clusterStateProcessed("test-source", committed, result);
+
+        assertThat("a committed finalization must not be answered with a timeout", resolved, empty());
+        assertTrue("the listener must stay registered for the success exit", completionListeners().containsKey(snapshot));
+    }
+
+    public void testExpiryAnswersATimeoutAndKeepsTheSnapshotEnding() throws Exception {
+        final Snapshot snapshot = snapshot("snap-1");
+        final List<Exception> answers = new ArrayList<>();
+        addListener(snapshot, ActionListener.wrap(r -> fail("a timed out finalization must not be completed"), answers::add));
+        endingSnapshots().add(snapshot);
+        final ClusterState currentState = stateWith(startedEntryFor(snapshot));
+
+        final ClusterStateUpdateTask task = expiryTask(snapshot);
+        final ClusterState result = task.execute(currentState);
+        task.clusterStateProcessed("test-source", currentState, result);
+
+        assertTrue("the snapshot must still be ending, or a later change ends it again", endingSnapshots().contains(snapshot));
+        assertThat(answers, hasSize(1));
+        assertThat(answers.get(0), instanceOf(OpenSearchTimeoutException.class));
+        assertThat(
+            answers.get(0).getMessage(),
+            containsString("[finalize snapshot [" + snapshot + "]] did not complete within [" + BUDGET + "]")
+        );
+        assertFalse("the answered listener must be deregistered", completionListeners().containsKey(snapshot));
+        assertSame("the expiry must publish nothing", currentState, result);
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testUnprocessedExpiryAnswersNothingAndKeepsTheToken() throws Exception {
+        final Snapshot snapshot = snapshot("snap-1");
+        final Set<Snapshot> resolved = new HashSet<>();
+        recordResolutionOf(snapshot, resolved);
+        final Set<String> currentlyFinalizing = serviceField("currentlyFinalizing");
+        currentlyFinalizing.add("repo");
+
+        expiryTask(snapshot).onFailure("test-source", new NotClusterManagerException("simulated failover"));
+
+        assertThat("an unprocessed expiry must not answer the caller", resolved, empty());
+        assertTrue("the finalization still holds the repository's operation token", currentlyFinalizing.contains("repo"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testBudgetRemovalRetriesUntilPublished() throws Exception {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final Snapshot stopped = snapshot("stopped");
+        final Snapshot queuedBehind = snapshot("queued-behind");
+        final SnapshotsInProgress.Entry queuedEntry = startedEntryFor(queuedBehind);
+        addFinalization(service, queuedEntry);
+        final List<Snapshot> resolved = new ArrayList<>();
+        addListener(service, stopped, ActionListener.wrap(r -> resolved.add(stopped), e -> resolved.add(stopped)));
+        addListener(service, queuedBehind, ActionListener.wrap(r -> resolved.add(queuedBehind), e -> resolved.add(queuedBehind)));
+        final Set<String> token = serviceField(service, "currentlyFinalizing");
+        token.add("repo");
+        final ClusterState currentState = stateWith(startedEntryFor(stopped), queuedEntry);
+
+        ClusterStateUpdateTask task = service.createRemoveFailedSnapshotTask(
+            "test-source",
+            SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY),
+            stopped,
+            new OpenSearchTimeoutException("stopped"),
+            RepositoryData.EMPTY,
+            null,
+            () -> true
+        );
+        for (int failure = 0; failure < 2; failure++) {
+            task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+            assertThat("a publish failure must not answer anyone", resolved, empty());
+            assertTrue("a publish failure must not release the token", token.contains("repo"));
+            assertThat("each failure must schedule exactly one retry", scheduled, hasSize(1));
+            scheduled.remove(0).run();
+            assertThat("an armed retry with no failover is submitted once", submitted, hasSize(1));
+            task = submitted.remove(0);
+        }
+
+        task.clusterStateProcessed("test-source", currentState, task.execute(currentState));
+        assertEquals("the stopped caller must be answered once, and nobody else", List.of(stopped), resolved);
+        assertNull("the queued finalization must have been handed on", pollFinalization(service, "repo"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testWorkArmedBeforeAFailoverIsInertAfterIt() throws Exception {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final Snapshot stopped = snapshot("stopped");
+        final AtomicLong failovers = serviceField(service, "failovers");
+        final long failoversAtArm = failovers.get();
+        final ClusterStateUpdateTask removal = service.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            stopped,
+            new OpenSearchTimeoutException("stopped"),
+            RepositoryData.EMPTY,
+            null,
+            () -> failovers.get() == failoversAtArm
+        );
+        service.createRemoveFailedSnapshotTask("retry-source", 0, snapshot("retried"), new RuntimeException("retried"), null, null)
+            .onFailure("retry-source", new FailedToCommitClusterStateException("simulated publish failure"));
+        assertThat(scheduled, hasSize(1));
+
+        final Snapshot lost = snapshot("lost");
+        final List<Exception> answers = new ArrayList<>();
+        addListener(service, lost, ActionListener.wrap(r -> fail("must not be completed"), answers::add));
+        final OpenSearchTimeoutException failure = new OpenSearchTimeoutException("lost");
+        service.createRemoveFailedSnapshotTask("lost-source", 0, lost, failure, RepositoryData.EMPTY, null, () -> true)
+            .onNoLongerClusterManager("lost-source");
+        assertThat(answers, hasSize(1));
+        assertSame("the caller must be answered with the removal's own failure", failure, answers.get(0));
+        final Set<String> token = serviceField(service, "currentlyFinalizing");
+        token.add("repo");
+        final Snapshot next = snapshot("next");
+        final SnapshotsInProgress.Entry nextEntry = startedEntryFor(next);
+        addFinalization(service, nextEntry);
+        final Set<Snapshot> resolved = new HashSet<>();
+        addListener(service, stopped, ActionListener.wrap(r -> resolved.add(stopped), e -> resolved.add(stopped)));
+        final ClusterState currentState = stateWith(startedEntryFor(stopped), nextEntry);
+
+        scheduled.remove(0).run();
+        assertThat("a retry armed before a failover this node handled must not be submitted after it", submitted, empty());
+
+        final ClusterState result = removal.execute(currentState);
+        removal.clusterStateProcessed("test-source", currentState, result);
+        assertSame("a stale removal must publish nothing", currentState, result);
+        assertThat("a stale removal must answer nobody", resolved, empty());
+        assertTrue("a stale removal must not release the token", token.contains("repo"));
+        assertNotNull("a stale removal must hand nothing on", pollFinalization(service, "repo"));
+    }
+
+    private SnapshotsService serviceCapturingSchedules(List<Runnable> scheduled, List<ClusterStateUpdateTask> submitted) {
+        final ThreadPool capturing = mock(ThreadPool.class);
+        when(capturing.schedule(any(Runnable.class), any(TimeValue.class), anyString())).thenAnswer(invocation -> {
+            scheduled.add(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        });
+        final ClusterService capturingClusterService = mock(ClusterService.class);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(capturingClusterService.getClusterSettings()).thenReturn(clusterSettings);
+        doAnswer(invocation -> {
+            submitted.add(invocation.getArgument(1));
+            return null;
+        }).when(capturingClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(capturing);
+        final org.opensearch.repositories.RepositoriesService repositoriesService = mock(
+            org.opensearch.repositories.RepositoriesService.class
+        );
+        when(repositoriesService.repository(anyString())).thenReturn(mock(org.opensearch.repositories.Repository.class));
+        return new SnapshotsService(
+            Settings.builder().put("node.name", "test").putList("node.roles", "cluster_manager", "data").build(),
+            capturingClusterService,
+            mock(org.opensearch.cluster.metadata.IndexNameExpressionResolver.class),
+            repositoriesService,
+            transportService,
+            mock(org.opensearch.action.support.ActionFilters.class),
+            null,
+            new org.opensearch.indices.RemoteStoreSettings(Settings.EMPTY, clusterSettings),
+            null
+        );
+    }
+
+    @SuppressForbidden(reason = "the service's bookkeeping is private and must not gain a test seam")
+    @SuppressWarnings("unchecked")
+    private <T> T serviceField(String name) throws Exception {
+        return serviceField(snapshotsService, name);
+    }
+
+    @SuppressForbidden(reason = "the service's bookkeeping is private and must not gain a test seam")
+    @SuppressWarnings("unchecked")
+    private static <T> T serviceField(SnapshotsService service, String name) throws Exception {
+        final Field field = SnapshotsService.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (T) field.get(service);
+    }
+
+    private Map<Snapshot, ?> completionListeners() throws Exception {
+        return serviceField("snapshotCompletionListeners");
+    }
+
+    private Set<Snapshot> endingSnapshots() throws Exception {
+        return serviceField("endingSnapshots");
+    }
+
+    @SuppressForbidden(reason = "the finalization queue is private and must not gain a test seam")
+    private void addFinalization(SnapshotsInProgress.Entry entry) throws Exception {
+        addFinalization(snapshotsService, entry);
+    }
+
+    @SuppressForbidden(reason = "the finalization queue is private and must not gain a test seam")
+    private static void addFinalization(SnapshotsService service, SnapshotsInProgress.Entry entry) throws Exception {
+        final Object queue = serviceField(service, "repositoryOperations");
+        final Class<?>[] signature = { SnapshotsInProgress.Entry.class, Metadata.class };
+        final Method addFinalization = queue.getClass().getDeclaredMethod("addFinalization", signature);
+        addFinalization.setAccessible(true);
+        addFinalization.invoke(queue, entry, Metadata.EMPTY_METADATA);
+    }
+
+    @SuppressForbidden(reason = "the finalization queue is private and must not gain a test seam")
+    private Object pollFinalization(String repository) throws Exception {
+        return pollFinalization(snapshotsService, repository);
+    }
+
+    @SuppressForbidden(reason = "the finalization queue is private and must not gain a test seam")
+    private static Object pollFinalization(SnapshotsService service, String repository) throws Exception {
+        final Object queue = serviceField(service, "repositoryOperations");
+        final Method pollFinalization = queue.getClass().getDeclaredMethod("pollFinalization", String.class);
+        pollFinalization.setAccessible(true);
+        return pollFinalization.invoke(queue, repository);
+    }
+
+    @SuppressForbidden(reason = "the completion listener registry is private and must not gain a test seam")
+    private void addListener(Snapshot snapshot, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) throws Exception {
+        addListener(snapshotsService, snapshot, listener);
+    }
+
+    @SuppressForbidden(reason = "the completion listener registry is private and must not gain a test seam")
+    private static void addListener(
+        SnapshotsService service,
+        Snapshot snapshot,
+        ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener
+    ) throws Exception {
+        final Method addListener = SnapshotsService.class.getDeclaredMethod("addListener", Snapshot.class, ActionListener.class);
+        addListener.setAccessible(true);
+        addListener.invoke(service, snapshot, listener);
+    }
+
+    private void recordResolutionOf(Snapshot snapshot, Set<Snapshot> resolved) throws Exception {
+        addListener(snapshot, ActionListener.wrap(ignored -> resolved.add(snapshot), e -> resolved.add(snapshot)));
+    }
 }

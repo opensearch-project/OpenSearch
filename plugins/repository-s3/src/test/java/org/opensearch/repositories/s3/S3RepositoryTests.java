@@ -250,6 +250,10 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         };
     }
 
+    public void testDeclaresTheFinalizationCapability() throws Exception {
+        assertEquals(S3Repository.class, S3Repository.class.getMethod("abandonableSnapshotFinalization").getDeclaringClass());
+    }
+
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
         return new S3Repository(
             metadata,

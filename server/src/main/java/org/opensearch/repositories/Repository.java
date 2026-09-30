@@ -42,6 +42,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -63,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -191,6 +193,38 @@ public interface Repository extends LifecycleComponent {
         ActionListener<RepositoryData> listener
     ) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Finalizes a snapshot using {@link SnapshotFinalizationAttempt} to coordinate timeout with generation publication.
+     * Publication requires a successful {@link SnapshotFinalizationAttempt#startGenerationWrite()} claim.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    @FunctionalInterface
+    interface AbandonableSnapshotFinalization {
+        void finalizeSnapshot(
+            ShardGenerations shardGenerations,
+            long repositoryStateId,
+            Metadata clusterMetadata,
+            SnapshotInfo snapshotInfo,
+            Version repositoryMetaVersion,
+            Function<ClusterState, ClusterState> stateTransformer,
+            Priority repositoryUpdatePriority,
+            SnapshotFinalizationAttempt attempt,
+            ActionListener<RepositoryData> listener
+        );
+    }
+
+    /**
+     * Returns an abandonment-aware finalization entry point for writable, strictly consistent full-copy repositories with
+     * verified store-enforced conditional writes. Evaluate this I/O-free capability check for each operation. A decorator
+     * that exposes the capability must pass the same {@link SnapshotFinalizationAttempt} to the wrapped entry point.
+     */
+    @ExperimentalApi
+    default Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
+        return Optional.empty();
     }
 
     /**

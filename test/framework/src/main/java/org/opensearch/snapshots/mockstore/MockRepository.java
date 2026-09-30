@@ -41,18 +41,23 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.support.FilterBlobContainer;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -72,10 +77,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
@@ -177,6 +186,25 @@ public class MockRepository extends FsRepository {
     private volatile boolean blocked = false;
     private volatile boolean setThrowExceptionWhileDelete;
 
+    private final boolean conditionalWrites;
+
+    private final String blobVersionRoot;
+
+    private static final Object BLOB_VERSION_LOCK = new Object();
+
+    /** Guarded by {@link #BLOB_VERSION_LOCK}. */
+    private static final Map<String, String> BLOB_VERSIONS = new HashMap<>();
+
+    private static final AtomicLong BLOB_VERSION_COUNTER = new AtomicLong();
+
+    private final AtomicReference<String> blockOnceOnRootWrite = new AtomicReference<>();
+    private final AtomicReference<String> blockOnceOnConditionalRootWrite = new AtomicReference<>();
+    private volatile boolean blockedOnRootBlob;
+
+    private final Semaphore conditionalWriteProbesDone = new Semaphore(0);
+
+    private final AtomicLong conditionalWriteCount = new AtomicLong();
+
     public MockRepository(
         RepositoryMetadata metadata,
         Environment environment,
@@ -199,12 +227,20 @@ public class MockRepository extends FsRepository {
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         env = environment;
+        conditionalWrites = metadata.settings().getAsBoolean("conditional_writes", false);
+        final String location = this.metadata.settings().get("location");
+        blobVersionRoot = location == null ? "" : environment.resolveRepoFile(location).toAbsolutePath().normalize().toString();
         logger.info("starting mock repository with random prefix {}", randomPrefix);
     }
 
     @Override
     public RepositoryMetadata getMetadata() {
         return overrideSettings(super.getMetadata(), env);
+    }
+
+    @Override
+    public Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization() {
+        return conditionalWrites ? blobStoreAbandonableSnapshotFinalization() : Optional.empty();
     }
 
     private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {
@@ -250,6 +286,9 @@ public class MockRepository extends FsRepository {
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
+        blockOnceOnRootWrite.set(null);
+        blockOnceOnConditionalRootWrite.set(null);
+        blockedOnRootBlob = false;
         this.notifyAll();
     }
 
@@ -315,6 +354,22 @@ public class MockRepository extends FsRepository {
         this.failOnIndexLatest = failOnIndexLatest;
     }
 
+    public void setBlockOnceOnRootWrite(String blobName) {
+        blockOnceOnRootWrite.set(blobName);
+    }
+
+    public void setBlockOnceOnConditionalRootWrite(String blobName) {
+        blockOnceOnConditionalRootWrite.set(blobName);
+    }
+
+    public boolean awaitConditionalWriteProbe(TimeValue timeout) throws InterruptedException {
+        return conditionalWriteProbesDone.tryAcquire(timeout.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    public long conditionalWriteCount() {
+        return conditionalWriteCount.get();
+    }
+
     private synchronized boolean blockExecution() {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
@@ -327,7 +382,8 @@ public class MockRepository extends FsRepository {
                 || blockAndFailOnWriteSnapFile
                 || blockOnDeleteIndexN
                 || blockOnWriteShardLevelMeta
-                || blockOnReadIndexMeta) {
+                || blockOnReadIndexMeta
+                || blockedOnRootBlob) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -464,6 +520,82 @@ public class MockRepository extends FsRepository {
                 super(delegate);
             }
 
+            private String versionKey(String blobName) {
+                return blobVersionRoot + '/' + path().buildAsString() + blobName;
+            }
+
+            /** Returns the current blob version. The caller must hold {@link #BLOB_VERSION_LOCK}. */
+            private String currentVersion(String blobName) {
+                return BLOB_VERSIONS.computeIfAbsent(versionKey(blobName), k -> Long.toString(BLOB_VERSION_COUNTER.incrementAndGet()));
+            }
+
+            private void versionedWrite(String blobName, CheckedRunnable<IOException> write) throws IOException {
+                if (conditionalWrites == false) {
+                    write.run();
+                    return;
+                }
+                synchronized (BLOB_VERSION_LOCK) {
+                    write.run();
+                    BLOB_VERSIONS.put(versionKey(blobName), Long.toString(BLOB_VERSION_COUNTER.incrementAndGet()));
+                }
+            }
+
+            private void maybeBlockOnceOnRootBlob(AtomicReference<String> parkPoint, String blobName) throws IOException {
+                final String armed = parkPoint.get();
+                if (blobName.equals(armed) && path().equals(basePath()) && parkPoint.compareAndSet(armed, null)) {
+                    blockedOnRootBlob = true;
+                    blockExecutionAndMaybeWait(blobName);
+                }
+            }
+
+            @Override
+            public boolean isConditionalWriteSupported() {
+                return conditionalWrites;
+            }
+
+            @Override
+            public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+                if (conditionalWrites == false) {
+                    return super.readBlobWithVersion(blobName);
+                }
+                synchronized (BLOB_VERSION_LOCK) {
+                    try (InputStream stream = super.readBlob(blobName)) {
+                        return new VersionedBlob(stream.readAllBytes(), currentVersion(blobName));
+                    }
+                }
+            }
+
+            @Override
+            public String writeBlobConditionally(
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                @Nullable String expectedVersionToken
+            ) throws IOException {
+                if (conditionalWrites == false) {
+                    return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+                }
+                conditionalWriteCount.incrementAndGet();
+                maybeBlockOnceOnRootBlob(blockOnceOnConditionalRootWrite, blobName);
+                final BytesArray bytes = new BytesArray(inputStream.readAllBytes());
+                synchronized (BLOB_VERSION_LOCK) {
+                    final boolean exists = super.blobExists(blobName);
+                    if (expectedVersionToken == null
+                        ? exists
+                        : (exists == false || expectedVersionToken.equals(currentVersion(blobName)) == false)) {
+                        throw new BlobVersionConflictException(
+                            "[" + blobName + "] does not have the expected version [" + expectedVersionToken + "]"
+                        );
+                    }
+                    try (InputStream stream = bytes.streamInput()) {
+                        super.writeBlobAtomic(blobName, stream, bytes.length(), false);
+                    }
+                    final String version = Long.toString(BLOB_VERSION_COUNTER.incrementAndGet());
+                    BLOB_VERSIONS.put(versionKey(blobName), version);
+                    return version;
+                }
+            }
+
             @Override
             protected BlobContainer wrapChild(BlobContainer child) {
                 return new MockBlobContainer(child);
@@ -504,8 +636,13 @@ public class MockRepository extends FsRepository {
                     deleteBlobsIgnoringIfNotExists(Collections.singletonList(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
-                blobStore().blobContainer(path().parent())
-                    .deleteBlobsIgnoringIfNotExists(Collections.singletonList(path().toArray()[path().toArray().length - 1]));
+                final String name = path().toArray()[path().toArray().length - 1];
+                blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
+                if (path().parent().equals(basePath())
+                    && name.startsWith("tests-")
+                    && blobs.keySet().stream().noneMatch(blob -> blob.equals("master.dat") || blob.startsWith("data-"))) {
+                    conditionalWriteProbesDone.release();
+                }
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
@@ -517,7 +654,16 @@ public class MockRepository extends FsRepository {
                 if (setThrowExceptionWhileDelete) {
                     throw new IOException("Random exception");
                 }
-                super.deleteBlobsIgnoringIfNotExists(blobNames);
+                if (conditionalWrites) {
+                    synchronized (BLOB_VERSION_LOCK) {
+                        super.deleteBlobsIgnoringIfNotExists(blobNames);
+                        for (String blobName : blobNames) {
+                            BLOB_VERSIONS.remove(versionKey(blobName));
+                        }
+                    }
+                } else {
+                    super.deleteBlobsIgnoringIfNotExists(blobNames);
+                }
             }
 
             @Override
@@ -549,7 +695,8 @@ public class MockRepository extends FsRepository {
                     && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
-                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                maybeBlockOnceOnRootBlob(blockOnceOnRootWrite, blobName);
+                versionedWrite(blobName, () -> super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists));
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -575,18 +722,19 @@ public class MockRepository extends FsRepository {
                         blockExecutionAndMaybeWait(blobName);
                     }
                 }
+                maybeBlockOnceOnRootBlob(blockOnceOnRootWrite, blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
                     super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    versionedWrite(blobName, () -> fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists));
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    versionedWrite(blobName, () -> super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists));
                 }
             }
 
@@ -604,7 +752,7 @@ public class MockRepository extends FsRepository {
                     && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
-                super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata);
+                versionedWrite(blobName, () -> super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata));
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -627,7 +775,10 @@ public class MockRepository extends FsRepository {
                     && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
-                super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, cryptoMetadata);
+                versionedWrite(
+                    blobName,
+                    () -> super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, cryptoMetadata)
+                );
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -660,12 +811,15 @@ public class MockRepository extends FsRepository {
                     super.writeBlobWithMetadata(tempBlobName, inputStream, blobSize, failIfAlreadyExists, metadata);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    versionedWrite(blobName, () -> fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists));
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomicWithMetadata(blobName, inputStream, metadata, blobSize, failIfAlreadyExists);
+                    versionedWrite(
+                        blobName,
+                        () -> super.writeBlobAtomicWithMetadata(blobName, inputStream, metadata, blobSize, failIfAlreadyExists)
+                    );
                 }
             }
         }
