@@ -74,7 +74,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
@@ -89,6 +91,7 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -102,6 +105,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.compress.NotXContentException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
@@ -153,6 +157,7 @@ import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.SnapshotFinalizationAttempt;
 import org.opensearch.snapshots.AbortedSnapshotException;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
@@ -2638,6 +2643,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Priority repositoryUpdatePriority,
         final ActionListener<RepositoryData> listener
     ) {
+        finalizeSnapshotObservingAbandonment(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            repositoryUpdatePriority,
+            new SnapshotFinalizationAttempt(),
+            listener
+        );
+    }
+
+    private final Optional<AbandonableSnapshotFinalization> abandonableSnapshotFinalization = Optional.of(
+        this::finalizeSnapshotObservingAbandonment
+    );
+
+    /**
+     * Returns this class's abandonment-aware finalization entry point when time budgets are supported, for a subclass that
+     * declares it. The entry point bypasses overrides of the public finalization methods but retains dispatch through protected
+     * {@link #writeIndexGen}, and a subclass of a declaring class inherits the declaration.
+     */
+    protected final Optional<AbandonableSnapshotFinalization> blobStoreAbandonableSnapshotFinalization() {
+        return timeBudgetsSupported() ? abandonableSnapshotFinalization : Optional.empty();
+    }
+
+    private void finalizeSnapshotObservingAbandonment(
+        final ShardGenerations shardGenerations,
+        final long repositoryStateId,
+        final Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
+        SnapshotFinalizationAttempt attempt,
+        final ActionListener<RepositoryData> listener
+    ) {
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN : "Must finalize based on a valid repository generation but received ["
             + repositoryStateId
             + "]";
@@ -2654,11 +2696,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<RepositoryData> repoDataListener = new StepListener<>();
         getRepositoryData(repoDataListener);
         repoDataListener.whenComplete(existingRepositoryData -> {
+            failIfAbandoned(attempt.isAbandoned(), snapshotId);
 
             final Map<IndexId, String> indexMetas = ConcurrentCollections.newConcurrentMap();
             final Map<String, String> indexMetaIdentifiers = ConcurrentCollections.newConcurrentMap();
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(ActionListener.wrap(v -> {
+                failIfAbandoned(attempt.isAbandoned(), snapshotId);
                 final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
                     snapshotId,
                     snapshotInfo.state(),
@@ -2671,6 +2715,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // number_of_shards) has increased.
                 Set<String> updatedIndexIds = writeNewIndexShardPaths(existingRepositoryData, updatedRepositoryData, snapshotId);
                 cleanupRedundantSnapshotShardPaths(updatedIndexIds);
+                // After this claim succeeds, timeout may complete the caller but cannot prevent generation publication.
+                failIfAbandoned(attempt.startGenerationWrite() == false, snapshotId);
                 writeIndexGen(
                     updatedRepositoryData,
                     repositoryStateId,
@@ -2719,6 +2765,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 )
             );
         }, onUpdateFailure);
+    }
+
+    private void failIfAbandoned(boolean abandoned, SnapshotId snapshotId) {
+        if (abandoned) {
+            throw new SnapshotException(
+                metadata.name(),
+                snapshotId,
+                "snapshot was abandoned before finalization completed; not recording it in the repository",
+                null
+            );
+        }
     }
 
     /**
@@ -3394,6 +3451,134 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static String testBlobPrefix(String seed) {
         return TESTS_FILE + seed;
+    }
+
+    private enum ConditionalWriteProof {
+        UNKNOWN,
+        PROBING,
+        PROVEN,
+        UNPROVEN
+    }
+
+    private static final int MAX_CONDITIONAL_WRITE_PROBES = 3;
+
+    private final AtomicReference<ConditionalWriteProof> conditionalWriteProof = new AtomicReference<>(ConditionalWriteProof.UNKNOWN);
+
+    private final AtomicInteger conditionalWriteProbes = new AtomicInteger();
+
+    private boolean conditionalWritesProven() {
+        return conditionalWriteProof.get() == ConditionalWriteProof.PROVEN;
+    }
+
+    private boolean timeBudgetsSupported() {
+        if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false
+            || isReadOnly()
+            || bestEffortConsistency
+            || isSystemRepository
+            || REMOTE_STORE_INDEX_SHALLOW_COPY.get(metadata.settings())
+            || SHALLOW_SNAPSHOT_V2.get(metadata.settings())) {
+            return false;
+        }
+        if (conditionalWriteProof.get() == ConditionalWriteProof.UNKNOWN
+            && conditionalWriteProbes.get() < MAX_CONDITIONAL_WRITE_PROBES
+            && conditionalWriteProof.compareAndSet(ConditionalWriteProof.UNKNOWN, ConditionalWriteProof.PROBING)) {
+            try {
+                threadPool.generic().execute(this::probeConditionalWrites);
+            } catch (OpenSearchRejectedExecutionException e) {
+                conditionalWriteProof.set(ConditionalWriteProof.UNKNOWN);
+            }
+        }
+        return conditionalWritesProven();
+    }
+
+    private void probeConditionalWrites() {
+        BlobContainer container = null;
+        ConditionalWriteProof outcome;
+        Exception failure = null;
+        try {
+            container = blobStore().blobContainer(basePath().add(testBlobPrefix(UUIDs.randomBase64UUID())));
+            outcome = container.isConditionalWriteSupported() ? probeConditionalWrites(container) : ConditionalWriteProof.UNPROVEN;
+        } catch (Exception e) {
+            outcome = ConditionalWriteProof.UNKNOWN;
+            failure = e;
+        }
+        if (outcome == ConditionalWriteProof.UNKNOWN) {
+            if (conditionalWriteProbes.incrementAndGet() >= MAX_CONDITIONAL_WRITE_PROBES) {
+                outcome = ConditionalWriteProof.UNPROVEN;
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "[{}] could not complete a conditional write probe of the store in [{}] attempts; snapshot finalizations "
+                            + "on this repository are not given time budgets",
+                        metadata.name(),
+                        MAX_CONDITIONAL_WRITE_PROBES
+                    ),
+                    failure
+                );
+            } else {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "[{}] could not complete a conditional write probe of the store; probing again on a later request",
+                        metadata.name()
+                    ),
+                    failure
+                );
+            }
+        } else if (outcome == ConditionalWriteProof.UNPROVEN) {
+            logger.warn(
+                "[{}] the store does not support conditional writes or did not honour them for this client; snapshot finalizations "
+                    + "on this repository are not given time budgets",
+                metadata.name()
+            );
+        }
+        conditionalWriteProof.set(outcome);
+        if (container != null) {
+            try {
+                container.delete();
+            } catch (Exception e) {
+                logger.debug(
+                    () -> new ParameterizedMessage("[{}] failed to delete the conditional write probe container", metadata.name()),
+                    e
+                );
+            }
+        }
+    }
+
+    private static ConditionalWriteProof probeConditionalWrites(BlobContainer container) throws IOException {
+        final String blob = "probe";
+        if (writeConditionally(container, blob, 1L, null) == null) {
+            return ConditionalWriteProof.UNKNOWN;
+        }
+        if (writeConditionally(container, blob, 2L, null) != null) {
+            return ConditionalWriteProof.UNPROVEN;
+        }
+        final VersionedBlob first = container.readBlobWithVersion(blob);
+        if (Arrays.equals(first.content(), Numbers.longToBytes(1L)) == false
+            || writeConditionally(container, blob, 3L, first.versionToken()) == null) {
+            return ConditionalWriteProof.UNKNOWN;
+        }
+        if (writeConditionally(container, blob, 4L, first.versionToken()) != null) {
+            return ConditionalWriteProof.UNPROVEN;
+        }
+        final VersionedBlob second = container.readBlobWithVersion(blob);
+        final BytesArray overwrite = new BytesArray(Numbers.longToBytes(5L));
+        try (InputStream stream = overwrite.streamInput()) {
+            container.writeBlob(blob, stream, overwrite.length(), false);
+        }
+        if (writeConditionally(container, blob, 6L, second.versionToken()) != null) {
+            return ConditionalWriteProof.UNPROVEN;
+        }
+        return ConditionalWriteProof.PROVEN;
+    }
+
+    @Nullable
+    private static String writeConditionally(BlobContainer container, String blob, long value, @Nullable String expectedVersionToken)
+        throws IOException {
+        final BytesArray bytes = new BytesArray(Numbers.longToBytes(value));
+        try (InputStream stream = bytes.streamInput()) {
+            return container.writeBlobConditionally(blob, stream, bytes.length(), expectedVersionToken);
+        } catch (BlobVersionConflictException e) {
+            return null;
+        }
     }
 
     @Override

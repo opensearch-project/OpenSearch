@@ -57,6 +57,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.regex.Regex;
@@ -83,6 +84,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -130,6 +132,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final ClusterManagerTaskThrottler.ThrottlingKey putRepositoryTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
     private final Settings settings;
+
+    /** Repository names keyed by per-call completion flags for operations that outlive their timeout. */
+    private final Map<AtomicBoolean, String> callsPastBudget = ConcurrentCollections.newConcurrentMap();
 
     public RepositoriesService(
         Settings settings,
@@ -628,6 +633,31 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    /**
+     * Records a call that outlived its timeout. Use one flag per call; once {@link #callReturned(AtomicBoolean)} has been
+     * called with the same flag no record remains, whichever of the two runs first.
+     */
+    @ExperimentalApi
+    public void callPastBudget(AtomicBoolean returned, String repository) {
+        callsPastBudget.put(returned, repository);
+        if (returned.get()) {
+            callsPastBudget.remove(returned);
+        }
+    }
+
+    /** Marks the call identified by {@code returned} as complete. */
+    @ExperimentalApi
+    public void callReturned(AtomicBoolean returned) {
+        returned.set(true);
+        callsPastBudget.remove(returned);
+    }
+
+    /** Returns repositories with calls that outlived their timeout and have not completed. */
+    @ExperimentalApi
+    public Set<String> repositoriesWithCallsPastBudget() {
+        return Set.copyOf(callsPastBudget.values());
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {
