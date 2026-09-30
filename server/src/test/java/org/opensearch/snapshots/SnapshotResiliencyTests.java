@@ -46,6 +46,7 @@ import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositor
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
+import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -121,11 +122,13 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -137,6 +140,7 @@ import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.CoordinatorTests;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.ElectionStrategy;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
 import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -286,6 +290,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -376,6 +381,19 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             finalization.accept(listener);
         }
     }
+
+    private boolean failRepositoryDelete;
+
+    private boolean parkRepositoryDelete;
+    private ActionListener<RepositoryData> parkedRepositoryDelete;
+    @Nullable
+    private Runnable parkedRepositoryDeleteResume;
+    private boolean throwFromRepositoryDelete;
+    private final Map<String, Set<String>> pastBudgetAtFinalization = new ConcurrentHashMap<>();
+    private final AtomicBoolean failNextConsistentStateUpdate = new AtomicBoolean();
+
+    private final AtomicInteger publishAttempts = new AtomicInteger();
+    private final AtomicInteger deleteCalls = new AtomicInteger();
 
     @Before
     public void createServices() {
@@ -1381,6 +1399,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             throw new AssertionError(e);
         }
         assertTrue("the enforcing mock store must hand out the entrypoint", repository.abandonableSnapshotFinalization().isPresent());
+        assertTrue("the enforcing mock store must hand out the entrypoint", repository.abandonableSnapshotDelete().isPresent());
     }
 
     private static Set<String> blobNames(BlobContainer container) throws IOException {
@@ -1842,6 +1861,563 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, third::actionGet), OpenSearchTimeoutException.class));
         capturedFinalizations.remove("enforcing-repo2").run();
         runUntil(() -> inProgressEntry(clusterManagerNode, "s3") == null, TimeUnit.MINUTES.toMillis(1L));
+    }
+
+    public void testDeleteRemovalPublishFailureOutcomes() {
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final Coordinator publisher = clusterManagerNode.coordinator;
+        clusterManagerNode.clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            if (event.source().contains("remove snapshot deletion metadata") && publishAttempts.incrementAndGet() == 1) {
+                publishListener.onFailure(new FailedToCommitClusterStateException("injected"));
+            } else {
+                publisher.publish(event, publishListener, ackListener);
+            }
+        });
+        final AtomicBoolean created = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("repo", "test", 1), r -> created.set(true));
+        runUntil(created::get, TimeUnit.MINUTES.toMillis(1L));
+        final Repository repository = clusterManagerNode.repositoriesService.repository("repo");
+
+        try (FeatureFlags.TestUtils.FlagWriteLock ignored = new FeatureFlags.TestUtils.FlagWriteLock(FeatureFlags.SNAPSHOT_RESILIENCE)) {
+            final PlainActionFuture<AcknowledgedResponse> retried = snapshotThenDelete("retried");
+            runUntil(() -> publishAttempts.get() == 1, TimeUnit.MINUTES.toMillis(1L));
+            assertFalse("a pending retry must not resolve the client's delete", retried.isDone());
+            final SnapshotDeletionsInProgress deletions = clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+            assertThat(deletions.getEntries(), hasSize(1));
+            assertThat(deletions.getEntries().get(0).state(), is(SnapshotDeletionsInProgress.State.STARTED));
+            assertThat("the repository delete runs before the removal is published", deleteCalls.get(), is(1));
+            runUntil(retried::isDone, TimeUnit.MINUTES.toMillis(1L));
+            assertTrue(retried.actionGet().isAcknowledged());
+            assertThat("delete must execute against the repository exactly once", deleteCalls.get(), is(1));
+            assertThat("the retry must republish under the same source", publishAttempts.get(), is(2));
+            assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
+
+            failRepositoryDelete = true;
+            final PlainActionFuture<AcknowledgedResponse> failed = snapshotThenDelete("failed");
+            runUntil(
+                () -> publishAttempts.get() == 2
+                    && clusterManagerNode.clusterService.state()
+                        .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                        .hasDeletionsInProgress() == false,
+                TimeUnit.MINUTES.toMillis(1L)
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            failRepositoryDelete = false;
+            assertTrue("the published retry must answer the failed delete", failed.isDone());
+            final RepositoryException failure = expectThrows(RepositoryException.class, failed::actionGet);
+            assertThat(failure.getMessage(), containsString("injected repository delete failure"));
+            assertThat("the removal must have been retried once and then published", publishAttempts.get(), is(2));
+            assertThat(deleteCalls.get(), is(1));
+            assertEquals(
+                "a delete that failed before it changed the repository must not have removed the snapshot",
+                Set.of("failed"),
+                snapshotNames(getRepositoryData(repository))
+            );
+            assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
+        }
+
+        final PlainActionFuture<AcknowledgedResponse> terminal = snapshotThenDelete("terminal");
+        runUntil(() -> publishAttempts.get() == 1, TimeUnit.MINUTES.toMillis(1L));
+        assertTrue("with the flag off the first publish failure is terminal", terminal.isDone());
+        final RepositoryException failure = expectThrows(RepositoryException.class, terminal::actionGet);
+        assertThat(failure.getMessage(), containsString("Failed to update cluster state during repository operation"));
+        assertThat("no retry may republish with the flag off", publishAttempts.get(), is(1));
+        assertThat(deleteCalls.get(), is(1));
+        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
+
+        clusterManagerNode.clusterService.submitStateUpdateTask("drop stranded deletion", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return ClusterState.builder(currentState)
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                    .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError("clearing the stranded delete marker must not fail", e);
+            }
+        });
+        runUntil(
+            () -> clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress() == false,
+            TimeUnit.MINUTES.toMillis(1L)
+        );
+    }
+
+    private PlainActionFuture<AcknowledgedResponse> snapshotThenDelete(String snapshotName) {
+        final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot(snapshotName);
+        runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+        assertEquals(SnapshotState.SUCCESS, snapshot.actionGet().getSnapshotInfo().state());
+        publishAttempts.set(0);
+        deleteCalls.set(0);
+        return startDelete("repo", snapshotName);
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testDeleteTimesOutAndDiscardsTheLateRepositoryAnswer() {
+        blobStoreContext = null;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final AtomicBoolean created = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("repo", "test", 1, ENFORCING_MOCK_STORE), r -> created.set(true));
+        runUntil(created::get, TimeUnit.MINUTES.toMillis(1L));
+        proveRepository(clusterManagerNode);
+        deleteCalls.set(0);
+        parkRepositoryDelete = true;
+
+        final TimeValue budget = TimeValue.timeValueMinutes(30);
+        assertThat(
+            "this test is calibrated to the shipped default budget",
+            clusterManagerNode.snapshotsService.repositoryIoTimeout(),
+            is(budget)
+        );
+
+        final AtomicInteger acknowledgements = new AtomicInteger();
+        final List<Exception> failures = new ArrayList<>();
+        final StepListener<CreateSnapshotResponse> snapshotCreated = new StepListener<>();
+        client().admin().cluster().prepareCreateSnapshot("repo", "snapshot").setWaitForCompletion(true).execute(snapshotCreated);
+        continueOrDie(
+            snapshotCreated,
+            createSnapshotResponse -> client().admin()
+                .cluster()
+                .prepareDeleteSnapshot("repo", "snapshot")
+                .execute(ActionListener.wrap(acknowledged -> acknowledgements.incrementAndGet(), failures::add))
+        );
+
+        runUntil(() -> deleteCalls.get() == 1, TimeUnit.MINUTES.toMillis(1L));
+        runUntil(() -> failures.isEmpty() == false, budget.millis() + TimeUnit.MINUTES.toMillis(1L));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertThat("expiry must fail the caller exactly once", failures, hasSize(1));
+        assertThat("expiry must take the failure arm and not the success arm", acknowledgements.get(), is(0));
+        final Throwable timeout = ExceptionsHelper.unwrap(failures.get(0), OpenSearchTimeoutException.class);
+        assertNotNull("expected an OpenSearchTimeoutException, got [" + failures.get(0) + "]", timeout);
+        assertThat(timeout.getMessage(), containsString("delete 1 snapshot(s) from [repo]"));
+        assertThat(timeout.getMessage(), containsString("timed out after [" + budget + "]"));
+        assertThat("the delete reached the repository exactly once", deleteCalls.get(), is(1));
+        assertFalse(
+            "the delete marker must leave the cluster state, or nothing it was blocking is released",
+            clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress()
+        );
+
+        assertNotNull("the seam must have captured the listener the service handed the repository", parkedRepositoryDelete);
+        parkedRepositoryDelete.onResponse(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo")));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertThat("a late real answer must not answer the caller a second time", failures, hasSize(1));
+        assertThat("a late real answer must not acknowledge a delete already reported as failed", acknowledgements.get(), is(0));
+        assertFalse(
+            "a late real answer must not put a delete marker back into the cluster state",
+            clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress()
+        );
+        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testDeleteBudgetDispatch() {
+        blobStoreContext = null;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final TimeValue budget = clusterManagerNode.snapshotsService.repositoryIoTimeout();
+        final AtomicBoolean created = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("fs", "test", 1), r -> created.set(true));
+        runUntil(created::get, TimeUnit.MINUTES.toMillis(1L));
+        final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot("fs", "snapshot");
+        runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+        assertEquals(SnapshotState.SUCCESS, snapshot.actionGet().getSnapshotInfo().state());
+
+        parkRepositoryDelete = true;
+        deleteCalls.set(0);
+        final PlainActionFuture<AcknowledgedResponse> unsupported = startDelete("fs", "snapshot");
+        runUntil(() -> deleteCalls.get() == 1, TimeUnit.MINUTES.toMillis(1L));
+        final Runnable unsupportedCall = parkedRepositoryDeleteResume;
+        assertNotNull("a delete on a store that is not proven must take the narrow overload", unsupportedCall);
+        final PlainActionFuture<CreateSnapshotResponse> queued = startSnapshot("fs", "queued");
+        runUntil(() -> inProgress(clusterManagerNode, "queued"), TimeUnit.MINUTES.toMillis(1L));
+        runPast(budget);
+        assertTrue(
+            "its entry must still be in the cluster state",
+            clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress()
+        );
+        assertFalse("it must not be answered by a budget", unsupported.isDone());
+        assertEquals(
+            "nothing may record it as past a budget",
+            Set.of(),
+            clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget()
+        );
+        assertFalse("the create queued behind it must not have been failed", queued.isDone());
+        parkRepositoryDelete = false;
+        unsupportedCall.run();
+        runUntil(() -> unsupported.isDone() && queued.isDone(), TimeUnit.MINUTES.toMillis(1L));
+        assertTrue(unsupported.actionGet().isAcknowledged());
+        assertEquals(SnapshotState.SUCCESS, queued.actionGet().getSnapshotInfo().state());
+
+        for (String repoName : List.of("repo", "repo2")) {
+            putRepository(
+                new RepositoryMetadata(
+                    repoName,
+                    FsRepository.TYPE,
+                    Settings.builder().put(ENFORCING_MOCK_STORE).put("location", randomAlphaOfLength(10)).build()
+                )
+            );
+            proveRepository(clusterManagerNode, repoName);
+            final PlainActionFuture<CreateSnapshotResponse> proven = startSnapshot(repoName, "snapshot");
+            runUntil(proven::isDone, TimeUnit.MINUTES.toMillis(1L));
+            assertEquals(SnapshotState.SUCCESS, proven.actionGet().getSnapshotInfo().state());
+        }
+        parkRepositoryDelete = true;
+        parkedRepositoryDelete = null;
+        parkedRepositoryDeleteResume = null;
+        final PlainActionFuture<AcknowledgedResponse> supported = startDelete("repo", "snapshot");
+        runUntil(supported::isDone, budget.millis() + TimeUnit.MINUTES.toMillis(1L));
+        assertNotNull(
+            "a delete on a proven store must be answered by its budget",
+            ExceptionsHelper.unwrap(expectThrows(Exception.class, supported::actionGet), OpenSearchTimeoutException.class)
+        );
+        final ActionListener<RepositoryData> givenUp = parkedRepositoryDelete;
+        assertNotNull("it must be parked in the entrypoint", givenUp);
+        assertNull("it must not take the narrow overload", parkedRepositoryDeleteResume);
+        assertEquals(Set.of("repo"), clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget());
+
+        final PlainActionFuture<AcknowledgedResponse> behind = startDelete("repo2", "snapshot");
+        runUntil(() -> parkedRepositoryDelete != givenUp, TimeUnit.MINUTES.toMillis(1L));
+        final Runnable behindCall = parkedRepositoryDeleteResume;
+        assertNotNull("a delete started while another call is past its budget must take the narrow overload", behindCall);
+        runPast(budget);
+        assertFalse("and must not be answered by a budget", behind.isDone());
+
+        givenUp.onResponse(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo")));
+        parkRepositoryDelete = false;
+        behindCall.run();
+        runUntil(behind::isDone, TimeUnit.MINUTES.toMillis(1L));
+        assertTrue(behind.actionGet().isAcknowledged());
+        assertEquals(Set.of(), clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget());
+        assertTrue(clusterManagerNode.snapshotsService.assertAllListenersResolved());
+    }
+
+    private PlainActionFuture<AcknowledgedResponse> startDelete(String repoName, String snapshotName) {
+        final PlainActionFuture<AcknowledgedResponse> deleted = PlainActionFuture.newFuture();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleted);
+        return deleted;
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testCleanupAndRepositoryChangesWaitForAGivenUpDelete() {
+        blobStoreContext = null;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final Repository repository = parkAGivenUpDelete(clusterManagerNode);
+        final long generation = getRepositoryData(repository).getGenId();
+
+        assertFailedWith(failureOf(cleanupRepo("repo"), "a cleanup while the given-up delete runs"), "outlived its time budget");
+        assertFailedWith(
+            failureOf(cleanupRepo("other"), "a cleanup of another repository while the given-up delete runs"),
+            "outlived its time budget"
+        );
+        assertFailedWith(
+            failureOf(changeRepositorySettings(clusterManagerNode, "repo"), "a settings change while the given-up delete runs"),
+            "trying to modify or unregister repository that is currently used"
+        );
+        assertTrue(
+            "the change must be one the repository reloads in place",
+            repository.isReloadableSettings(reloadableChange(repository.getMetadata()))
+        );
+        assertFailedWith(
+            failureOf(putRepository(reloadableChange(repository.getMetadata())), "a reloadable change while the given-up delete runs"),
+            "trying to modify or unregister repository that is currently used"
+        );
+        assertFailedWith(
+            failureOf(unregisterRepository("repo"), "an unregistration while the given-up delete runs"),
+            "trying to modify or unregister repository that is currently used"
+        );
+        assertNull(
+            "a settings change to another repository must be admitted",
+            failureOrNull(changeRepositorySettings(clusterManagerNode, "other"))
+        );
+        assertNull(
+            "a reloadable change to another repository must be admitted",
+            failureOrNull(putRepository(reloadableChange(clusterManagerNode.repositoriesService.repository("other").getMetadata())))
+        );
+        assertNull("another repository's unregistration must be admitted", failureOrNull(unregisterRepository("other")));
+        assertEquals("the parked delete must not have moved the generation", generation, getRepositoryData(repository).getGenId());
+
+        parkedRepositoryDelete.onResponse(getRepositoryData(repository));
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(
+            "a call that has returned must no longer be recorded",
+            clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget().isEmpty()
+        );
+        assertNull("a cleanup once the given-up call has returned must be admitted", failureOrNull(cleanupRepo("repo")));
+        assertNull(
+            "a reloadable change once the given-up call has returned must be admitted",
+            failureOrNull(putRepository(reloadableChange(repository.getMetadata())))
+        );
+        assertNull(
+            "a settings change once the given-up call has returned must be admitted",
+            failureOrNull(changeRepositorySettings(clusterManagerNode, "repo"))
+        );
+        final RepositoryMetadata current = clusterManagerNode.repositoriesService.repository("repo").getMetadata();
+        assertNull("an unregistration once the given-up call has returned must be admitted", failureOrNull(unregisterRepository("repo")));
+        assertNull(failureOrNull(putRepository(current)));
+    }
+
+    private Repository parkAGivenUpDelete(TestClusterNodes.TestClusterNode clusterManagerNode) {
+        final AtomicBoolean created = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("repo", "test", 1, ENFORCING_MOCK_STORE), r -> created.set(true));
+        runUntil(created::get, TimeUnit.MINUTES.toMillis(1L));
+        proveRepository(clusterManagerNode);
+        putRepository(
+            new RepositoryMetadata("other", FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(10)).build())
+        );
+        final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot("snapshot");
+        runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+
+        parkRepositoryDelete = true;
+        final PlainActionFuture<AcknowledgedResponse> deleted = startDelete("repo", "snapshot");
+        runUntil(() -> parkedRepositoryDelete != null, TimeUnit.MINUTES.toMillis(1L));
+        assertFailedWith(failureOf(cleanupRepo("repo"), "a cleanup while the delete runs"), "a snapshot is currently being deleted");
+        runUntil(deleted::isDone, TimeValue.timeValueMinutes(31L).millis());
+        assertNotNull(
+            "the delete must have been answered by its budget",
+            ExceptionsHelper.unwrap(expectThrows(Exception.class, deleted::actionGet), OpenSearchTimeoutException.class)
+        );
+        assertNotNull("the delete must still be parked in the repository", parkedRepositoryDelete);
+        assertFalse(
+            "the delete's entry must have left the cluster state",
+            clusterManagerNode.clusterService.state()
+                .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .hasDeletionsInProgress()
+        );
+        return clusterManagerNode.repositoriesService.repository("repo");
+    }
+
+    private static RepositoryMetadata reloadableChange(RepositoryMetadata current) {
+        final String next = "10mb".equals(current.settings().get("max_snapshot_bytes_per_sec")) ? "20mb" : "10mb";
+        return new RepositoryMetadata(
+            current.name(),
+            current.type(),
+            Settings.builder().put(current.settings()).put("max_snapshot_bytes_per_sec", next).build()
+        );
+    }
+
+    private PlainActionFuture<AcknowledgedResponse> putRepository(RepositoryMetadata metadata) {
+        final PlainActionFuture<AcknowledgedResponse> put = PlainActionFuture.newFuture();
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            metadata.name(),
+            metadata.type(),
+            Settings.builder().put(metadata.settings()),
+            put
+        );
+        runUntil(put::isDone, TimeUnit.MINUTES.toMillis(1L));
+        return put;
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testADeleteWhoseRepositoryCallThrowsIsNotLeftRecorded() {
+        blobStoreContext = null;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final AtomicBoolean created = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("repo", "test", 1, ENFORCING_MOCK_STORE), r -> created.set(true));
+        runUntil(created::get, TimeUnit.MINUTES.toMillis(1L));
+        proveRepository(clusterManagerNode);
+        final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot("snapshot");
+        runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+
+        throwFromRepositoryDelete = true;
+        final PlainActionFuture<AcknowledgedResponse> deleted = startDelete("repo", "snapshot");
+        runUntil(deleted::isDone, TimeValue.timeValueMinutes(31L).millis());
+        throwFromRepositoryDelete = false;
+        assertNotNull(
+            "the delete must have been answered by its budget",
+            ExceptionsHelper.unwrap(expectThrows(Exception.class, deleted::actionGet), OpenSearchTimeoutException.class)
+        );
+        assertTrue(
+            "a call that threw must not stay recorded as running",
+            clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget().isEmpty()
+        );
+        assertNull("a cleanup once the budget has expired must be admitted", failureOrNull(cleanupRepo("repo")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testASnapshotReleasedByAGivenUpDeleteFinalizesWhileTheCallIsRecorded() {
+        blobStoreContext = null;
+        setupTestCluster(1, 1);
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.randomClusterManagerNodeSafe();
+        final int documents = indexDocumentsInAProvenRepository(clusterManagerNode);
+        for (boolean failFirstReconciliationRead : List.of(false, true)) {
+            final String suffix = failFirstReconciliationRead ? "-after-a-failed-read" : "";
+            final PlainActionFuture<CreateSnapshotResponse> snapshot = startSnapshot("snapshot" + suffix);
+            runUntil(snapshot::isDone, TimeUnit.MINUTES.toMillis(1L));
+            assertEquals(SnapshotState.SUCCESS, snapshot.actionGet().getSnapshotInfo().state());
+
+            parkRepositoryDelete = true;
+            parkedRepositoryDelete = null;
+            deleteCalls.set(0);
+            final PlainActionFuture<AcknowledgedResponse> deleted = startDelete("repo", "snapshot" + suffix);
+            runUntil(() -> deleteCalls.get() == 1, TimeUnit.MINUTES.toMillis(1L));
+            final PlainActionFuture<CreateSnapshotResponse> released = startSnapshot("released" + suffix);
+            runUntil(() -> inProgress(clusterManagerNode, "released" + suffix), TimeUnit.MINUTES.toMillis(1L));
+            if (failFirstReconciliationRead) {
+                failNextConsistentStateUpdate.set(true);
+            }
+
+            runUntil(deleted::isDone, TimeValue.timeValueMinutes(31L).millis());
+            assertNotNull(
+                "the delete must have been answered by its budget",
+                ExceptionsHelper.unwrap(expectThrows(Exception.class, deleted::actionGet), OpenSearchTimeoutException.class)
+            );
+            try {
+                runUntil(() -> pastBudgetAtFinalization.containsKey("released" + suffix), TimeUnit.MINUTES.toMillis(1L));
+            } catch (AssertionError e) {
+                throw new AssertionError("the released snapshot must reach the repository while the given-up call is recorded", e);
+            }
+            if (failFirstReconciliationRead) {
+                assertFalse("the premise: the reconciliation's first read failed", failNextConsistentStateUpdate.get());
+            }
+            assertEquals(
+                "the released snapshot must reach the repository while the given-up call is recorded",
+                Set.of("repo"),
+                pastBudgetAtFinalization.get("released" + suffix)
+            );
+
+            parkRepositoryDelete = false;
+            parkedRepositoryDelete.onResponse(getRepositoryData(clusterManagerNode.repositoriesService.repository("repo")));
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(
+                "a call that has returned must no longer be recorded",
+                clusterManagerNode.repositoriesService.repositoriesWithCallsPastBudget().isEmpty()
+            );
+            runUntil(released::isDone, TimeUnit.MINUTES.toMillis(1L));
+            assertEquals(SnapshotState.SUCCESS, released.actionGet().getSnapshotInfo().state());
+        }
+        assertRestoresEveryDocument("released-after-a-failed-read", documents);
+    }
+
+    private int indexDocumentsInAProvenRepository(TestClusterNodes.TestClusterNode clusterManagerNode) {
+        final int documents = randomIntBetween(1, 10);
+        final AtomicBoolean indexed = new AtomicBoolean();
+        continueOrDie(createRepoAndIndex("repo", "test", 1, ENFORCING_MOCK_STORE), createIndexResponse -> {
+            final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < documents; ++i) {
+                bulkRequest.add(new IndexRequest("test").source(Collections.singletonMap("foo", "bar" + i)));
+            }
+            final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+            client().bulk(bulkRequest, bulkResponseStepListener);
+            continueOrDie(bulkResponseStepListener, bulkResponse -> {
+                assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                indexed.set(true);
+            });
+        });
+        runUntil(indexed::get, TimeUnit.MINUTES.toMillis(1L));
+        proveRepository(clusterManagerNode);
+        return documents;
+    }
+
+    private void assertRestoresEveryDocument(String snapshotName, int documents) {
+        final AtomicBoolean restored = new AtomicBoolean();
+        final StepListener<AcknowledgedResponse> deleteIndexListener = new StepListener<>();
+        client().admin().indices().delete(new DeleteIndexRequest("test"), deleteIndexListener);
+        final StepListener<RestoreSnapshotResponse> restoreListener = new StepListener<>();
+        continueOrDie(
+            deleteIndexListener,
+            ignored -> client().admin()
+                .cluster()
+                .restoreSnapshot(new RestoreSnapshotRequest("repo", snapshotName).waitForCompletion(true), restoreListener)
+        );
+        final StepListener<SearchResponse> searchListener = new StepListener<>();
+        continueOrDie(
+            restoreListener,
+            restoreResponse -> client().search(
+                new SearchRequest("test").source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
+                searchListener
+            )
+        );
+        continueOrDie(searchListener, r -> {
+            assertEquals(
+                "the restored index must hold every document",
+                documents,
+                Objects.requireNonNull(r.getHits().getTotalHits()).value()
+            );
+            restored.set(true);
+        });
+        runUntil(restored::get, TimeUnit.MINUTES.toMillis(5L));
+    }
+
+    private PlainActionFuture<CleanupRepositoryResponse> cleanupRepo(String repoName) {
+        final PlainActionFuture<CleanupRepositoryResponse> cleaned = PlainActionFuture.newFuture();
+        client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest(repoName), cleaned);
+        runUntil(cleaned::isDone, TimeUnit.MINUTES.toMillis(1L));
+        return cleaned;
+    }
+
+    private PlainActionFuture<AcknowledgedResponse> changeRepositorySettings(TestClusterNodes.TestClusterNode node, String repoName) {
+        final Settings current = node.repositoriesService.repository(repoName).getMetadata().settings();
+        final PlainActionFuture<AcknowledgedResponse> changed = PlainActionFuture.newFuture();
+        OpenSearchIntegTestCase.putRepository(
+            client().admin().cluster(),
+            repoName,
+            FsRepository.TYPE,
+            Settings.builder().put(current).put("compress", current.getAsBoolean("compress", false) == false),
+            changed
+        );
+        runUntil(changed::isDone, TimeUnit.MINUTES.toMillis(1L));
+        return changed;
+    }
+
+    private PlainActionFuture<ClusterStateUpdateResponse> unregisterRepository(String repoName) {
+        final PlainActionFuture<ClusterStateUpdateResponse> unregistered = PlainActionFuture.newFuture();
+        testClusterNodes.randomClusterManagerNodeSafe().repositoriesService.unregisterRepository(
+            new DeleteRepositoryRequest(repoName),
+            unregistered
+        );
+        runUntil(unregistered::isDone, TimeUnit.MINUTES.toMillis(1L));
+        return unregistered;
+    }
+
+    private static Exception failureOf(PlainActionFuture<?> future, String what) {
+        final Exception failure = failureOrNull(future);
+        if (failure == null) {
+            throw new AssertionError(what + " must be refused, but was admitted");
+        }
+        return failure;
+    }
+
+    @Nullable
+    private static Exception failureOrNull(PlainActionFuture<?> future) {
+        assertTrue(future.isDone());
+        try {
+            future.actionGet();
+            return null;
+        } catch (Exception e) {
+            return e;
+        }
+    }
+
+    private static void assertFailedWith(Exception failure, String text) {
+        assertTrue(
+            "expected [" + text + "] in [" + failure + "]",
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> String.valueOf(t.getMessage()).contains(text)).isPresent()
+        );
+    }
+
+    private static boolean inProgress(TestClusterNodes.TestClusterNode node, String snapshotName) {
+        return node.clusterService.state()
+            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+            .entries()
+            .stream()
+            .anyMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName));
     }
 
     /**
@@ -3226,6 +3802,21 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                                 listener
                             );
                         }
+
+                        @Override
+                        public void deleteSnapshots(
+                            Collection<SnapshotId> snapshotIds,
+                            long repositoryStateId,
+                            Version repositoryMetaVersion,
+                            ActionListener<RepositoryData> listener
+                        ) {
+                            deleteCalls.incrementAndGet();
+                            if (failRepositoryDelete) {
+                                listener.onFailure(new RepositoryException(metadata.name(), "injected repository delete failure"));
+                                return;
+                            }
+                            super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+                        }
                     };
                 }
             }
@@ -3331,6 +3922,45 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         super.getRepositoryData(listener);
                     }
 
+                    @Override
+                    public void deleteSnapshots(
+                        Collection<SnapshotId> snapshotIds,
+                        long repositoryStateId,
+                        Version repositoryMetaVersion,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        deleteCalls.incrementAndGet();
+                        if (parkRepositoryDelete) {
+                            parkedRepositoryDelete = listener;
+                            parkedRepositoryDeleteResume = () -> super.deleteSnapshots(
+                                snapshotIds,
+                                repositoryStateId,
+                                repositoryMetaVersion,
+                                listener
+                            );
+                            return;
+                        }
+                        if (failRepositoryDelete) {
+                            listener.onFailure(new RepositoryException(metadata.name(), "injected repository delete failure"));
+                            return;
+                        }
+                        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+                    }
+
+                    @Override
+                    public Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+                        return blobStoreAbandonableSnapshotDelete().map(
+                            inherited -> (snapshotIds, repositoryStateId, repositoryMetaVersion, deletion, listener) -> {
+                                deleteCalls.incrementAndGet();
+                                if (parkRepositoryDelete) {
+                                    parkedRepositoryDelete = listener;
+                                    return;
+                                }
+                                inherited.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, deletion, listener);
+                            }
+                        );
+                    }
+
                 };
             }
 
@@ -3338,6 +3968,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 return new MockRepository(metadata, environment, xContentRegistry(), clusterService, recoverySettings) {
 
                     private Optional<AbandonableSnapshotFinalization> entrypoint = Optional.empty();
+                    private Optional<AbandonableSnapshotDelete> deleteEntrypoint = Optional.empty();
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {
@@ -3405,6 +4036,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         Priority repositoryUpdatePriority,
                         ActionListener<RepositoryData> listener
                     ) {
+                        pastBudgetAtFinalization.put(
+                            snapshotInfo.snapshotId().getName(),
+                            repositoriesService.repositoriesWithCallsPastBudget()
+                        );
                         narrowFinalizations.incrementAndGet();
                         finalizeThroughCapture(
                             metadata.name(),
@@ -3420,6 +4055,60 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             ),
                             listener
                         );
+                    }
+
+                    @Override
+                    public void deleteSnapshots(
+                        Collection<SnapshotId> snapshotIds,
+                        long repositoryStateId,
+                        Version repositoryMetaVersion,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        deleteCalls.incrementAndGet();
+                        if (parkRepositoryDelete) {
+                            parkedRepositoryDelete = listener;
+                            parkedRepositoryDeleteResume = () -> super.deleteSnapshots(
+                                snapshotIds,
+                                repositoryStateId,
+                                repositoryMetaVersion,
+                                listener
+                            );
+                            return;
+                        }
+                        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+                    }
+
+                    @Override
+                    public void executeConsistentStateUpdate(
+                        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+                        String source,
+                        Consumer<Exception> onFailure
+                    ) {
+                        if (failNextConsistentStateUpdate.compareAndSet(true, false)) {
+                            onFailure.accept(new RepositoryException(metadata.name(), "injected repository data read failure"));
+                            return;
+                        }
+                        super.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                    }
+
+                    @Override
+                    public synchronized Optional<AbandonableSnapshotDelete> abandonableSnapshotDelete() {
+                        if (deleteEntrypoint.isEmpty()) {
+                            deleteEntrypoint = super.abandonableSnapshotDelete().map(
+                                inherited -> (snapshotIds, repositoryStateId, repositoryMetaVersion, deletion, listener) -> {
+                                    deleteCalls.incrementAndGet();
+                                    if (throwFromRepositoryDelete) {
+                                        throw new RepositoryException(metadata.name(), "injected synchronous repository delete failure");
+                                    }
+                                    if (parkRepositoryDelete) {
+                                        parkedRepositoryDelete = listener;
+                                        return;
+                                    }
+                                    inherited.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, deletion, listener);
+                                }
+                            );
+                        }
+                        return deleteEntrypoint;
                     }
                 };
             }

@@ -939,7 +939,7 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
     }
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState;
+        return SnapshotsService.executeShardSnapshotUpdates(state, Arrays.asList(updates), repoName -> false).resultingState;
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(

@@ -675,6 +675,31 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         /**
+         * Same as {@link #withShardStates} but also replaces the indices. Clone state is not carried over, so not for a clone.
+         *
+         * @param indices indices resolved from the same repository data as {@code shards}
+         * @param shards new shard states
+         * @return the updated entry
+         */
+        public Entry withIndicesAndShardStates(final List<IndexId> indices, final Map<ShardId, ShardSnapshotStatus> shards) {
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                completed(shards.values()) ? State.SUCCESS : state,
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                userMetadata,
+                version,
+                remoteStoreIndexShallowCopy
+            );
+        }
+
+        /**
          * Same as {@link #withShardStates} but does not check if the snapshot completed and thus is only to be used when starting new
          * shard snapshots on data nodes for a running snapshot.
          */

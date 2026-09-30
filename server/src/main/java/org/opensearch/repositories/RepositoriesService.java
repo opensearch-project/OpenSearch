@@ -259,6 +259,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 public ClusterState execute(ClusterState currentState) {
                     if (isReloadableSettings == false) {
                         ensureRepositoryNotInUse(currentState, request.name());
+                    } else if (callsPastBudget.containsValue(request.name())) {
+                        // A timed-out call may still use this repository instance.
+                        throw new IllegalStateException("trying to modify or unregister repository that is currently used");
                     }
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
@@ -893,8 +896,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return false;
     }
 
-    private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        if (isRepositoryInUse(clusterState, repository)) {
+    // Timed-out repository calls may outlive their cluster-state entries.
+    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+        if (isRepositoryInUse(clusterState, repository) || callsPastBudget.containsValue(repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used");
         }
     }

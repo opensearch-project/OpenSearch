@@ -13,6 +13,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.Metadata;
@@ -27,12 +28,14 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -47,14 +50,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase {
@@ -330,6 +339,7 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
     public void testStateWithoutSnapshotV2TaskOnFailureRetries() throws Exception {
         ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 0);
         task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+        assertRetryScheduled("test-source", task);
     }
 
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
@@ -457,17 +467,14 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
 
     public void testRemoveFailedSnapshotTaskOnNoLongerClusterManagerWithoutListener() throws Exception {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        RuntimeException failure = new RuntimeException("original failure");
 
-        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
-            "test-source",
-            0,
-            snapshot,
-            new RuntimeException("original failure"),
-            null,
-            null
-        );
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask("test-source", 0, snapshot, failure, null, null);
 
         task.onNoLongerClusterManager("test-source");
+
+        assertEquals("the demotion must be recorded on the failure the caller supplied", 1, failure.getSuppressed().length);
+        assertTrue(failure.getSuppressed()[0].getMessage(), failure.getSuppressed()[0].getMessage().contains("no longer cluster-manager"));
     }
 
     public void testRemoveFailedSnapshotTaskOnNoLongerClusterManagerWithListener() throws Exception {
@@ -885,5 +892,213 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
 
     private void recordResolutionOf(Snapshot snapshot, Set<Snapshot> resolved) throws Exception {
         addListener(snapshot, ActionListener.wrap(ignored -> resolved.add(snapshot), e -> resolved.add(snapshot)));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testARetriedDeleteRemovalCarriesTheDeleteOutcome() throws Exception {
+        final Exception deleteFailure = new RepositoryException("repo", "the delete failed");
+        final Exception cleanupIncomplete = new IOException("the cleanup did not finish");
+        for (Tuple<Exception, Exception> outcome : List.of(
+            Tuple.<Exception, Exception>tuple(null, null),
+            Tuple.<Exception, Exception>tuple(deleteFailure, null),
+            Tuple.<Exception, Exception>tuple(null, cleanupIncomplete)
+        )) {
+            final SnapshotsService service = retryCapturingService();
+            final SnapshotDeletionsInProgress.Entry delete = deletionOf("repo");
+            final List<Exception> answers = new ArrayList<>();
+            runningDelete(service, delete, ActionListener.wrap(ignored -> answers.add(null), answers::add));
+            final ClusterStateUpdateTask task = service.createRemoveSnapshotDeletionTask(
+                DELETE_REMOVAL,
+                0,
+                delete,
+                outcome.v1(),
+                RepositoryData.EMPTY,
+                outcome.v2(),
+                true
+            );
+
+            task.onFailure(DELETE_REMOVAL, new FailedToCommitClusterStateException("simulated publish failure"));
+            assertThat("a removal that failed to publish must answer nobody", answers, empty());
+            assertThat("a removal that failed to publish must arm one retry", armedRetries, hasSize(1));
+            armedRetries.remove(0).run();
+            assertThat(submittedUpdates, hasSize(1));
+            assertEquals("a retry must be submitted under the source it was given", DELETE_REMOVAL, submittedUpdates.get(0).v1());
+            final ClusterStateUpdateTask retry = submittedUpdates.get(0).v2();
+            assertNotSame("a retry must be a fresh task, not the one that failed", task, retry);
+
+            final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(delete)))
+                .build();
+            retry.clusterStateProcessed(DELETE_REMOVAL, state, retry.execute(state));
+
+            assertEquals("the retry must answer with the delete's own outcome", Collections.singletonList(outcome.v1()), answers);
+            if (outcome.v2() != null) {
+                assertWarnings(
+                    "snapshots [snap-1] were deleted from repository [repo], but removal of the files they no longer use did not "
+                        + "finish; some of those files may remain in the repository"
+                );
+            }
+            assertTrue(service.assertAllListenersResolved());
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testARemovalRetryArmedBeforeAFailoverIsNotSubmittedAfterIt() throws Exception {
+        for (String source : List.of(FAILED_SNAPSHOT_REMOVAL, DELETE_REMOVAL)) {
+            for (String owedBy : new String[] { null, "repo", "other-repo" }) {
+                for (boolean abandoned : source.equals(DELETE_REMOVAL) ? List.of(false, true) : List.of(false)) {
+                    final String row = source + ", owed by " + owedBy + ", abandoned " + abandoned;
+                    final boolean unbounded = owedBy != null || abandoned;
+                    final SnapshotsService service = retryCapturingService();
+                    final AtomicInteger parkedAnswers = new AtomicInteger();
+                    final ClusterStateUpdateTask task = removalBelowTheLimit(service, source, owedBy, abandoned, parkedAnswers);
+                    final AtomicLong failovers = serviceField(service, "failovers");
+
+                    task.onFailure(source, new FailedToCommitClusterStateException("simulated publish failure"));
+                    assertEquals(
+                        row + ": one retry, on the delay of its policy",
+                        List.of(unbounded ? TimeValue.timeValueSeconds(30) : TimeValue.timeValueMillis(25_600)),
+                        armedDelays
+                    );
+                    assertEquals(row + ": a retry must not give up", 0, parkedAnswers.get());
+                    failOver(service);
+                    assertEquals(row + ": the failover gives up once", 1L, failovers.get());
+                    armedRetries.remove(0).run();
+                    assertThat(row + ": a retry armed before a failover must not be submitted after it", submittedUpdates, empty());
+                }
+            }
+        }
+    }
+
+    private static final String DELETE_REMOVAL = "remove snapshot deletion metadata";
+    private static final String FAILED_SNAPSHOT_REMOVAL = "remove snapshot metadata";
+
+    private final List<Runnable> armedRetries = new ArrayList<>();
+    private final List<TimeValue> armedDelays = new ArrayList<>();
+    private final List<Tuple<String, ClusterStateUpdateTask>> submittedUpdates = new ArrayList<>();
+    private ClusterSettings retrySettings;
+
+    private SnapshotsService retryCapturingService() {
+        armedRetries.clear();
+        armedDelays.clear();
+        submittedUpdates.clear();
+        final ThreadPool capturingPool = spy(threadPool);
+        doAnswer(invocation -> {
+            if (ThreadPool.Names.GENERIC.equals(invocation.getArgument(2))) {
+                armedRetries.add(invocation.getArgument(0));
+                armedDelays.add(invocation.getArgument(1));
+                return null;
+            }
+            return invocation.callRealMethod();
+        }).when(capturingPool).schedule(any(), any(), anyString());
+        retrySettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterService capturingClusterService = mock(ClusterService.class);
+        when(capturingClusterService.getClusterSettings()).thenReturn(retrySettings);
+        doAnswer(invocation -> {
+            submittedUpdates.add(Tuple.tuple(invocation.getArgument(0), invocation.getArgument(1)));
+            return null;
+        }).when(capturingClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(capturingPool);
+        return new SnapshotsService(
+            Settings.builder().put("node.name", "test").putList("node.roles", "cluster_manager", "data").build(),
+            capturingClusterService,
+            mock(org.opensearch.cluster.metadata.IndexNameExpressionResolver.class),
+            mock(org.opensearch.repositories.RepositoriesService.class),
+            transportService,
+            mock(org.opensearch.action.support.ActionFilters.class),
+            null,
+            new org.opensearch.indices.RemoteStoreSettings(Settings.EMPTY, retrySettings),
+            null
+        );
+    }
+
+    @SuppressForbidden(reason = "the running-delete bookkeeping is private and must not gain a test seam")
+    private static void runningDelete(SnapshotsService service, SnapshotDeletionsInProgress.Entry delete, ActionListener<Void> listener)
+        throws Exception {
+        final Set<String> currentlyFinalizing = serviceField(service, "currentlyFinalizing");
+        currentlyFinalizing.add(delete.repository());
+        final Object queue = serviceField(service, "repositoryOperations");
+        final Method startDeletion = queue.getClass().getDeclaredMethod("startDeletion", String.class);
+        startDeletion.setAccessible(true);
+        startDeletion.invoke(queue, delete.uuid());
+        final Map<String, List<ActionListener<Void>>> deleteListeners = serviceField(service, "snapshotDeletionListeners");
+        deleteListeners.put(delete.uuid(), new ArrayList<>(List.of(listener)));
+    }
+
+    private static void failOver(SnapshotsService service) {
+        service.createRemoveFailedSnapshotTask(
+            FAILED_SNAPSHOT_REMOVAL,
+            0,
+            new Snapshot("repo", new SnapshotId("other", UUIDs.randomBase64UUID())),
+            new RepositoryException("repo", "failed"),
+            null,
+            null
+        ).onFailure(FAILED_SNAPSHOT_REMOVAL, new NotClusterManagerException("no longer cluster manager"));
+    }
+
+    private ClusterStateUpdateTask removalBelowTheLimit(
+        SnapshotsService service,
+        String source,
+        String owedBy,
+        boolean abandoned,
+        AtomicInteger parkedAnswers
+    ) throws Exception {
+        final int limit = 9;
+        retrySettings.applySettings(
+            Settings.builder()
+                .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getKey(), limit)
+                .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.getKey(), "100ms")
+                .build()
+        );
+        if (owedBy != null) {
+            final Set<String> reconciliationOwed = serviceField(service, "reconciliationOwed");
+            reconciliationOwed.add(owedBy);
+        }
+        addListener(
+            service,
+            new Snapshot(owedBy == null ? "repo" : owedBy, new SnapshotId("parked", UUIDs.randomBase64UUID())),
+            ActionListener.wrap(r -> parkedAnswers.incrementAndGet(), e -> parkedAnswers.incrementAndGet())
+        );
+        if (source.equals(DELETE_REMOVAL)) {
+            final SnapshotDeletionsInProgress.Entry delete = deletionOf("repo");
+            if (abandoned) {
+                final Set<String> abandonedDeletes = serviceField(service, "abandonedDeletes");
+                abandonedDeletes.add(delete.uuid());
+            }
+            return service.createRemoveSnapshotDeletionTask(
+                source,
+                limit - 1,
+                delete,
+                new RepositoryException("repo", "the delete timed out"),
+                RepositoryData.EMPTY,
+                null,
+                true
+            );
+        }
+        return service.createRemoveFailedSnapshotTask(
+            source,
+            limit - 1,
+            snapshot("failed"),
+            new RepositoryException("repo", "the snapshot failed"),
+            null,
+            null
+        );
+    }
+
+    private static SnapshotDeletionsInProgress.Entry deletionOf(String repository) {
+        return new SnapshotDeletionsInProgress.Entry(
+            List.of(new SnapshotId("snap-1", UUIDs.randomBase64UUID())),
+            repository,
+            0L,
+            1L,
+            SnapshotDeletionsInProgress.State.STARTED
+        );
+    }
+
+    private void assertRetryScheduled(String source, ClusterStateUpdateTask failed) {
+        final ArgumentCaptor<ClusterStateUpdateTask> retry = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        verify(clusterService, timeout(5000)).submitStateUpdateTask(eq(source), retry.capture());
+        assertNotSame("a retry must be a fresh task, not the one that failed", failed, retry.getValue());
     }
 }

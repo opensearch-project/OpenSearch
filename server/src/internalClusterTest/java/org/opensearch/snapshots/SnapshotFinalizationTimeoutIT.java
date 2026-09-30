@@ -179,9 +179,9 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
                 .get()
                 .getSnapshotInfo();
             assertThat("a same-name retry must run its normal flow", retried.state(), is(SnapshotState.SUCCESS));
-            clusterAdmin().prepareCleanupRepository(REPO).get();
+            expectThrows(IllegalStateException.class, () -> clusterAdmin().prepareCleanupRepository(REPO).get());
             rootBlobsBeforeRelease = rootBlobNames(repoPath);
-            assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
+            expectThrows(IllegalStateException.class, () -> clusterAdmin().prepareDeleteRepository(REPO).get());
         } finally {
             repository.release();
         }
@@ -191,9 +191,11 @@ public class SnapshotFinalizationTimeoutIT extends AbstractSnapshotIntegTestCase
             )
         );
         awaitNoMoreRunningOperations(clusterManagerNode);
+        assertAcked(clusterAdmin().prepareDeleteRepository(REPO).get());
         createEnforcingRepository(repoPath);
 
         assertThat("the stopped call must write nothing at the root", rootBlobNames(repoPath), equalTo(rootBlobsBeforeRelease));
+        clusterAdmin().prepareCleanupRepository(REPO).get();
         assertOneSnapshotNamed(repoPath, getRepositoryData(REPO).getGenId(), RETRIED);
         assertThat(snapshotNames(getRepositoryData(REPO).getSnapshotIds()), equalTo(Set.of("other", QUEUED, RETRIED)));
         assertRestoresDocuments(RETRIED, QUEUED_INDEX, documents);

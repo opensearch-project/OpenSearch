@@ -105,6 +105,11 @@ public class SnapshotRepositoryIoTimeoutTests extends OpenSearchTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final SnapshotsService service = newClusterManagerSnapshotsService(clusterSettings, Settings.EMPTY);
         assertEquals(TimeValue.timeValueMinutes(30), service.repositoryIoTimeout());
+        assertSame(
+            "flag off, the instance seam must return the caller's own listener",
+            listener,
+            service.withRepositoryIoTimeout(DESCRIPTION, listener)
+        );
         final Settings update = Settings.builder().put(SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getKey(), "10m").build();
         clusterSettings.validateUpdate(update);
         clusterSettings.applySettings(update);
