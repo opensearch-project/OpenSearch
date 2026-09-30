@@ -415,6 +415,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile AsyncShardRefreshTask refreshTask;
     private final Object periodicFlushMutex = new Object();
     private volatile AsyncShardFlushTask periodicFlushTask;
+
+    private final AtomicReference<Scheduler.ScheduledCancellable> primaryResyncTimeoutTask = new AtomicReference<>();
+
+    private void cancelPrimaryResyncTimeoutTask() {
+        Scheduler.ScheduledCancellable task = primaryResyncTimeoutTask.getAndSet(null);
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
@@ -897,7 +907,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             + ", new routing: "
                             + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
-                        final AtomicBoolean listenerRegistered = new AtomicBoolean(false);
                         try {
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
@@ -956,10 +965,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
 
-                            // Path B fix: schedule a watchdog timeout so that a lost transport response cannot leave
-                            // primaryReplicaResyncInProgress stuck forever. The flag is cleared with an idempotent
-                            // compareAndSet(true, false), so whichever of the watchdog or the resync listener runs first
-                            // clears it and the other clear is a harmless no-op.
                             final TimeValue resyncTimeout = recoverySettings.getPrimaryResyncTimeout();
                             final Scheduler.ScheduledCancellable timeoutTask = threadPool.schedule(() -> {
                                 if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
@@ -971,40 +976,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     );
                                 }
                             }, resyncTimeout, ThreadPool.Names.GENERIC);
+                            primaryResyncTimeoutTask.set(timeoutTask);
 
-                            listenerRegistered.set(true);
-                            primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
-                                @Override
-                                public void onResponse(ResyncTask resyncTask) {
-                                    timeoutTask.cancel();
-                                    primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    timeoutTask.cancel();
-                                    primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                    if (state == IndexShardState.CLOSED) {
-                                        // ignore, shutting down
-                                    } else {
-                                        failShard("exception during primary-replica resync", e);
+                            boolean syncerDispatched = false;
+                            try {
+                                primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+                                    @Override
+                                    public void onResponse(ResyncTask resyncTask) {
+                                        cancelPrimaryResyncTimeoutTask();
+                                        primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        logger.info(
+                                            "primary-replica resync completed with {} operations",
+                                            resyncTask.getResyncedOperations()
+                                        );
                                     }
-                                }
-                            });
-                        } catch (final AlreadyClosedException e) {
-                            // Path A fix: if we reach here before the syncer listener was registered,
-                            // the flag will never be cleared by the listener. Clear it now.
-                            if (listenerRegistered.get() == false) {
-                                boolean cleared = primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                if (cleared) {
-                                    logger.debug(
-                                        "[{}] cleared primaryReplicaResyncInProgress flag after AlreadyClosedException "
-                                            + "before resync listener registration",
-                                        shardId
-                                    );
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        cancelPrimaryResyncTimeoutTask();
+                                        primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        if (state == IndexShardState.CLOSED) {
+                                            // ignore, shutting down
+                                        } else {
+                                            failShard("exception during primary-replica resync", e);
+                                        }
+                                    }
+                                });
+                                syncerDispatched = true;
+                            } finally {
+                                if (syncerDispatched == false) {
+                                    cancelPrimaryResyncTimeoutTask();
+                                    primaryReplicaResyncInProgress.compareAndSet(true, false);
                                 }
                             }
+                        } catch (final AlreadyClosedException e) {
+                            cancelPrimaryResyncTimeoutTask();
+                            primaryReplicaResyncInProgress.compareAndSet(true, false);
+                            logger.debug("[{}] primary-replica resync skipped due to AlreadyClosedException", shardId);
+                        } catch (final Exception e) {
+                            cancelPrimaryResyncTimeoutTask();
+                            primaryReplicaResyncInProgress.compareAndSet(true, false);
+                            throw e;
                         }
                     }, null);
                 }
@@ -2865,6 +2877,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    cancelPrimaryResyncTimeoutTask();
                     IOUtils.close(
                         engine,
                         globalCheckpointListeners,
