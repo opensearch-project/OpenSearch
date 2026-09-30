@@ -71,7 +71,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1256,14 +1255,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return this.latestReplicationCheckpoint;
     }
 
-    // skip any shard that is a relocating primary or search only replica (not tracked by primary)
-    private boolean shouldSkipReplicationTimer(String allocationId) {
-        Optional<ShardRouting> shardRouting = routingTable.assignedShards()
-            .stream()
-            .filter(routing -> Objects.nonNull(routing.allocationId()))
-            .filter(routing -> routing.allocationId().getId().equals(allocationId))
-            .findAny();
-        return shardRouting.isPresent() && (shardRouting.get().primary() || shardRouting.get().isSearchOnly());
+    // A recovery target can be marked in-sync before its routing transitions from INITIALIZING to STARTED. Track replication lag
+    // only after the copy becomes active so that recovery finalization time is not reported as replication lag.
+    private boolean shouldSkipReplicationLag(String allocationId) {
+        final ShardRouting shardRouting = routingTable.getByAllocationId(allocationId);
+        // Missing routing entries are filtered by getUnavailableInSyncShards() before this method is called.
+        return shardRouting != null && (shardRouting.active() == false || shardRouting.primary() || shardRouting.isSearchOnly());
     }
 
     private void createReplicationLagTimers() {
@@ -1275,7 +1272,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 // it is possible for a shard to be in-sync but not yet removed from the checkpoints collection after a failover event.
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
-                    && shouldSkipReplicationTimer(allocationId) == false
+                    && shouldSkipReplicationLag(allocationId) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
                     && (indexSettings.isSegRepLocalEnabled() == true
                         || isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()))) {
@@ -1309,7 +1306,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 final CheckpointState cps = e.getValue();
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
-                    && shouldSkipReplicationTimer(e.getKey()) == false
+                    && shouldSkipReplicationLag(e.getKey()) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
                     && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)
                     && cps.checkpointTimers.get(latestReplicationCheckpoint).startTime() == 0) {
@@ -1332,13 +1329,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 /* Filter out:
                 - This shard's allocation id
                 - Any shards that are out of sync or unavailable (shard marked in-sync but has not been assigned to a node).
+                - Any non-active shards which are still recovering.
                 - (For remote store enabled clusters) Any shard that is not yet migrated to remote store enabled nodes during migration
                  */
                 .filter(
                     entry -> entry.getKey().equals(this.shardAllocationId) == false
                         && entry.getValue().inSync
                         && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
-                        && shouldSkipReplicationTimer(entry.getKey()) == false
+                        && shouldSkipReplicationLag(entry.getKey()) == false
                         /*Check if the current primary shard is migrating to remote and
                         all the other shard copies of the same index still hasn't completely moved over
                         to the remote enabled nodes. Ensures that:
