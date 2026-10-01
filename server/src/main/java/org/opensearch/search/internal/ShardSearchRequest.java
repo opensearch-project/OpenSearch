@@ -35,6 +35,7 @@ package org.opensearch.search.internal;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchLogRedaction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -498,9 +499,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return "shardId[" + shardId() + "]";
     }
 
-    // No longer carries the query source (see getDescription() above) — kept for binary compatibility.
+    // See getDescription() above — same source-carries-user-data reasoning, gated by the same toggle.
     public String getMetadataSupplier() {
-        return "";
+        if (source == null) {
+            return "source[]";
+        }
+        if (SearchLogRedaction.shouldRedact()) {
+            return "source[<redacted>]";
+        }
+        return "source[" + source.toString(FORMAT_PARAMS) + "]";
     }
 
     public Rewriteable<Rewriteable> getRewriteable() {

@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.Strings;
@@ -467,19 +468,60 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testDescriptionRedactsSourceLiteral() {
         String marker = "totally-fake-marker-xyz123";
         SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker)));
-        String description = toDescription(request);
-        assertThat(description, not(containsString(marker)));
-        assertThat(description, equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"));
+        withRedaction(true, () -> {
+            String description = toDescription(request);
+            assertThat(description, not(containsString(marker)));
+            assertThat(description, equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"));
+        });
     }
 
-    // The description never attempts to serialize the source, so a source that fails to serialize
-    // can't leak its error message either.
+    // cluster.search.log.redact_source defaults to false: the literal is present, matching
+    // pre-fix behavior.
+    public void testDescriptionIncludesSourceLiteralWhenRedactionDisabled() {
+        String marker = "totally-fake-marker-xyz123";
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker)));
+        withRedaction(false, () -> { assertThat(toDescription(request), containsString(marker)); });
+    }
+
+    // With redaction enabled, the description never attempts to serialize the source, so a source
+    // that fails to serialize can't leak its error message either.
     public void testDescriptionOnSourceError() {
-        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
-        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
         SearchRequest request = new SearchRequest();
-        request.source(new SearchSourceBuilder().query(queryBuilder));
-        assertThat(toDescription(request), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"));
+        request.source(new SearchSourceBuilder().query(unserializableGeoShapeQuery()));
+        withRedaction(
+            true,
+            () -> assertThat(toDescription(request), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[<redacted>]"))
+        );
+    }
+
+    // With redaction disabled, the original (pre-fix) behavior is restored: the serialization
+    // failure's message is embedded instead of the source.
+    public void testDescriptionOnSourceErrorWhenRedactionDisabled() {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(unserializableGeoShapeQuery()));
+        withRedaction(
+            false,
+            () -> assertThat(
+                toDescription(request),
+                equalTo(
+                    "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+                )
+            )
+        );
+    }
+
+    private GeoShapeQueryBuilder unserializableGeoShapeQuery() {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        return new GeoShapeQueryBuilder("geo", linearRing);
+    }
+
+    private void withRedaction(boolean redact, Runnable assertion) {
+        SearchLogRedaction.initialize(Settings.builder().put(SearchLogRedaction.REDACT_QUERY_LOG_SOURCE.getKey(), redact).build());
+        try {
+            assertion.run();
+        } finally {
+            SearchLogRedaction.initialize(Settings.EMPTY);
+        }
     }
 
     private String toDescription(SearchRequest request) {

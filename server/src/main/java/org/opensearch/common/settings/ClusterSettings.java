@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
+import org.opensearch.action.search.SearchLogRedaction;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.StreamSearchTransportService;
@@ -738,6 +739,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,
+                SearchLogRedaction.REDACT_QUERY_LOG_SOURCE,
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
                 ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
                 ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,

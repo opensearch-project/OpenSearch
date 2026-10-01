@@ -515,6 +515,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * unguarded by a level check.
      */
     private String safeRequestDescription() {
+        if (SearchLogRedaction.shouldRedact() == false) {
+            return request.toString();
+        }
         String opaqueId = task != null ? task.getHeader(Task.X_OPAQUE_ID) : null;
         String requestId = task != null ? task.getHeader(Task.X_REQUEST_ID) : null;
         return "search_type["

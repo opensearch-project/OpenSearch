@@ -34,6 +34,7 @@ package org.opensearch.search.internal;
 
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchLogRedaction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -56,6 +57,7 @@ import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
+import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,6 +66,7 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
@@ -228,5 +231,45 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    public void testGetMetadataSupplierRedactsSourceLiteral() {
+        String marker = "totally-fake-marker-xyz123";
+        ShardSearchRequest request = requestWithMarkerSource(marker);
+        SearchLogRedaction.initialize(Settings.builder().put(SearchLogRedaction.REDACT_QUERY_LOG_SOURCE.getKey(), true).build());
+        try {
+            String metadata = request.getMetadataSupplier();
+            assertThat(metadata, not(containsString(marker)));
+            assertThat(metadata, equalTo("source[<redacted>]"));
+        } finally {
+            SearchLogRedaction.initialize(Settings.EMPTY);
+        }
+    }
+
+    // cluster.search.log.redact_source defaults to false: the literal is present, matching
+    // pre-fix behavior.
+    public void testGetMetadataSupplierIncludesSourceLiteralWhenRedactionDisabled() {
+        String marker = "totally-fake-marker-xyz123";
+        ShardSearchRequest request = requestWithMarkerSource(marker);
+        SearchLogRedaction.initialize(Settings.EMPTY);
+        assertThat(request.getMetadataSupplier(), containsString(marker));
+    }
+
+    private ShardSearchRequest requestWithMarkerSource(String marker) {
+        SearchRequest searchRequest = new SearchRequest("index").source(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker))
+        ).allowPartialSearchResults(true);
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            0L,
+            null,
+            Strings.EMPTY_ARRAY
+        );
     }
 }

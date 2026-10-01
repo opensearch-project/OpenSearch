@@ -47,6 +47,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
+import org.opensearch.action.search.SearchLogRedaction;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
 import org.opensearch.action.search.SearchRequestOperationsListener;
@@ -576,6 +577,8 @@ public class Node implements Closeable {
 
             // Ensure feature flags from opensearch.yml are valid during plugin initialization.
             FeatureFlags.initializeFeatureFlags(tmpSettings);
+
+            SearchLogRedaction.initialize(tmpSettings);
 
             this.pluginsService = new PluginsService(
                 tmpSettings,

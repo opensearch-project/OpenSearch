@@ -723,7 +723,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     /**
      * Regression guard for the fix that replaced the raw {@code request} object in
      * {@code onShardFailure}'s log line with {@code safeRequestDescription()}. Asserts the query
-     * source never reaches the log, and that the safe descriptor fields do.
+     * source never reaches the log, and that the safe descriptor fields do, when
+     * {@code cluster.search.log.redact_source} is enabled.
      */
     public void testOnShardFailureLogDoesNotContainQuerySource() throws IllegalAccessException {
         final String marker = "totally-fake-marker-xyz123";
@@ -745,6 +746,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         Loggers.addAppender(logger, appender);
         Level originalLevel = logger.getLevel();
         Loggers.setLevel(logger, Level.DEBUG);
+        SearchLogRedaction.initialize(Settings.builder().put(SearchLogRedaction.REDACT_QUERY_LOG_SOURCE.getKey(), true).build());
         try {
             ShardId shardId = new ShardId("marker-index", "index-uuid", 0);
             action.onShardFailure(
@@ -762,6 +764,49 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             assertNotNull("expected onShardFailure to log", formatted);
             assertThat(formatted, containsString("search_type["));
             assertThat(formatted, containsString("marker-index"));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            Loggers.setLevel(logger, originalLevel);
+            SearchLogRedaction.initialize(Settings.EMPTY);
+        }
+    }
+
+    /**
+     * {@code cluster.search.log.redact_source} defaults to {@code false}: with no setting applied,
+     * {@code onShardFailure} logs the query source as before this fix.
+     */
+    public void testOnShardFailureLogContainsQuerySourceWhenRedactionDisabled() throws IllegalAccessException {
+        final String marker = "totally-fake-marker-xyz123";
+        SearchRequest searchRequest = new SearchRequest("marker-index").source(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker))
+        );
+        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(1);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            queryResult,
+            ActionListener.wrap(response -> {}, e -> {}),
+            false,
+            new AtomicLong(),
+            new TaskResourceUsage(randomLong(), randomLong())
+        );
+
+        CollectingAppender appender = new CollectingAppender("shard_failure_marker_appender_disabled");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Level originalLevel = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        SearchLogRedaction.initialize(Settings.EMPTY);
+        try {
+            ShardId shardId = new ShardId("marker-index", "index-uuid", 0);
+            action.onShardFailure(
+                0,
+                new SearchShardTarget("node", shardId, null, OriginalIndices.NONE),
+                new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE),
+                new IllegalArgumentException("boom")
+            );
+            String formatted = appender.findFormattedMessageContaining(": Failed to execute [");
+            assertNotNull("expected onShardFailure to log", formatted);
+            assertThat(formatted, containsString(marker));
         } finally {
             Loggers.removeAppender(logger, appender);
             Loggers.setLevel(logger, originalLevel);
