@@ -844,6 +844,63 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
     }
 
+    public void testAcquireThrottleRoleKeepsPerRoleBuckets() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("by", "role").put("node_limit", 1).build();
+        stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
+
+        String delim = WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER;
+        Releasable analyst = workloadGroupService.acquireThrottleOrReject("wg-1", "username|alice" + delim + "role|analyst");
+        assertNotNull(analyst);
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> workloadGroupService.acquireThrottleOrReject("wg-1", "username|bob" + delim + "role|analyst")
+        );
+
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "username|carol" + delim + "role|admin"));
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+
+        analyst.close();
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "username|bob" + delim + "role|analyst"));
+    }
+
+    /** {@code by: role} charges only the smallest role, so it does not cap a role (documented limitation). */
+    public void testAcquireThrottleRoleChargesOnlySmallestRole() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("by", "role").put("node_limit", 1).build();
+        stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
+
+        String delim = WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER;
+        // Charged to all_access, not readall.
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "role|all_access" + delim + "role|readall"));
+        // readall's bucket is still empty.
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "role|readall"));
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> workloadGroupService.acquireThrottleOrReject("wg-1", "role|all_access" + delim + "role|zzz")
+        );
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+    }
+
+    public void testAcquireThrottleFailsOpenWhenPrincipalMissingForRole() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        Settings throttling = Settings.builder().put("by", "role").put("node_limit", 1).build();
+        stubClusterStateWithGroup(throttledGroup("wg-1", throttling));
+
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", null));
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", ""));
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", "username|alice")); // no role token
+        assertNull(workloadGroupService.acquireThrottleOrReject("wg-1", "role|")); // empty role value
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+
+        // Control: proves the nulls above are fail-open, not throttling being off.
+        assertNotNull(workloadGroupService.acquireThrottleOrReject("wg-1", "role|admin"));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.acquireThrottleOrReject("wg-1", "role|admin"));
+    }
+
     public void testThrottleRejectionNamesGroupAndByValue() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");

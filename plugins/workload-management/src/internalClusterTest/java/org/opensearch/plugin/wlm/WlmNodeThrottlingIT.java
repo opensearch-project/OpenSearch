@@ -343,6 +343,77 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         assertNotNull(bobBlocked.actionGet(TIMEOUT));
     }
 
+    public void testRoleThrottlingKeepsPerRoleBuckets() throws Exception {
+        String workloadGroupId = "wlm_role_throttle_group";
+        String ruleId = "wlm_role_throttle_rule";
+        String indexName = "role_throttle_index";
+
+        setWlmMode("enabled");
+
+        WorkloadGroup workloadGroup = createThrottledWorkloadGroup("role_throttle_test_group", workloadGroupId, 1, "role");
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        assertBusy(() -> {
+            boolean present = client().admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .metadata()
+                .workloadGroups()
+                .containsKey(workloadGroupId);
+            assertTrue("workload group not yet applied in cluster state", present);
+        }, 30, TimeUnit.SECONDS);
+        createRule(ruleId, "role throttle rule", indexName, featureType, workloadGroupId);
+
+        indexDocument(indexName);
+
+        assertBusy(() -> {
+            int before = getCompletions(workloadGroupId);
+            clientWithPrincipal(principal("alice", "analyst")).prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            int after = getCompletions(workloadGroupId);
+            assertTrue("Expected search to be tagged to the throttled workload group", after > before);
+        }, 30, TimeUnit.SECONDS);
+
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+
+        ActionFuture<SearchResponse> aliceBlocked;
+        ActionFuture<SearchResponse> carolBlocked;
+        try {
+            aliceBlocked = blockingSearchWithPrincipal(principal("alice", "analyst"), indexName).execute();
+            awaitForBlock(plugins);
+
+            int throttledBefore = getThrottled(workloadGroupId);
+
+            // Same role as alice, so same bucket.
+            Throwable rejection = expectThrows(
+                Throwable.class,
+                () -> blockingSearchWithPrincipal(principal("bob", "analyst"), indexName).execute().actionGet(TIMEOUT)
+            );
+            assertTrue(
+                "Expected an OpenSearchRejectedExecutionException in the cause chain but was: " + rejection,
+                hasRejectedExecutionCause(rejection)
+            );
+            assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
+
+            // carol also holds analyst, but is charged to her smallest role, admin.
+            carolBlocked = blockingSearchWithPrincipal(principal("carol", "analyst", "admin"), indexName).execute();
+            assertBusy(() -> {
+                int blocked = 0;
+                for (ScriptedBlockPlugin plugin : plugins) {
+                    blocked += plugin.hits.get();
+                }
+                assertThat("carol's search should have been admitted and reached the blocking script", blocked, greaterThan(1));
+            }, 30, TimeUnit.SECONDS);
+            assertEquals("carol must not be throttled by the analyst bucket", throttledBefore + 1, getThrottled(workloadGroupId));
+        } finally {
+            disableBlocks(plugins);
+        }
+        assertNotNull(aliceBlocked.actionGet(TIMEOUT));
+        assertNotNull(carolBlocked.actionGet(TIMEOUT));
+    }
+
     // Helpers
 
     private static boolean hasRejectedExecutionCause(Throwable t) {
@@ -509,7 +580,24 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     // from a test-only header and setting it on the task exactly as the real filter does. This exercises the real
     // plumbing (task field -> throttle admission) rather than simulating it.
     private Client clientAs(String username) {
-        return client().filterWithHeader(Map.of(TestPrincipalPlugin.TEST_PRINCIPAL_HEADER, "username|" + username));
+        return clientWithPrincipal("username|" + username);
+    }
+
+    private Client clientWithPrincipal(String principal) {
+        return client().filterWithHeader(Map.of(TestPrincipalPlugin.TEST_PRINCIPAL_HEADER, principal));
+    }
+
+    private static String principal(String username, String... roles) {
+        StringBuilder sb = new StringBuilder("username|").append(username);
+        for (String role : roles) {
+            sb.append(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER).append("role|").append(role);
+        }
+        return sb.toString();
+    }
+
+    private SearchRequestBuilder blockingSearchWithPrincipal(String principal, String indexName) {
+        return clientWithPrincipal(principal).prepareSearch(indexName)
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
     }
 
     private SearchRequestBuilder searchAs(String username, String indexName) {
