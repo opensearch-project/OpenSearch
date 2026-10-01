@@ -231,6 +231,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
+            // The running checksum serves the remote store only: it produces the whole-file checksum verified on upload
+            // and feeds the footer written on close, which lets a download be skipped when the local copy is current.
+            // A local-only translog is never downloaded, so it keeps the footer-less layout it has always had.
             TranslogCheckedContainer translogCheckedContainer = null;
             if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -493,12 +496,36 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
+                        // For a remote-store translog the generation is now immutable: append the footer carrying the
+                        // checksum of everything written so far (header + operations). It is placed past the offset
+                        // recorded in the last synced checkpoint, so readers that predate the footer never see it; a
+                        // crash before this point simply leaves a footer-less generation behind, which is still valid
+                        // and is downloaded in full like any other. Local-only translogs carry no footer (see create).
+                        Long translogContentChecksum = null;
+                        Long translogChecksum = null;
+                        if (translogCheckedContainer != null) {
+                            translogContentChecksum = translogCheckedContainer.getChecksum();
+                            try {
+                                // Not fsynced: the upload is the durability point, and a torn footer only means the
+                                // generation is fetched again instead of being reused.
+                                final byte[] footer = TranslogFooter.write(channel, translogContentChecksum, false);
+                                // The remote store verifies the whole uploaded object, footer included.
+                                translogCheckedContainer.updateFromBytes(footer, 0, footer.length);
+                            } catch (final Exception ex) {
+                                // closed is already set, so close() would be a no-op: release the channel explicitly.
+                                tragedy.setTragicException(ex);
+                                IOUtils.closeWhileHandlingException(channel);
+                                throw ex;
+                            }
+                            translogChecksum = translogCheckedContainer.getChecksum();
+                        }
                         return new TranslogReader(
                             getLastSyncedCheckpoint(),
                             channel,
                             path,
                             header,
-                            (translogCheckedContainer != null) ? translogCheckedContainer.getChecksum() : null
+                            translogChecksum,
+                            translogContentChecksum
                         );
                     } else {
                         throw new AlreadyClosedException(

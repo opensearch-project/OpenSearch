@@ -2338,6 +2338,26 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
+     * Re-reads the {@link PrimaryOperationPolicy} from {@link EngineConfig#getPrimaryOperationPolicy()},
+     * so a shard that is becoming a primary uses the policy its plugin resolves from the index settings
+     * as they are now, rather than the one resolved when this engine was built. A replica never consults
+     * the policy, so a long-lived replica engine can otherwise carry a policy that no longer matches the
+     * settings by the time it is promoted.
+     * <p>
+     * A policy change alters sequence-number assignment, so callers must invoke this only while
+     * operations on the shard are blocked. The default implementation does nothing, which is correct for
+     * engines that never serve primary-origin operations.
+     */
+    void refreshPrimaryOperationPolicy() {}
+
+    /**
+     * Returns the {@link PrimaryOperationPolicy} in effect for this engine.
+     */
+    PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return DefaultPrimaryOperationPolicy.INSTANCE;
+    }
+
+    /**
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();

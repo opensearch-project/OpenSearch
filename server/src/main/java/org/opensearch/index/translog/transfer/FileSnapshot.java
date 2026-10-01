@@ -199,15 +199,30 @@ public class FileSnapshot implements Closeable {
     public static class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
+        // Checksum of the translog content (header + operations) as recorded in the file footer. Unlike the
+        // inherited checksum, which covers the whole file and is used to verify the upload, this one is published
+        // in the translog transfer metadata so a downloader can recognise a generation it already holds locally.
+        @Nullable
+        private final Long translogContentChecksum;
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
+            this(primaryTerm, generation, path, checksum, null);
+        }
+
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum, Long translogContentChecksum)
+            throws IOException {
             super(path, primaryTerm, checksum);
             this.generation = generation;
+            this.translogContentChecksum = translogContentChecksum;
         }
 
         @Override
         public long getGeneration() {
             return generation;
+        }
+
+        public Long getTranslogContentChecksum() {
+            return translogContentChecksum;
         }
 
         @Override

@@ -429,7 +429,10 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertEquals(2, rows.size());
         assertTrue("every document must persist as a LIST", rows.stream().allMatch(row -> isListColumn(row.get("tags"))));
         assertTrue("scalar input persists as a singleton list", rows.stream().anyMatch(row -> List.of("solo").equals(row.get("tags"))));
-        assertTrue("array input persists in source order", rows.stream().anyMatch(row -> List.of("one", "two", "one").equals(row.get("tags"))));
+        assertTrue(
+            "array input persists in source order",
+            rows.stream().anyMatch(row -> List.of("one", "two", "one").equals(row.get("tags")))
+        );
     }
 
     /**
