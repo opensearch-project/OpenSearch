@@ -650,7 +650,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean useFilteredStatistics() {
-        return searchContext != null && searchContext.useFilteredStatistics() && searchContext.aliasFilter() != null;
+        return searchContext != null && searchContext.useFilteredStatistics() && searchContext.filteredStatisticsFilter() != null;
     }
 
     /**
@@ -669,7 +669,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final BitSet[] bitSets = new BitSet[leaves.size()];
         // Rewrite once and reuse as the FilteredStatsCache key for the bitset and the statistics lookups, so the key
         // is identical across all three methods within a request.
-        final Query aliasFilter = rewrite(searchContext.aliasFilter());
+        final Query aliasFilter = rewrite(searchContext.filteredStatisticsFilter());
         this.visibleDocsFilterKey = aliasFilter;
         // COMPLETE_NO_SCORES: we only need the matching doc ids, not scores.
         final Weight weight = createWeight(aliasFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);

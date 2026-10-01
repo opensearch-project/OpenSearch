@@ -907,13 +907,38 @@ final class DefaultSearchContext extends SearchContext {
         return aliasFilter;
     }
 
+    /**
+     * A plugin-supplied restriction, set by {@link #visibleSubsetFilter(Query)}. Takes effect only when no
+     * {@code pre_filter} alias is already governing this request, so the two mechanisms cannot both claim to define
+     * the visible subset.
+     */
+    private Query pluginVisibleSubsetFilter;
+
+    @Override
+    public void visibleSubsetFilter(Query filter) {
+        this.pluginVisibleSubsetFilter = filter;
+        // The budget decision is memoized, and it is computed from whichever filter is in play, so it has to be
+        // discarded when the filter changes or the second read would answer for the wrong query.
+        this.filteredStatisticsWithinBudget = null;
+    }
+
+    @Override
+    public Query filteredStatisticsFilter() {
+        return aliasFilter != null ? aliasFilter : pluginVisibleSubsetFilter;
+    }
+
     @Override
     public boolean useFilteredStatistics() {
         // Filtered BM25 statistics apply only when an alias filter is present, the alias is enforced as a
         // pre_filter, and the filtered_stats scoring sub-behavior has been opted into. Otherwise we keep
         // whole-shard statistics (post_filter, or pre_filter with the default constant_score behavior).
-        if (aliasFilter == null || filteredStatisticsEnabled() == false) {
+        if (filteredStatisticsEnabled() == false) {
             return false;
+        }
+        if (aliasFilter == null) {
+            // No alias is governing this request. A plugin may still have declared the restriction it applied, which
+            // is how document-level security gets visible-only statistics without going through an alias.
+            return pluginVisibleSubsetFilter != null && withinFilteredStatisticsBudget();
         }
         AliasFilter requestAliasFilter = request.getAliasFilter();
         if (requestAliasFilter == null || requestAliasFilter.getEnforcement() != AliasFilter.Enforcement.PRE_FILTER) {
@@ -948,7 +973,7 @@ final class DefaultSearchContext extends SearchContext {
         }
         boolean withinBudget;
         try {
-            final Weight weight = searcher.createWeight(searcher.rewrite(aliasFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            final Weight weight = searcher.createWeight(searcher.rewrite(filteredStatisticsFilter()), ScoreMode.COMPLETE_NO_SCORES, 1f);
             long estimate = 0;
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);

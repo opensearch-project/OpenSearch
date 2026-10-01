@@ -394,6 +394,36 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    /**
+     * The query that defines the visible subset for statistics purposes, which is the alias filter for a
+     * {@code pre_filter} alias and otherwise whatever a plugin has supplied through
+     * {@link #visibleSubsetFilter(Query)}.
+     * <p>
+     * {@link ContextIndexSearcher} reads this rather than {@link #aliasFilter()} directly, so it does not need to know
+     * which mechanism restricted the request. Returns null when statistics should cover the whole shard.
+     */
+    public Query filteredStatisticsFilter() {
+        return aliasFilter();
+    }
+
+    /**
+     * Lets a plugin declare the query that restricts this request, so BM25 statistics can be computed over that
+     * subset instead of the whole shard.
+     * <p>
+     * Document-level security already applies its restriction as a conjunction clause on the parsed query, which means
+     * the right documents come back but the statistics behind their scores still describe the whole shard. Handing the
+     * restriction here closes that gap without the plugin needing an alias. The query must be the restriction alone,
+     * not the user's query combined with it, or the statistics would be scoped to the search results rather than to
+     * what the user is permitted to see.
+     * <p>
+     * Ignored unless the {@code filtered_stats} behaviour is enabled, and subject to the same visible-document budget
+     * as the alias path, so a plugin cannot opt out of the guardrail.
+     */
+    public void visibleSubsetFilter(Query filter) {
+        // No-op by default. A plugin calls this on whatever context a request happens to carry, and a context that
+        // cannot scope statistics should ignore the hint rather than fail the request over it.
+    }
+
     public abstract SearchContext parsedQuery(ParsedQuery query);
 
     public abstract ParsedQuery parsedQuery();
