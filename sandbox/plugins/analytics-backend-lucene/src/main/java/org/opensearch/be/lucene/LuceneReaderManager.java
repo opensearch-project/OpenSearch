@@ -8,6 +8,8 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -17,10 +19,13 @@ import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -44,12 +49,16 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * refreshed via {@link DirectoryReader#openIfChanged} and paired with a
  * {@code writer_generation → leaf index} map built by matching the catalog's
  * {@link WriterFileSet#files()} against each leaf's {@code SegmentCommitInfo.files()}.
+ * <p>
+ * Lucene is where a shard records which rows are still reachable(live docs), so this manager is also a
+ * {@link LiveDocsSource}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 @SuppressForbidden(reason = "reference counting is required here")
-public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
+public class LuceneReaderManager implements EngineReaderManager<LuceneReader>, LiveDocsSource {
+    private static final Logger logger = LogManager.getLogger(LuceneReaderManager.class);
 
     private final DataFormat dataFormat;
     private final ShardId shardId;
@@ -95,6 +104,31 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
+    }
+
+    /**
+     * Reads live and deleted counts straight off the reader registered for this snapshot.
+     */
+    @Override
+    public Map<Long, DocCounts> docCountsByGeneration(CatalogSnapshot catalogSnapshot) throws IOException {
+        LuceneReader reader = readers.get(catalogSnapshot.getId());
+        if (reader == null) {
+            // no live doc reader fallback to all the docs marked as live docs
+            logger.warn("No reader registered for catalog snapshot [version={}]; reporting no counts", catalogSnapshot.getId());
+            return Map.of();
+        }
+        List<LeafReaderContext> leaves = reader.directoryReader().leaves();
+        Map<Long, DocCounts> counts = new HashMap<>(leaves.size());
+        for (LeafReaderContext lrc : leaves) {
+            SegmentCommitInfo sci = Lucene.segmentReader(lrc.reader()).getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                // Not written by LuceneWriter, so it cannot be attributed to a catalog generation.
+                continue;
+            }
+            counts.put(Long.parseLong(genAttr), new DocCounts(lrc.reader().numDocs(), lrc.reader().numDeletedDocs()));
+        }
+        return counts;
     }
 
     @Override

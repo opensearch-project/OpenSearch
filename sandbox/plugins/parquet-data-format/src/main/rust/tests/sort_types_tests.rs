@@ -137,6 +137,7 @@ fn test_merge_sort_by_int64() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -192,6 +193,7 @@ fn test_merge_sort_by_int64_with_nulls() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -244,6 +246,7 @@ fn test_merge_sort_by_int32() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -301,6 +304,7 @@ fn test_merge_sort_by_float64() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -366,6 +370,7 @@ fn test_merge_sort_by_float64_with_nulls() {
         &[true],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -425,6 +430,7 @@ fn test_merge_sort_by_float32() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -486,6 +492,7 @@ fn test_merge_sort_by_float32_with_nulls() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -541,6 +548,7 @@ fn test_merge_sort_by_string() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -605,6 +613,7 @@ fn test_merge_sort_by_string_with_nulls() {
         &[true],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -673,6 +682,7 @@ fn test_merge_sort_descending() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -738,6 +748,7 @@ fn test_merge_sort_multi_column_string_and_int() {
         &[false, false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -800,6 +811,7 @@ fn test_merge_sort_with_nulls_first() {
         &[true],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -851,6 +863,7 @@ fn test_merge_sort_with_nulls_last() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 

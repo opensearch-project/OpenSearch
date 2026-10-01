@@ -69,6 +69,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -283,15 +284,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "); use a segment-consuming or read-only engine"
             );
         }
-        if (engineConfig.getPrimaryOperationPolicy() != DefaultPrimaryOperationPolicy.INSTANCE) {
-            throw new IllegalStateException(
-                "DataFormatAwareEngine does not support primary operation policy ["
-                    + engineConfig.getPrimaryOperationPolicy()
-                    + "] requested for shard ["
-                    + engineConfig.getShardId()
-                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
-            );
-        }
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
         this.logger = Loggers.getLogger(DataFormatAwareEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -452,7 +445,7 @@ public class DataFormatAwareEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, LiveDocsSource.docCountsResolver(readerManagers.values()), logger);
             this.refreshListeners.add(this.statsCache);
             this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
                 // First get active writes as active writes are only reduced after catalog snapshot refresh
@@ -1880,6 +1873,26 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     @Override
+    public void refreshPrimaryOperationPolicy() {
+        // A plugin can key its policy off an updatable setting, so the combination this engine rejects at
+        // construction can also appear later. Fail here rather than silently ignoring the policy.
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
+    }
+
+    private static void ensureDefaultPrimaryOperationPolicy(EngineConfig engineConfig) {
+        final PrimaryOperationPolicy policy = engineConfig.getPrimaryOperationPolicy();
+        if (policy != DefaultPrimaryOperationPolicy.INSTANCE) {
+            throw new IllegalStateException(
+                "DataFormatAwareEngine does not support primary operation policy ["
+                    + policy
+                    + "] requested for shard ["
+                    + engineConfig.getShardId()
+                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
+            );
+        }
+    }
+
+    @Override
     public CommitStats commitStats() {
         return committer.getCommitStats();
     }
@@ -2375,6 +2388,12 @@ public class DataFormatAwareEngine implements Indexer {
                     refreshListener.afterRefresh(true);
                 }
             }
+            // A merge replaces segments and drops rows that were hidden by a delete or an update, so
+            // doc counts and per-segment stats change even though no checkpoint moved. applyMergeResults
+            // ends by committing the post-merge snapshot, which registers a reader for it, so liveness
+            // can be read here. Without this the stats cache would keep serving pre-merge numbers until
+            // the next ordinary refresh.
+            statsCache.forceRefresh();
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);

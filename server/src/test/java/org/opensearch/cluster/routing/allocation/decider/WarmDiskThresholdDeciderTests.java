@@ -432,6 +432,175 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
     }
 
+    /**
+     * A relocating REPLICA must not be credited as leaving remote space: only primaries own remote store bytes.
+     * Same fixture as {@link #testCanRemainSufficientSpaceAfterRelocation} but [test3][0] is a replica relocating away
+     * from node1, so node1 stays at 500b free (below the 200b x 5.0 = 1000b high watermark) and the decision must be NO.
+     */
+    public void testCanRemainRelocatingReplicaNotCredited() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "200b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100b")
+            .put(FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5.0)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        WarmDiskThresholdDecider decider = new WarmDiskThresholdDecider(settings, clusterSettings);
+
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 3000L);
+        shardSizes.put("[test][0][r]", 3000L);
+        shardSizes.put("[test2][0][p]", 1000L);
+        shardSizes.put("[test2][0][r]", 1000L);
+        shardSizes.put("[test3][0][p]", 1500L);
+        shardSizes.put("[test3][0][r]", 1500L);
+
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2", "node3");
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        // node1 is below the 1000b high watermark; only a credited leaving PRIMARY could lift it above
+        usages.put("node1", createDiskUsage("node1", 5000, 500));
+        usages.put("node2", createDiskUsage("node2", 5000, 4000));
+        usages.put("node3", createDiskUsage("node3", 5000, 4000));
+        final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
+
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(warmIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(warmIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test3").settings(warmIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        // [test][0][P]: STARTED on node1, [test][0][R]: STARTED on node2
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test").getIndex());
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node2", null, false, ShardRoutingState.STARTED));
+
+        // [test2][0][P]: STARTED on node2, [test2][0][R]: STARTED on node1
+        IndexRoutingTable.Builder indexRoutingTableBuilder2 = IndexRoutingTable.builder(metadata.index("test2").getIndex());
+        indexRoutingTableBuilder2.addShard(TestShardRouting.newShardRouting("test2", 0, "node1", null, false, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder2.addShard(TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
+
+        // [test3][0][P]: STARTED on node2, [test3][0][R]: RELOCATING from node1 to node3
+        IndexRoutingTable.Builder indexRoutingTableBuilder3 = IndexRoutingTable.builder(metadata.index("test3").getIndex());
+        indexRoutingTableBuilder3.addShard(TestShardRouting.newShardRouting("test3", 0, "node2", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder3.addShard(
+            TestShardRouting.newShardRouting("test3", 0, "node1", "node3", false, ShardRoutingState.RELOCATING)
+        );
+
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        routingTableBuilder.add(indexRoutingTableBuilder2.build());
+        routingTableBuilder.add(indexRoutingTableBuilder3.build());
+        RoutingTable routingTable = routingTableBuilder.build();
+
+        Set<DiscoveryNodeRole> defaultWithWarmRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+        defaultWithWarmRole.add(DiscoveryNodeRole.WARM_ROLE);
+
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node1", defaultWithWarmRole))
+                    .add(newNode("node2", defaultWithWarmRole))
+                    .add(newNode("node3", defaultWithWarmRole))
+            )
+            .build();
+
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, clusterInfo, null, 0);
+        allocation.debugDecision(true);
+
+        ShardRouting shard1 = routingTable.index("test").shard(0).primaryShard();
+        ShardRouting shard2 = routingTable.index("test2").shard(0).primaryShard();
+
+        // The relocating replica on node1 is not credited, so node1 remains below the high watermark
+        assertEquals(Decision.Type.NO, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type());
+        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
+    }
+
+    /**
+     * A relocating primary of a NON-warm (LOCAL_ONLY) index must not be credited as leaving remote space.
+     * Same fixture as {@link #testCanRemainSufficientSpaceAfterRelocation} but [test3] is a regular index, so node1
+     * stays at 500b free (below the 200b x 5.0 = 1000b high watermark) and the decision must be NO.
+     */
+    public void testCanRemainRelocatingNonWarmPrimaryNotCredited() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "200b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100b")
+            .put(FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5.0)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        WarmDiskThresholdDecider decider = new WarmDiskThresholdDecider(settings, clusterSettings);
+
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 3000L);
+        shardSizes.put("[test][0][r]", 3000L);
+        shardSizes.put("[test2][0][p]", 1000L);
+        shardSizes.put("[test2][0][r]", 1000L);
+        shardSizes.put("[test3][0][p]", 1500L);
+
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        // node1 is below the 1000b high watermark; only a credited leaving WARM primary could lift it above
+        usages.put("node1", createDiskUsage("node1", 5000, 500));
+        usages.put("node2", createDiskUsage("node2", 5000, 4000));
+        final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
+
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(warmIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(warmIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            // regular (LOCAL_ONLY) index
+            .put(IndexMetadata.builder("test3").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        // [test][0][P]: STARTED on node1, [test][0][R]: STARTED on node2
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test").getIndex());
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node2", null, false, ShardRoutingState.STARTED));
+
+        // [test2][0][P]: STARTED on node2, [test2][0][R]: STARTED on node1
+        IndexRoutingTable.Builder indexRoutingTableBuilder2 = IndexRoutingTable.builder(metadata.index("test2").getIndex());
+        indexRoutingTableBuilder2.addShard(TestShardRouting.newShardRouting("test2", 0, "node1", null, false, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder2.addShard(TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
+
+        // [test3][0][P] (non-warm): RELOCATING from node1
+        IndexRoutingTable.Builder indexRoutingTableBuilder3 = IndexRoutingTable.builder(metadata.index("test3").getIndex());
+        indexRoutingTableBuilder3.addShard(
+            TestShardRouting.newShardRouting("test3", 0, "node1", "node2", true, ShardRoutingState.RELOCATING)
+        );
+
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        routingTableBuilder.add(indexRoutingTableBuilder2.build());
+        routingTableBuilder.add(indexRoutingTableBuilder3.build());
+        RoutingTable routingTable = routingTableBuilder.build();
+
+        Set<DiscoveryNodeRole> defaultWithWarmRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+        defaultWithWarmRole.add(DiscoveryNodeRole.WARM_ROLE);
+
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1", defaultWithWarmRole)).add(newNode("node2", defaultWithWarmRole)))
+            .build();
+
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, clusterInfo, null, 0);
+        allocation.debugDecision(true);
+
+        ShardRouting shard1 = routingTable.index("test").shard(0).primaryShard();
+        ShardRouting shard2 = routingTable.index("test2").shard(0).primaryShard();
+
+        // The relocating non-warm primary on node1 is not credited, so node1 remains below the high watermark
+        assertEquals(Decision.Type.NO, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type());
+        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
+    }
+
     public void logShardStates(ClusterState state) {
         RoutingNodes rn = state.getRoutingNodes();
         logger.info(

@@ -209,7 +209,7 @@ fn unsorted_merge_preserves_list_values() {
     );
     write_list_file(&b, &[4, 5], &[Some(vec![]), Some(vec!["x", "y"])]);
 
-    merge_unsorted(&[a, b], &out, "merge-list-unsorted", 0).unwrap();
+    merge_unsorted(&[a, b], &out, "merge-list-unsorted", 0, &[]).unwrap();
 
     let pairs = read_pairs(&out);
     assert_eq!(pairs.len(), 5, "row count must be preserved");
@@ -258,6 +258,7 @@ fn sorted_merge_keeps_list_values_with_their_row() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -309,6 +310,7 @@ fn sorted_merge_uses_minimum_list_element_as_sort_key() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -355,6 +357,7 @@ fn sorted_merge_uses_minimum_list_element_as_sort_key() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -434,6 +437,7 @@ fn sorted_merge_list_across_batches_in_deferred_mode() {
         &[false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -498,7 +502,7 @@ fn unsorted_merge_preserves_null_empty_and_null_children_exactly() {
         ],
     );
 
-    merge_unsorted(&[input], &out, "merge-list-null-children", 0).unwrap();
+    merge_unsorted(&[input], &out, "merge-list-null-children", 0, &[]).unwrap();
 
     assert_eq!(
         read_nullable_pairs(&out),
@@ -569,7 +573,13 @@ fn merge_rejects_incompatible_scalar_and_list_child_types() {
     writer.write(&batch).unwrap();
     writer.close().unwrap();
 
-    let error = match merge_unsorted(&[scalar, list], &out, "merge-incompatible-list-child", 0) {
+    let error = match merge_unsorted(
+        &[scalar, list],
+        &out,
+        "merge-incompatible-list-child",
+        0,
+        &[],
+    ) {
         Ok(_) => panic!("Utf8 must not promote to List<Int32>"),
         Err(error) => error,
     };
@@ -620,6 +630,7 @@ fn sorted_merge_uses_scalar_tiebreaker_after_list_minimum() {
         &[false, false],
         &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -665,6 +676,7 @@ fn sorted_merge_list_explicit_max_ascending() {
         &[false],
         &[true], // MAX reduction
         0,
+        &[],
     )
     .unwrap();
 
@@ -694,6 +706,7 @@ fn sorted_merge_list_explicit_min_ascending() {
         &[false],
         &[false], // MIN reduction
         0,
+        &[],
     )
     .unwrap();
 
@@ -723,6 +736,7 @@ fn sorted_merge_list_explicit_min_descending() {
         &[false],
         &[false], // explicit MIN reduction (overrides direction default of MAX)
         0,
+        &[],
     )
     .unwrap();
 
@@ -752,6 +766,7 @@ fn sorted_merge_list_explicit_max_descending() {
         &[false],
         &[true], // MAX reduction
         0,
+        &[],
     )
     .unwrap();
 
@@ -790,6 +805,7 @@ fn sorted_merge_list_max_null_empty_allnull_rows() {
         &[false], // nulls last
         &[true],  // MAX reduction
         0,
+        &[],
     )
     .unwrap();
 

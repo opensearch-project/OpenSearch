@@ -142,6 +142,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -202,6 +203,7 @@ import org.opensearch.index.translog.RemoteStoreFenceOwnership;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
@@ -240,6 +242,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -831,6 +834,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
+                        // Refresh the primary operation policy in case it has changed since the start of recovery.
+                        // No primary-origin operation can have run yet, so this is safe without blocking operations.
+                        getIndexer().refreshPrimaryOperationPolicy();
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
@@ -915,6 +921,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
+                            // This shard is about to start serving primary-origin operations, so the primary operation
+                            // policy has to match the index settings as they are now so refresh the policy.
+                            getIndexer().refreshPrimaryOperationPolicy();
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
@@ -2775,6 +2784,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
+    /**
+     * Re-resolves this shard's primary operation policy against the current index settings, blocking
+     * operations for the duration so that no operation observes a policy change mid-flight. This is the
+     * cheap alternative to {@link #resetToWriteableEngine()} for a plugin whose policy is keyed off an
+     * updatable setting and that has nothing else to rebuild when that setting changes.
+     *
+     * @throws InterruptedException if the calling thread is interrupted
+     * @throws TimeoutException if timed out waiting for in-flight operations to finish
+     *
+     * @opensearch.internal
+     */
+    @ExperimentalApi
+    public void refreshPrimaryOperationPolicy() throws InterruptedException, TimeoutException {
+        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> getIndexer().refreshPrimaryOperationPolicy());
+    }
+
+    /**
+     * Returns the {@link PrimaryOperationPolicy} in effect for this shard.
+     *
+     * @throws AlreadyClosedException if the shard's engine is closed
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return getIndexer().getPrimaryOperationPolicy();
+    }
+
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
         return mergedSegmentTransferTracker;
     }
@@ -3314,14 +3349,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig.setDownloadRemoteTranslogOnInit(false);
         }
 
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
 
-        if (isSnapshotV2Restore()) {
-            translogConfig.setDownloadRemoteTranslogOnInit(true);
+            if (isSnapshotV2Restore()) {
+                translogConfig.setDownloadRemoteTranslogOnInit(true);
+            }
+
+            getIndexer().translogManager()
+                .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
         }
+    }
 
-        getIndexer().translogManager()
-            .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+    /**
+     * On a remote-store shard the local translog directory is a cache of the remote copy, and the download that fills it
+     * reuses a local generation whose footer matches the checksum the remote advertises. If such a generation turns out
+     * to be corrupt inside its operations - rot that an intact footer cannot reveal - opening or replaying the translog
+     * throws {@link TranslogCorruptedException}, the shard fails, and the next recovery would reuse the very same bytes
+     * and fail the same way until {@code index.allocation.max_retries} leaves the shard unassigned.
+     * <p>
+     * Since the remote store holds an intact copy, delete the local directory so that the next attempt starts from the
+     * remote store instead. This is what a recovery did unconditionally before local generations were reused; it is now
+     * done only once the local copy has been proven wrong. Shards without a remote translog are left alone - their local
+     * translog is the only copy, and discarding it would lose data.
+     */
+    private void discardCorruptLocalRemoteTranslog(Exception failure) {
+        if (indexSettings.isRemoteTranslogStoreEnabled() == false
+            || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
+            return;
+        }
+        final Path translogLocation = shardPath().resolveTranslog();
+        logger.warn(
+            () -> new ParameterizedMessage(
+                "local translog at [{}] is corrupt; deleting it so that the next recovery downloads it from the remote store",
+                translogLocation
+            ),
+            failure
+        );
+        try {
+            IOUtils.rm(translogLocation);
+        } catch (IOException e) {
+            failure.addSuppressed(e);
+        }
     }
 
     /**
@@ -3345,7 +3417,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
+        }
         assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
             : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getIndexer().translogManager().skipTranslogRecovery();
@@ -4510,6 +4587,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + primaryContext
                 + "]";
 
+        // The target's engine was built at the start of the recovery; refresh so the relocated primary uses the
+        // policy matching the settings as they are now
+        getIndexer().refreshPrimaryOperationPolicy();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
