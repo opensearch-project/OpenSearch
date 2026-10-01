@@ -42,8 +42,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         String name = randomAlphaOfLength(10);
         Map<ResourceType, Double> resourceLimit = new HashMap<>();
         resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
-        // Generate a valid throttling config: either disabled (empty), or enabled with a positive node_limit and an
-        // optional principal subdivision. Omitting by exercises the default whole-group scope.
+        // Either disabled, or a positive node_limit with an optional by (absent = group scope).
         Settings.Builder throttling = Settings.builder();
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -459,11 +458,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testGatewayReadAcceptsInvalidThrottleConfigLeniently() throws IOException {
-        // The on-disk gateway read (WorkloadGroup.fromXContent, used because WorkloadGroupMetadata.context() is
-        // ALL_CONTEXTS) must not throw on a throttle config this node considers invalid -- a newer peer's schema, a
-        // downgrade, or remote cluster state from a newer manager -- because throwing while loading persisted cluster
-        // state would stop the node from starting rather than failing one API call. It mirrors the transport wire read,
-        // which does no per-key validation. Two flavours: an unknown key and a cross-field-invalid ceiling.
+        // The gateway read must not throw on config this node considers invalid, or the node can't start.
         long now = Instant.now().getMillis();
         for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
             String json = String.format(
@@ -479,8 +474,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testCreatePathStillRejectsInvalidThrottleConfig() throws IOException {
-        // The create/update path stays strict: the same configs the gateway read accepts leniently are rejected here via
-        // the strict Builder.build().
+        // The create/update path stays strict.
         long now = Instant.now().getMillis();
         for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
             String json = String.format(
@@ -650,8 +644,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testByWithoutLimitRejected() {
-        // A by value alone configures nothing, so the error must say a limit is missing rather than report a zero
-        // ceiling (nothing was set, so nothing "would reject all requests"), and must never leak the -1 sentinel.
+        // by alone configures nothing: the error must say the limit is missing, not leak the -1 sentinel.
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new WorkloadGroup(
@@ -753,9 +746,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testUpdateWithNullClearsThrottleKeys() throws IOException {
-        // Clearing every throttle key individually is equivalent to disabling throttling: the merge consumes each null
-        // and the bag collapses to empty. Clearing only node_limit is rejected instead, because that would leave an
-        // explicit by with no limit, which configures nothing.
+        // Clearing every key disables throttling; clearing only node_limit leaves a bare by, which is rejected.
         String json = "{\"resource_limits\":{\"memory\":0.5},\"throttling\":{\"by\":null,\"node_limit\":null}}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         MutableWorkloadGroupFragment clearAll = WorkloadGroup.Builder.fromXContent(parser).getMutableWorkloadGroupFragment();
@@ -798,9 +789,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testUpdateFromPreThrottlingPeerPreservesThrottling() throws IOException {
-        // A pre-3.10 node has no throttling field, so it writes none. Decoding "absent" as an empty bag would make
-        // mergeSettings treat it as the explicit "clear all" gesture and silently delete the group's throttling on an
-        // update that never mentioned throttling.
+        // A pre-3.10 node writes no throttling; decoding that as empty would clear the group's throttling on update.
         MutableWorkloadGroupFragment update = new MutableWorkloadGroupFragment(
             ResiliencyMode.SOFT,
             Map.of(),
@@ -822,8 +811,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testThrottlingIsDroppedWhenWrittenToPreThrottlingPeer() throws IOException {
-        // Pre-3.10 peers cannot receive throttling. Create/update requests must reject this wire format rather than
-        // forwarding a request that an older cluster-manager could acknowledge without persisting the limit.
+        // Don't forward to pre-3.10 peers, which would ack without persisting the limit.
         MutableWorkloadGroupFragment withThrottling = new MutableWorkloadGroupFragment(
             ResiliencyMode.ENFORCED,
             Map.of(ResourceType.MEMORY, 0.5),
@@ -849,9 +837,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testDeserializationAcceptsThrottlingThisNodeConsidersInvalid() throws IOException {
-        // Cluster state published by a newer node may use throttling rules this node does not know (e.g. a second limit
-        // key, making node_limit optional). Rejecting it here would wedge the node out of the cluster instead of
-        // failing one API call, so the deserialization path must accept it.
+        // Cluster state from a newer node may use rules this node doesn't know; rejecting it would wedge the node.
         WorkloadGroup valid = throttledGroup();
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeString(valid.getName());
@@ -937,8 +923,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testCreateDropsNullThrottleValues() throws IOException {
-        // On create there is nothing to clear, so null-valued keys are dropped rather than persisted; an
-        // all-null throttling object therefore collapses to empty (disabled) instead of hitting a ceiling error.
+        // On create, null keys are dropped, so an all-null object means disabled rather than a ceiling error.
         WorkloadGroup allNull = parseCreate(
             "{\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"memory\":0.5}," + "\"throttling\":{\"by\":null,\"node_limit\":null}}"
         );

@@ -78,17 +78,13 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        // Holds the throttle permit release once one is acquired, so every exit below (including the catch) frees it.
+        // Released on every exit below, including the catch.
         ActionListener<SearchResponse> throttledListener = listener;
         try {
 
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // A scroll continuation occupies the node like any other search, so it draws on the same node-level
-                // budget. Exempting it would make node_limit evadable by appending ?scroll= to a query.
-                // A scroll continuation arrives as a fresh client request with no parent task, and issues no nested
-                // coordinator search of its own, so there is nothing to inherit; see
-                // TransportSearchAction#parentAlreadyCounted.
+                // Scroll continuations share the node budget, or ?scroll= would bypass node_limit.
                 Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, () -> false);
                 if (throttlePermit != null) {
                     throttledListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(throttledListener, throttlePermit);

@@ -89,14 +89,12 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
         }
 
-        // Drop null-valued "clear" keys before storage (meaningful only during an update merge, not on create).
+        // Drop null clear-markers; they only mean something during an update merge.
         Settings normalizedSettings = stripClearMarkers(mutableWorkloadGroupFragment.getSettings());
         Settings normalizedThrottling = stripClearMarkers(mutableWorkloadGroupFragment.getThrottling());
         if (normalizedSettings.equals(mutableWorkloadGroupFragment.getSettings()) == false
             || normalizedThrottling.equals(mutableWorkloadGroupFragment.getThrottling()) == false) {
-            // Reconstruct without re-validating: this only strips null clear-markers from an already-parsed fragment, and
-            // re-validating here would run before the deserialization-aware validateMergedConfig below, making the gateway
-            // read strict where the wire read is lenient.
+            // Skip re-validation here; validateMergedConfig below decides strict vs. lenient.
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
@@ -106,10 +104,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             );
         }
 
-        // Cross-field checks on the merged throttling config (node limit required; ceiling must be >= 1).
-        // On the deserialization path these are advisory: a newer node may legitimately relax them (e.g. by adding a
-        // second limit key), and throwing while applying published cluster state would wedge this node out of the
-        // cluster rather than reject one API call. Enforcement fails open on config it cannot interpret.
+        // Cross-field checks. Advisory on deserialization, since throwing while applying cluster state wedges the node.
         if (deserializing) {
             try {
                 WorkloadGroupThrottleSettings.validateMergedConfig(mutableWorkloadGroupFragment.getThrottling());

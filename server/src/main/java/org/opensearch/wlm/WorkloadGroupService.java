@@ -73,7 +73,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private final Set<WorkloadGroup> deletedWorkloadGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
     private final WorkloadGroupsStateAccessor workloadGroupsStateAccessor;
-    // Node-local in-flight throttle counters, keyed by throttle bucket. No cross-node coordination in this tier.
+    // Node-local in-flight counters per throttle bucket.
     private final WorkloadGroupThrottleTracker throttleTracker = new WorkloadGroupThrottleTracker();
 
     public WorkloadGroupService(
@@ -406,8 +406,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 return null;
             }
             Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
-            // Cheap early-out so a group that never configured throttling does not pay for parsing an absent limit on
-            // every search request.
+            // Cheap early-out for groups that don't throttle.
             if (throttling == null || throttling.isEmpty()) {
                 return null;
             }
@@ -415,16 +414,13 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             if (nodeLimit < 1) {
                 return null;
             }
-            // Re-entrancy: a nested coordinator search (e.g. a terms lookup's subquery during rewrite) inherits its
-            // already-counted parent's charge instead of taking a second permit. Evaluated here, past the early-outs, so the
-            // parent-task lookup stays off searches whose group does not throttle. Marked counted (transitively) though no
-            // permit is taken; release is tied to the returned Releasable, not this flag.
+            // Nested searches inherit a counted parent's charge. Checked after the early-outs to keep the lookup off unthrottled groups.
             if (parentAlreadyCounted.getAsBoolean()) {
                 onCounted.accept(true);
                 return null;
             }
             String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
-            // A null value means the request can't be bucketed (e.g. username/role with no principal) -> fail open.
+            // No bucket (e.g. username/role with no principal): fail open.
             String byValue = resolveThrottleByValue(by, principal);
             if (byValue == null) {
                 return null;
@@ -437,16 +433,13 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 return permit;
             }
 
-            // Over the limit. Name the group and the throttle dimension so both the log line and the 429 identify who
-            // was throttled -- the bucket key alone is opaque to an operator.
+            // Name the group and dimension; the bucket key alone is opaque to an operator.
             String target = "workload group [" + workloadGroup.getName() + "]";
             if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by) == false) {
                 target += " for " + by + " [" + byValue + "]";
             }
             if (workloadGroup.getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
-                // MONITOR observes only: count the would-be rejection against total_would_throttle (a signal for sizing
-                // node_limit before enforcing) and admit, leaving total_throttled meaning "actually rejected". DEBUG since
-                // it fires once per would-be-throttled request.
+                // MONITOR: count in total_would_throttle and admit.
                 logger.debug(
                     "Request would be throttled (monitor mode, not rejected): {} reached its per-node limit of {} concurrent requests.",
                     target,
@@ -456,8 +449,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 onCounted.accept(true);
                 return null;
             }
-            // Unlike resource-limit rejection, a SOFT group also enforces the throttle when the node is not in duress.
-            // Record the rejection without ever letting a stats failure swallow the 429.
+            // SOFT enforces the throttle too; resiliency_mode only governs resource limits.
             recordThrottleStat(workloadGroupId, false);
             throw new OpenSearchRejectedExecutionException(
                 "Request throttled: " + target + " reached its per-node limit of " + nodeLimit + " concurrent requests."
@@ -465,8 +457,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         } catch (OpenSearchRejectedExecutionException e) {
             throw e; // the intended 429
         } catch (Exception e) {
-            // A bug in the throttle path must never fail an otherwise-valid search, so fail open. DEBUG, not WARN: a
-            // deterministic failure in here would otherwise emit a stack trace at the full query rate.
+            // Fail open on a throttle bug. DEBUG, since a deterministic failure would log at full query rate.
             logger.debug(() -> "Skipping node-level throttle for workload group [" + workloadGroupId + "] due to an error", e);
             return null;
         }

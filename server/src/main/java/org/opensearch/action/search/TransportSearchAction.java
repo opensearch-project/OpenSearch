@@ -494,18 +494,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // Node-level throttle admission. Runs before onRequestStart so a rejection doesn't leak the request
-                // gauges (decremented only on request end/failure, which the early return skips). The principal is null
-                // unless the WLM auto-tagging filter set it from the security plugin's extractor.
+                // Before onRequestStart, so a rejection doesn't leak the request gauges.
                 try {
                     Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject(
                         (WorkloadGroupTask) task,
                         () -> parentAlreadyCounted(task)
                     );
                     if (throttlePermit != null) {
-                        // Give the slot back before notifying downstream, not after: a completion listener can synchronously
-                        // start new work in this same bucket, and an _msearch does exactly that. See
-                        // WorkloadGroupService#releaseThrottlePermitBeforeCompletion.
+                        // Release before notifying: a completion listener (e.g. _msearch) may start new work in this bucket.
                         updatedListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(updatedListener, throttlePermit);
                     }
                 } catch (OpenSearchRejectedExecutionException e) {
@@ -542,10 +538,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        // Parent the rewrite phase's searches (e.g. a terms lookup subquery) on this task, but only when
-                        // this request is actually counted, so throttle admission treats them as nested and does not charge
-                        // the family twice. When uncounted, EMPTY_TASK_ID leaves the rewrite client unwrapped, so a search
-                        // in an unthrottled group behaves exactly as before. See parentAlreadyCounted.
+                        // Parent rewrite searches on this task only when it is counted, so a nested search isn't charged twice.
                         searchService.getRewriteContext(
                             timeProvider::getAbsoluteStartMillis,
                             searchRequest,
@@ -558,8 +551,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 searchRequest.transformRequest(requestTransformListener);
             } catch (Exception e) {
-                // Same listener the asynchronous failure path uses above, so a synchronous throw and an async failure
-                // are reported identically; it wraps updatedListener, so the throttle permit is still released.
+                // Same listener as the async failure path; it wraps updatedListener, so the permit is still released.
                 listener.onFailure(e);
             }
         }

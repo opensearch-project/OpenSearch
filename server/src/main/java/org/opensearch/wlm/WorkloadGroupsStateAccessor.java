@@ -18,8 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@link WorkloadGroupState}s
  */
 public class WorkloadGroupsStateAccessor {
-    // Concurrent: structural updates happen on the cluster-applier thread while request threads read concurrently
-    // (throttle admission, stat updates, cancellation). WorkloadGroupState is itself thread safe.
+    // Concurrent: the cluster-applier thread updates while request threads read.
     private final Map<String, WorkloadGroupState> workloadGroupStateMap;
 
     public WorkloadGroupsStateAccessor() {
@@ -43,8 +42,7 @@ public class WorkloadGroupsStateAccessor {
      * @return WorkloadGroupState for the given workloadGroupId, if id is invalid return default workload group state
      */
     public WorkloadGroupState getWorkloadGroupState(String workloadGroupId) {
-        // The backing map is a ConcurrentHashMap, which rejects a null key, and an untagged request legitimately has
-        // no id (e.g. the failure listener reads the header unconditionally). Fall back to DEFAULT instead of throwing.
+        // ConcurrentHashMap rejects a null key, and an untagged request has no id; fall back to DEFAULT.
         if (workloadGroupId == null) {
             return workloadGroupStateMap.get(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
         }

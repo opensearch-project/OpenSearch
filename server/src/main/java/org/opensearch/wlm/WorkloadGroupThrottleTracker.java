@@ -40,10 +40,7 @@ public class WorkloadGroupThrottleTracker {
      */
     public Releasable tryAcquire(String bucketKey, int nodeLimit) {
         assert nodeLimit > 0 : "nodeLimit must be positive";
-        // Check-and-increment in one per-key compute() region so the decision reads exactly the outstanding-permit count.
-        // Doing it outside (increment, compare, roll back on a breach) would briefly publish a count including a pending
-        // rollback, letting a concurrent acquire be refused against a slot that was actually free. admitted is set only on
-        // the path that takes a slot, so it doubles as the admit/refuse signal.
+        // Check and increment in one compute() so a refused acquire never publishes a count it must roll back.
         final AtomicInteger[] admitted = new AtomicInteger[1];
         inFlightByBucket.compute(bucketKey, (k, existing) -> {
             if (existing == null) {
@@ -78,7 +75,7 @@ public class WorkloadGroupThrottleTracker {
         return inFlightByBucket.size();
     }
 
-    // One-shot guard so a double close decrements once -- defence in depth against a listener notified more than once.
+    // Guards against a double close decrementing twice.
     private Releasable releaseOnce(String bucketKey, AtomicInteger counter) {
         AtomicBoolean released = new AtomicBoolean(false);
         return () -> {
@@ -88,9 +85,7 @@ public class WorkloadGroupThrottleTracker {
         };
     }
 
-    // Decrements and evicts the entry when it drains to 0, inside the same compute() region tryAcquire decides in, so a
-    // counter is never evicted from under an outstanding permit. Must stay the only decrement site and stay inside
-    // compute(), or the count could be read mid-flight and free slots wrongly refused.
+    // The only decrement site; stays inside compute() so eviction can't race an acquire.
     private void release(String bucketKey, AtomicInteger counter) {
         inFlightByBucket.compute(bucketKey, (k, existing) -> {
             assert existing == counter : "released a counter no longer mapped for bucket [" + bucketKey + "]";

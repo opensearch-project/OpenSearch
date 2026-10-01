@@ -170,29 +170,19 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             when(svc.evaluateLabel(anyList())).thenReturn(Optional.of("QG"));
             filter.apply(task, "Test", request, ActionRequestMetadata.empty(), null, chain);
 
-            // Both principal tokens are joined (by WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER) onto the task for
-            // core-side throttling.
+            // Both tokens are joined onto the task.
             assertEquals(
                 "username|alice" + WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER + "role|admin",
                 task.getThrottlePrincipal()
             );
-            // The principal must NOT land in the thread context: request headers are serialized onto every outgoing
-            // transport request, which would ship the caller's identity to every shard and to remote clusters.
+            // Not in the thread context, which is serialized to every shard and remote cluster.
             assertNull(threadPool.getThreadContext().getHeader("workloadGroupPrincipal"));
         }
     }
 
     public void testApplyTwiceOnOneThreadContextIsTolerated() {
-        // The filter can run more than once against one ThreadContext, and ThreadContext.putHeader throws when the key is
-        // already present -- so anything the filter writes there must tolerate a repeat, or the second run fails the
-        // request. Carrying the principal on the task instead is what makes that safe, and gives each sub-request its own
-        // value.
-        //
-        // Note the repeat is not the ordinary _msearch dispatch loop: TransportAction.execute takes
-        // taskManager.taskExecutionStarted(task) and closes it in a finally, which restores the request headers between
-        // sub-searches. It happens when a sub-search is dispatched from inside a previous one's response handling -- the
-        // queue drain once numRequests exceeds max_concurrent_searches -- where the sender's context, header included, is
-        // the one restored.
+        // The filter can run twice on one ThreadContext (an _msearch draining its queue from a response handler), and
+        // putHeader throws on a repeat, so the principal must live on the task.
         Attribute principalAttr = new Attribute() {
             @Override
             public String getName() {
@@ -255,8 +245,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         WorkloadGroupTask first = newWorkloadGroupTask();
         WorkloadGroupTask second = newWorkloadGroupTask();
         try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
-            // No label, so the (separate, pre-existing) workload-group-id header is not set and this test isolates the
-            // principal.
+            // No label, so only the principal is under test.
             when(svc.evaluateLabel(anyList())).thenReturn(Optional.empty());
             filter.apply(first, "Test", request, ActionRequestMetadata.empty(), null, chain);
             filter.apply(second, "Test", request, ActionRequestMetadata.empty(), null, chain);
@@ -265,15 +254,13 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             assertEquals("username|alice", first.getThrottlePrincipal());
             assertEquals("username|alice", second.getThrottlePrincipal());
             assertNull(threadPool.getThreadContext().getHeader("workloadGroupPrincipal"));
-            // The principal is materialized once per request and reused for both label evaluation and the task field;
-            // extract() carries no re-iterability contract, so calling it twice per request risks yielding nothing.
+            // extract() may be single-use, so it must be called once per request.
             assertEquals("extract() must be invoked once per request", 2, extractCalls.get());
         }
     }
 
     public void testApplyLeavesThrottlePrincipalUnsetWhenNoExtractor() {
-        // Default filter from setUp has no principal attribute/extractor -> the task's principal stays null, which is
-        // what makes username/role throttling fail open rather than bucket everyone together.
+        // No principal extractor, so the principal stays null and username/role throttling fails open.
         SearchRequest request = mock(SearchRequest.class);
         when(request.indices()).thenReturn(new String[] { "foo" });
         ActionFilterChain<ActionRequest, ActionResponse> chain = mock(TestActionFilterChain.class);

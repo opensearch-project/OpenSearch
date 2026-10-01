@@ -429,8 +429,7 @@ public class WorkloadGroupPersistenceService {
                 );
             }
         } catch (ResourceNotFoundException e) {
-            // Feature type not registered on this node yet. Skip rather than reject a config that is probably fine --
-            // the throttle path fails open anyway, so a false rejection here is worse than a missed warning.
+            // Feature type not registered yet. Skip: throttling fails open anyway, so a false rejection is worse.
             logger.debug("WLM feature type not registered; skipping principal-attribute check for throttling config", e);
         }
     }

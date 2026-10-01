@@ -33,7 +33,7 @@ public class WorkloadGroupThrottleTrackerTests extends OpenSearchTestCase {
     public void testAcquireAtLimitIsRefused() {
         WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
         assertNotNull(tracker.tryAcquire("bucket", 1));
-        // Over the cap the tracker reports the breach by returning null; building the 429 is the caller's job.
+        // The tracker returns null over the cap; the caller builds the 429.
         assertNull(tracker.tryAcquire("bucket", 1));
         // a refused acquire must not leave the count inflated
         assertEquals(1, tracker.inFlight("bucket"));
@@ -82,8 +82,7 @@ public class WorkloadGroupThrottleTrackerTests extends OpenSearchTestCase {
         assertEquals(1, tracker.inFlight("bucket"));
         assertEquals(1, tracker.bucketCount());
         p.close();
-        // bucketCount, not inFlight: inFlight returns 0 for an absent bucket AND for one still present at zero, so only
-        // bucketCount actually proves the entry was evicted. Without this the memory bound is untested.
+        // bucketCount, not inFlight: only it distinguishes an evicted bucket from one at zero.
         assertEquals(0, tracker.bucketCount());
         // re-acquiring after the bucket drained (and was removed) works and starts from 1
         Releasable p2 = tracker.tryAcquire("bucket", 5);
@@ -94,8 +93,7 @@ public class WorkloadGroupThrottleTrackerTests extends OpenSearchTestCase {
 
     public void testReleaseIsIdempotent() {
         WorkloadGroupThrottleTracker tracker = new WorkloadGroupThrottleTracker();
-        // Two permits so the bucket survives the first close: with only one, the entry is evicted and a buggy second
-        // decrement would land on an orphaned counter that inFlight() can no longer see, making the test vacuous.
+        // Two permits so the bucket survives the first close, keeping a double decrement visible.
         Releasable p1 = tracker.tryAcquire("bucket", 5);
         Releasable p2 = tracker.tryAcquire("bucket", 5);
         p1.close();

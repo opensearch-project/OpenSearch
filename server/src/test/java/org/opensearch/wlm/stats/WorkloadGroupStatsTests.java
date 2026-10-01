@@ -77,8 +77,7 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
         assertEquals(100, current.getCompletions());
         assertEquals(0.3, current.getResourceStats().get(ResourceType.CPU).getCurrentUsage(), 0.0);
 
-        // A pre-throttling peer never writes total_throttled/total_would_throttle, so they must read back as 0 and -- the
-        // actual hazard -- the resourceStats map that follows must still deserialize instead of being consumed as a throttle slot.
+        // A pre-throttling peer writes neither counter: they read as 0 and the following resourceStats map still decodes.
         WorkloadGroupStats.WorkloadGroupStatsHolder legacy = copyInstance(original, Version.V_3_9_0).getStats().get("group-1");
         assertEquals(0, legacy.getThrottled());
         assertEquals(0, legacy.getWouldThrottle());

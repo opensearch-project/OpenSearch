@@ -114,12 +114,8 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         } else {
             settings = Settings.EMPTY;
         }
-        // throttling is newer than settings, so it needs its own gate: a 3.7/3.8 peer writes only settings, and
-        // reading a throttling bag that was never written would desync the stream for every field after it.
-        // Decode "not on the wire" as null, not Settings.EMPTY: this class doubles as the partial update fragment, where
-        // an empty bag is the explicit "clear all throttling" gesture, so EMPTY here would make any update routed
-        // through a pre-3.10 node silently wipe the group's throttling config. Null means "field absent, keep existing";
-        // WorkloadGroup's constructor normalizes it to EMPTY for a full object.
+        // throttling postdates settings, so it needs its own gate. Absent decodes to null ("keep existing"), not EMPTY,
+        // which on an update fragment means "clear all throttling".
         if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
             throttling = Settings.readOptionalSettingsFromStream(in);
         } else {
@@ -171,7 +167,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return Settings.EMPTY;
             }
-            // No per-key validation here; it is deferred to setThrottling / WorkloadGroup's constructor. See setThrottling.
+            // Validated later; see setThrottling.
             return Settings.fromXContent(parser);
         }
     }
@@ -232,9 +228,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
     });
 
-    // Emits every stored throttling key, limits as JSON numbers. Iterating the bag rather than a hardcoded allowlist
-    // matters because this xContent is also the on-disk cluster-state format: a key that is accepted and stored but not
-    // emitted here would survive in a running cluster and then be silently lost on a full-cluster restart.
+    // Emit every stored key, not an allowlist: this is also the on-disk format, so an unemitted key is lost on restart.
     private static void writeThrottlingFields(XContentBuilder builder, Settings t) throws IOException {
         Map<String, String> sorted = new TreeMap<>();
         for (String key : t.keySet()) {
@@ -402,11 +396,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     }
 
     void setThrottling(Settings throttling) {
-        // No per-key validation here: this setter is reached only from XContent parse, shared by the create/update REST
-        // parse and the on-disk gateway read (WorkloadGroupMetadata.context() == ALL_CONTEXTS). Validating would make the
-        // gateway read strict where the wire read is lenient, wedging a node that reads a config a newer peer wrote.
-        // Validation is deferred to WorkloadGroup's constructor (validateMergedConfig: strict on create/update, advisory on
-        // deserialization); the all-args constructor still validates eagerly for programmatic construction.
+        // No per-key validation: the gateway read shares this parser and must stay lenient. WorkloadGroup's constructor validates.
         this.throttling = throttling != null ? throttling : Settings.EMPTY;
     }
 

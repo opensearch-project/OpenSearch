@@ -108,10 +108,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
     @Before
     public void registerFeatureTypeIfMissingOnAllNodes() {
-        // AutoTaggingRegistry is a JVM-static singleton, but each test (Scope.TEST) restarts the cluster and rebuilds
-        // the feature type — including its WorkloadGroupFeatureValueValidator, which is bound to that cluster's live
-        // ClusterService. Always refresh the registry to the current cluster's feature type; otherwise a later test
-        // would validate rules against a previous (dead) cluster's state and fail with "not a valid workload group id".
+        // The registry is JVM-static but each test gets a new cluster, so re-register this cluster's feature type.
         AutoTaggingRegistry.featureTypesRegistryMap.remove(WorkloadGroupFeatureType.NAME);
         FeatureType featureType = WlmAutoTaggingIT.TestWorkloadManagementPlugin.featureType;
         AutoTaggingRegistry.registerFeatureType(featureType);
@@ -141,7 +138,6 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         setWlmMode("enabled");
 
-        // Workload group throttled to a single in-flight request per node.
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("throttle_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
@@ -150,9 +146,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         indexDocument(indexName);
 
-        // Rule propagation to the in-memory processing service is asynchronous. Wait until a
-        // (non-blocking) search is actually tagged to the throttled group before exercising
-        // the concurrency scenario, otherwise the requests are untagged and never throttled.
+        // Rule propagation is async; wait until searches are tagged to the group.
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
             client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
@@ -164,7 +158,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         ActionFuture<SearchResponse> blockedSearch;
         try {
-            // First search: blocks in the query phase, holding the single permit.
+            // Holds the only permit.
             blockedSearch = blockingSearch(indexName).execute();
             awaitForBlock(plugins);
 
@@ -178,18 +172,9 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
                 hasRejectedExecutionCause(rejection)
             );
 
-            // The rejection must be counted in total_throttled.
             assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-            // The rejected request must NOT have entered the request-operations start path. This guards against the gauge
-            // leak where a throttle rejection increments 'current' via onRequestStart but never reaches
-            // onRequestEnd/onRequestFailure.
-            //
-            // Poll for the gauge to settle rather than comparing two instantaneous samples: the gauge is node-global and
-            // the WLM rule-sync job issues its own search every few seconds, so any single pair of samples can differ by
-            // that traffic in either direction. The steady state is well defined here -- the first search is still blocked
-            // and nothing else in this test is running -- so the gauge must come back to inFlightBefore. A real leak is a
-            // permanent +1 and never settles, so the poll still fails on the regression it is guarding.
+            // A rejected request must not leak the in-flight gauge. Poll, since background rule-sync searches also move it.
             assertBusy(
                 () -> assertEquals(
                     "in-flight search gauge must exclude the throttle-rejected request",
@@ -246,8 +231,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
                 int throttledBefore = getThrottled(workloadGroupId);
 
-                // The group's only permit is held. A scroll continuation must be rejected like any other search -- if it is
-                // admitted, node_limit is evadable simply by adding ?scroll= to a query.
+                // A scroll continuation must be throttled too, or ?scroll= would bypass node_limit.
                 Throwable rejection = expectThrows(
                     Throwable.class,
                     () -> client().prepareSearchScroll(sid).setScroll(TIMEOUT).execute().actionGet(TIMEOUT)
@@ -259,8 +243,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             }
             assertNotNull(blockedSearch.actionGet(TIMEOUT));
 
-            // With the permit released the same scroll continues normally, proving the rejection was the throttle and
-            // not a broken scroll context.
+            // Proves the rejection was the throttle, not a broken scroll context.
             assertNotNull(client().prepareSearchScroll(sid).setScroll(TIMEOUT).get());
         } finally {
             client().prepareClearScroll().addScrollId(scrollId).get();
@@ -279,9 +262,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
-        // The rule's feature value (the workload group id) is validated against applied cluster state, which the group
-        // update above populates asynchronously. Wait until the group is visible in cluster state before creating the
-        // rule, otherwise rule creation races the update and fails validation.
+        // Rule validation reads applied cluster state, so wait for the group before creating the rule.
         assertBusy(() -> {
             boolean present = client().admin()
                 .cluster()
@@ -324,8 +305,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             );
             assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-            // bob is a different principal -> a different bucket -> admitted even while alice is at her limit.
-            // (bob's search also blocks; we just need it to get past admission, so run it async and then release.)
+            // bob is a different bucket, so he is admitted. His search blocks too, so run it async.
             bobBlocked = blockingSearchAs("bob", indexName).execute();
             assertBusy(() -> {
                 int blocked = 0;
@@ -474,8 +454,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         String secondLookupIndex = "lookupidx2";
 
         setWlmMode("enabled");
-        // node_limit=1 is the case that exposes re-entrancy: the outer search holds the group's only permit while its
-        // rewrite phase issues a nested coordinator search that resolves to the same bucket.
+        // node_limit=1: the outer search holds the only permit while its rewrite issues a nested search to the same bucket.
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("nested_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
         assertBusy(
@@ -491,8 +470,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         createRule(ruleId, "nested rule", indexName, featureType, workloadGroupId);
 
         indexDocument(indexName);
-        // The lookup index deliberately matches no rule, so the nested search inherits the outer request's workload
-        // group id from the thread context -- the same bucket the outer request already holds a permit for.
+        // Matches no rule, so the nested search inherits the outer request's group and bucket.
         assertAcked(
             client().admin()
                 .indices()
@@ -525,8 +503,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
         int throttledBefore = getThrottled(workloadGroupId);
 
-        // A terms lookup with a subquery issues a full nested coordinator search during the rewrite phase. With zero
-        // other load this must succeed: the outer request already paid for the bucket.
+        // A terms lookup with a subquery runs a nested search during rewrite; the outer request already paid.
         TermsLookup lookup = new TermsLookup(lookupIndex, null, "uid", QueryBuilders.matchAllQuery());
         SearchResponse response = client().prepareSearch(indexName)
             .setQuery(QueryBuilders.termsLookupQuery("field", lookup))
@@ -535,10 +512,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         assertEquals(RestStatus.OK, response.status());
         assertEquals("a nested rewrite search must not be counted as throttled", throttledBefore, getThrottled(workloadGroupId));
 
-        // Two levels deep. A terms lookup whose subquery is itself a terms lookup issues a nested search from inside a
-        // nested search, and each level can only see the ancestor chain it was handed. The middle request holds no permit of
-        // its own -- it was exempted -- so unless an exempt request still advertises the bucket it is covered by, the
-        // grandchild finds no covered ancestor, takes a fresh permit, and 429s the single request that spawned it.
+        // Two levels: the exempt middle search must pass its parent's charge on to the grandchild.
         TermsLookup innerLookup = new TermsLookup(secondLookupIndex, null, "uid", QueryBuilders.matchAllQuery());
         TermsLookup outerLookup = new TermsLookup(lookupIndex, null, "uid", QueryBuilders.termsLookupQuery("uid", innerLookup));
         SearchResponse twoLevel = client().prepareSearch(indexName)
@@ -552,8 +526,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             getThrottled(workloadGroupId)
         );
 
-        // The exemption must be scoped to nesting only -- a genuinely concurrent second request still gets a 429,
-        // otherwise the fix would have silently disabled throttling for this group.
+        // A genuinely concurrent request is still rejected, so the exemption didn't disable throttling.
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         ActionFuture<SearchResponse> blocked;
         try {
@@ -575,10 +548,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
     }
 
-    // In production the WLM auto-tagging filter sets the task's throttle principal from the security plugin's principal
-    // extractor. There is no such extractor here, so TestPrincipalPlugin below stands in for it, reading the username
-    // from a test-only header and setting it on the task exactly as the real filter does. This exercises the real
-    // plumbing (task field -> throttle admission) rather than simulating it.
+    // Principals come from a test-only header via TestPrincipalPlugin, standing in for the security plugin.
     private Client clientAs(String username) {
         return clientWithPrincipal("username|" + username);
     }
@@ -782,9 +752,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
                 LogManager.getLogger(WlmNodeThrottlingIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    // Explicit, generous budget: the default overload is 10s, but callers hold a search here while
-                    // running their own 30s assertBusy waits, so the default would expire first and surface as a
-                    // baffling "expected false but was true" failure inside an unrelated assertion.
+                    // Outlast callers' 30s assertBusy waits; the 10s default would fail inside an unrelated assertion.
                     assertBusy(() -> assertFalse(shouldBlock.get()), 120, TimeUnit.SECONDS);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
