@@ -967,6 +967,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                             final TimeValue resyncTimeout = recoverySettings.getPrimaryResyncTimeout();
                             final Scheduler.ScheduledCancellable timeoutTask = threadPool.schedule(() -> {
+                                cancelPrimaryResyncTimeoutTask(); 
                                 if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
                                     logger.warn(
                                         "[{}] primary-replica resync timed out after [{}], forcibly clearing "
@@ -994,11 +995,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     @Override
                                     public void onFailure(Exception e) {
                                         cancelPrimaryResyncTimeoutTask();
-                                        primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                        if (state == IndexShardState.CLOSED) {
-                                            // ignore, shutting down
+                                        if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
+                                            if (state == IndexShardState.CLOSED) {
+                                                // ignore, shutting down
+                                            } else {
+                                                failShard("exception during primary-replica resync", e);
+                                            }
                                         } else {
-                                            failShard("exception during primary-replica resync", e);
+                                            logger.warn("primary-replica resync failed after already timed out or completed", e);
                                         }
                                     }
                                 });
