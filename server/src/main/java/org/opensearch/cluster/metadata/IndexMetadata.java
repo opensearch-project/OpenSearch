@@ -1558,6 +1558,52 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return null;
     }
 
+    /**
+     * Returns a copy of this instance with the given mapping, which must be equal to the current one.
+     */
+    IndexMetadata withMappingMetadata(MappingMetadata mapping) {
+        if (mapping() == mapping) {
+            return this;
+        }
+        assert mapping.equals(mapping()) : "replacement mapping for [" + index + "] must be equal to the current one";
+        return new IndexMetadata(
+            index,
+            version,
+            mappingVersion,
+            settingsVersion,
+            aliasesVersion,
+            state,
+            numberOfShards,
+            numberOfReplicas,
+            numberOfSearchOnlyReplicas,
+            settings,
+            Map.of(mapping.type(), mapping),
+            aliases,
+            customData,
+            inSyncAllocationIds,
+            requireFilters,
+            initialRecoveryFilters,
+            includeFilters,
+            excludeFilters,
+            indexCreatedVersion,
+            indexUpgradedVersion,
+            routingNumShards,
+            routingPartitionSize,
+            waitForActiveShards,
+            rolloverInfos,
+            isSystem,
+            indexTotalShardsPerNodeLimit,
+            indexTotalPrimaryShardsPerNodeLimit,
+            indexTotalRemoteCapableShardsPerNodeLimit,
+            indexTotalRemoteCapablePrimaryShardsPerNodeLimit,
+            isAppendOnlyIndex,
+            context,
+            ingestionStatus,
+            splitShardsMetadata,
+            primaryTermsMap
+        );
+    }
+
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
     public static final String INDEX_RESIZE_SOURCE_NAME_KEY = "index.resize.source.name";
     public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY);

@@ -1,0 +1,182 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.cluster.metadata;
+
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.util.List;
+
+public class MetadataMappingTests extends OpenSearchTestCase {
+
+    private static final String MAPPING_JSON = """
+        {
+          "properties": {
+            "title":   { "type": "keyword" },
+            "year":    { "type": "integer" }
+          }
+        }
+        """;
+
+    private static final String OTHER_MAPPING_JSON = "{\"properties\":{\"score\":{\"type\":\"float\"}}}";
+
+    private static IndexMetadata newIndexWithMapping(String name, String mappingJson) throws IOException {
+        return IndexMetadata.builder(name)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .putMapping(new MappingMetadata(new CompressedXContent(mappingJson)))
+            .build();
+    }
+
+    public void testDeduplicatesIdenticalMappings() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
+            .build();
+
+        assertSame(metadata.index("index-1").mapping(), metadata.index("index-2").mapping());
+    }
+
+    public void testDoesNotDeduplicateDifferentMappings() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", "{\"properties\":{\"score\":{\"type\":\"float\"}}}"), false)
+            .build();
+
+        assertNotSame(metadata.index("index-1").mapping(), metadata.index("index-2").mapping());
+    }
+
+    public void testDoesNotRebuildDeduplicatedIndices() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
+            .build();
+
+        Metadata rebuiltMetadata = Metadata.builder(metadata).build();
+
+        assertSame(metadata.index("index-1"), rebuiltMetadata.index("index-1"));
+        assertSame(metadata.index("index-2"), rebuiltMetadata.index("index-2"));
+    }
+
+    public void testDeduplicationPreservesIndexMetadata() throws Exception {
+        IndexMetadata index1 = newIndexWithMapping("index-1", MAPPING_JSON);
+        IndexMetadata index2 = IndexMetadata.builder(newIndexWithMapping("index-2", MAPPING_JSON))
+            .version(7)
+            .mappingVersion(11)
+            .settingsVersion(13)
+            .aliasesVersion(17)
+            .build();
+
+        Metadata metadata = Metadata.builder().put(index1, false).put(index2, false).build();
+
+        assertEquals(index1, metadata.index("index-1"));
+        assertEquals(index2, metadata.index("index-2"));
+        assertEquals(7, metadata.index("index-2").getVersion());
+        assertEquals(11, metadata.index("index-2").getMappingVersion());
+        assertEquals(13, metadata.index("index-2").getSettingsVersion());
+        assertEquals(17, metadata.index("index-2").getAliasesVersion());
+    }
+
+    public void testDeletingIndexRetainsSharedMapping() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
+            .build();
+
+        Metadata afterDeletion = Metadata.builder(metadata).remove("index-1").build();
+
+        assertNull(afterDeletion.index("index-1"));
+        assertSame(metadata.index("index-2"), afterDeletion.index("index-2"));
+        assertNotNull(afterDeletion.index("index-2").mapping());
+    }
+
+    public void testReadDeduplicatesMappings() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", MAPPING_JSON), false)
+            .build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexGraveyard.TYPE, IndexGraveyard::new))
+        );
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        Metadata deserializedMetadata = Metadata.readFrom(in);
+
+        assertSame(deserializedMetadata.index("index-1").mapping(), deserializedMetadata.index("index-2").mapping());
+    }
+
+    public void testApplyingDiffKeepsUnchangedIndexMetadataInstances() throws Exception {
+        Metadata.Builder builder = Metadata.builder();
+        for (int i = 0; i < 10; i++) {
+            builder.put(newIndexWithMapping("index-" + i, MAPPING_JSON), false);
+        }
+        Metadata previous = builder.build();
+        Metadata current = Metadata.builder(previous).put(newIndexWithMapping("new-index", MAPPING_JSON), false).build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        current.diff(previous).writeTo(out);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        Metadata applied = Metadata.readDiffFrom(in).apply(previous);
+
+        for (int i = 0; i < 10; i++) {
+            assertSame(previous.index("index-" + i), applied.index("index-" + i));
+        }
+        assertSame(previous.index("index-0").mapping(), applied.index("new-index").mapping());
+    }
+
+    public void testDeletingLastIndexReleasesMapping() throws Exception {
+        Metadata metadata = Metadata.builder()
+            .put(newIndexWithMapping("index-1", MAPPING_JSON), false)
+            .put(newIndexWithMapping("index-2", OTHER_MAPPING_JSON), false)
+            .build();
+        MappingMetadata releasedMapping = metadata.index("index-2").mapping();
+
+        metadata = Metadata.builder(metadata).remove("index-2").build();
+        metadata = Metadata.builder(metadata).put(newIndexWithMapping("index-3", OTHER_MAPPING_JSON), false).build();
+
+        assertNotSame(releasedMapping, metadata.index("index-3").mapping());
+    }
+
+    public void testChangingMappingReleasesPreviousMapping() throws Exception {
+        Metadata metadata = Metadata.builder().put(newIndexWithMapping("index-1", MAPPING_JSON), false).build();
+        MappingMetadata releasedMapping = metadata.index("index-1").mapping();
+
+        metadata = Metadata.builder(metadata).put(newIndexWithMapping("index-1", OTHER_MAPPING_JSON), false).build();
+        metadata = Metadata.builder(metadata).put(newIndexWithMapping("index-2", MAPPING_JSON), false).build();
+
+        assertNotSame(releasedMapping, metadata.index("index-2").mapping());
+    }
+
+    public void testUnchangedMappingRetainsSharedInstance() throws Exception {
+        Metadata metadata = Metadata.builder().put(newIndexWithMapping("index-1", MAPPING_JSON), false).build();
+        MappingMetadata sharedMapping = metadata.index("index-1").mapping();
+
+        metadata = Metadata.builder(metadata).updateNumberOfReplicas(1, new String[] { "index-1" }).build();
+        metadata = Metadata.builder(metadata).put(newIndexWithMapping("index-2", MAPPING_JSON), false).build();
+
+        assertSame(sharedMapping, metadata.index("index-1").mapping());
+        assertSame(sharedMapping, metadata.index("index-2").mapping());
+    }
+}
