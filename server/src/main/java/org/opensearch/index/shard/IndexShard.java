@@ -967,7 +967,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                             final TimeValue resyncTimeout = recoverySettings.getPrimaryResyncTimeout();
                             final Scheduler.ScheduledCancellable timeoutTask = threadPool.schedule(() -> {
-                                cancelPrimaryResyncTimeoutTask(); 
+                                cancelPrimaryResyncTimeoutTask();
                                 if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
                                     logger.warn(
                                         "[{}] primary-replica resync timed out after [{}], forcibly clearing "
