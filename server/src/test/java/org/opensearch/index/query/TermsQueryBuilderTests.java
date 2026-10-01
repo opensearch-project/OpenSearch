@@ -90,6 +90,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     private String termsPath;
     private boolean maybeIncludeType = true;
     private Set<String> assertedWarnings = new HashSet<>();
+    // When true, executeGet() returns a document that does not contain the looked-up
+    // stored field, so getResponse.getField(path) yields a null DocumentField.
+    private boolean storedFieldMissing = false;
 
     @Before
     public void randomTerms() {
@@ -103,6 +106,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
         this.randomTerms = randomTerms;
         termsPath = randomAlphaOfLength(10).replace('.', '_');
+        storedFieldMissing = false;
     }
 
     @Override
@@ -281,7 +285,11 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 nonNullTerms.add(obj);
             }
         }
-        documentField.put(termsPath, new DocumentField(termsPath, nonNullTerms));
+        // Leaving the path out of the document makes getResponse.getField(path) return null,
+        // mirroring a stored field that is absent from the looked-up document.
+        if (storedFieldMissing == false) {
+            documentField.put(termsPath, new DocumentField(termsPath, nonNullTerms));
+        }
         return new GetResponse(
             new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
         );
@@ -472,6 +480,19 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         QueryBuilder rewritten = rewriteQuery(query, new QueryShardContext(context));
         Query luceneQuery = rewritten.toQuery(context);
         assertTrue(luceneQuery instanceof IndexOrDocValuesQuery);
+    }
+
+    public void testTermsLookupBitmapStoredFieldMissing() throws IOException {
+        // The looked-up document does not contain the stored field, so getField(path) returns null.
+        // The query should resolve to no terms (match none) instead of throwing an NPE.
+        storedFieldMissing = true;
+
+        TermsQueryBuilder query = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
+            TermsQueryBuilder.ValueType.BITMAP
+        );
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewritten = rewriteAndFetch(query, context);
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 
     public void testGetComplementWholeNumber() throws Exception {
