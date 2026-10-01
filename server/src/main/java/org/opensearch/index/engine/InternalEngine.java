@@ -2194,7 +2194,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean refreshNeeded() {
-        return documentIndexWriter.hasNewIndexingOrUpdates() || super.refreshNeeded();
+        return documentIndexWriter.hasNewIndexingOrUpdates()
+            || lastRefreshedCheckpoint() < localCheckpointTracker.getProcessedCheckpoint()
+            || super.refreshNeeded();
     }
 
     /**
