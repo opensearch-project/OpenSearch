@@ -32,6 +32,7 @@
 
 package org.opensearch.action.explain;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchException;
@@ -79,6 +80,9 @@ import java.util.Set;
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
     private final SearchService searchService;
+
+    /** Sentinel returned by {@link #resolveTopLevelDocId} when the id term is absent from the explain reader. */
+    static final int NO_MATCH = -1;
 
     @Inject
     public TransportExplainAction(
@@ -161,29 +165,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
-            int topLevelDocId;
-            if (result instanceof DocumentLookupResult.PreMaterialized) {
-                // A PreMaterialized get result carries no docId. Resolve the docId against the explain
-                // searcher's own reader in DOC_ID_ONLY mode: an engine that returns a PreMaterialized result
-                // may index the _id term without writing _version doc values, so a FULL-mode lookup
-                // (loadDocIdAndVersion) could throw, and DOC_ID_ONLY also reuses the cache entry the get
-                // path already created for this reader.
-                VersionsAndSeqNoResolver.DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocId(
-                    context.searcher().getIndexReader(),
-                    uidTerm
-                );
-                if (docIdAndSeqNo == null) {
-                    // The id term is not present in this searcher's reader; report no match rather than erroring.
-                    return new ExplainResponse(
-                        shardId.getIndexName(),
-                        request.id(),
-                        true,
-                        Explanation.noMatch("Failed to locate document")
-                    );
-                }
-                topLevelDocId = docIdAndSeqNo.docId + docIdAndSeqNo.context.docBase;
-            } else {
-                topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
+            int topLevelDocId = resolveTopLevelDocId(result, context.searcher().getIndexReader(), uidTerm);
+            if (topLevelDocId == NO_MATCH) {
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, Explanation.noMatch("Failed to locate document"));
             }
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
@@ -206,6 +190,31 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         } finally {
             Releasables.close(result, context);
         }
+    }
+
+    /**
+     * Resolves the top-level (reader-relative) Lucene doc id used to explain a hit.
+     * <p>
+     * A docId is only meaningful relative to the reader that produced it, and the get and explain phases use
+     * different readers, so a {@link DocumentLookupResult.PreMaterialized} result (which carries no docId) must have
+     * its docId resolved against the explain searcher's own {@code reader} rather than one carried on the get result.
+     * <p>
+     * For a PreMaterialized result the docId is resolved against {@code reader} in DOC_ID_ONLY mode: an engine that
+     * returns a PreMaterialized result may index the _id term without writing _version doc values, so a FULL-mode
+     * lookup (loadDocIdAndVersion) could throw, and DOC_ID_ONLY also reuses the cache entry the get path already
+     * created for this reader. Returns {@link #NO_MATCH} when the id term is absent from {@code reader}; otherwise the
+     * leaf docId lifted by its docBase. For any other result the docId carried on
+     * {@link Engine.GetResult#docIdAndVersion()} is used.
+     */
+    static int resolveTopLevelDocId(Engine.GetResult result, IndexReader reader, Term uidTerm) throws IOException {
+        if (result instanceof DocumentLookupResult.PreMaterialized) {
+            VersionsAndSeqNoResolver.DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocId(reader, uidTerm);
+            if (docIdAndSeqNo == null) {
+                return NO_MATCH;
+            }
+            return docIdAndSeqNo.docId + docIdAndSeqNo.context.docBase;
+        }
+        return result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
     }
 
     @Override
