@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
@@ -124,7 +125,10 @@ public class AutoTaggingActionFilter implements ActionFilter {
         }
 
         Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
-        label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        ThreadContext threadContext = threadPool.getThreadContext();
+        if (threadContext.getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == null) {
+            label.ifPresent(s -> threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        }
         chain.proceed(task, action, request, listener);
     }
 }
