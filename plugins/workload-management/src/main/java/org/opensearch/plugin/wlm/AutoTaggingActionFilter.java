@@ -126,7 +126,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
 
         Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
         ThreadContext threadContext = threadPool.getThreadContext();
-        if (threadContext.getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == null) {
+        if (threadContext.getRequestHeadersOnly().containsKey(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == false) {
             label.ifPresent(s -> threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
         }
         chain.proceed(task, action, request, listener);
