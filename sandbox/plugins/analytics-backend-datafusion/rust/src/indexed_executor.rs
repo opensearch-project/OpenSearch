@@ -121,7 +121,7 @@ pub async fn execute_indexed_query(
     // Register default ListingTable so substrait consumer can resolve the table.
     // No sort-order declaration on the indexed path (empty slices) — the indexed
     // executor drives ordering itself via IndexedExec.
-    register_listing_table(&ctx, &table_name, shard_view.table_path.clone(), &[], &[]).await?;
+    register_listing_table(&ctx, &table_name, shard_view.table_path.clone(), &[], &[], &[]).await?;
 
     // Build SessionContextHandle and delegate to execute_indexed_with_context
     let handle = crate::session_context::SessionContextHandle {
@@ -131,6 +131,7 @@ pub async fn execute_indexed_query(
         writer_generations: shard_view.writer_generations.clone(),
         sort_fields: shard_view.sort_fields.clone(),
         sort_orders: shard_view.sort_orders.clone(),
+        sort_missing: shard_view.sort_missing.clone(),
         query_context: crate::query_tracker::QueryTrackingContext::new(
             context_id,
             runtime.runtime_env.memory_pool.clone(),
@@ -1137,6 +1138,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let writer_generations = handle.writer_generations;
     let sort_fields = handle.sort_fields;
     let sort_orders = handle.sort_orders;
+    let sort_missing = handle.sort_missing;
     let query_context = handle.query_context;
     let io_handle = handle.io_handle;
     // Extract context_id early so it can be captured by the per-segment closures
@@ -1632,21 +1634,24 @@ async unsafe fn execute_indexed_with_context_inner(
         .map_err(|e| DataFusionError::Execution(format!("parse table_path URL: {}", e)))?;
     let store_url = ObjectStoreUrl::parse(format!("{}://{}", parsed.scheme(), parsed.authority()))?;
 
-    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
-        schema: schema.clone(),
-        segments,
-        store: Arc::clone(&store),
-        store_url,
-        evaluator_factory: factory,
-        pushdown_predicate,
-        query_config: Arc::clone(&query_config),
-        predicate_columns,
-        emit_row_ids,
-        prune_tree_config,
-        sort_fields: sort_fields.clone(),
-        sort_orders: sort_orders.clone(),
-        cancellation_token: crate::query_tracker::get_cancellation_token(context_id),
-    }));
+    let provider = Arc::new(IndexedTableProvider::new_with_sort_missing(
+        IndexedTableConfig {
+            schema: schema.clone(),
+            segments,
+            store: Arc::clone(&store),
+            store_url,
+            evaluator_factory: factory,
+            pushdown_predicate,
+            query_config: Arc::clone(&query_config),
+            predicate_columns,
+            emit_row_ids,
+            prune_tree_config,
+            sort_fields: sort_fields.clone(),
+            sort_orders: sort_orders.clone(),
+            cancellation_token: crate::query_tracker::get_cancellation_token(context_id),
+        },
+        sort_missing,
+    ));
     ctx.register_table(&register_name, provider)?;
 
     let logical_plan = crate::substrait_consumer::from_substrait_plan(&ctx.state(), &plan).await?;

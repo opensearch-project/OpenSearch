@@ -101,9 +101,9 @@ pub fn build_query_runtime_env_with_store(
 /// `table_name` so the substrait consumer can resolve the table.
 ///
 /// Shared by the vanilla and indexed execution paths. Infers + coerces the
-/// schema, and — when `sort_fields`/`sort_orders` describe an `index.sort.field`
+/// schema, and — when the sort settings describe supported scalar index-sort keys
 /// — declares the per-file sort order to DataFusion (see
-/// [`build_file_sort_order`] for what that buys and its case/nulls caveats).
+/// [`build_file_sort_order`] for its constraints).
 /// Pass empty slices to skip the sort-order declaration.
 pub async fn register_listing_table(
     ctx: &SessionContext,
@@ -111,14 +111,11 @@ pub async fn register_listing_table(
     table_path: ListingTableUrl,
     sort_fields: &[String],
     sort_orders: &[String],
+    sort_missing: &[String],
 ) -> Result<(), DataFusionError> {
     let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
         .with_file_extension(".parquet")
         .with_collect_stat(true);
-    if let Some(sort_exprs) = build_file_sort_order(sort_fields, sort_orders) {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     let resolved_schema = listing_options
         .infer_schema(&ctx.state(), &table_path)
         .await
@@ -127,6 +124,11 @@ pub async fn register_listing_table(
             e
         })?;
     let resolved_schema = coerce_inferred_schema(resolved_schema);
+    if let Some(sort_exprs) =
+        build_file_sort_order(sort_fields, sort_orders, sort_missing, &resolved_schema)
+    {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     let table_config = ListingTableConfig::new(table_path)
         .with_listing_options(listing_options)
