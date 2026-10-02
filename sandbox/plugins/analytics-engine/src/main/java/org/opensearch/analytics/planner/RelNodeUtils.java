@@ -23,6 +23,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
@@ -251,7 +252,7 @@ public class RelNodeUtils {
      */
     public static void logPlan(Logger logger, String label, RelNode plan) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}:\n{}", label, RelOptUtil.toString(plan));
+            logger.debug("{}:\n{}", label, RelOptUtil.toString(plan, SqlExplainLevel.NO_ATTRIBUTES));
         }
     }
 

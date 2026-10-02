@@ -113,8 +113,6 @@ public class UnifiedQueryService {
                 .build()
         ) {
 
-            // Log what the context's root schema looks like
-            logger.info("[UnifiedQueryService] Context built, planning PPL: {}", pplText);
             UnifiedQueryPlanner planner = new UnifiedQueryPlanner(context);
             RelNode logicalPlan = planner.plan(pplText);
 

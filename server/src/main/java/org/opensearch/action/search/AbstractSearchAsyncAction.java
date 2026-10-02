@@ -59,6 +59,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -67,6 +68,7 @@ import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -507,6 +509,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
     }
 
+    /**
+     * Safe-for-logging descriptor of {@link #request} — search type, indices, opaque/request id,
+     * never the query source. Must not throw: {@code task} may be null, and some call sites log
+     * unguarded by a level check.
+     */
+    private String safeRequestDescription() {
+        if (SearchLogRedaction.shouldRedact() == false) {
+            return request.toString();
+        }
+        String opaqueId = task != null ? task.getHeader(Task.X_OPAQUE_ID) : null;
+        String requestId = task != null ? task.getHeader(Task.X_REQUEST_ID) : null;
+        return "search_type["
+            + request.searchType()
+            + "], indices["
+            + Arrays.toString(request.indices())
+            + "], opaqueId["
+            + opaqueId
+            + "], requestId["
+            + requestId
+            + "]";
+    }
+
     private void executePhase(SearchPhase phase) {
         Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
         try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
@@ -514,7 +538,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             phase.recordAndRun();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
+                logger.debug(
+                    new ParameterizedMessage(
+                        "Failed to execute [{}] while moving to [{}] phase",
+                        safeRequestDescription(),
+                        phase.getName()
+                    ),
+                    e
+                );
             }
 
             if (currentPhaseHasLifecycle == false) {
@@ -556,7 +587,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 () -> new ParameterizedMessage(
                     "{}: Failed to execute [{}] lastShard [{}]",
                     shard != null ? shard : shardIt.shardId(),
-                    request,
+                    safeRequestDescription(),
                     lastShard
                 ),
                 e
@@ -567,7 +598,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 new ParameterizedMessage(
                     "{}: Failed to execute [{}] lastShard [{}]",
                     shard != null ? shard : shardIt.shardId(),
-                    request,
+                    safeRequestDescription(),
                     lastShard
                 )
             );

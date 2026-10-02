@@ -768,6 +768,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public final String buildDescription() {
+        // Source may carry user data; indices/search_type/scroll are schema, not data.
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
@@ -776,7 +777,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (scroll != null) {
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
-        if (source != null) {
+        if (source == null) {
+            sb.append("source[]");
+        } else if (SearchLogRedaction.shouldRedact()) {
+            sb.append("source[<redacted>]");
+        } else {
             sb.append("source[");
             try {
                 sb.append(source.toString(FORMAT_PARAMS));
@@ -784,8 +789,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 sb.append("<error: ").append(ex.getMessage()).append(">");
             }
             sb.append("]");
-        } else {
-            sb.append("source[]");
         }
         return sb.toString();
     }

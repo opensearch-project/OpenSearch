@@ -32,13 +32,18 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
@@ -52,9 +57,11 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
@@ -77,6 +84,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -90,9 +98,11 @@ import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
@@ -710,6 +720,102 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         innerTestExecutePhaseOnShardFailure(true);
     }
 
+    /**
+     * Regression guard for the fix that replaced the raw {@code request} object in
+     * {@code onShardFailure}'s log line with {@code safeRequestDescription()}. Asserts the query
+     * source never reaches the log, and that the safe descriptor fields do, when
+     * {@code cluster.search.log.redact_source} is enabled.
+     */
+    public void testOnShardFailureLogDoesNotContainQuerySource() throws IllegalAccessException {
+        final String marker = "totally-fake-marker-xyz123";
+        SearchRequest searchRequest = new SearchRequest("marker-index").source(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker))
+        );
+        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(1);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            queryResult,
+            ActionListener.wrap(response -> {}, e -> {}),
+            false,
+            new AtomicLong(),
+            new TaskResourceUsage(randomLong(), randomLong())
+        );
+
+        CollectingAppender appender = new CollectingAppender("shard_failure_marker_appender");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Level originalLevel = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        SearchLogRedaction.initialize(Settings.builder().put(SearchLogRedaction.REDACT_QUERY_LOG_SOURCE.getKey(), true).build());
+        try {
+            ShardId shardId = new ShardId("marker-index", "index-uuid", 0);
+            action.onShardFailure(
+                0,
+                new SearchShardTarget("node", shardId, null, OriginalIndices.NONE),
+                new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE),
+                new IllegalArgumentException("boom")
+            );
+            for (String message : appender.formattedMessages()) {
+                assertThat(message, not(containsString(marker)));
+            }
+            // The cascade into onPhaseFailure logs its own line afterwards, so search by content
+            // rather than assuming this is the last event captured.
+            String formatted = appender.findFormattedMessageContaining(": Failed to execute [");
+            assertNotNull("expected onShardFailure to log", formatted);
+            assertThat(formatted, containsString("search_type["));
+            assertThat(formatted, containsString("marker-index"));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            Loggers.setLevel(logger, originalLevel);
+            SearchLogRedaction.initialize(Settings.EMPTY);
+        }
+    }
+
+    /**
+     * {@code cluster.search.log.redact_source} defaults to {@code false}: with no setting applied,
+     * {@code onShardFailure} logs the query source as before this fix.
+     */
+    public void testOnShardFailureLogContainsQuerySourceWhenRedactionDisabled() throws IllegalAccessException {
+        final String marker = "totally-fake-marker-xyz123";
+        SearchRequest searchRequest = new SearchRequest("marker-index").source(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", marker))
+        );
+        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(1);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            queryResult,
+            ActionListener.wrap(response -> {}, e -> {}),
+            false,
+            new AtomicLong(),
+            new TaskResourceUsage(randomLong(), randomLong())
+        );
+
+        CollectingAppender appender = new CollectingAppender("shard_failure_marker_appender_disabled");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Level originalLevel = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        SearchLogRedaction.initialize(Settings.EMPTY);
+        try {
+            ShardId shardId = new ShardId("marker-index", "index-uuid", 0);
+            action.onShardFailure(
+                0,
+                new SearchShardTarget("node", shardId, null, OriginalIndices.NONE),
+                new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE),
+                new IllegalArgumentException("boom")
+            );
+            String formatted = appender.findFormattedMessageContaining(": Failed to execute [");
+            assertNotNull("expected onShardFailure to log", formatted);
+            assertThat(formatted, containsString(marker));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            Loggers.setLevel(logger, originalLevel);
+        }
+    }
+
+    // executePhase's own call site isn't separately tested here; it shares safeRequestDescription()
+    // with the test above, which covers the realistic regression.
+
     public void testOnPhaseListenersWithQueryAndThenFetchType() throws InterruptedException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
@@ -951,6 +1057,40 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     private static final class PhaseResult extends SearchPhaseResult {
         PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;
+        }
+    }
+
+    /**
+     * Collects every appended {@link LogEvent}, unlike {@link org.opensearch.common.logging.MockAppender}
+     * which only keeps the last one, so a test can find one specific message among several.
+     */
+    private static final class CollectingAppender extends AbstractAppender {
+        private final List<LogEvent> events = new CopyOnWriteArrayList<>();
+
+        CollectingAppender(String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            events.add(event.toImmutable());
+        }
+
+        String findFormattedMessageContaining(String substring) {
+            for (String formatted : formattedMessages()) {
+                if (formatted.contains(substring)) {
+                    return formatted;
+                }
+            }
+            return null;
+        }
+
+        List<String> formattedMessages() {
+            List<String> out = new ArrayList<>();
+            for (LogEvent event : events) {
+                out.add(event.getMessage().getFormattedMessage());
+            }
+            return out;
         }
     }
 }
