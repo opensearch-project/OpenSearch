@@ -611,6 +611,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
+                assert Objects.equals(event.previousState().nodes().getClusterManagerNode(), state.nodes().getClusterManagerNode()) == false
+                    || newIndexMetadata.equals(currentIndexMetadata) == false
+                    : "unchanged index metadata must keep its instance unless the cluster manager changed [" + index + "]";
                 String reason = null;
                 try {
                     reason = "metadata update failed";
