@@ -152,6 +152,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 if (entry.getKey().equals("index")) {
                     builder.index(XContentMapValues.nodeBooleanValue(entry.getValue(), name + ".index"));
+                    builder.indexExplicit = true;
                     iterator.remove();
                 }
             }
@@ -569,6 +570,16 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected FlatObjectFieldMapper clone() {
         return (FlatObjectFieldMapper) super.clone();
+    }
+
+    @Override
+    protected FieldMapper withIndexDisabled(BuilderContext context) {
+        if (fieldType().isSearchable() == false) {
+            return this;
+        }
+        Builder builder = new Builder(simpleName());
+        builder.index(false);
+        return builder.build(context);
     }
 
     @Override

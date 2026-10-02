@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -106,24 +107,33 @@ public class ObjectMapper extends Mapper implements Cloneable {
     @PublicApi(since = "1.0.0")
     public static class Nested {
 
-        public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false));
+        private static final Explicit<Boolean> INDEXED_BY_DEFAULT = new Explicit<>(true, false);
+
+        public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false), INDEXED_BY_DEFAULT);
 
         public static Nested newNested() {
-            return new Nested(true, new Explicit<>(false, false), new Explicit<>(false, false));
+            return new Nested(true, new Explicit<>(false, false), new Explicit<>(false, false), INDEXED_BY_DEFAULT);
         }
 
         public static Nested newNested(Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
-            return new Nested(true, includeInParent, includeInRoot);
+            return new Nested(true, includeInParent, includeInRoot, INDEXED_BY_DEFAULT);
+        }
+
+        /** As {@link #newNested(Explicit, Explicit)}, with the nested object's {@code index} parameter. */
+        public static Nested newNested(Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot, Explicit<Boolean> indexed) {
+            return new Nested(true, includeInParent, includeInRoot, indexed);
         }
 
         private final boolean nested;
         private Explicit<Boolean> includeInParent;
         private Explicit<Boolean> includeInRoot;
+        private Explicit<Boolean> indexed;
 
-        private Nested(boolean nested, Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
+        private Nested(boolean nested, Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot, Explicit<Boolean> indexed) {
             this.nested = nested;
             this.includeInParent = includeInParent;
             this.includeInRoot = includeInRoot;
+            this.indexed = indexed;
         }
 
         public void merge(Nested mergeWith, MergeReason reason) {
@@ -144,12 +154,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (mergeWith.includeInRoot.explicit()) {
                     includeInRoot = mergeWith.includeInRoot;
                 }
+                if (mergeWith.indexed.explicit()) {
+                    indexed = mergeWith.indexed;
+                }
             } else {
                 if (includeInParent.value() != mergeWith.includeInParent.value()) {
                     throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
                 }
                 if (includeInRoot.value() != mergeWith.includeInRoot.value()) {
                     throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
+                }
+                if (indexed.value() != mergeWith.indexed.value()) {
+                    throw new MapperException("the [index] parameter can't be updated on a nested object mapping");
                 }
             }
         }
@@ -164,6 +180,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public boolean isIncludeInRoot() {
             return includeInRoot.value();
+        }
+
+        /**
+         * Whether leaves inside this nested object are search-indexed. {@code false} means no leaf under it
+         * has an inverted index, whatever the leaf says: the data format stores nested elements without
+         * indexing them. Pluggable-format indices only; set by {@link DocumentMapper} when the format declines
+         * search for the scope. Not updateable. Always {@code true} for a non-nested object.
+         *
+         * @opensearch.experimental
+         */
+        @ExperimentalApi
+        public boolean isIndexed() {
+            return indexed.value();
+        }
+
+        /** Copy with {@code index: false}, recorded by the server rather than set by the author; not mutated in place. */
+        Nested withIndexDisabled() {
+            return new Nested(nested, includeInParent, includeInRoot, new Explicit<>(false, false));
+        }
+
+        /** Whether the parsed mapping spelled out {@code index} on this nested object. */
+        boolean isIndexExplicit() {
+            return indexed.explicit();
         }
 
         public void setIncludeInParent(boolean value) {
@@ -244,6 +283,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(context);
+                FieldMapper.markIndexExplicit(mapper, builder);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
@@ -262,6 +302,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mappers,
                 context.indexSettings()
             );
+
+            // The nested index flag is recorded by the server, and only for a pluggable format.
+            if (nested.isNested() && nested.isIndexExplicit() && isPluggableDataFormatEnabled(context.indexSettings()) == false) {
+                throw new MapperParsingException(
+                    "[index] on nested object [" + objectMapper.fullPath() + "] is only supported with a pluggable data format"
+                );
+            }
 
             // Validate flat field compatibility during build
             if (Boolean.TRUE.equals(disableObjects.value())) {
@@ -447,7 +494,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 node.remove("include_in_root");
             }
             if (nested) {
-                builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
+                // Nested-only parameter; on a plain object it is left in the node and rejected as unsupported.
+                Explicit<Boolean> nestedIndexed = new Explicit<>(true, false);
+                fieldNode = node.get("index");
+                if (fieldNode != null) {
+                    nestedIndexed = new Explicit<>(XContentMapValues.nodeBooleanValue(fieldNode, name + ".index"), true);
+                    node.remove("index");
+                }
+                builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot, nestedIndexed);
             }
         }
 
@@ -685,7 +739,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private Explicit<Boolean> enabled;
 
-    private final Nested nested;
+    // Not final: withNestedIndexDisabled() swaps it on a clone.
+    private Nested nested;
 
     private final String nestedTypePath;
 
@@ -755,6 +810,23 @@ public class ObjectMapper extends Mapper implements Cloneable {
         mappingUpdate.mappers = new CopyOnWriteHashMap<>();
         mappingUpdate.putMapper(mapper);
         return mappingUpdate;
+    }
+
+    /** Copy of this nested object mapper with {@code index: false}; children are shared. */
+    ObjectMapper withNestedIndexDisabled() {
+        assert nested.isNested() : "[index] is a nested-only object parameter, but [" + fullPath + "] is not nested";
+        ObjectMapper copy = clone();
+        copy.nested = nested.withIndexDisabled();
+        return copy;
+    }
+
+    /** Copy with the children named in {@code replacements} swapped for the given mappers. */
+    ObjectMapper withReplacedChildren(Map<String, Mapper> replacements) {
+        ObjectMapper copy = clone();
+        for (Mapper replacement : replacements.values()) {
+            copy.putMapper(replacement);
+        }
+        return copy;
     }
 
     @Override
@@ -1004,6 +1076,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             if (nested.isIncludeInRoot()) {
                 builder.field("include_in_root", true);
+            }
+            if (nested.isIndexed() == false) {
+                builder.field("index", false);
             }
         } else if (mappers.isEmpty() && custom == null) {
             // only write the object content type if there are no properties, otherwise, it is automatically detected
