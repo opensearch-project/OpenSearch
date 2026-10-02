@@ -35,11 +35,15 @@ package org.opensearch.lucene.queries;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -85,6 +89,36 @@ public class MinDocQueryTests extends OpenSearchTestCase {
         w.close();
         reader.close();
         dir.close();
+    }
+
+    public void testRangeIterator() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 128; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                for (int minDoc : new int[] { -1, 0, 31, 127 }) {
+                    Weight weight = searcher.createWeight(searcher.rewrite(new MinDocQuery(minDoc)), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    DocIdSetIterator iterator = weight.scorer(reader.leaves().get(0)).iterator();
+                    int start = Math.max(0, minDoc);
+                    assertEquals(-1, iterator.docID());
+                    assertEquals(128 - start, iterator.cost());
+                    assertEquals(start, iterator.nextDoc());
+                    assertEquals(128, iterator.docIDRunEnd());
+                    FixedBitSet bits = new FixedBitSet(128);
+                    iterator.intoBitSet(128, bits, 0);
+                    assertEquals(128 - start, bits.cardinality());
+                    assertEquals(start, bits.nextSetBit(0));
+                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.docID());
+                }
+                for (int minDoc : new int[] { 128, 129 }) {
+                    Weight weight = searcher.createWeight(searcher.rewrite(new MinDocQuery(minDoc)), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    assertNull(weight.scorerSupplier(reader.leaves().get(0)));
+                }
+            }
+        }
     }
 
 }
