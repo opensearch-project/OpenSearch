@@ -943,11 +943,9 @@ public class TranslogTransferManager {
         }
         for (TranslogReader reader : readers) {
             long generation = reader.getGeneration();
-            String tlogFilename = Translog.getFilename(generation);
-            fileTransferTracker.add(tlogFilename, true);
-            if (isTranslogMetadataEnabled) {
-                String ckpFilename = Translog.getCommitCheckpointFileName(generation);
-                fileTransferTracker.add(ckpFilename, true);
+            fileTransferTracker.add(Translog.getFilename(generation), true);
+            if (isTranslogMetadataEnabled == false) {
+                fileTransferTracker.add(Translog.getCommitCheckpointFileName(generation), true);
             }
         }
     }
