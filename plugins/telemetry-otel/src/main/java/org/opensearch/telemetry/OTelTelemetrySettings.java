@@ -21,9 +21,11 @@ import org.opensearch.telemetry.tracing.sampler.ProbabilisticTransportActionSamp
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import io.opentelemetry.exporter.logging.LoggingMetricExporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.metrics.Aggregation;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
@@ -112,6 +114,83 @@ public final class OTelTelemetrySettings {
                 throw new IllegalStateException("Unable to load span exporter class:" + className, ex);
             }
         },
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    private static final String OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY = "telemetry.otel.metrics.histogram.aggregation";
+
+    /**
+     * Aggregation applied to histogram instruments.
+     */
+    public enum HistogramAggregation {
+        /**
+         * Explicit bucket histogram using the SDK default bucket boundaries.
+         */
+        EXPLICIT_BUCKET_HISTOGRAM("explicit_bucket_histogram"),
+        /**
+         * Base-2 exponential bucket histogram.
+         */
+        BASE2_EXPONENTIAL_BUCKET_HISTOGRAM("base2_exponential_bucket_histogram");
+
+        private final String value;
+
+        HistogramAggregation(String value) {
+            this.value = value;
+        }
+
+        /**
+         * Returns the configuration value of this aggregation.
+         * @return the value accepted by the setting
+         */
+        public String getValue() {
+            return value;
+        }
+
+        /**
+         * Parses a configuration value, ignoring case.
+         * @param value the configured value
+         * @return the matching aggregation
+         * @throws IllegalArgumentException if the value is not supported
+         */
+        public static HistogramAggregation parse(String value) {
+            String normalized = value.toLowerCase(Locale.ROOT);
+            for (HistogramAggregation aggregation : values()) {
+                if (aggregation.value.equals(normalized)) {
+                    return aggregation;
+                }
+            }
+            throw new IllegalArgumentException(
+                "Invalid value ["
+                    + value
+                    + "] for setting ["
+                    + OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY
+                    + "], allowed values are ["
+                    + EXPLICIT_BUCKET_HISTOGRAM.value
+                    + ", "
+                    + BASE2_EXPONENTIAL_BUCKET_HISTOGRAM.value
+                    + "]"
+            );
+        }
+
+        /**
+         * Returns the OpenTelemetry SDK aggregation for this configuration.
+         * @return the SDK aggregation
+         */
+        public Aggregation toAggregation() {
+            return this == EXPLICIT_BUCKET_HISTOGRAM
+                ? Aggregation.explicitBucketHistogram()
+                : Aggregation.base2ExponentialBucketHistogram();
+        }
+    }
+
+    /**
+     * Histogram aggregation setting.
+     */
+    public static final Setting<HistogramAggregation> OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING = new Setting<>(
+        OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY,
+        HistogramAggregation.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM.getValue(),
+        HistogramAggregation::parse,
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
