@@ -274,6 +274,53 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * INNER equi-join where the LEFT input filters down to ZERO rows, forced through
+     * HASH_SHUFFLE. Every left producer then feeds no batch at all, so no left partition ever
+     * receives an IPC chunk and the consumer's {@code ShuffleScanHandler} takes its
+     * empty-partition branch. The join must produce zero rows rather than failing the query.
+     *
+     * <p>{@code amount} is {@code (i+1)*10} for every left row, so {@code amount < 0} matches
+     * nothing while staying opaque to constant folding — the shuffle actually runs with an
+     * empty producer side instead of the planner pruning the join away.
+     */
+    public void testInnerEquiJoin_emptyLeftSide_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | where amount < 0 | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertCounterAdvanced("HASH_SHUFFLE fires for INNER with an empty left side", shuffleDelta.hashShuffleDelta);
+        assertEquals("baseline INNER with an empty left side produces no rows", 0, baselineDelta.rows.size());
+        assertEquals("shuffle INNER with an empty left side produces no rows", 0, shuffleDelta.rows.size());
+    }
+
+    /**
+     * RIGHT OUTER mirror of {@link #testInnerEquiJoin_emptyLeftSide_picksHashShuffle}: the LEFT
+     * input is empty but RIGHT OUTER preserves every right row with NULLs on the left. Stronger
+     * than the INNER case — an empty partition must register a table whose schema still binds the
+     * worker plan by name, not merely avoid failing. A 0-column stand-in would fail the bind and a
+     * dropped partition would silently under-deliver right rows.
+     */
+    public void testRightOuterJoin_emptyLeftSide_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | where amount < 0 | right join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertCounterAdvanced("HASH_SHUFFLE fires for RIGHT OUTER with an empty left side", shuffleDelta.hashShuffleDelta);
+        assertEquals("RIGHT OUTER preserves all right rows even with an empty left side", RIGHT_ROW_COUNT, baselineDelta.rows.size());
+        assertRowMultisetEquals(
+            "RIGHT OUTER with an empty left side: HASH_SHUFFLE must match coord-centric baseline",
+            baselineDelta.rows,
+            shuffleDelta.rows
+        );
+    }
+
+    /**
      * Negative: with mpp off, neither BROADCAST nor HASH_SHUFFLE fires; the master kill switch
      * gates every MPP split rule.
      */

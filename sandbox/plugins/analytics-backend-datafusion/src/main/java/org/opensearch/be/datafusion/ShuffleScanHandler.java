@@ -50,10 +50,14 @@ import java.io.ByteArrayInputStream;
  *
  * <p>Schema discovery: the partition's IPC chunks each include their own schema header (per
  * the Arrow IPC stream spec). The handler reads the first chunk's header to derive the schema
- * for the streaming-table registration. If the buffer's accumulated bytes are empty (no
- * producer rows for this partition) the handler treats the partition as a zero-batch stream —
- * the registered table is still resolvable so the worker plan binds, and the join produces
- * zero rows from this partition.
+ * for the streaming-table registration. A partition with no rows still yields a chunk to read
+ * that header from: the native partitioner emits an empty {@code RecordBatch} for partitions no
+ * row hashed into, and a producer that emitted no rows at all ships a schema-only chunk with its
+ * final marker ({@link DatafusionPartitionedSink}). The registered table is therefore always
+ * resolvable — the worker plan binds and the join produces zero rows from this partition.
+ * Draining zero chunks means the producer side violated that contract, and the handler fails the
+ * fragment rather than registering a table it has no schema for (see the {@code firstChunk == null}
+ * branch below).
  *
  * <p>Failure surface: any IO exception during decode, alignment, or FFM registration is
  * surfaced as a {@link RuntimeException} that propagates back through
@@ -162,8 +166,9 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
         BufferAllocator alloc = shardCtx.getAllocator();
         CloseableIterator<byte[]> chunks = isLeftSide ? buffer.drainLeft() : buffer.drainRight();
 
-        // Peek the first chunk for the schema (one chunk in heap is fine). No first chunk → empty
-        // partition: register an empty memtable and return. Close the iterator on every path here.
+        // Peek the first chunk for the schema (one chunk in heap is fine). No first chunk → this
+        // partition has no schema to register a table from; see the branch below. Close the iterator
+        // on every path here.
         byte[] firstChunk;
         try {
             firstChunk = chunks.hasNext() ? chunks.next() : null;
@@ -203,21 +208,28 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                 new DatafusionPartitionSender(emptySenderPtr).close();
                 return backendContext;
             }
-            LOGGER.debug(
-                "ShuffleScanHandler: empty partition for {} (queryId={}, stage={}, part={}); registering empty memtable",
-                inputId,
-                node.getQueryId(),
-                node.getTargetStageId(),
-                node.getShufflePartitionIndex()
+            // Join-shuffle: the schema can only come from a shipped chunk, and every producer is
+            // required to ship at least a schema-only one per partition (see the class javadoc). With
+            // zero chunks there is no schema, so no table can be registered that the worker's
+            // Substrait would bind by name — fail loudly and name the contract that was broken rather
+            // than let the query fail deeper with an opaque native IPC decode error.
+            throw new RuntimeException(
+                "ShuffleScanHandler: no shuffle chunk for "
+                    + inputId
+                    + " (queryId="
+                    + node.getQueryId()
+                    + ", stage="
+                    + node.getTargetStageId()
+                    + ", part="
+                    + node.getShufflePartitionIndex()
+                    + ", side="
+                    + side
+                    + ", expectedSenders="
+                    + node.getExpectedSenders()
+                    + "). Every producer must ship at least a schema-carrying chunk per partition, so "
+                    + "the consumer can register this join input's schema; none arrived, leaving no "
+                    + "schema to register the partition's table with."
             );
-            NativeBridge.registerMemtableOnSessionContext(
-                sessionState.sessionContextHandle().getPointer(),
-                inputId,
-                new byte[0],
-                new long[0],
-                new long[0]
-            );
-            return backendContext;
         }
 
         // Register the partition stream. Any failure here must close the chunk iterator (which owns an
