@@ -621,7 +621,9 @@ impl FileCursor {
         }
         self.row_idx += 1;
         if self.row_idx >= self.sort_batch.as_ref().unwrap().num_rows() {
-            self.sort_batch = None;
+            // Leave sort_batch in place: load_next_batch reads its row count to advance
+            // base_row_id, then drops it. Clearing it here left base_row_id stuck at the
+            // first batch, so every later batch overwrote the first batch's mapping slots.
             self.data_batch = None;
             // Batch boundary crossed — release data_batch before loading next sort batch
             if self.current_data_batch_bytes > 0 {
@@ -640,7 +642,8 @@ impl FileCursor {
     }
 
     pub fn advance_past_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
-        self.sort_batch = None;
+        // sort_batch must still be set here: load_next_batch advances base_row_id by its
+        // row count before dropping it.
         self.data_batch = None;
         // Skip remaining rows — release data_batch before loading next sort batch
         if self.current_data_batch_bytes > 0 {
