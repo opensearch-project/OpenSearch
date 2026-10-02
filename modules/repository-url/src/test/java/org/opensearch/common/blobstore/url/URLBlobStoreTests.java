@@ -37,6 +37,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
@@ -51,6 +52,9 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 @SuppressForbidden(reason = "use http server")
 public class URLBlobStoreTests extends OpenSearchTestCase {
@@ -69,14 +73,19 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
 
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
 
-        httpServer.createContext("/indices/" + blobName, (s) -> {
-            s.sendResponseHeaders(200, message.length);
-            OutputStream responseBody = s.getResponseBody();
-            responseBody.write(message);
-            responseBody.close();
-        });
+        createContext("/indices/" + blobName);
+        createContext("/indices/nested/" + blobName);
 
         httpServer.start();
+    }
+
+    private static void createContext(String path) {
+        httpServer.createContext(path, (exchange) -> {
+            exchange.sendResponseHeaders(200, message.length);
+            try (OutputStream responseBody = exchange.getResponseBody()) {
+                responseBody.write(message);
+            }
+        });
     }
 
     @AfterClass
@@ -99,6 +108,139 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
             int read = stream.read(bytes);
             assertEquals(message.length, read);
             assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreCanReadNestedBlob() throws IOException {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        try (InputStream stream = container.readBlob("nested/" + blobName)) {
+            byte[] bytes = new byte[message.length];
+            int read = stream.read(bytes);
+            assertEquals(message.length, read);
+            assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreCanReadBlobWithSlashlessBase() throws IOException {
+        URLBlobStore slashlessUrlBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices"));
+        BlobContainer container = slashlessUrlBlobStore.blobContainer(BlobPath.cleanPath());
+        try (InputStream stream = container.readBlob(blobName)) {
+            byte[] bytes = new byte[message.length];
+            int read = stream.read(bytes);
+            assertEquals(message.length, read);
+            assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreCanBuildNestedPathFromSlashlessBase() throws IOException {
+        URLBlobStore slashlessUrlBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices"));
+        BlobContainer container = slashlessUrlBlobStore.blobContainer(BlobPath.cleanPath().add("nested"));
+        try (InputStream stream = container.readBlob(blobName)) {
+            byte[] bytes = new byte[message.length];
+            int read = stream.read(bytes);
+            assertEquals(message.length, read);
+            assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testURLBlobStoreRejectsPathTraversal() {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        List<String> invalidBlobNames = List.of(
+            "../" + blobName,
+            "..%2F" + blobName,
+            "%2e%2e%2F" + blobName,
+            "%252e%252e%252F" + blobName,
+            "%2F" + blobName,
+            "%5C" + blobName,
+            "%C0%AF" + blobName,
+            "%E0%80%AF" + blobName,
+            "%41" + blobName,
+            blobName + "%",
+            blobName + "%A",
+            blobName + "%GG",
+            "../" + blobName + "#ignored",
+            blobName + "#ignored",
+            blobName + "?query=value",
+            "./" + blobName,
+            "nested/./" + blobName,
+            "%00" + blobName,
+            blobName + "%0A",
+            "1%3A" + blobName,
+            "a%3A" + blobName,
+            "/" + blobName,
+            "//localhost:6001/" + blobName,
+            "http://localhost:6001/" + blobName,
+            "..\\\\" + blobName
+        );
+
+        for (String invalidBlobName : invalidBlobNames) {
+            IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
+            assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
+        }
+    }
+
+    public void testURLBlobStoreRejectsEscapingBlobPaths() throws IOException {
+        URLBlobStore slashlessUrlBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices"));
+        List<String> invalidPathElements = List.of(
+            "..",
+            "../indices-sibling",
+            "%2e%2e",
+            "%252e%252e",
+            "/" + blobName,
+            "//localhost:6001/" + blobName,
+            "http://localhost:6001/" + blobName
+        );
+
+        for (String invalidPathElement : invalidPathElements) {
+            BlobPath blobPath = BlobPath.cleanPath().add("nested").add(invalidPathElement);
+            BlobStoreException exception = expectThrows(BlobStoreException.class, () -> slashlessUrlBlobStore.blobContainer(blobPath));
+            assertEquals("malformed URL " + blobPath, exception.getMessage());
+            assertThat(exception.getCause().getMessage(), containsString("invalid URL path"));
+        }
+    }
+
+    public void testRootURLIsNormalized() throws IOException {
+        assertNormalizedRoot("http://localhost:6001", "http://localhost:6001/");
+        assertNormalizedRoot("http://localhost:6001/indices", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/indices/", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/other/../indices", "http://localhost:6001/indices/");
+        assertNormalizedRoot("http://localhost:6001/indices?query=value", "http://localhost:6001/indices/?query=value");
+        assertNormalizedRoot("http://localhost:6001/indices#fragment", "http://localhost:6001/indices/#fragment");
+    }
+
+    public void testMalformedRootURLIsRejected() throws MalformedURLException {
+        URL malformedURL = new URL("http://localhost:6001/in dices/");
+        BlobStoreException exception = expectThrows(BlobStoreException.class, () -> new URLBlobStore(Settings.EMPTY, malformedURL));
+        assertEquals("malformed URL " + malformedURL, exception.getMessage());
+    }
+
+    public void testResolveRejectsResultsOutsideRootOrContainer() throws IOException {
+        URLBlobStore indicesBlobStore = new URLBlobStore(Settings.EMPTY, new URL("http://localhost:6001/indices/"));
+        List<URL> invalidBasePaths = List.of(
+            // different scheme, authority, or path than the repository root
+            new URL("https://localhost:6001/indices/"),
+            new URL("http://localhost:6002/indices/"),
+            new URL("http://localhost:6001/other/"),
+            // inside the repository root, but the resolved blob is a sibling of the container
+            new URL("http://localhost:6001/indices/nested"),
+            // not a valid URI
+            new URL("http://localhost:6001/in dices/")
+        );
+        for (URL basePath : invalidBasePaths) {
+            IOException exception = expectThrows(IOException.class, () -> indicesBlobStore.resolve(basePath, blobName));
+            assertEquals("invalid URL path [" + blobName + "]", exception.getMessage());
+        }
+
+        // an opaque file: URL cannot be resolved against a hierarchical file: root
+        URLBlobStore fileBlobStore = new URLBlobStore(Settings.EMPTY, new URL("file:/indices/"));
+        IOException exception = expectThrows(IOException.class, () -> fileBlobStore.resolve(new URL("file:indices/"), blobName));
+        assertEquals("invalid URL path [" + blobName + "]", exception.getMessage());
+    }
+
+    private static void assertNormalizedRoot(String rootURL, String expectedRootURL) throws IOException {
+        try (URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, new URL(rootURL))) {
+            assertEquals(expectedRootURL, blobStore.path().toString());
+            assertEquals(expectedRootURL, blobStore.toString());
         }
     }
 
