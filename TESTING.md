@@ -78,9 +78,11 @@ To run OpenSearch in debug mode,
 1. Start the `Debug OpenSearch` in IntelliJ by pressing the debug icon.
 2. From a terminal run the following `./gradlew run --debug-jvm`. You can also run this task in IntelliJ.
 
-This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port incrementing from `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
+This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
 
 Alternately, you can configure your OpenSearch JVM to listen as a debug server on port `5005`, and attach a debugger IDE once opensearch JVM is up and running. Use `./gradlew run --debug-server-jvm` for this debugging setup.
+
+If you have spawned multiple OpenSearch nodes (with `-PnumNodes=N` or by adding nodes with `-PstartNode=N`), debug ports will be assigned sequentially starting from `5005`. If you use `--debug-jvm`, your IDE must be listening for each node's debug port. For a multi-node setup, `--debug-server-jvm` may be easier, since you can start all nodes, then attach your IDE to one or more of them as needed.
 
 ### Other useful arguments
 
