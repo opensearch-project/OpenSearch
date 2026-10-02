@@ -135,33 +135,47 @@ pub type EvaluatorFactory = Arc<
 ///   keep whatever prefix we built (the rest is "violated"),
 /// - returns `None` when the prefix is empty (no useful claim to advertise).
 ///
-/// Direction strings are `"asc"` / `"desc"` (lowercase, as plumbed from Java).
-/// Nulls placement matches Lucene's convention: ASC → NULLS FIRST,
-/// DESC → NULLS LAST. Same as the vanilla path's `build_file_sort_order` in
-/// `session_context.rs`.
+/// Direction and missing-value placement are plumbed from the Java index settings.
+/// LIST fields are not advertised because their Lucene min/max sort mode is not
+/// represented by a raw DataFusion LIST expression.
+/// If missing-placement metadata is absent, the previous direction-based
+/// default is retained.
 fn build_projected_lex_ordering(
     projected_schema: &SchemaRef,
     sort_fields: &[String],
     sort_orders: &[String],
+    sort_missing: &[String],
 ) -> Option<LexOrdering> {
     if sort_fields.is_empty() {
         return None;
     }
     let mut exprs: Vec<PhysicalSortExpr> = Vec::with_capacity(sort_fields.len());
     for (i, field) in sort_fields.iter().enumerate() {
+        let Ok(schema_field) = projected_schema.field_with_name(field) else {
+            break;
+        };
+        if matches!(
+            schema_field.data_type(),
+            DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _)
+        ) {
+            break;
+        }
+        let descending = sort_orders
+            .get(i)
+            .map(|order| order.eq_ignore_ascii_case("desc"))
+            .unwrap_or(false);
+        let nulls_first = match sort_missing.get(i) {
+            Some(missing) if missing.eq_ignore_ascii_case("_first") => true,
+            Some(missing) if missing.eq_ignore_ascii_case("_last") => false,
+            _ => !descending,
+        };
         let phys = match physical_col(field, projected_schema) {
             Ok(e) => e,
             Err(_) => break,
         };
-        let descending = sort_orders
-            .get(i)
-            .map(|s| s.eq_ignore_ascii_case("desc"))
-            .unwrap_or(false);
-        let ascending = !descending;
         let opts = SortOptions {
             descending,
-            // ASC → NULLS FIRST, DESC → NULLS LAST (matches Lucene + vanilla path).
-            nulls_first: ascending,
+            nulls_first,
         };
         exprs.push(PhysicalSortExpr::new(phys, opts));
     }
@@ -224,6 +238,7 @@ pub struct IndexedTableConfig {
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
 pub struct IndexedTableProvider {
     config: Arc<IndexedTableConfig>,
+    sort_missing: Vec<String>,
 }
 
 impl fmt::Debug for IndexedTableProvider {
@@ -237,8 +252,17 @@ impl fmt::Debug for IndexedTableProvider {
 
 impl IndexedTableProvider {
     pub fn new(config: IndexedTableConfig) -> Self {
+        let sort_missing = vec!["_last".to_string(); config.sort_fields.len()];
+        Self::new_with_sort_missing(config, sort_missing)
+    }
+
+    pub fn new_with_sort_missing(
+        config: IndexedTableConfig,
+        sort_missing: Vec<String>,
+    ) -> Self {
         Self {
             config: Arc::new(config),
+            sort_missing,
         }
     }
 }
@@ -384,6 +408,7 @@ impl TableProvider for IndexedTableProvider {
                 &projected_schema,
                 &self.config.sort_fields,
                 &self.config.sort_orders,
+                &self.sort_missing,
             )
         } else {
             None
@@ -864,6 +889,47 @@ mod tests {
             sort_orders: vec![],
             cancellation_token: None,
         }
+    }
+
+    #[test]
+    fn projected_ordering_uses_missing_setting_and_stops_at_list_keys() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("asc_last", DataType::Int64, true),
+            Field::new("desc_first", DataType::Int64, true),
+            Field::new(
+                "multi",
+                DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
+                true,
+            ),
+        ]));
+        let ordering = build_projected_lex_ordering(
+            &schema,
+            &["asc_last".into(), "desc_first".into(), "multi".into()],
+            &["asc".into(), "desc".into(), "asc".into()],
+            &["_last".into(), "_first".into(), "_last".into()],
+        )
+        .expect("scalar prefix has a valid ordering");
+
+        assert_eq!(ordering.len(), 2);
+        assert!(!ordering[0].options.nulls_first);
+        assert!(ordering[1].options.nulls_first);
+        assert!(build_projected_lex_ordering(
+            &schema,
+            &["multi".into(), "asc_last".into()],
+            &["asc".into(), "asc".into()],
+            &["_last".into(), "_last".into()],
+        )
+        .is_none());
+
+        let default_ordering = build_projected_lex_ordering(
+            &schema,
+            &["asc_last".into(), "desc_first".into()],
+            &["asc".into(), "desc".into()],
+            &[],
+        )
+        .expect("direction defaults produce an ordering");
+        assert!(default_ordering[0].options.nulls_first);
+        assert!(!default_ordering[1].options.nulls_first);
     }
 
     // QueryShardExec holds an ExecutionPlanMetricsSet (not Clone). We only
