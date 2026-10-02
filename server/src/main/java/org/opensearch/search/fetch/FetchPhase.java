@@ -55,9 +55,12 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -522,6 +525,12 @@ public class FetchPhase {
             });
 
             String id = fieldsVisitor.id();
+            if (id == null) {
+                // Some engines index the _id term without storing the _id field, so FieldsVisitor cannot
+                // recover it from stored fields. Fall back to resolving the id from field data. Indexes that
+                // store the _id field always populate it above, so this branch never runs for them.
+                id = loadIdFromDocValues(context, subReaderContext, subDocId);
+            }
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -745,6 +754,30 @@ public class FetchPhase {
             }
         } while (current != null);
         return nestedIdentity;
+    }
+
+    /**
+     * Recovers a hit's {@code _id} from field data when it is absent from the stored fields.
+     * <p>
+     * When an engine indexes the {@code _id} term but does not store the {@code _id} field,
+     * {@link FieldsVisitor#id()} returns {@code null}. The id is recovered here from the same source that
+     * serves {@code docvalue_fields:["_id"]}: {@link IdFieldMapper}'s field data, which uninverts the
+     * indexed {@code _id} term and Uid-decodes it to the user-facing string id.
+     *
+     * @return the decoded string id, or {@code null} if it cannot be resolved for this document
+     */
+    private static String loadIdFromDocValues(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
+        MappedFieldType idFieldType = context.mapperService().fieldType(IdFieldMapper.NAME);
+        if (idFieldType == null) {
+            return null;
+        }
+        IndexFieldData<?> indexFieldData = context.getQueryShardContext().getForField(idFieldType);
+        SortedBinaryDocValues values = indexFieldData.load(subReaderContext).getBytesValues();
+        if (values.advanceExact(subDocId) == false) {
+            return null;
+        }
+        // IdFieldMapper's field data already Uid-decodes each value to the user-facing string id.
+        return values.nextValue().utf8ToString();
     }
 
     private void loadStoredFields(
