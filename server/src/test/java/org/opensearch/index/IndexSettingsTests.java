@@ -1295,4 +1295,29 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
         assertEquals(100_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
     }
+
+    /**
+     * The pluggable data format settings must be unmodifiable on restore, not merely
+     * {@link Property#Final}. {@code Final} only blocks the update-settings API on a live index;
+     * restore creates a new index, and RestoreService gates overrides on
+     * {@code isUnmodifiableOnRestoreSetting}. Without this, a restore could pair multi-format data
+     * files with a Lucene-only engine and produce an index that cannot be opened.
+     */
+    public void testPluggableDataFormatSettingsAreUnmodifiableOnRestore() {
+        assertTrue(
+            "index.pluggable.dataformat.enabled must be unmodifiable on restore",
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.isUnmodifiableOnRestoreSetting(
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+            )
+        );
+        assertTrue(
+            "index.pluggable.dataformat must be unmodifiable on restore",
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.isUnmodifiableOnRestoreSetting(
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()
+            )
+        );
+        // Final is retained so the update-settings API on a live index still rejects them.
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.isFinal());
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.isFinal());
+    }
 }
