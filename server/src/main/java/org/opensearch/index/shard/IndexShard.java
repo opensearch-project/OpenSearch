@@ -3457,20 +3457,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             hydrateFromRemoteStore(syncFromRemote);
         }
 
-        final boolean usesRemoteTranslog = shardRouting.primary()
-            && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded());
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            // The remote translog is complete on local disk. Suppress the constructor's redundant download while
-            // engineMutex is held, then restore the shared config before releasing the lock.
+            // Snapshot V2 has already downloaded the translog for its pinned timestamp from the source repository.
+            // Preserve that point-in-time copy; other remote recoveries perform the normal incremental reconciliation.
             final boolean downloadRemoteTranslogOnInit = translogConfig.downloadRemoteTranslogOnInit();
-            if (hydrateFromRemote && usesRemoteTranslog) {
+            if (isSnapshotV2Restore()) {
                 translogConfig.setDownloadRemoteTranslogOnInit(false);
             }
             try {
-                assert (hydrateFromRemote && usesRemoteTranslog) == false || translogConfig.downloadRemoteTranslogOnInit() == false
-                    : "remote translog download under engineMutex";
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
                 // TODO: For composite engine, this would be replaced by a separate factory.
                 final Indexer newEngine = indexerFactory.createIndexer(config);

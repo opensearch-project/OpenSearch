@@ -18,7 +18,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
-import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -29,7 +28,6 @@ import java.io.InputStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,18 +41,14 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
 
-    /** Holds translog downloads when armed, and can reject any repository read after engine construction starts. */
+    /** Holds translog downloads when armed. */
     private static final class DownloadGate {
         volatile boolean armed;
-        volatile boolean rejectReads;
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch release = new CountDownLatch(1);
         final CountDownLatch interrupted = new CountDownLatch(1);
 
         void pass(String blobName) throws IOException {
-            if (rejectReads) {
-                throw new IOException("remote read attempted during engine construction: " + blobName);
-            }
             if (armed == false || blobName.endsWith(Translog.TRANSLOG_FILE_SUFFIX) == false) {
                 return;
             }
@@ -183,18 +177,10 @@ public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
     }
 
     /**
-     * Recovery completes from the hydrated local files without reading the repository during engine construction.
+     * Recovery completes after the out-of-lock hydration and the constructor's incremental reconciliation.
      */
     public void testRecoveryStillHydratesAndOpensWhenNotClosed() throws Exception {
         String remoteStorePath = createTempDir().toString();
-        AtomicBoolean rejectReadsOnEngineCreation = new AtomicBoolean();
-        EngineBackedIndexerFactory delegate = new EngineBackedIndexerFactory(new InternalEngineFactory());
-        IndexerFactory indexerFactory = config -> {
-            if (rejectReadsOnEngineCreation.get()) {
-                gate.rejectReads = true;
-            }
-            return delegate.createIndexer(config);
-        };
         IndexShard shard = newStartedShard(
             true,
             Settings.builder()
@@ -203,7 +189,7 @@ public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
                 .build(),
-            indexerFactory
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
         int numDocs = between(1, 5);
         for (int i = 0; i < numDocs; i++) {
@@ -212,7 +198,6 @@ public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
         IOUtils.close(() -> shard.close("test", false, false), shard.store());
 
         IndexShard recovered = reinitShard(shard);
-        rejectReadsOnEngineCreation.set(true);
         recoverShardFromStore(recovered);
         assertDocCount(recovered, numDocs);
         closeShards(recovered);
