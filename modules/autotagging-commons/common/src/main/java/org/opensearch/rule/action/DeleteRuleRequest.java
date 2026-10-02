@@ -46,14 +46,14 @@ public class DeleteRuleRequest extends ActionRequest {
     public DeleteRuleRequest(StreamInput in) throws IOException {
         super(in);
         this.ruleId = in.readString();
-        this.featureType = FeatureType.from(in.readString());
+        this.featureType = FeatureType.from(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(ruleId);
-        featureType.writeTo(out);
+        out.writeNamedWriteable(featureType);
     }
 
     @Override

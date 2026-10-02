@@ -8,11 +8,12 @@
 
 package org.opensearch.rule.utils;
 
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,14 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 
 public class RuleTestUtils {
+    public static NamedWriteableRegistry namedWriteableRegistry(FeatureType... featureTypes) {
+        List<NamedWriteableRegistry.Entry> readers = new ArrayList<>();
+        for (FeatureType featureType : featureTypes) {
+            readers.add(new NamedWriteableRegistry.Entry(FeatureType.class, featureType.getName(), in -> featureType));
+        }
+        return new NamedWriteableRegistry(readers);
+    }
+
     public static final String _ID_ONE = "e9f35a73-ece2-3fa7-857e-7c1af877fc75";
     public static final String ATTRIBUTE_VALUE_ONE = "mock_attribute_one";
     public static final String ATTRIBUTE_VALUE_TWO = "mock_attribute_two";
@@ -96,10 +105,6 @@ public class RuleTestUtils {
         );
 
         private MockRuleFeatureType() {}
-
-        static {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
-        }
 
         @Override
         public String getName() {

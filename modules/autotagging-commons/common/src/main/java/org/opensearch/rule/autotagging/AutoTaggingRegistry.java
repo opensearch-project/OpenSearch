@@ -25,22 +25,22 @@ public class AutoTaggingRegistry {
      * featureTypesRegistryMap should be concurrently readable but not concurrently writable.
      * The registration of FeatureType should only be done during boot-up.
      */
-    public static final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
+    private final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
     /**
      * Max chars a feature type can assume
      */
     public static final int MAX_FEATURE_TYPE_NAME_LENGTH = 30;
 
     /**
-     * Make the class un-initialisable
+     * Creates a registry owned by one node.
      */
-    private AutoTaggingRegistry() {}
+    public AutoTaggingRegistry() {}
 
     /**
      * Registers the new feature type
      * @param featureType
      */
-    public static void registerFeatureType(FeatureType featureType) {
+    public void registerFeatureType(FeatureType featureType) {
         validateFeatureType(featureType);
         String name = featureType.getName();
         if (featureTypesRegistryMap.containsKey(name) && featureTypesRegistryMap.get(name) != featureType) {
@@ -70,14 +70,13 @@ public class AutoTaggingRegistry {
     }
 
     /**
-     * Retrieves the registered {@link FeatureType} instance based on class name and feature type name.
-     * This method assumes that FeatureTypes are singletons, meaning that each unique
-     * (className, featureTypeName) pair corresponds to a single, globally shared instance.
+     * Retrieves the registered {@link FeatureType} instance by feature type name.
+     * Each feature name resolves to the instance registered on this node.
      *
      * @param featureTypeName The name of the feature type.
      */
-    public static FeatureType getFeatureType(String featureTypeName) {
-        FeatureType featureType = featureTypesRegistryMap.get(featureTypeName);
+    public FeatureType getFeatureType(String featureTypeName) {
+        FeatureType featureType = featureTypeName == null ? null : featureTypesRegistryMap.get(featureTypeName);
         if (featureType == null) {
             throw new ResourceNotFoundException(
                 "Couldn't find a feature type with name: " + featureTypeName + ". Make sure you have registered it."

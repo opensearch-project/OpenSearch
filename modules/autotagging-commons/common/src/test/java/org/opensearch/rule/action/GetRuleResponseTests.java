@@ -8,12 +8,11 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -36,11 +35,11 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         GetRuleResponse response = new GetRuleResponse(list, null);
         assertEquals(response.getRules(), list);
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetRuleResponse otherResponse = copyWriteable(
+            response,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            GetRuleResponse::new
+        );
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
     }
 
@@ -53,11 +52,11 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         list.add(ruleTwo);
         GetRuleResponse response = new GetRuleResponse(list, SEARCH_AFTER);
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetRuleResponse otherResponse = copyWriteable(
+            response,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            GetRuleResponse::new
+        );
         assertEquals(2, otherResponse.getRules().size());
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
     }
@@ -70,11 +69,11 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         GetRuleResponse response = new GetRuleResponse(list, SEARCH_AFTER);
         assertEquals(response.getRules(), list);
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetRuleResponse otherResponse = copyWriteable(
+            response,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            GetRuleResponse::new
+        );
         assertEquals(0, otherResponse.getRules().size());
     }
 
