@@ -1498,9 +1498,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(reader2.getGeneration()).thenReturn(23L);
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
-        assertEquals(
-            Set.of("translog-12.tlog", "translog-23.tlog"),
-            translogTransferManager.getFileTransferTracker().allUploaded()
-        );
+        assertEquals(Set.of("translog-12.tlog", "translog-23.tlog"), translogTransferManager.getFileTransferTracker().allUploaded());
     }
 }

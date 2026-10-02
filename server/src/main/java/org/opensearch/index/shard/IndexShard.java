@@ -3526,8 +3526,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 cancellableThreads.executeIO(() -> {
                     // A primary must claim the fence before reading either remote flow. Peer-recovery relocation targets
                     // deliberately skip the seal inside sealRemoteStoreFenceForRecovery.
-                    if (shardRouting.primary()
-                        && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
                         sealRemoteStoreFenceForRecovery();
                     }
                     if (syncFromRemote) {
