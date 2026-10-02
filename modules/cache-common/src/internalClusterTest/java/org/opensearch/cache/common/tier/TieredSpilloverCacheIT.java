@@ -681,6 +681,71 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         );
     }
 
+    public void testDiskAdmissionMinFrequencyDynamicSetting() throws Exception {
+        int numberOfSegments = getNumberOfSegments();
+        int onHeapCacheSizeInBytes = 1000 * numberOfSegments;
+        internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b", numberOfSegments)).build());
+        Client client = client();
+        String settingKey = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+            CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+        ).getKey();
+
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
+                )
+                .get()
+        );
+
+        // Enabling scan-resistant disk admission at runtime must be accepted, proving the setting is registered and dynamic.
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .updateSettings(new ClusterUpdateSettingsRequest().transientSettings(Settings.builder().put(settingKey, 2).build()))
+                .get()
+        );
+
+        // Request caching must keep working with admission enabled: repeating a cacheable query should yield a cache hit.
+        indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
+        ensureSearchable("index");
+        refreshAndWaitForReplication();
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
+        for (int i = 0; i < 3; i++) {
+            SearchResponse resp = client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
+            assertSearchResponse(resp);
+        }
+        assertTrue("request cache should register a hit with admission enabled", getRequestCacheStats(client, "index").getHitCount() > 0);
+
+        // The setting is dynamic in both directions, so disabling it again must also be accepted.
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .updateSettings(new ClusterUpdateSettingsRequest().transientSettings(Settings.builder().putNull(settingKey).build()))
+                .get()
+        );
+
+        // Out-of-range values are rejected by the setting validation (valid range is 1..15).
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().client()
+                .admin()
+                .cluster()
+                .updateSettings(new ClusterUpdateSettingsRequest().transientSettings(Settings.builder().put(settingKey, 100).build()))
+                .actionGet()
+        );
+    }
+
     private RequestCacheStats getRequestCacheStats(Client client, String indexName) {
         return client.admin().indices().prepareStats(indexName).setRequestCache(true).get().getTotal().getRequestCache();
     }
