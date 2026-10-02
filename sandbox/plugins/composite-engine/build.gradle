@@ -64,4 +64,7 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:native-repository-fs')
   // Netty4 HTTP transport for ITs that use the low-level RestClient (e.g., DataFormatStatsIT, *DataFormatApi*IT).
   internalClusterTestImplementation project(':modules:transport-netty4')
+  // delete_by_query / update_by_query live in the reindex module, so the gating tests that assert those
+  // APIs are refused on a composite index need it loaded on the test nodes.
+  internalClusterTestImplementation project(':modules:reindex')
 }
