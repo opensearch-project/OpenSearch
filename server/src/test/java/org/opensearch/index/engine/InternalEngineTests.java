@@ -168,6 +168,7 @@ import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
@@ -7463,6 +7464,130 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         assertThat(engine.currentOngoingRefreshCheckpoint(), greaterThanOrEqualTo(engine.lastRefreshedCheckpoint()));
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getProcessedLocalCheckpoint()));
+    }
+
+    public void testRefreshNeededWhenRefreshedCheckpointLagsVisibleOps() throws Exception {
+        final AtomicLong blockedSeqNo = new AtomicLong(UNASSIGNED_SEQ_NO);
+        final CountDownLatch addedToLucene = new CountDownLatch(1);
+        final CountDownLatch allowMarkProcessed = new CountDownLatch(1);
+        // the test asserts that the reader is current while the refreshed checkpoint lags, so disable merges: a background
+        // merge completing after the refresh would make the reader non-current and mask what is being tested
+        final BiFunction<Long, Long, LocalCheckpointTracker> trackerSupplier = (maxSeq, localCP) -> new LocalCheckpointTracker(
+            maxSeq,
+            localCP
+        ) {
+            @Override
+            public void markSeqNoAsProcessed(long seqNo) {
+                if (seqNo == blockedSeqNo.get()) {
+                    addedToLucene.countDown();
+                    try {
+                        allowMarkProcessed.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+                super.markSeqNoAsProcessed(seqNo);
+            }
+        };
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                defaultSettings,
+                store,
+                createTempDir(),
+                NoMergePolicy.INSTANCE,
+                null,
+                trackerSupplier,
+                null
+            )
+        ) {
+            final int numDocs = between(1, 10);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null)));
+            }
+            engine.refresh("test");
+            final long seqNo = engine.getProcessedLocalCheckpoint() + 1;
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(seqNo - 1));
+            assertFalse(engine.refreshNeeded());
+
+            // index an op that is added to lucene but blocks before being marked as processed
+            blockedSeqNo.set(seqNo);
+            final Thread indexer = new Thread(() -> {
+                try {
+                    engine.index(indexForDoc(testParsedDocument("blocked", null, testDocumentWithTextField(), SOURCE, null)));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            indexer.start();
+            addedToLucene.await();
+
+            // this refresh makes the op visible but samples the processed checkpoint before the op is marked as processed
+            engine.refresh("test");
+            allowMarkProcessed.countDown();
+            indexer.join();
+
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(seqNo));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(seqNo - 1));
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs + 1));
+                assertTrue(searcher.getDirectoryReader().isCurrent());
+            }
+            assertTrue(engine.refreshNeeded());
+            assertTrue(engine.maybeRefresh("schedule"));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(seqNo));
+            assertFalse(engine.refreshNeeded());
+        }
+    }
+
+    public void testRefreshNeededWhenProcessedOpSkipsLucene() throws IOException {
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null).toBuilder()
+                    .indexReaderWarmer(mock(MergedSegmentWarmer.class))
+                    .build()
+            )
+        ) {
+            final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(replicaIndexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null), 1, 0, false));
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(2);
+            engine.index(replicaIndexForDoc(doc, 2, 2, false));
+            engine.refresh("test");
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
+
+            // a stale op on a segment replication index fills the gap without touching lucene
+            engine.index(replicaIndexForDoc(doc, 1, 1, false));
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(2L));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                assertTrue(searcher.getDirectoryReader().isCurrent());
+            }
+            assertTrue(engine.refreshNeeded());
+            assertTrue(engine.maybeRefresh("schedule"));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(2L));
+            assertFalse(engine.refreshNeeded());
+        }
+    }
+
+    public void testRefreshNotNeededWhenIdleAndCheckpointCaughtUp() throws IOException {
+        engine.refresh("warm_up");
+        assertFalse(engine.refreshNeeded());
+        final int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null)));
+        }
+        assertTrue(engine.refreshNeeded());
+        assertTrue(engine.maybeRefresh("schedule"));
+        assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getProcessedLocalCheckpoint()));
+        assertFalse(engine.refreshNeeded());
     }
 
     public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {

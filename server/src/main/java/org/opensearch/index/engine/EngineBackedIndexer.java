@@ -124,6 +124,16 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public void refreshPrimaryOperationPolicy() {
+        engine.refreshPrimaryOperationPolicy();
+    }
+
+    @Override
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return engine.getPrimaryOperationPolicy();
+    }
+
+    @Override
     public void forceMerge(
         boolean flush,
         int maxNumSegments,
