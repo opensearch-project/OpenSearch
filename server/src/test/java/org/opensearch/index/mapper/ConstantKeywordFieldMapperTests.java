@@ -26,6 +26,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
@@ -35,7 +36,9 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -48,7 +51,15 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        // When the sandbox stack is installed, its LucenePlugin supplies the real data format, committer and
+        // delete engine (each of which the node permits exactly one of), so the in-memory mocks are registered
+        // only in the plugin-free run.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(List.of(InternalSettingsPlugin.class));
+        if (shouldInstallSandboxStack() == false) {
+            plugins.add(MockDataFormatPlugin.class);
+            plugins.add(MockCommitterEnginePlugin.class);
+        }
+        return plugins;
     }
 
     @Before
@@ -171,12 +182,26 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testPluggableDataFormatConstantKeywordValidates() throws Exception {
-        indexService = createIndexWithSimpleMappings(
-            "test-pluggable",
-            Settings.builder().put("index.pluggable.dataformat.enabled", true).build(),
-            "field",
-            "type=constant_keyword,value=foo"
-        );
+        Settings.Builder indexSettings = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+        if (shouldInstallSandboxStack()) {
+            // The in-memory MockDataFormatPlugin cannot be registered alongside the real sandbox stack: both it and
+            // the stack's LucenePlugin return a DeleteExecutionEngine, so DataFormatRegistry#getDeleteExecutionEngine
+            // would fail its "exactly one DeleteExecutionEngine" check when the shard engine is built. So on the stack
+            // path we exercise the real "lucene" data format (LuceneDataFormat.LUCENE_FORMAT_NAME in
+            // analytics-backend-lucene, not compile-visible here). No real format (lucene/parquet/composite) declares a
+            // "constant_keyword" capability entry, so the pluggable-format capability validation correctly rejects the
+            // field and index creation fails with MapperParsingException "... cannot cover ...".
+            indexSettings.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createIndexWithSimpleMappings("test-pluggable", indexSettings.build(), "field", "type=constant_keyword,value=foo")
+            );
+            assertThat(e.getMessage(), containsString("cannot cover"));
+            return;
+        }
+        // Plugin-free run: the data format value is left unset, so MockDataFormatPlugin's default "" format is selected
+        // and capability validation is skipped for the empty format — the constant_keyword field is accepted.
+        indexService = createIndexWithSimpleMappings("test-pluggable", indexSettings.build(), "field", "type=constant_keyword,value=foo");
         ConstantKeywordFieldMapper mapper = (ConstantKeywordFieldMapper) indexService.mapperService()
             .documentMapper()
             .mappers()
