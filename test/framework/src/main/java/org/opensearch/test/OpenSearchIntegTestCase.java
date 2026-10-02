@@ -203,6 +203,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -704,7 +705,26 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
+        // Resolve the sandbox stack once so each sandbox flag is suppressed ONLY when its OWN plugin is actually
+        // present. The getNodeConfigSource() wrapper re-adds each flag per node from the same presence check, so a
+        // flag whose plugin is absent must be left at its default here rather than blanket-suppressed.
+        Collection<Class<? extends Plugin>> resolvedStack = installSandboxPlugins() ? sandboxStackPlugins() : Collections.emptyList();
+        boolean suppressStreamTransport = resolvedStack.stream().anyMatch(c -> STREAM_TRANSPORT_PLUGIN.equals(c.getName()));
+        boolean suppressPluggableDataformat = resolvedStack.stream().anyMatch(c -> SANDBOX_DATAFORMAT_PLUGINS.contains(c.getName()));
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            // When the sandbox stack is enabled, do NOT emit the sandbox feature flags here — leave them unset so the
+            // getNodeConfigSource() wrapper can own them PER NODE, true iff FlightStreamPlugin/data-format plugins are
+            // actually loaded on that node. Emitting them here (even at the default false) leaks through the two paths
+            // tests reuse: (1) startXxxNode(super.nodeSettings(...)) applies these settings AFTER the wrapper and would
+            // clobber the wrapper's true back to false -> flight port setting unregistered -> "unknown setting"; and
+            // (2) a custom NodeConfigurationSource seeded from super.nodeSettings() would carry the flag onto a
+            // plugin-less node -> "flag enabled but no stream transport supplier". Leaving them unset avoids both.
+            if (suppressStreamTransport && builtInFlag.getKey().equals(FeatureFlags.STREAM_TRANSPORT)) {
+                continue;
+            }
+            if (suppressPluggableDataformat && builtInFlag.getKey().equals(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)) {
+                continue;
+            }
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
         // Enabling Telemetry setting by default
@@ -1982,6 +2002,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
             .put(featureFlagSettings());
 
+        // Sandbox feature flags (STREAM_TRANSPORT / PLUGGABLE_DATAFORMAT) are deliberately NOT emitted by
+        // featureFlagSettings() when the stack is loaded; the getNodeConfigSource() wrapper owns them per node, setting
+        // each true only when its plugin is actually loaded on that node, coupled with aux.transport.transport-flight.port.
+        // If they were emitted here, a test calling startXxxNode(super.nodeSettings(...)) would re-apply flag=false AFTER
+        // the wrapper set it true, leaving the Flight port set but unregistered, which SettingsModule rejects at startup.
+
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
             builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
@@ -2019,10 +2045,110 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Returns a collection of plugins that should be loaded on each node.
+     * Returns a collection of plugins that should be loaded on each node. When {@code -Dsandbox.enabled=true}, the
+     * sandbox engine stack is added on top of this in {@link #getNodeConfigSource()}; overriding this method alone
+     * does not opt out of the stack — override {@link #installSandboxPlugins()} for that.
      */
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
+    }
+
+    /** True only when the build forwarded -Dsandbox.enabled=true into the forked test JVM. */
+    private static final boolean SANDBOX_ENABLED = Boolean.parseBoolean(System.getProperty("sandbox.enabled", "false"));
+    private static final String STREAM_TRANSPORT_PLUGIN = "org.opensearch.arrow.flight.transport.FlightStreamPlugin";
+    private static final List<String> SANDBOX_STACK_PLUGINS = List.of(
+        "org.opensearch.arrow.allocator.ArrowBasePlugin",
+        STREAM_TRANSPORT_PLUGIN,
+        "org.opensearch.analytics.AnalyticsPlugin",
+        "org.opensearch.composite.CompositeDataFormatPlugin",
+        "org.opensearch.parquet.ParquetDataFormatPlugin",
+        "org.opensearch.be.datafusion.DataFusionPlugin",
+        "org.opensearch.be.lucene.LucenePlugin",
+        "org.opensearch.dsl.DslQueryExecutorPlugin"
+    );
+    /** Data-format plugins whose presence should turn on PLUGGABLE_DATAFORMAT (the real ones, not test mocks). */
+    private static final Set<String> SANDBOX_DATAFORMAT_PLUGINS = Set.of(
+        "org.opensearch.parquet.ParquetDataFormatPlugin",
+        "org.opensearch.composite.CompositeDataFormatPlugin"
+    );
+
+    /**
+     * Whether the sandbox engine stack should be loaded on top of {@link #nodePlugins()}. Defaults to
+     * {@code -Dsandbox.enabled}. A test overrides this to return {@code false} only when it genuinely cannot run
+     * with the stack (e.g. it asserts on node thread names, or registers a conflicting stream transport).
+     * <p>
+     * When the stack is loaded the sandbox feature flags (e.g. {@link FeatureFlags#STREAM_TRANSPORT} and
+     * {@link FeatureFlags#PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG}) are dictated by plugin presence and cannot be
+     * turned off by a test's own settings: the wrapper forces them on so the loaded plugins can start. A test that
+     * genuinely needs those flags off must opt out of the stack here by returning {@code false}, not by setting the
+     * flags directly.
+     */
+    protected boolean installSandboxPlugins() {
+        return SANDBOX_ENABLED;
+    }
+
+    /**
+     * The plugins actually loaded on each node: the test's {@link #nodePlugins()} plus, unless
+     * {@link #installSandboxPlugins()} is false, the sandbox stack prepended in a fixed order (arrow-base before
+     * the data-format plugins). Injecting centrally means no test has to preserve ordering or remember to call
+     * {@code super.nodePlugins()} to receive the engine.
+     */
+    private Collection<Class<? extends Plugin>> effectiveNodePlugins() {
+        Collection<Class<? extends Plugin>> testPlugins = nodePlugins();
+        // A subclass nodePlugins() may return null; treat that as no test plugins rather than NPEing here.
+        if (testPlugins == null) {
+            testPlugins = Collections.emptyList();
+        }
+        if (installSandboxPlugins() == false) {
+            return testPlugins;
+        }
+        LinkedHashSet<Class<? extends Plugin>> all = new LinkedHashSet<>(sandboxStackPlugins());
+        all.addAll(testPlugins);
+        return all;
+    }
+
+    /**
+     * Memoised SUCCESSFUL result of {@link #sandboxStackPlugins()} (either the empty none-resolvable list or the full
+     * stack). The partial/failure path is deliberately NOT cached so it keeps throwing at the call site.
+     */
+    private static volatile Collection<Class<? extends Plugin>> resolvedSandboxStackPlugins;
+
+    /**
+     * The sandbox parquet/analytics/DSL plugin stack resolved reflectively (test:framework cannot depend on the
+     * JDK 25 sandbox plugins). Empty in modules where none of the classes are on the classpath (the intended
+     * no-op). If some resolve but others do not, a plugin was renamed or moved: fail loudly rather than silently
+     * dropping engine coverage.
+     */
+    @SuppressWarnings("unchecked")
+    private Collection<Class<? extends Plugin>> sandboxStackPlugins() {
+        Collection<Class<? extends Plugin>> cached = resolvedSandboxStackPlugins;
+        if (cached != null) {
+            return cached;
+        }
+        ArrayList<Class<? extends Plugin>> resolved = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
+        for (String className : SANDBOX_STACK_PLUGINS) {
+            try {
+                resolved.add((Class<? extends Plugin>) Class.forName(className));
+            } catch (ClassNotFoundException e) {
+                missing.add(className);
+            }
+        }
+        if (resolved.isEmpty()) {
+            resolvedSandboxStackPlugins = Collections.emptyList();
+            return resolvedSandboxStackPlugins;
+        }
+        if (missing.isEmpty() == false) {
+            // Deliberately do NOT cache this partial/failure path: it must keep throwing at the CALL SITE on every
+            // call so the diagnostic stays attached to the caller rather than degrading into ExceptionInInitializerError.
+            throw new IllegalStateException(
+                "Sandbox is enabled and some sandbox plugins loaded, but these were not found on the test "
+                    + "classpath (renamed or moved?): "
+                    + missing
+            );
+        }
+        resolvedSandboxStackPlugins = Collections.unmodifiableList(resolved);
+        return resolvedSandboxStackPlugins;
     }
 
     /**
@@ -2046,7 +2172,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             externalClusterClientSettings(),
             getClientWrapper(),
             clusterName,
-            nodePlugins(),
+            effectiveNodePlugins(),
             transportAddresses
         );
     }
@@ -2138,10 +2264,65 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder()
+                Settings.Builder builder = Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal))
-                    .build();
+                    .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal));
+                // Snapshot of the merged test settings, captured BEFORE the wrapper couples flags to plugins below.
+                // Used only to detect an author who explicitly disabled a sandbox flag whose plugin is actually loaded.
+                Settings mergedTestSettings = builder.build();
+                // Couple the sandbox feature flags to the plugins actually loaded on this node. In the
+                // un-overridable wrapper, reading the same effectiveNodePlugins() the framework loads from, so
+                // flag and plugin stay in lockstep regardless of how a subclass overrides nodeSettings().
+                Collection<Class<? extends Plugin>> loadedPlugins = OpenSearchIntegTestCase.this.effectiveNodePlugins();
+                if (loadedPlugins.stream().anyMatch(c -> STREAM_TRANSPORT_PLUGIN.equals(c.getName()))) {
+                    // When FlightStreamPlugin is loaded the wrapper must enable STREAM_TRANSPORT: the flag registers
+                    // aux.transport.transport-flight.port (set just below) and FlightStreamPlugin only binds
+                    // StreamTransportService when the flag is enabled, so honoring a test-supplied false while the
+                    // plugin is loaded would fail node startup. A test that overrides featureFlagSettings() without
+                    // calling super re-emits every built-in flag at its default (STREAM_TRANSPORT defaults to false)
+                    // and lands here; warn and force the flag true rather than failing, matching the prior behavior.
+                    if (mergedTestSettings.hasValue(FeatureFlags.STREAM_TRANSPORT)
+                        && mergedTestSettings.getAsBoolean(FeatureFlags.STREAM_TRANSPORT, true) == false) {
+                        OpenSearchIntegTestCase.this.logger.warn(
+                            "Test set feature flag [{}]=false while sandbox plugin [{}] is loaded; forcing it to true "
+                                + "because the flag registers aux.transport.transport-flight.port and FlightStreamPlugin binds "
+                                + "StreamTransportService only when the flag is enabled, so honoring false would fail node startup. "
+                                + "Override installSandboxPlugins() to return false if you genuinely need the node without the stack, "
+                                + "or call super.featureFlagSettings() so the base suppression applies.",
+                            FeatureFlags.STREAM_TRANSPORT,
+                            STREAM_TRANSPORT_PLUGIN
+                        );
+                    }
+                    builder.put(FeatureFlags.STREAM_TRANSPORT, true);
+                    // Give Flight a per-worker port range: the 9400-9500 default is shared across parallel forks,
+                    // and exhausting it makes bind fail, the node leak threads, and later suites get skipped.
+                    // getPortRange() hands each worker a disjoint slice. Test-only; production keeps the default.
+                    builder.put("aux.transport.transport-flight.port", getPortRange());
+                }
+                if (loadedPlugins.stream().anyMatch(c -> SANDBOX_DATAFORMAT_PLUGINS.contains(c.getName()))) {
+                    // Same coupling as above: don't let a loaded data-format plugin run with its flag silently forced
+                    // off. A test that overrides featureFlagSettings() without calling super re-emits built-in flags at
+                    // their defaults and lands here; warn and force the flag true rather than failing.
+                    if (mergedTestSettings.hasValue(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+                        && mergedTestSettings.getAsBoolean(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true) == false) {
+                        String loadedDataFormatPlugin = loadedPlugins.stream()
+                            .map(Class::getName)
+                            .filter(SANDBOX_DATAFORMAT_PLUGINS::contains)
+                            .findFirst()
+                            .orElse("a data-format plugin");
+                        OpenSearchIntegTestCase.this.logger.warn(
+                            "Test set feature flag [{}]=false while sandbox plugin [{}] is loaded; forcing it to true "
+                                + "because the data-format plugin requires the flag to be enabled, so honoring false while the "
+                                + "plugin is loaded would fail node startup. Override installSandboxPlugins() to return false if you "
+                                + "genuinely need the node without the stack, or call super.featureFlagSettings() so the base "
+                                + "suppression applies.",
+                            FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
+                            loadedDataFormatPlugin
+                        );
+                    }
+                    builder.put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true);
+                }
+                return builder.build();
             }
 
             @Override
@@ -2151,7 +2332,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                return OpenSearchIntegTestCase.this.nodePlugins();
+                return OpenSearchIntegTestCase.this.effectiveNodePlugins();
             }
 
             @Override
