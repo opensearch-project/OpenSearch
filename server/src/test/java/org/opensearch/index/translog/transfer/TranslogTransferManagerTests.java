@@ -1466,12 +1466,21 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2, reader3, reader4));
         assertEquals(
-            Set.of("translog-12.tlog", "translog-23.tlog", "translog-34.tlog", "translog-45.tlog"),
+            Set.of(
+                "translog-12.tlog",
+                "translog-12.ckp",
+                "translog-23.tlog",
+                "translog-23.ckp",
+                "translog-34.tlog",
+                "translog-34.ckp",
+                "translog-45.tlog",
+                "translog-45.ckp"
+            ),
             translogTransferManager.getFileTransferTracker().allUploaded()
         );
     }
 
-    public void testPopulateFileTrackerWithLocalStateNoCkpAsMetadata() {
+    public void testPopulateFileTrackerWithLocalStateUsingTranslogMetadata() {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -1490,7 +1499,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
         assertEquals(
-            Set.of("translog-12.tlog", "translog-12.ckp", "translog-23.tlog", "translog-23.ckp"),
+            Set.of("translog-12.tlog", "translog-23.tlog"),
             translogTransferManager.getFileTransferTracker().allUploaded()
         );
     }
