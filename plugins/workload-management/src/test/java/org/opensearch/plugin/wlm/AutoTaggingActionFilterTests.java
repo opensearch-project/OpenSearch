@@ -14,6 +14,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -108,6 +109,38 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             autoTaggingActionFilter.apply(mock(Task.class), "Test", request, ActionRequestMetadata.empty(), null, mockFilterChain);
 
             assertEquals("OuterQG_ID", threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
+        }
+    }
+
+    public void testApplyOverridesNodeDefaultWorkloadGroup() {
+        Settings settings = Settings.builder()
+            .put("request.headers." + WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "NodeDefaultQG_ID")
+            .build();
+        ThreadPool defaultHeaderPool = new TestThreadPool("AutoTaggingActionFilterDefaultHeaderTests", settings);
+        try {
+            AutoTaggingActionFilter filter = new AutoTaggingActionFilter(
+                ruleProcessingService,
+                defaultHeaderPool,
+                new HashMap<>(),
+                mock(WlmClusterSettingValuesProvider.class),
+                WLMFeatureType.WLM
+            );
+            SearchRequest request = mock(SearchRequest.class);
+            ActionFilterChain<ActionRequest, ActionResponse> mockFilterChain = mock(TestActionFilterChain.class);
+            when(request.indices()).thenReturn(new String[] { "foo" });
+            try (ThreadContext.StoredContext context = defaultHeaderPool.getThreadContext().stashContext()) {
+                assertEquals(
+                    "NodeDefaultQG_ID",
+                    defaultHeaderPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER)
+                );
+                when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("TestQG_ID"));
+
+                filter.apply(mock(Task.class), "Test", request, ActionRequestMetadata.empty(), null, mockFilterChain);
+
+                assertEquals("TestQG_ID", defaultHeaderPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
+            }
+        } finally {
+            defaultHeaderPool.shutdownNow();
         }
     }
 
