@@ -303,6 +303,7 @@ final class IndexShardOperationPermits implements Closeable {
                 }
             }
         } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
             onAcquired.onFailure(e);
             return;
         }
