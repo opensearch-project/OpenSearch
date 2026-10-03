@@ -61,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.common.settings.Setting.Property;
@@ -345,6 +346,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final Runnable connectActivity = new AbstractRunnable() {
 
             final AbstractRunnable abstractRunnable = this;
+            // Start of the connect attempt in flight, or 0 when there is none. Written in doRun() before
+            // connectToNode and read in the callbacks, which run on a different thread, so it is volatile.
+            // ConnectionTarget runs at most one activity at a time, so attempts never overlap.
+            volatile long connectStartNanos;
 
             @Override
             protected void doRun() {
@@ -356,11 +361,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     onConnected();
                 } else {
                     logger.debug("connecting to {}", discoveryNode);
+                    connectStartNanos = System.nanoTime();
                     transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.debug("connected to {}", discoveryNode);
+                            logger.debug("connected to {} in [{}]", discoveryNode, takeElapsedConnectTime());
                             onConnected();
                         }
 
@@ -377,6 +383,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
             }
 
+            /**
+             * Consumes the start time of the attempt in flight and renders how long it took. An attempt that was
+             * rejected before {@link #doRun} could start it has no start time, and reporting the time of whichever
+             * attempt ran last would be worse than reporting nothing.
+             */
+            private String takeElapsedConnectTime() {
+                final long startNanos = connectStartNanos;
+                connectStartNanos = 0L;
+                return startNanos == 0L ? "unknown time" : TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos) + "ms";
+            }
+
             @Override
             public void onFailure(Exception e) {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
@@ -385,7 +402,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                 logger.log(
                     level,
-                    new ParameterizedMessage("failed to connect to {} (tried [{}] times)", discoveryNode, currentFailureCount),
+                    new ParameterizedMessage(
+                        "failed to connect to {} after [{}] (tried [{}] times)",
+                        discoveryNode,
+                        takeElapsedConnectTime(),
+                        currentFailureCount
+                    ),
                     e
                 );
                 onCompletion(ActivityType.CONNECTING, e, disconnectActivity);
