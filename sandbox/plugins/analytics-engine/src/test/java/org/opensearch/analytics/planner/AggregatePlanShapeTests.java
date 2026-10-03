@@ -244,7 +244,7 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
 
     /**
      * Empty-group count(), multi-shard. The Project on top is the CAST-wrap from
-     * {@code OpenSearchAggregateSplitRule.wrapWithCastIfNeeded} — without it, Volcano rejects
+     * {@code AggregatePartialFinalSplit.wrapWithCastIfNeeded} — without it, Volcano rejects
      * FINAL's nullable BIGINT against SINGLE's BIGINT NOT NULL.
      */
     public void testStatsCountStar_emptyGroup_2shard() {

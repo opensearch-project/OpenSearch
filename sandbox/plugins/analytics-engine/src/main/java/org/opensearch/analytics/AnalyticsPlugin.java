@@ -205,7 +205,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         // budget is a percent of max heap; node budget == per-query max (a lone query may use the
         // whole budget, but no single query may exceed it — that fails fast, non-retryably). Without
         // this the manager's budget stays Long.MAX_VALUE and a large shuffle accumulates its whole
-        // input on-heap as byte[] until the node OOMs (the inert-cap bug; observed on TPC-H q17 sf=10).
+        // input on-heap as byte[] until the node OOMs (the inert-cap bug).
         applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
@@ -364,18 +364,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public SearchStats contributeSearchStats() {
-        // Contribute per-shard fragment task counts so the node-level search counters
-        // exposed via _nodes/stats match Lucene's per-shard accounting (one increment
-        // per shard query phase, not per user query).
-        //
-        // The queries.elapsed_ms bucket counts 1-per-query, which undercounts the
-        // rate by the shard fan-out factor and drops most queries' latency (the
-        // start/end window in AnalyticsStatsCollector#recordExecution is commonly
-        // 0 when stage timestamps aren't populated). The SHARD_FRAGMENT stage
-        // bucket counts 1-per-(query, node-hosting-shards), still missing the
-        // per-shard granularity Lucene reports. fragments.total walks each
-        // SHARD_FRAGMENT execution's per-shard StageTasks, giving per-shard
-        // counts matching Lucene's onPreQueryPhase semantics.
+        // Contribute PER-SHARD fragment task counts so _nodes/stats matches Lucene's accounting (one
+        // increment per shard query phase, not per user query). The queries bucket counts 1-per-query and the
+        // SHARD_FRAGMENT bucket 1-per-(query, node), both coarser than Lucene's onPreQueryPhase; walking each
+        // execution's per-shard StageTasks is what matches it.
         AnalyticsStats snapshot = statsCollector.snapshot();
         AnalyticsStats.Fragments fragments = snapshot.fragments();
         if (fragments == null || fragments.total() == 0) {

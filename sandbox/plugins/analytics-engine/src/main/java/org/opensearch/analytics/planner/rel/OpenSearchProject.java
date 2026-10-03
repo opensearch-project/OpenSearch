@@ -8,10 +8,10 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -26,6 +26,8 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.util.Pair;
+import org.apache.calcite.util.mapping.Mappings;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -41,17 +43,17 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchProject extends Project implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
 
     /**
-     * When true, this Project must stay ABOVE the ExchangeReducer (in the coordinator fragment) —
-     * {@link #computeSelfCost} returns infinite cost unless its input is already gathered
-     * (SINGLETON/ANY), forcing Volcano to place an ER below it. Used to keep an aggregate's literal
-     * config arg (e.g. percentile's {@code 50}) adjacent to the aggregate while a duplicate,
-     * unpinned, physical-only Project pushes below the gather for projection-pushdown. Mirrors the
-     * RexOver gate, which has the same coordinator-side requirement.
+     * When true, this Project must stay ABOVE the ExchangeReducer (in the coordinator fragment) — it DEMANDS
+     * a gathered input via {@link #passThroughTraits}, so Volcano places an ER below it, and
+     * {@link #assertPlacementIsLegal} catches any builder that constructs it over partitioned input anyway.
+     * Used to keep an aggregate's literal config arg (e.g. percentile's {@code 50}) adjacent to the aggregate
+     * while a duplicate, unpinned, physical-only Project pushes below the gather for projection-pushdown.
+     * Mirrors the RexOver requirement, which is coordinator-side for the same reason.
      */
     private final boolean pinAboveExchange;
 
@@ -118,68 +120,80 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
     }
 
     /**
-     * Projects containing {@code RexOver} (window functions) need fully-gathered input so the
-     * window's global frame semantics are correct. Projects flagged {@link #pinAboveExchange} must
-     * likewise stay in the coordinator fragment (they carry an aggregate's literal config arg). Both
-     * return infinite cost unless input is SINGLETON/ANY — Volcano then picks the plan where an ER
-     * sits under this project.
+     * A Project costs nothing of its own. The one real cost here is the invariant every operator shares: an
+     * input whose placement is still UNRESOLVED has no defined cost, because nothing above it has a defined
+     * location or a defined correctness. The marking phase deliberately registers such a seed (see
+     * {@code OpenSearchProjectRule}), and this is what confines it to the ANY subset so only the concrete
+     * alternatives {@link #passThroughTraits} / {@link #deriveTraits} and
+     * {@code OpenSearchWindowProjectGatherRule} produce are consumable.
      *
-     * <p>Plain projects (neither) have no ordering requirement — tiny cost unconditionally.
+     * <p>The placement REQUIREMENT — a window or pinned Project needs gathered input — is asserted, not
+     * priced. See {@link #assertPlacementIsLegal}.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (!containsOver() && !pinAboveExchange) {
-            return planner.getCostFactory().makeTinyCost();
+        if (hasUnresolvedInput()) {
+            return planner.getCostFactory().makeInfiniteCost();
         }
-        // containsOver() is Calcite's own — inherited from Project.
-        for (int i = 0; i < getInput().getTraitSet().size(); i++) {
-            RelTrait trait = getInput().getTraitSet().getTrait(i);
-            if (trait instanceof OpenSearchDistribution distribution) {
-                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
-                    || distribution.getType() == RelDistribution.Type.ANY;
-                if (!singletonOrAny) {
-                    return planner.getCostFactory().makeInfiniteCost();
-                }
-            }
-        }
+        assert assertPlacementIsLegal();
         return planner.getCostFactory().makeTinyCost();
     }
 
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
-
     /**
-     * A row-wise project imposes no partitioning requirement on its input (it neither needs nor breaks a
-     * distribution) — returns {@code null} so the input keeps whatever distribution it derived. A
-     * window-bearing project ({@code RexOver}) or a {@code pinAboveExchange} project needs fully-gathered
-     * input (global window frame / coordinator-pinned literal), so it requires {@code COORDINATOR+SINGLETON}.
+     * The placement a window / pinned Project implies. ASSERTED rather than priced, and asserted rather than
+     * deleted, because a violation is a silently WRONG RESULT: a {@code RexOver} frame is global, so running
+     * it per-partition computes each window over a fraction of the rows, and a pinned literal config arg
+     * evaluated shard-side detaches from the aggregate it belongs to.
+     *
+     * <p>Unreachable because the requirement is stated in every direction that can build this node:
+     * {@link #passThroughTraits} turns the demand into a SINGLETON demand on its own input,
+     * {@link #getDeriveMode} returns {@code PROHIBITED} so Calcite cannot derive a partitioned variant into
+     * it, and {@code OpenSearchWindowProjectGatherRule} registers the gathered alternative unconditionally.
+     * A plain Project has no placement requirement at all and always passes.
+     *
+     * @return always {@code true}, so this reads as {@code assert assertPlacementIsLegal()}
+     * @throws IllegalStateException when a window / pinned Project meets input it cannot correctly consume
      */
-    @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        if (inputIndex != 0) {
-            return null;
-        }
+    private boolean assertPlacementIsLegal() {
+        // containsOver() is Calcite's own — inherited from Project.
         if (!containsOver() && !pinAboveExchange) {
-            return null;
+            return true;
         }
-        return traitDef.coordSingleton();
+        // An UNRESOLVED seed makes no placement claim, so it cannot contradict its input; only a node that has
+        // COMMITTED to a distribution can be illegal.
+        OpenSearchDistribution selfDistribution = OpenSearchRelNode.distributionOf(getTraitSet());
+        if (selfDistribution == null || selfDistribution.getType() == RelDistribution.Type.ANY) {
+            return true;
+        }
+        // No distribution trait at all is not the same as an unresolved one: it carries no placement claim
+        // either way, so there is nothing to check.
+        OpenSearchDistribution inputDistribution = OpenSearchRelNode.distributionOf(getInput().getTraitSet());
+        if (inputDistribution == null) {
+            return true;
+        }
+        if (inputDistribution.getType() != RelDistribution.Type.SINGLETON) {
+            throw new IllegalStateException(
+                (containsOver() ? "Window" : "Pinned")
+                    + " project over partitioned input ["
+                    + inputDistribution
+                    + "] would evaluate a global frame per-partition"
+            );
+        }
+        return true;
     }
 
     /**
-     * A plain project passes the child's distribution through, REMAPPED to output columns: a hash key at
-     * input column {@code k} moves to wherever the projection places {@code k} (and degrades to ANY if the
-     * projection drops it) — exactly {@link OpenSearchDistribution#apply} over the project's
-     * {@code getPartialMapping}. A window/pinned project gathered its input to SINGLETON, so its output is
-     * SINGLETON. Returns {@code null} when the child distribution is unknown.
+     * The distribution this project OUTPUTS given its child's. A plain project passes the child's
+     * distribution through, REMAPPED to output columns: a hash key at input column {@code k} moves to
+     * wherever the projection places {@code k} (and degrades to ANY if the projection drops it) — exactly
+     * {@link OpenSearchDistribution#apply} over the project's {@code getPartialMapping}. A window/pinned
+     * project gathers its input, so its output is SINGLETON. Returns {@code null} when the child
+     * distribution is unknown.
      */
-    @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        if (childDistributions.size() != 1 || childDistributions.get(0) == null) {
+    private OpenSearchDistribution deriveOutputDistribution(OpenSearchDistribution childDist, OpenSearchDistributionTraitDef traitDef) {
+        if (childDist == null) {
             return null;
         }
-        OpenSearchDistribution childDist = childDistributions.get(0);
         if (containsOver() || pinAboveExchange) {
             return traitDef.coordSingleton();
         }
@@ -189,6 +203,113 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         );
         org.apache.calcite.rel.RelDistribution remapped = childDist.apply(mapping);
         return remapped instanceof OpenSearchDistribution osDist ? osDist : null;
+    }
+
+    /**
+     * A row-transparent project RIDES the
+     * requested distribution, so it demands the same distribution of its child and delivers it upward.
+     * The demand is expressed in INPUT column space — a hash key on output column {@code k} refers to
+     * whichever input column the projection reads there — so it is remapped through the inverse of the
+     * mapping {@link #deriveOutputDistribution} applies.
+     *
+     * <p>Declines (returns {@code null}) for a window/pinned project: those impose their own SINGLETON
+     * requirement and must not pretend to satisfy an arbitrary partitioning. Also declines when the
+     * requested key cannot be traced back through the projection, rather than silently dropping the key
+     * and claiming a partitioning the child does not have.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        if (containsOver() || pinAboveExchange) {
+            // A window / pinned project cannot ride an arbitrary partitioning — its frame semantics are
+            // global (and a pinned literal must stay coordinator-side), which is why computeSelfCost
+            // charges infinite cost over a partitioned input. It must therefore DEMAND a gathered input
+            // rather than decline: declining leaves no legal alternative at all now that
+            // ExpandConversionRule and OpenSearchDistributionDeriveRule (the two bottom-up mechanisms
+            // that used to insert this gather) are gone, and planning fails outright.
+            if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+                return null;
+            }
+            // Pass the SINGLETON demand through VERBATIM. What a window frame needs is that ALL rows are on
+            // ONE node, which a 1-shard SINGLETON(SHARD) input already gives; the root asks for anySingleton
+            // (locality null), so narrowing to COORDINATOR here inserted a gather purely to move data that
+            // was already gathered.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        if (requiredDistribution.getKeys().isEmpty()) {
+            // Locality-only demand (SINGLETON / RANDOM / ANY): no key to remap, ride it as-is.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        // A keyed demand is only expressible on the child if EVERY key traces back to an input column.
+        // Only HASH carries keys here, and its child demand needs a concrete partition count to be
+        // enforceable (buildShuffleExchange throws on a null count), so decline without one.
+        if (requiredDistribution.getType() != RelDistribution.Type.HASH_DISTRIBUTED || requiredDistribution.getPartitionCount() == null) {
+            return null;
+        }
+        Mappings.TargetMapping outputToInput;
+        try {
+            outputToInput = Project.getPartialMapping(getInput().getRowType().getFieldCount(), getProjects()).inverse();
+        } catch (RuntimeException e) {
+            // A non-invertible projection (duplicated/computed columns) cannot carry a key demand down.
+            return null;
+        }
+        List<Integer> inputKeys = new ArrayList<>(requiredDistribution.getKeys().size());
+        for (Integer key : requiredDistribution.getKeys()) {
+            int source = outputToInput.getTargetOpt(key);
+            if (source < 0) {
+                return null;
+            }
+            inputKeys.add(source);
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+        OpenSearchDistribution childDemand = traitDef.hash(inputKeys, requiredDistribution.getPartitionCount());
+        return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(childDemand)));
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #passThroughTraits}: reuses {@link #deriveOutputDistribution} so the two
+     * propagation directions cannot drift apart.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0 || containsOver() || pinAboveExchange) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        OpenSearchDistribution out;
+        try {
+            out = deriveOutputDistribution(childDistribution, (OpenSearchDistributionTraitDef) childDistribution.getTraitDef());
+        } catch (RuntimeException e) {
+            // RelDistribution.apply walks the projection's inverse mapping, and Calcite's
+            // InverseMapping.getTargetOpt throws UnsupportedOperationException for mappings that are
+            // not invertible (duplicated or computed columns). Bottom-up never reached this because the
+            // the deleted enforcement pass only ever applied this mapping to an already-decided tree;
+            // top-down probes speculative child traits, so it does. No alternative is the safe answer.
+            return null;
+        }
+        if (out == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(out), List.of(childTraits));
+    }
+
+    /**
+     * A window / pinned project must NOT have traits derived into it. Its {@link #computeSelfCost} charges
+     * infinite cost unless its input is SINGLETON, so Calcite's default {@code LEFT_FIRST} derive mode —
+     * which happily builds a {@code Project(SINGLETON)} directly over a {@code RANDOM(SHARD)} input,
+     * without inserting the gather that would make it legal — produces a dead memo entry and the whole
+     * plan fails with "not enough rules ... cost is still infinite". Prohibiting derivation leaves the
+     * SINGLETON demand to {@link #passThroughTraits} and OpenSearchWindowProjectGatherRule, which do gather.
+     */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return (containsOver() || pinAboveExchange) ? DeriveMode.PROHIBITED : DeriveMode.LEFT_FIRST;
     }
 
     @Override
@@ -237,20 +358,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        // OpenSearchProjectRule.annotateExpr recurses into operands when validating viable
-        // backends, so a top-level call like COALESCE(num0, CEIL(num1)) ends up with the inner
-        // CEIL also wrapped. The supplied annotationResolver controls how each top-level
-        // wrapper is unwrapped (defaults to OperatorAnnotation::unwrap, returning the original
-        // RexNode); a RexShuttle then sweeps the resolver's result to strip any remaining
-        // nested wrappers. Substrait conversion only recognizes the underlying RexCall shape,
-        // so every wrapper at every depth must be removed before the plan is handed to a
-        // backend's FragmentConvertor.
-        //
-        // Top-level baseline operators (BASELINE_SCALAR_OPS — COALESCE, CASE, CAST, arithmetic,
-        // IS_NULL, …) bypass the AnnotatedProjectExpression wrap at the call site, but their
-        // operands still go through annotation. The shuttle therefore runs on every project
-        // expression — including plain ones — to catch annotated operands nested inside a
-        // baseline-op root.
+        // Annotation recurses into operands, so COALESCE(num0, CEIL(num1)) wraps the inner CEIL too, and
+        // substrait only recognises the underlying RexCall — every wrapper at every depth must go. The
+        // resolver unwraps each top-level wrapper; a RexShuttle then sweeps its result for nested ones. The
+        // shuttle runs on EVERY project expression, including plain ones, because a baseline-op root
+        // (COALESCE, CASE, CAST, …) skips the wrap itself while its operands do not.
         RexShuttle nestedAnnotationStripper = new RexShuttle() {
             @Override
             public RexNode visitCall(RexCall call) {
@@ -273,24 +385,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
             }
         }
 
-        // Lift nested RexOver expressions out of scalar calls into a child LogicalProject.
-        // PPL's `bin` command lowers `bins=N` / `minspan=N` / `start=… end=…` to a single
-        // top-level scalar call whose operands embed RexOver: e.g.
-        // width_bucket(f, N, MAX(f) OVER () - MIN(f) OVER (), MAX(f) OVER ())
-        // DataFusion's substrait consumer auto-lifts *top-level* WindowFunction project
-        // expressions into a LogicalWindow (datafusion-substrait
-        // `from_project_rel`), but the nested RexOvers inside `width_bucket(...)` stay
-        // where they are and reach DataFusion's physical planner — which then errors
-        // with "Physical plan does not support logical expression WindowFunction(...)".
-        //
-        // Pre-substrait fix: walk every project expression, hoist each unique RexOver
-        // into a child Project as its own top-level expression, and rewrite the original
-        // expression to reference the hoisted column via RexInputRef. The child Project
-        // becomes:
-        // [input_field_0, input_field_1, ..., input_field_(n-1), MAX(f) OVER (), MIN(f) OVER ()]
-        // and the outer Project's expressions reference those new columns by index.
-        // DataFusion sees the WindowFunctions at the top level of the inner Project and
-        // wraps them in a LogicalWindow as expected.
+        // Hoist RexOver nested inside a scalar call into a child Project, referenced by RexInputRef.
+        // DataFusion's substrait consumer only auto-lifts TOP-LEVEL WindowFunction project expressions into
+        // a LogicalWindow; a RexOver buried in e.g. width_bucket(f, N, MAX(f) OVER () …) reaches its
+        // physical planner and fails with "Physical plan does not support logical expression
+        // WindowFunction". PPL's `bin` command produces exactly that shape.
         Project lifted = liftNestedRexOver(strippedChildren.getFirst(), strippedExprs);
         if (lifted != null) {
             return lifted;

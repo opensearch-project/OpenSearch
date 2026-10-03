@@ -32,7 +32,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Codex review P1: buffers must be keyed by partitionIndex too, otherwise two partitions of the
+     * buffers must be keyed by partitionIndex too, otherwise two partitions of the
      * same stage that happen to land on the same worker node would share a buffer and leak rows +
      * {@code isLast} markers across partitions. This test pins the correct key shape and the
      * resulting isolation.
@@ -185,7 +185,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * BLOCKER (codex review: tombstoned-admit-budget-leak): once a query is tombstoned by
+     * once a query is tombstoned by
      * clearForQuery, a late producer RPC must NOT reserve budget. The buffer it gets is an unstored
      * throwaway that no removeBuffer/clearForQuery will ever release, so reserving bytes for it would
      * leak the node budget permanently. tryAdmit must drop the payload (still ACCEPTED — the producer
@@ -206,7 +206,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * BLOCKER (codex review: shuffle-budget-double-release): removeBuffer (per-buffer, on normal
+     * removeBuffer (per-buffer, on normal
      * drain) and clearForQuery (whole-query, on terminal) must compose without double-subtracting.
      * Drain one buffer via removeBuffer, then clearForQuery the rest — totalBytes must land at exactly
      * 0, never undercount (which would silently shrink the effective budget for later queries).
@@ -227,7 +227,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * BLOCKER (codex review round 2: tombstoned-admit-budget-leak via tombstone eviction). With the
+     * BLOCKER With the
      * prior COUNT-based FIFO cap, a still-in-window tombstone could be evicted by N other clears, and
      * a late producer admit for that query would then reserve bytes that no release reclaims. The fix
      * is TTL-based tombstones (provably outlive the producer retry window). This test pins the
@@ -557,7 +557,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Cross-partition spill (codex round-3 BLOCKER #1): the per-query budget is query-WIDE, but a
+     * Cross-partition spill: the per-query budget is query-WIDE, but a
      * single partition buffer may not hold enough resident bytes to cover a breach when the footprint
      * is spread across sibling partitions of the same stage. When partition 1's first chunk arrives and
      * partition 0 already holds the whole budget, the manager must spill partition 0 (a SAME-stage
@@ -597,7 +597,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     /**
      * Cross-partition spill must NOT cross stage boundaries: a buffer of a DIFFERENT (possibly already-
      * draining) stage is never spilled to make room for an incoming chunk. Only same-(query,stage)
-     * siblings are eligible. (codex round-3 BLOCKER #1 safety boundary.)
+     * siblings are eligible.
      */
     public void testSpillEnabledCrossPartitionDoesNotSpillOtherStage() throws Exception {
         Path spillDir = createTempDir();
@@ -625,7 +625,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tombstone-race spill leak (codex round-3 BLOCKER #2): when getOrCreateBuffer's computeIfAbsent
+     * Tombstone-race spill leak: when getOrCreateBuffer's computeIfAbsent
      * returns a PRE-EXISTING buffer that already SPILLED, and the query is then found tombstoned, the
      * discard path must release the buffer's on-disk spill bytes (and delete its files) — not just drop
      * the map entry. A lock-free buffers.remove would leak spilledTotalBytes permanently. This drives
@@ -676,8 +676,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Cross-partition spill must NOT evict from a sibling that has begun DRAINING (codex round-4
-     * BLOCKER #1): a drain may have already snapshotted the sibling's in-memory tail / opened its
+     * Cross-partition spill must NOT evict from a sibling that has begun DRAINING: a drain may have already snapshotted the sibling's in-memory tail / opened its
      * spill file, so spilling it would drop/duplicate rows or NPE. Here partition 0 fills the budget
      * then begins draining; partition 1's incoming chunk must NOT spill partition 0 (it stays
      * resident + fully drainable), even though that means partition 1's admit runs over budget.
@@ -716,7 +715,7 @@ public class ShuffleBufferManagerTests extends OpenSearchTestCase {
 
     /**
      * Disk-byte accounting must not leak when a spill-file delete FAILS then the per-query dir sweep
-     * later removes the file (codex round-4 SHOULD-FIX #2). We can't easily force a delete IOException
+     * later removes the file We can't easily force a delete IOException
      * in a unit test, so this asserts the happy-path invariant the orphan tracker preserves: after a
      * normal terminal, spilledTotalBytes returns to 0 and the orphan map is empty (no path left
      * charged). The orphan-release path itself is exercised by deleteQuerySpillDir on every clear.

@@ -110,7 +110,7 @@ public final class AnalyticsSettings {
      * Arrow-IPC {@code byte[]} chunks. Those chunks live ON the JVM heap, and a node's live shuffle
      * bytes are the SUM across every buffer it holds (all queries/stages/partitions). Without a bound
      * a large shuffle accumulates its whole input on-heap and OOMs the node (observed: 7.4 GB of
-     * {@code byte[]} on an 8 GB heap for TPC-H q17 at sf=10). A PER-BUFFER cap can't bound the sum
+     * {@code byte[]} on an 8 GB heap for one heavy query). A PER-BUFFER cap can't bound the sum
      * (N partitions each under the cap still OOM in aggregate), so the budget is per-NODE.
      *
      * <p>{@code ShuffleBufferManager} admits a chunk only if the node total stays under
@@ -136,13 +136,13 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Size floor for the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass},
+     * Size floor for distributing an operator onto a worker tier (
      * the only MPP scheduler): a join/aggregate is distributed onto a worker tier only when its larger scan
      * subtree exceeds this many rows (or a deeper operator already distributed — the cascade continues upward
      * regardless). Below the floor the operator stays coordinator-centric, matching CBO's cheap choice for
      * small joins — distribution adds shuffle overhead that only pays off at scale.
      *
-     * <p>Default {@code 1_000_000}: well below any TPC-H fact table that needs distributing (partsupp 8M,
+     * <p>Default {@code 1_000_000}: well below any fact table that needs distributing (tens of millions
      * lineitem 60M) and well above trivial joins that gather cheaply. Exposed as a setting so the floor is
      * tunable per workload AND so integration tests on small datasets can lower it to exercise the
      * distributed path (the JVM tests use {@code minRows=1}; the cluster ITs set this to a small value).
@@ -179,24 +179,33 @@ public final class AnalyticsSettings {
 
     /**
      * Build-side row threshold above which a hash-shuffle WORKER join uses a spillable sort-merge join
-     * instead of the in-memory hash-join build. When a worker join's build-side (right input) estimated
-     * scan rows exceed this value, the coordinator sets {@code prefer_hash_join=false} on that worker
-     * stage, so DataFusion's physical planner emits a {@code SortMergeJoinExec} (which spills its buffered
-     * batches to disk under memory pressure) rather than the {@code HashJoinExec} whose in-memory build
-     * has no escape to disk and trips the native circuit breaker on large builds (TPC-H sf=10 q17/q18/q21).
-     * This mirrors Spark's memory-safety rule: hash-join only when the build provably fits, else the
-     * spillable join.
+     * instead of the in-memory hash-join build. When a worker join's build side is ESTIMATED TO EXCEED
+     * this many bytes, the coordinator sets {@code prefer_hash_join=false} on that worker stage, so
+     * DataFusion's physical planner emits a {@code SortMergeJoinExec} (which spills its buffered batches to
+     * disk under memory pressure) rather than the {@code HashJoinExec} whose in-memory build has no escape to
+     * disk and trips the native circuit breaker on large builds. This mirrors Spark's memory-safety rule:
+     * hash-join only when the build provably fits, else the spillable join.
+     *
+     * <p><b>Bytes, not rows.</b> The constraint being expressed is memory, and rows do not determine memory:
+     * the same row count spans more than an order of magnitude of footprint depending on column count and
+     * type widths, so a row threshold cannot state "this build fits". The estimate is
+     * {@code estimatedRows x summed per-column type widths}; the width half needs no statistics at all
+     * (it comes from the row type), which makes it the more reliable half. A row threshold also cannot be
+     * scale-invariant — the same constant means different things at different data sizes, whereas a byte
+     * budget compares directly against the pool the build must live in.
+     *
+     * <p>An UNKNOWN build size takes the spillable join, since a build we cannot size is exactly the one that
+     * must not get the operator with no escape to disk.
      *
      * <p>Below the threshold the worker keeps the (faster, no-sort) hash join. Only worker joins are
-     * affected — shard-scan and coordinator-reduce sessions always prefer hash join. Default
-     * {@code 20_000_000}: above the dimension builds that fit comfortably in memory (TPC-H supplier 100K,
-     * part 2M, partsupp 8M at sf=10) and below the fact-table-scale builds that OOM. Set to
-     * {@code Long.MAX_VALUE} to disable (always hash join — the pre-SMJ behavior) or {@code 0} to force
+     * affected — shard-scan and coordinator-reduce sessions always prefer hash join. Default 1 GiB: a build
+     * that large is worth sorting to keep off the operator pool, while dimension-sized builds stay on the
+     * hash path. Set to {@code Long.MAX_VALUE} to disable (always hash join) or {@code 0} to force
      * sort-merge on every worker join (A/B benchmarking).
      */
-    public static final Setting<Long> MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS = Setting.longSetting(
-        "analytics.mpp.worker.sort_merge_join_min_rows",
-        20_000_000L,
+    public static final Setting<Long> MPP_WORKER_SORT_MERGE_JOIN_MIN_BYTES = Setting.longSetting(
+        "analytics.mpp.worker.sort_merge_join_min_bytes",
+        1024L * 1024 * 1024,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -206,7 +215,7 @@ public final class AnalyticsSettings {
      * Per-strategy sub-toggle for distributed <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
      * strategy): a decomposable {@code GROUP BY} over a distributed join is split PARTIAL (on the join's
      * worker tier, per-partition) + FINAL (gathered to the coordinator) by the general post-CBO pass
-     * {@code DistributionEnforcementPass}, instead of gathering the whole join output and aggregating
+     * CBO's trait enforcement, instead of gathering the whole join output and aggregating
      * serially on the coordinator.
      *
      * <p>Gated under {@link #MPP_ENABLED}: this only has effect when MPP is on. When {@code true}
@@ -225,11 +234,43 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Compute a sub-plan that the query evaluates MORE THAN ONCE only once, feeding every consumer from that
+     * one result.
+     *
+     * <p>This is a CORRECTNESS fix before it is an optimization. When a query inlines the same aggregate
+     * subquery twice — joining it and then filtering on {@code = [ … max(…) ]} over the same subquery — each
+     * copy is aggregated independently. {@code SUM(double)} is not associative, so the copies' partial sums
+     * merge in different orders, disagree in the last bits, and the exact {@code =} matches nothing: the row
+     * is returned or dropped at random. Sharing one evaluation makes both consumers read identical rows, so
+     * the comparison holds whatever order the sum ran in — and halves the work.
+     *
+     * <p><b>Not an MPP setting</b>, despite living alongside them historically: sharing is done by
+     * {@code DAGBuilder} for every analytics query and is deliberately NOT gated on {@link #MPP_ENABLED} — the
+     * wrong answer it prevents happens coordinator-centric too. In fact it applies MORE often with distribution
+     * off, because a distributed plan can put the two references in different fragments, where sharing does not
+     * currently reach.
+     *
+     * <p>Default {@code true}, and it is a KILL SWITCH rather than an opt-in feature flag: the same posture
+     * Spark takes for the equivalent transform ({@code spark.sql.exchange.reuse}, internal, default true since
+     * 2.0.0). {@code SharedSubplanReuse} keeps sharing narrow — only a COMPLETE aggregate subtree with no
+     * shuffle/broadcast/late-materialization boundary — and {@code DAGBuilder} rebuilds without sub-plan reuse
+     * when the consumer would not buffer the shared input. What no internal fallback can catch is a WRONG
+     * digest match (two subtrees that normalize equal without being equivalent), which would be a silent wrong
+     * answer; set this to {@code false} to revert that class of incident without a rollback.
+     */
+    public static final Setting<Boolean> SUBPLAN_REUSE_ENABLED = Setting.boolSetting(
+        "analytics.planner.subplan_reuse.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
-     * {@code ShuffleBufferExceededException}. This lets multi-GB shuffle intermediates (TPC-H q5/q10
-     * at sf=10) RUN: the per-query on-heap footprint is bounded by the budget, the rest lives on disk,
+     * {@code ShuffleBufferExceededException}. This lets multi-GB shuffle intermediates RUN: the per-query
+     * on-heap footprint is bounded by the budget, the rest lives on disk,
      * and the consumer drains spilled chunks back (in arrival order) followed by the in-memory tail —
      * preserving the proven buffer-all consumer contract.
      *
@@ -296,7 +337,7 @@ public final class AnalyticsSettings {
      * Pre-marking column pruning for the distributed path: drop columns no operator references
      * before the plan is cut into stages, so a hash-shuffle carries only the join keys plus the
      * downstream-referenced columns rather than the full join-output width. On wide fact-table joins
-     * (TPC-H) this shrinks the shuffled payload several-fold — the single biggest driver of the
+     * this shrinks the shuffled payload several-fold — the single biggest driver of the
      * distributed-join latency, and it keeps more queries under the on-heap shuffle budget without
      * spilling. Scoped to plans whose joins are all equi-joins (a cross-join — e.g. what PPL
      * {@code transpose} lowers to — is left untouched). Default {@code true}; disable only to isolate a
@@ -363,6 +404,7 @@ public final class AnalyticsSettings {
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
+        SUBPLAN_REUSE_ENABLED,
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
@@ -370,7 +412,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
-        MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,
+        MPP_WORKER_SORT_MERGE_JOIN_MIN_BYTES,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
         MPP_SHUFFLE_SPILL_MAX_BYTES,

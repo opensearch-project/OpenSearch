@@ -34,8 +34,6 @@ import org.opensearch.analytics.exec.action.AnalyticsClearShuffleResponse;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
-import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
-import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.join.UnifiedDispatch;
@@ -56,7 +54,6 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.BroadcastSizeExceededException;
@@ -272,7 +269,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         boolean profile,
         ActionListener<ProfiledResult> listener
     ) {
-        executeInternal(queryTask, logicalFragment, queryCtx, profile, listener, /* broadcastDisabled */ false);
+        executeInternal(queryTask, logicalFragment, queryCtx, profile, listener, /* broadcastDisabled */ false, java.util.Set.of());
     }
 
     /**
@@ -291,25 +288,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryRequestContext queryCtx,
         boolean profile,
         ActionListener<ProfiledResult> outerListener,
-        boolean broadcastDisabled
+        boolean broadcastDisabled,
+        java.util.Set<String> failingBuildTables
     ) {
-        // Broadcast→shuffle retry: on the FIRST attempt, intercept a terminal failure whose cause
-        // chain holds a BroadcastSizeExceededException (the build overflowed the runtime cap — a
-        // pre-flight under-estimate of filter/semijoin selectivity) and re-plan once with broadcast
-        // made ineligible. The broadcastDisabled flag bounds it to a single retry. Mirrors
-        // Presto-on-Spark's DISABLE_BROADCAST_JOIN retry.
-        //
-        // Broadcast→shuffle retry, in two halves so it is both ORDERING-safe and EXCEPTION-safe:
-        // 1) The wrapper below only DETECTS the overflow and stashes it in retryOverflow; it does
-        // NOT submit the retry. This keeps the outer listener un-fired on the overflow path.
-        // 2) The actual retry is submitted from a runAfter installed on the terminal batches
-        // listener (see below), which runs strictly AFTER attempt-1's QueryContext/allocator
-        // teardown completes — so attempt 2 never overlaps attempt 1's allocator under the
-        // shared pool. It is dispatched on the SEARCH executor (off the callback thread, with a
-        // fresh THREAD_PROVIDERS) and guarded by try/catch so a synchronous planning/conversion
-        // throw in attempt 2 still reaches outerListener instead of being lost on a worker.
-        // retryOverflow is non-null only on the first attempt's overflow; broadcastDisabled bounds
-        // it to a single retry.
+        // Broadcast→shuffle retry (mirrors Presto-on-Spark's DISABLE_BROADCAST_JOIN): a
+        // BroadcastSizeExceededException in the first attempt's cause chain means the build overflowed the
+        // runtime cap, so re-plan once with broadcast ineligible. Split in two halves for safety: the wrapper
+        // below only DETECTS the overflow and stashes it in retryOverflow, leaving the outer listener unfired;
+        // the retry itself is submitted from a runAfter on the terminal-batches listener, so it starts strictly
+        // after attempt 1's allocator teardown and never overlaps it under the shared pool. It runs on the
+        // SEARCH executor and is try/catch-guarded so a synchronous throw still reaches outerListener.
+        // broadcastDisabled bounds this to a single retry.
         final AtomicReference<BroadcastSizeExceededException> retryOverflow = new AtomicReference<>();
         final ActionListener<ProfiledResult> listener;
         if (broadcastDisabled) {
@@ -350,6 +339,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
+            )
+            // Sub-plan reuse changes how DAGBuilder cuts the plan, so a static node-bootstrap read would make a
+            // dynamic enable/disable a silent no-op — which is the whole point of keeping it as a kill switch.
+            .put(
+                AnalyticsSettings.SUBPLAN_REUSE_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.SUBPLAN_REUSE_ENABLED)
             )
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
@@ -410,7 +405,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         plannerContext.setPlannerSettings(plannerSettings);
         // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
         // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
-        plannerContext.setBroadcastEligible(!broadcastDisabled);
+        // Targeted retry when the overflowing build could be named: keep broadcast available and bar only that
+        // build side. A blanket disable also removes the broadcasts that fit, and under a cascade the one that
+        // fits is usually the bottom level holding the largest scan in place — so the retry would shuffle the
+        // biggest table in the query to avoid replicating a far smaller one. Falls back to the blanket disable
+        // when the thrower could not identify the build, which keeps the original safety net.
+        if (broadcastDisabled && failingBuildTables.isEmpty() == false) {
+            plannerContext.setBroadcastDisabledBuildTables(failingBuildTables);
+        } else {
+            plannerContext.setBroadcastEligible(!broadcastDisabled);
+        }
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         // General post-CBO distribution-enforcement pass (Option B — the only MPP scheduler). Volcano CBO
         // gathers every join to COORDINATOR+SINGLETON (its cost gate knows only 3 fixed localities), so its
@@ -420,23 +424,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // UnifiedDispatch then runs whatever it distributes. Below the size floor the pass is a no-op and the
         // query stays coordinator-centric (CBO's cheap choice for small joins). See
         // MPP-GENERAL-SCHEDULING-DESIGN.md.
-        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)) {
-            int shufflePartitions = MppShufflePartitions.resolve(
-                perQuerySettings,
-                planningState,
-                capabilityRegistry,
-                ((OpenSearchRelNode) plan).getViableBackends()
-            );
-            plan = DistributionEnforcementPass.enforce(
-                plan,
-                plannerContext.getDistributionTraitDef(),
-                shufflePartitions,
-                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings)
-            );
-        }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
+        // Deliberately NOT gated on MPP_ENABLED: a plan that computes the same aggregate twice returns the wrong
+        // answer coordinator-centric too, so the sharing has to apply either way.
+        QueryDAG dag = DAGBuilder.build(
+            plan,
+            capabilityRegistry,
+            clusterService,
+            indexNameExpressionResolver,
+            AnalyticsSettings.SUBPLAN_REUSE_ENABLED.get(perQuerySettings)
+        );
 
         // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
         // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and
@@ -612,9 +609,18 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                     overflow.observedBytes(),
                     overflow.limitBytes()
                 );
+                java.util.Set<String> overflowTables = overflow.buildTables();
                 ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
                     try {
-                        executeInternal(queryTask, logicalFragment, queryCtx, profile, outerListener, /* broadcastDisabled */ true);
+                        executeInternal(
+                            queryTask,
+                            logicalFragment,
+                            queryCtx,
+                            profile,
+                            outerListener,
+                            /* broadcastDisabled */ true,
+                            overflowTables
+                        );
                     } catch (Exception e) {
                         outerListener.onFailure(e);
                     } catch (Throwable t) {
@@ -656,9 +662,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     /**
-     * Runs the GENERAL post-CBO scheduler path. The DAG was produced by {@link DistributionEnforcementPass}:
-     * it already carries every shuffle/broadcast exchange and a pre-split aggregate
-     * ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link UnifiedDispatch}, which captures any broadcast
+     * Runs the GENERAL post-CBO scheduler path. CBO's own trait enforcement placed every shuffle/broadcast
+     * exchange, and {@code OpenSearchPartialAggregatePushdownRewriter} split any aggregate that sits across a
+     * gather ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link UnifiedDispatch}, which captures any broadcast
      * builds (injecting each as an instruction on its consumer stage), then promotes the shuffle worker
      * tiers and dispatches — one path for any join depth / shape / type, with no per-shape recognition.
      */
@@ -676,8 +682,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Read the worker sort-merge-join floor live (dynamic-aware) so a PUT /_cluster/settings update
         // takes effect without a restart; UnifiedDispatch hands it to ShuffleEnrichment, which sets
         // prefer_hash_join=false on a worker join whose estimated build exceeds it.
-        long sortMergeJoinMinRows = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS);
-        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinRows).run(
+        long sortMergeJoinMinBytes = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_BYTES);
+        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinBytes).run(
             context,
             dag,
             UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService),
