@@ -132,7 +132,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // json_valid returns BOOLEAN, so it is a valid filter predicate (e.g. `where
         // json_valid(col)` / `where not json_valid(col)`). DataFusion evaluates the json_valid Rust
         // UDF natively; same shape as CIDRMATCH.
-        ScalarFunction.JSON_VALID
+        ScalarFunction.JSON_VALID,
+        // array_contains (mapped to DataFusion array_has) returns BOOLEAN, so it is a valid filter
+        // predicate.
+        ScalarFunction.ARRAY_CONTAINS
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
