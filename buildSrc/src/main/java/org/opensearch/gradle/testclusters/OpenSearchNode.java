@@ -1214,6 +1214,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // increase script compilation limit since tests can rapid-fire script compilations
         baseConfig.put("script.disable_max_compilations_rate", "true");
         baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
+        // Raise the force merge node-duress thresholds to their maximum so that load on shared CI hosts (or a nearly full CI
+        // disk) does not reject force merges with 429 in REST tests. The settings only exist from 3.1.0 on.
+        if (getVersion().onOrAfter("3.1.0")) {
+            baseConfig.put("node.auto_force_merge.cpu.threshold", "100");
+            baseConfig.put("node.auto_force_merge.jvm.threshold", "100");
+            baseConfig.put("node.auto_force_merge.disk.threshold", "100");
+        }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
