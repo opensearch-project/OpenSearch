@@ -58,8 +58,47 @@ use crate::types::{FileLocation, TieredFileEntry};
 pub trait MetadataCachingStore: ObjectStore {
     /// Promote `data` ranges to the never-evict metadata tier.
     ///
-    /// Default: no-op.
-    fn put_metadata(&self, _path: &str, _ranges: &[std::ops::Range<u64>], _data: &[Bytes]) {}
+    /// Returns what actually happened per range, so callers can report promotion
+    /// truthfully rather than assuming every range was stored.
+    ///
+    /// Default: no-op, reporting nothing promoted.
+    fn put_metadata(
+        &self,
+        _path: &str,
+        _ranges: &[std::ops::Range<u64>],
+        _data: &[Bytes],
+    ) -> MetadataPromotion {
+        MetadataPromotion::default()
+    }
+}
+
+/// What a [`MetadataCachingStore::put_metadata`] call actually promoted.
+///
+/// The metadata tier bounds the size of a single entry, so promotion is not
+/// all-or-nothing: a wide-schema file can have its footer accepted and its page-index
+/// region refused. Warmup logs and progress counts must come from these numbers —
+/// reporting the requested ranges instead is how a node ends up claiming a file is
+/// warm when part of its metadata was never cached.
+///
+/// All-zero (the [`Default`]) means nothing was promoted, which is also what a store
+/// without a metadata tier reports.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MetadataPromotion {
+    /// Number of ranges handed to the metadata cache.
+    pub accepted: usize,
+    /// Bytes in the accepted ranges.
+    pub accepted_bytes: u64,
+    /// Number of ranges refused because they exceed the tier's max entry size.
+    pub rejected: usize,
+    /// Bytes in the refused ranges.
+    pub rejected_bytes: u64,
+}
+
+impl MetadataPromotion {
+    /// `true` when at least one range was refused and will be fetched remotely.
+    pub fn has_rejections(&self) -> bool {
+        self.rejected > 0
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -136,10 +175,15 @@ impl TieredObjectStore {
     /// data scan pressure and node restarts.
     ///
     /// No-op if no cache is attached.
-    pub fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
+    pub fn put_metadata(
+        &self,
+        path: &str,
+        ranges: &[std::ops::Range<u64>],
+        data: &[Bytes],
+    ) -> MetadataPromotion {
         // Normalize path by stripping leading '/' to match `object_store::Path` semantics
         // (read paths through ObjectStore::get_opts/get_ranges arrive with the leading '/'
-        // already stripped). Without this, warmup writes under "/Volumes/..." while query
+        // already stripped). Without this, warmup writes under "/Volumes/..." while warmup
         // reads probe under "Volumes/..." — silent cache miss on every read.
         let path_str = path.strip_prefix('/').unwrap_or(path);
         native_bridge_common::log_debug!(
@@ -149,12 +193,21 @@ impl TieredObjectStore {
             ranges.iter().map(|r| r.end - r.start).sum::<u64>(),
             self.cache.is_some()
         );
+        let mut promotion = MetadataPromotion::default();
         if let Some(ref cache) = self.cache {
             for (r, bytes) in ranges.iter().zip(data.iter()) {
                 let key = range_cache_key(path_str, r.start, r.end);
-                cache.put_metadata(&key, bytes.clone());
+                let len = bytes.len() as u64;
+                if cache.put_metadata(&key, bytes.clone()).is_rejected() {
+                    promotion.rejected += 1;
+                    promotion.rejected_bytes += len;
+                } else {
+                    promotion.accepted += 1;
+                    promotion.accepted_bytes += len;
+                }
             }
         }
+        promotion
     }
 
     /// Register a file in the registry. For Remote/Both locations, the caller
@@ -509,8 +562,13 @@ impl fmt::Display for TieredObjectStore {
 // ---------------------------------------------------------------------------
 
 impl MetadataCachingStore for TieredObjectStore {
-    fn put_metadata(&self, path: &str, ranges: &[std::ops::Range<u64>], data: &[Bytes]) {
-        TieredObjectStore::put_metadata(self, path, ranges, data);
+    fn put_metadata(
+        &self,
+        path: &str,
+        ranges: &[std::ops::Range<u64>],
+        data: &[Bytes],
+    ) -> MetadataPromotion {
+        TieredObjectStore::put_metadata(self, path, ranges, data)
     }
 }
 
