@@ -265,4 +265,52 @@ public class GeoTileUtilsTests extends OpenSearchTestCase {
         assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
 
     }
+
+    /**
+     * Test that encodeShape throws an exception when the number of tiles exceeds the maximum allowed.
+     * This prevents CPU spikes and infinite loops when processing shapes at very high precision levels.
+     */
+    public void testEncodeShapeWithExcessiveTiles() {
+        // Create a Line shape similar to the LineString in the bug report
+        org.opensearch.geometry.Line line = new org.opensearch.geometry.Line(
+            new double[] { 120.69105, 120.75767, 120.82192 },
+            new double[] { -2.10922, -2.15919, -2.18774 }
+        );
+
+        org.opensearch.common.geo.GeoShapeDocValue geoShapeDocValue = org.opensearch.common.geo.GeoShapeDocValue.createGeometryDocValue(
+            line
+        );
+
+        // At precision 29, this should throw an IllegalArgumentException due to excessive tiles
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> GeoTileUtils.encodeShape(geoShapeDocValue, 29)
+        );
+
+        assertThat(exception.getMessage(), containsString("would process"));
+        assertThat(exception.getMessage(), containsString("tiles for this shape at precision 29"));
+        assertThat(exception.getMessage(), containsString("exceeds the maximum allowed"));
+        assertThat(exception.getMessage(), containsString("recommended: precision <= 20 for geo_shape fields"));
+    }
+
+    /**
+     * Test that encodeShape works correctly with reasonable precision values.
+     */
+    public void testEncodeShapeWithReasonablePrecision() {
+        // Create a small Line
+        org.opensearch.geometry.Line line = new org.opensearch.geometry.Line(
+            new double[] { 120.69105, 120.75767, 120.82192 },
+            new double[] { -2.10922, -2.15919, -2.18774 }
+        );
+
+        org.opensearch.common.geo.GeoShapeDocValue geoShapeDocValue = org.opensearch.common.geo.GeoShapeDocValue.createGeometryDocValue(
+            line
+        );
+
+        // At precision 10, this should work fine
+        java.util.List<Long> tiles = GeoTileUtils.encodeShape(geoShapeDocValue, 10);
+        assertNotNull(tiles);
+        assertTrue(tiles.size() > 0);
+        assertTrue(tiles.size() < 10000); // Should be well under the limit
+    }
 }
