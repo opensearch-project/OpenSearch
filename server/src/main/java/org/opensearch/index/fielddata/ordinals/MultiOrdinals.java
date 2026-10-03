@@ -196,6 +196,7 @@ public class MultiOrdinals extends Ordinals {
 
         private long currentOffset;
         private long currentEndOffset;
+        private int docValueCount;
 
         MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
             this.valueCount = ordinals.valueCount;
@@ -213,13 +214,14 @@ public class MultiOrdinals extends Ordinals {
         public boolean advanceExact(int docId) throws IOException {
             currentOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             currentEndOffset = endOffsets.get(docId);
-            return currentOffset != currentEndOffset;
+            docValueCount = Math.toIntExact(currentEndOffset - currentOffset);
+            return docValueCount > 0;
         }
 
         @Override
         public long nextOrd() throws IOException {
             if (currentOffset == currentEndOffset) {
-                return SortedSetDocValues.NO_MORE_DOCS;
+                throw new IllegalStateException("nextOrd() called more than docValueCount() times");
             } else {
                 return ords.get(currentOffset++);
             }
@@ -232,7 +234,7 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public int docValueCount() {
-            return Math.toIntExact(currentEndOffset - currentOffset);
+            return docValueCount;
         }
     }
 }

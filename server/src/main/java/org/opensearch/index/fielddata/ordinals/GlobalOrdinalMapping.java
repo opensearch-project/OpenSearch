@@ -89,11 +89,11 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     @Override
     public long nextOrd() throws IOException {
         if (++nextOrd > docValueCount) {
-            return SortedSetDocValues.NO_MORE_DOCS;
+            throw new IllegalStateException("Called nextOrd after docValueCount");
         }
         long segmentOrd = values.nextOrd();
         if (segmentOrd == SortedSetDocValues.NO_MORE_DOCS) {
-            return SortedSetDocValues.NO_MORE_DOCS;
+            throw new IllegalStateException("Wrapped values returned no more docs too early");
         } else {
             return getGlobalOrd(segmentOrd);
         }

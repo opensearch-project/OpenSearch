@@ -45,7 +45,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -499,27 +498,26 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(2, values.docValueCount());
         long ord = values.nextOrd();
         assertThat(ord, equalTo(3L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(1));
         assertTrue(values.advanceExact(2));
+        assertEquals(1, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Second segment
         leaf = topLevelReader.leaves().get(1);
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
@@ -529,9 +527,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertTrue(values.advanceExact(1));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
@@ -541,10 +538,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(2));
         assertTrue(values.advanceExact(3));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
@@ -554,14 +550,13 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(11L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Third segment
         leaf = topLevelReader.leaves().get(2);
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(0L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
@@ -571,8 +566,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(2L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
     }
 
     public void testTermsEnum() throws Exception {
