@@ -325,6 +325,8 @@ To include sandbox modules in snapshot distributions, use the `sandbox.enabled` 
 
     ./gradlew assemble -Dsandbox.enabled=true
 
+See [Getting Started with the Pluggable Data Format](sandbox/plugins/composite-engine/GETTING_STARTED.md) for a walkthrough of one such experimental sandbox feature, the composite (Parquet + Lucene) storage engine.
+
 ### `qa`
 
 Honestly this is kind of in flux and we're not 100% sure where we'll end up. We welcome your thoughts and help.
