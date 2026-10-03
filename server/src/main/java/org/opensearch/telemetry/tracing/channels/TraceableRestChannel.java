@@ -13,8 +13,10 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.StreamingRestChannel;
+import org.opensearch.telemetry.tracing.AttributeNames;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -108,6 +110,11 @@ public class TraceableRestChannel<T extends RestChannel> implements RestChannel 
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.sendResponse(response);
         } finally {
+            int statusCode = response.status().getStatus();
+            span.addAttribute(AttributeNames.HTTP_STATUS_CODE, (long) statusCode);
+            if (statusCode >= 500) {
+                span.setError("HTTP " + statusCode);
+            }
             span.endSpan();
         }
     }

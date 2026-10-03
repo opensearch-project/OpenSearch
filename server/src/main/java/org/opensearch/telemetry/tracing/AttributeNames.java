@@ -111,6 +111,11 @@ public final class AttributeNames {
     public static final String REFRESH_POLICY = "refresh_policy";
 
     /**
+     * HTTP Response Status Code
+     */
+    public static final String HTTP_STATUS_CODE = "http.status_code";
+
+    /**
      * Search Response Total Hits
      */
     public static final String TOTAL_HITS = "total_hits";
