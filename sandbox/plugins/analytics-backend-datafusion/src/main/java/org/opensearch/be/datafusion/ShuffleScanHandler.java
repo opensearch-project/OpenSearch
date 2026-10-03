@@ -25,6 +25,7 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShuffleBufferAccess;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
+import org.opensearch.analytics.spi.ShuffleSlots;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 
 import java.io.ByteArrayInputStream;
@@ -39,14 +40,14 @@ import java.io.ByteArrayInputStream;
  * partitioned stream.
  *
  * <p>The handler runs synchronously on the data-node executor thread that processes the
- * fragment's instruction list. {@link ShuffleBufferAccess#awaitReady} blocks here until both
- * left and right producers have all reported {@code isLast} for this partition, then the
- * handler drains the buffer's accumulated IPC chunks for the {@code "left"} or {@code "right"}
- * side (the named-input id encodes which) and pushes each batch into the native sender.
+ * fragment's instruction list. {@link ShuffleBufferAccess#awaitReady} blocks here until every
+ * declared slot's producers have all reported {@code isLast} for this partition, then the handler
+ * drains the buffer's accumulated IPC chunks for its own slot (see {@link ShuffleSlots}) and pushes
+ * each batch into the native sender.
  *
  * <p>Chain-ordering requirement: same as {@link BroadcastInjectionHandler} — must run AFTER
  * {@link ShardScanInstructionHandler} so the {@code SessionContextHandle} exists. The
- * dispatcher appends two of these per partition (left, right) after the shard-scan setup.
+ * dispatcher appends one of these per (partition, slot) after the shard-scan setup.
  *
  * <p>Schema discovery: the partition's IPC chunks each include their own schema header (per
  * the Arrow IPC stream spec). The handler reads the first chunk's header to derive the schema
@@ -65,7 +66,7 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
 
     private static final Logger LOGGER = LogManager.getLogger(ShuffleScanHandler.class);
 
-    /** Cap on how long the consumer waits for both producer sides to mark {@code isLast}.
+    /** Cap on how long the consumer waits for every slot's producers to mark {@code isLast}.
      *  Real producers complete within milliseconds on a healthy cluster — the cap exists
      *  solely as a backstop against stuck producers (cancelled queries cascade through the
      *  walker faster than this). Operator-tuneable via {@code analytics.mpp.shuffle.recv_timeout}
@@ -77,7 +78,15 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
      *  Real shuffle producers are far faster — a single batch RTT over local transport is
      *  microseconds. */
     private static final long DEFAULT_AWAIT_READY_TIMEOUT_MS = Long.parseLong(
-        System.getProperty("analytics.mpp.shuffle.recv_timeout_ms", "5000")
+        // Two-sided bound. It must EXCEED the producer phase: 5s was safe only while the drain started after
+        // every producer had finished, so a chunk was always already resident, whereas an eagerly-scheduled
+        // drain overlaps its producers and the first chunk legitimately arrives only after a producer scans
+        // and ships a shard. It must also stay SMALL enough that a drain which will never receive a chunk
+        // fails promptly: at a high partition count some partition can go unfed, and a five-minute per-chunk
+        // wait turns that into a five-minute hang instead of an error. 60s covers observed producer phases
+        // (the slowest query here completes in single digits of seconds) with an order of magnitude of headroom,
+        // and bounds the pathological wait to a minute.
+        System.getProperty("analytics.mpp.shuffle.recv_timeout_ms", "60000")
     );
 
     @Override
@@ -108,59 +117,41 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                     + "AnalyticsSearchService.setShuffleBufferRegistry must be called at plugin startup."
             );
         }
-        // The instruction carries side ("left"/"right") explicitly. namedInputId is the canonical
-        // "input-<producerStageId>" the fragment convertor emits for the StageInputScan leaf below
-        // the stripped OpenSearchShuffleExchange — that's what the worker's Substrait plan binds
+        // The instruction carries its slot label explicitly (see ShuffleSlots) — the transport is
+        // N-ary, so this is any validated slot token, not just left/right. namedInputId is the
+        // canonical "input-<producerStageId>" the fragment convertor emits for the StageInputScan leaf
+        // below the stripped OpenSearchShuffleExchange — that's what the worker's Substrait plan binds
         // its NamedScan against.
         String inputId = node.getNamedInputId();
-        String side = node.getSide();
-        boolean isLeftSide = "left".equals(side);
-        if (!isLeftSide && !"right".equals(side)) {
-            throw new IllegalStateException(
-                "ShuffleScanHandler: side must be 'left' or 'right', got '" + side + "' (namedInputId=" + inputId + ")"
-            );
-        }
+        String slot = ShuffleSlots.validate(node.getSide());
 
         ShuffleBufferAccess buffer = registry.getOrCreate(node.getQueryId(), node.getTargetStageId(), node.getShufflePartitionIndex());
-        // expectedSenders for both sides are set eagerly by the ShuffleWorkerSetupHandler
-        // (which runs before any ShuffleScanHandler) so the buffer knows BOTH sides' counts
-        // before either side's awaitReady call blocks. Setting them per-side here would
-        // deadlock — the second side's count is set only AFTER the first side's blocked.
+        // expectedSenders for EVERY slot is declared eagerly by the ShuffleWorkerSetupHandler
+        // (which runs before any ShuffleScanHandler) so the buffer knows all counts before any
+        // slot's awaitReady call blocks. Declaring them per-slot here would deadlock — a later
+        // slot's count would be set only AFTER an earlier slot's handler had already blocked.
 
-        try {
-            LOGGER.debug(
-                "ShuffleScanHandler: awaiting partition stream queryId={}, stage={}, partition={}, side={}, expectedSenders={}",
-                node.getQueryId(),
-                node.getTargetStageId(),
-                node.getShufflePartitionIndex(),
-                side,
-                node.getExpectedSenders()
-            );
-            // Block here until BOTH sides' producers have all reported isLast for this partition.
-            // The buffer's awaitReady gates on left-and-right because the handler runs once for
-            // each side; both invocations agree the buffer is fully populated before either
-            // returns. The current handler still drains only its own side, but we must wait for
-            // both because the producer-side dispatch fires concurrently and the IPC bytes for
-            // the not-yet-arrived side are racing in the same buffer.
-            if (!buffer.awaitReady(DEFAULT_AWAIT_READY_TIMEOUT_MS)) {
-                throw new RuntimeException(
-                    "ShuffleScanHandler: timed out waiting for shuffle producers to finish for "
-                        + inputId
-                        + " (timeout="
-                        + DEFAULT_AWAIT_READY_TIMEOUT_MS
-                        + "ms)"
-                );
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("ShuffleScanHandler: interrupted while awaiting shuffle producers for " + inputId, e);
-        }
+        LOGGER.debug(
+            "ShuffleScanHandler: opening partition stream queryId={}, stage={}, partition={}, slot={}, expectedSenders={}",
+            node.getQueryId(),
+            node.getTargetStageId(),
+            node.getShufflePartitionIndex(),
+            slot,
+            node.getExpectedSenders()
+        );
 
-        // LAZY drain: pull chunks one at a time. With spill, only ONE chunk is heap-resident at a
-        // time — the rest stream from the spill file — so an over-budget partition drains without
-        // re-materializing (the whole point of disk spill). The iterator owns the spill-file handle.
+        // PIPELINED drain: no barrier. The previous implementation blocked here (awaitReady) until every
+        // declared slot's producers had all reported isLast, which forced the ENTIRE partition to be
+        // resident — once on-heap as byte[] and again as Arrow buffers once the drain finally ran. That
+        // double residency is what exhausted the Arrow query pool (q17) and the DataFusion pool (q18).
+        //
+        // Now the iterator is concurrent with the producers: it blocks only for the NEXT chunk and ends
+        // at the stream's end-of-stream marker, which the buffer publishes exactly when this slot's
+        // declared senders have all reported isLast. Peak residency becomes the in-flight window rather
+        // than the partition size. The per-chunk timeout is a liveness bound (stalled producers), and it
+        // FAILS rather than reporting a clean end-of-stream so a stall can never under-deliver rows.
         BufferAllocator alloc = shardCtx.getAllocator();
-        CloseableIterator<byte[]> chunks = isLeftSide ? buffer.drainLeft() : buffer.drainRight();
+        CloseableIterator<byte[]> chunks = buffer.drain(slot, DEFAULT_AWAIT_READY_TIMEOUT_MS);
 
         // Peek the first chunk for the schema (one chunk in heap is fine). No first chunk → empty
         // partition: register an empty memtable and return. Close the iterator on every path here.
@@ -274,11 +265,11 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                     chunkCount++;
                 }
                 LOGGER.debug(
-                    "ShuffleScanHandler.drain: drained {} batches across {} chunks for {} (side={}, partition={})",
+                    "ShuffleScanHandler.drain: drained {} batches across {} chunks for {} (slot={}, partition={})",
                     totalBatches,
                     chunkCount,
                     inputId,
-                    side,
+                    slot,
                     node.getShufflePartitionIndex()
                 );
             } catch (Throwable t) {
@@ -301,7 +292,7 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                 try {
                     if (drainFailure != null) {
                         // Truncated partition: surface an error to the consumer (not a clean EOF).
-                        finalSender.fail("shuffle drain failed for " + inputId + " (side=" + side + "): " + drainFailure);
+                        finalSender.fail("shuffle drain failed for " + inputId + " (slot=" + slot + "): " + drainFailure);
                     } else {
                         finalSender.close();
                     }
@@ -309,7 +300,7 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                     LOGGER.warn("ShuffleScanHandler.drain: sender teardown failed for " + inputId, closeErr);
                 }
             }
-        }, "shuffle-drain-" + node.getQueryId() + "-" + node.getTargetStageId() + "-" + side + "-" + node.getShufflePartitionIndex());
+        }, "shuffle-drain-" + node.getQueryId() + "-" + node.getTargetStageId() + "-" + slot + "-" + node.getShufflePartitionIndex());
         drainThread.setDaemon(true);
         drainThread.start();
 
