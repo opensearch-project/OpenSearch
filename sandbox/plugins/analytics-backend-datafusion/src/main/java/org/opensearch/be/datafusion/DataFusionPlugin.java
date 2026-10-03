@@ -744,12 +744,14 @@ public class DataFusionPlugin extends Plugin
             SimpleExtension.ExtensionCollection arithmeticOverloads = SimpleExtension.load(
                 List.of("/opensearch_arithmetic_overloads.yaml")
             );
+            SimpleExtension.ExtensionCollection runtimeFilterExtensions = SimpleExtension.load(List.of("/runtime_filter_functions.yaml"));
             return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
                 .merge(aggregateExtensions)
                 .merge(windowExtensions)
-                .merge(arithmeticOverloads);
+                .merge(arithmeticOverloads)
+                .merge(runtimeFilterExtensions);
         } finally {
             t.setContextClassLoader(previous);
         }

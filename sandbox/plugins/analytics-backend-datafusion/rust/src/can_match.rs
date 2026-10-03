@@ -200,6 +200,49 @@ pub async fn can_match_range_via_store(
     evaluate_metadata(&metadata, column_name, filter_min, filter_max)
 }
 
+/// Evaluate can-match against a **set** of candidate values using pre-loaded
+/// metadata. Zero I/O.
+///
+/// Strictly stronger than [`can_match_range_with_metadata`] over the same
+/// candidates: a range can only exclude a row group lying wholly outside
+/// `[min, max]`, whereas a set also excludes one that falls in a gap between
+/// candidates. `values` must be sorted ascending — the caller (`LongSet`) sorts
+/// on construction, and the binary search here depends on it.
+pub fn can_match_set_with_metadata(
+    metadata: &ParquetMetaData,
+    column_name: &str,
+    values: &[i64],
+) -> CanMatchResult {
+    if values.is_empty() {
+        // No candidates is not the same as "nothing matches": an empty set here
+        // means the caller failed to build one, so keep the shard.
+        return CanMatchResult::Unknown;
+    }
+    debug_assert!(
+        values.windows(2).all(|w| w[0] <= w[1]),
+        "can_match_set_with_metadata requires sorted values"
+    );
+    evaluate_row_groups(metadata, column_name, |stats| {
+        check_set_overlap(stats, values)
+    })
+}
+
+/// Evaluate can-match against a set of candidate values, reading the footer via
+/// ObjectStore. Cache-miss sibling of [`can_match_set_with_metadata`].
+pub async fn can_match_set_via_store(
+    store: Arc<dyn ObjectStore>,
+    path: &ObjectPath,
+    file_size: usize,
+    column_name: &str,
+    values: &[i64],
+) -> CanMatchResult {
+    let metadata = match read_footer(store, path, file_size).await {
+        Ok(m) => m,
+        Err(_) => return CanMatchResult::Unknown,
+    };
+    can_match_set_with_metadata(&metadata, column_name, values)
+}
+
 /// Core evaluation logic shared by both paths.
 fn evaluate_metadata(
     metadata: &ParquetMetaData,
@@ -207,9 +250,26 @@ fn evaluate_metadata(
     filter_min: i64,
     filter_max: i64,
 ) -> CanMatchResult {
-    let file_metadata = metadata.file_metadata();
-    let schema = file_metadata.schema_descr();
+    evaluate_row_groups(metadata, column_name, |stats| {
+        check_overlap(stats, filter_min, filter_max)
+    })
+}
 
+/// Row-group loop shared by the range and set variants.
+///
+/// `overlaps` answers, for one row group's statistics, whether it could hold a
+/// match: `Some(true)` keep the shard, `Some(false)` this row group cannot
+/// contribute, `None` cannot tell. Short-circuits on the first `Yes` and on the
+/// first `Unknown`, so a shard that matches early costs one row group.
+///
+/// A row group with no statistics is `Unknown`, not `No` — absent statistics
+/// prove nothing, and `No` here would drop rows.
+fn evaluate_row_groups(
+    metadata: &ParquetMetaData,
+    column_name: &str,
+    overlaps: impl Fn(&Statistics) -> Option<bool>,
+) -> CanMatchResult {
+    let schema = metadata.file_metadata().schema_descr();
     let col_idx = match find_column_index(schema, column_name) {
         Some(idx) => idx,
         None => return CanMatchResult::Unknown,
@@ -221,23 +281,38 @@ fn evaluate_metadata(
     }
 
     for rg_idx in 0..num_row_groups {
-        let rg = metadata.row_group(rg_idx);
-        let col = rg.column(col_idx);
-
+        let col = metadata.row_group(rg_idx).column(col_idx);
         match col.statistics() {
-            Some(stats) => {
-                let overlaps = check_overlap(stats, filter_min, filter_max);
-                match overlaps {
-                    Some(true) => return CanMatchResult::Yes,
-                    Some(false) => continue,
-                    None => return CanMatchResult::Unknown,
-                }
-            }
+            Some(stats) => match overlaps(stats) {
+                Some(true) => return CanMatchResult::Yes,
+                Some(false) => continue,
+                None => return CanMatchResult::Unknown,
+            },
             None => return CanMatchResult::Unknown,
         }
     }
 
     CanMatchResult::No
+}
+
+/// Whether any candidate in the sorted `values` lies within this row group's
+/// `[min, max]`.
+///
+/// Binary search for the first candidate at or above `rg_min`; that candidate is
+/// in range iff it is also at or below `rg_max`. Every candidate before it is
+/// below the row group, every one after is above the one we just rejected.
+fn check_set_overlap(stats: &Statistics, values: &[i64]) -> Option<bool> {
+    let (rg_min, rg_max) = match stats {
+        Statistics::Int32(s) => (*s.min_opt()? as i64, *s.max_opt()? as i64),
+        Statistics::Int64(s) => (*s.min_opt()?, *s.max_opt()?),
+        _ => return None,
+    };
+    let first_at_or_above = values.partition_point(|v| *v < rg_min);
+    Some(
+        values
+            .get(first_at_or_above)
+            .is_some_and(|candidate| *candidate <= rg_max),
+    )
 }
 
 /// Check if the row-group column statistics overlap with [filter_min, filter_max].
@@ -271,7 +346,7 @@ fn find_column_index(
 }
 
 /// Read parquet footer from ObjectStore using ParquetMetaDataReader.
-async fn read_footer(
+pub(crate) async fn read_footer(
     store: Arc<dyn ObjectStore>,
     path: &ObjectPath,
     file_size: usize,
@@ -756,6 +831,106 @@ mod tests {
         assert!(
             bounds.merge(millis).is_none(),
             "plain int64 must not merge with a millis timestamp"
+        );
+    }
+
+    // ── Value-set can-match (runtime filter) ─────────────────────────────
+
+    /// Three row groups: [100..103], [200..203], [300..303].
+    fn three_disjoint_row_groups() -> ParquetMetaData {
+        let data = build_multi_row_group_parquet(&[
+            &[100, 101, 102, 103],
+            &[200, 201, 202, 203],
+            &[300, 301, 302, 303],
+        ]);
+        let metadata = metadata_from_bytes(&data);
+        assert_eq!(metadata.num_row_groups(), 3, "fixture row groups");
+        metadata
+    }
+
+    #[test]
+    fn set_keeps_a_shard_holding_a_candidate() {
+        let metadata = three_disjoint_row_groups();
+        assert_eq!(
+            can_match_set_with_metadata(&metadata, "ts", &[201]),
+            CanMatchResult::Yes
+        );
+    }
+
+    #[test]
+    fn set_prunes_a_shard_holding_no_candidate() {
+        let metadata = three_disjoint_row_groups();
+        // 150 and 250 fall in the gaps between row groups; 999 is past the end.
+        assert_eq!(
+            can_match_set_with_metadata(&metadata, "ts", &[150, 250, 999]),
+            CanMatchResult::No
+        );
+    }
+
+    /// The point of a set over a range: candidates at both extremes span every row
+    /// group's envelope, so a range filter keeps the shard, while the set proves no
+    /// row group can hold either candidate only when they truly fall in gaps.
+    #[test]
+    fn set_prunes_where_an_equivalent_range_cannot() {
+        let metadata = three_disjoint_row_groups();
+        // Range [150, 250] overlaps row group [200..203], so range says Yes.
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "ts", 150, 250),
+            CanMatchResult::Yes
+        );
+        // The set {150, 250} lies entirely in gaps, so it prunes.
+        assert_eq!(
+            can_match_set_with_metadata(&metadata, "ts", &[150, 250]),
+            CanMatchResult::No
+        );
+    }
+
+    #[test]
+    fn set_is_unknown_for_an_absent_column_or_no_candidates() {
+        let metadata = three_disjoint_row_groups();
+        assert_eq!(
+            can_match_set_with_metadata(&metadata, "missing", &[1]),
+            CanMatchResult::Unknown,
+            "unknown column proves nothing"
+        );
+        assert_eq!(
+            can_match_set_with_metadata(&metadata, "ts", &[]),
+            CanMatchResult::Unknown,
+            "an empty candidate set means the caller failed, not that nothing matches"
+        );
+    }
+
+    /// Boundary values must be treated as present: a candidate exactly equal to a
+    /// row group's min or max is inside it.
+    #[test]
+    fn set_includes_row_group_boundaries() {
+        let metadata = three_disjoint_row_groups();
+        for candidate in [100, 103, 300, 303] {
+            assert_eq!(
+                can_match_set_with_metadata(&metadata, "ts", &[candidate]),
+                CanMatchResult::Yes,
+                "candidate {candidate} sits on a row-group boundary"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn set_via_store_matches_the_metadata_path() {
+        let data = build_multi_row_group_parquet(&[&[100, 101], &[200, 201]]);
+        let store = Arc::new(InMemory::new());
+        let path = ObjectPath::from("set.parquet");
+        store
+            .put(&path, PutPayload::from_bytes(Bytes::from(data.clone())))
+            .await
+            .unwrap();
+        let size = data.len();
+        assert_eq!(
+            can_match_set_via_store(store.clone(), &path, size, "ts", &[201]).await,
+            CanMatchResult::Yes
+        );
+        assert_eq!(
+            can_match_set_via_store(store, &path, size, "ts", &[150]).await,
+            CanMatchResult::No
         );
     }
 }

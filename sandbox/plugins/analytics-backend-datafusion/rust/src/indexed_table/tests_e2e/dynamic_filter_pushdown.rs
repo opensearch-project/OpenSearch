@@ -6,15 +6,28 @@
  * compatible open source license.
  */
 
-//! End-to-end verification of runtime dynamic-filter (TopK) pruning on the
-//! indexed scan.
+//! End-to-end verification of runtime dynamic-filter pruning on the indexed
+//! scan, for both filter producers DataFusion has: a TopK sort and a hash join.
 //!
-//! Builds `SELECT ... ORDER BY price DESC LIMIT k` over a single segment with
-//! four disjoint-range row groups, lets DataFusion's default physical optimizer
-//! insert `SortExec { fetch }` + push its `DynamicFilterPhysicalExpr` into
-//! `QueryShardExec`, executes, then asserts:
-//!   1. results equal the full-scan top-k (correctness), and
-//!   2. `dynamic_filter_rg_pruned > 0` (the optimization actually fired).
+//! Every test uses one segment with four disjoint-range row groups, lets the
+//! default physical optimizer place the producer and push its
+//! `DynamicFilterPhysicalExpr` into `QueryShardExec`, executes, then asserts
+//! results are correct AND that the row-group prune counters moved as expected.
+//! Correctness is asserted independently of pruning, so a test can never pass
+//! by silently dropping rows.
+//!
+//! **TopK** (`ORDER BY price DESC LIMIT k`): the filter starts loose and
+//! tightens as the heap fills, so pruning lands at both the prefetch and poll
+//! phases.
+//!
+//! **Hash join** (`FROM d JOIN t ON t.price = d.k`, `d` a small `MemTable`):
+//! this is the engine's broadcast-probe shape, where the build side is an Arrow
+//! `MemTable` registered on the same session as the shard scan — the only shape
+//! in which the native join dynamic filter can fire, since the filter is a
+//! shared mutable cell and cannot cross a process boundary. The filter is
+//! complete as soon as the build side is collected rather than tightening, so
+//! pruning lands entirely at the prefetch phase, and it prunes by IN-list
+//! membership rather than by a min/max envelope.
 
 use std::sync::Arc;
 
@@ -93,10 +106,9 @@ impl RowGroupDocsCollector for MatchAllCollector {
     }
 }
 
-/// Build the indexed provider over the fixture and run `sql`. Returns the
-/// `(price)` rows in emission order plus the executed physical plan (for
-/// reading metrics).
-async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
+/// Build the indexed provider over the fixture. The returned `NamedTempFile`
+/// must outlive execution — the parquet file is read lazily, per row group.
+fn indexed_provider() -> (NamedTempFile, SchemaRef, Arc<IndexedTableProvider>) {
     let (tmp, schema) = write_fixture();
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
@@ -197,8 +209,15 @@ async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan:
         cancellation_token: None,
     }));
 
-    let ctx = SessionContext::new();
-    ctx.register_table("t", provider).unwrap();
+    (tmp, schema, provider)
+}
+
+/// Plan `sql` against `ctx`, execute it, and return the `price` column in
+/// emission order plus the executed physical plan (for reading metrics).
+async fn run_sql(
+    ctx: &SessionContext,
+    sql: &str,
+) -> (Vec<i32>, Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
     let df = ctx.sql(sql).await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
@@ -217,6 +236,60 @@ async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan:
         }
     }
     (prices, plan)
+}
+
+/// Build the indexed provider over the fixture and run `sql` against it alone.
+async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
+    let (_tmp, _schema, provider) = indexed_provider();
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    run_sql(&ctx, sql).await
+}
+
+/// Broadcast-join shape: a tiny in-memory build side `d(k)` joined to the
+/// indexed scan `t` on `t.price = d.k`. This mirrors the engine's
+/// broadcast-probe fragment, where the build side is an Arrow `MemTable`
+/// registered on the same session as the shard scan, so `HashJoinExec` and
+/// `QueryShardExec` live in one plan in one process — the only shape in which
+/// DataFusion's native join dynamic filter can possibly fire.
+///
+/// `d` is the LEFT input so it is the `CollectLeft` build side.
+async fn run_broadcast_join(
+    build_keys: Vec<i32>,
+) -> (Vec<i32>, Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
+    let (_tmp, _schema, provider) = indexed_provider();
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+
+    let build_schema = Arc::new(Schema::new(vec![Field::new("k", DataType::Int32, false)]));
+    let build_batch = RecordBatch::try_new(
+        build_schema.clone(),
+        vec![Arc::new(Int32Array::from(build_keys))],
+    )
+    .unwrap();
+    let build =
+        datafusion::datasource::MemTable::try_new(build_schema, vec![vec![build_batch]]).unwrap();
+    ctx.register_table("d", Arc::new(build)).unwrap();
+
+    run_sql(
+        &ctx,
+        "SELECT t.brand, t.price FROM d JOIN t ON t.price = d.k",
+    )
+    .await
+}
+
+/// Number of dynamic filters `QueryShardExec` actually accepted, summed over the
+/// plan tree. Zero means no filter was ever delivered to the leaf; non-zero with
+/// zero prune counters means a filter arrived but proved nothing.
+fn accepted_dynamic_filters(plan: &Arc<dyn datafusion::physical_plan::ExecutionPlan>) -> usize {
+    let mut total = 0usize;
+    if let Some(scan) = plan.downcast_ref::<super::super::table_provider::QueryShardExec>() {
+        total += scan.test_dynamic_filters().len();
+    }
+    for child in plan.children() {
+        total += accepted_dynamic_filters(child);
+    }
+    total
 }
 
 /// Recursively sum a named counter across the plan tree.
@@ -250,11 +323,8 @@ async fn topk_dynamic_filter_prunes_row_groups() {
     // (1) Correctness: exactly the global top-2 by price, in DESC order.
     assert_eq!(prices, vec![15, 14], "top-2 DESC prices");
 
-    // (2) Both prune phases fire for this query. The prefetch runs ~1 RG ahead,
-    // so once RG0 fills the heap, the next RGs are pruned BEFORE their Lucene
-    // eval (prefetch phase); the final RG is caught at the poll phase after the
-    // filter tightens further. We assert each phase independently to prove both
-    // code paths are exercised.
+    // (2) Both prune phases fire: the prefetch runs ~1 RG ahead, so once RG0 fills the heap the next RGs
+    // are pruned before their Lucene eval; the last is caught at the poll phase after the filter tightens.
     let at_prefetch = rg_pruned_at_prefetch(&plan);
     let at_poll = rg_pruned_at_poll(&plan);
     assert!(
@@ -269,6 +339,81 @@ async fn topk_dynamic_filter_prunes_row_groups() {
     );
     // Three of four RGs pruned (RG0 is processed to fill the heap).
     assert_eq!(at_prefetch + at_poll, 3, "expected 3 of 4 RGs pruned");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn broadcast_join_dynamic_filter_reaches_indexed_scan() {
+    // Build keys {14, 15} match only RG0 (prices 12..15). A MinMax filter
+    // `price >= 14 AND price <= 15` therefore excludes RG1 (max 11), RG2 (max 7)
+    // and RG3 (max 3); an IN-list filter excludes them too.
+    let (mut prices, plan) = run_broadcast_join(vec![15, 14]).await;
+    prices.sort_unstable();
+
+    // (1) Correctness first, independent of whether any filter fired.
+    assert_eq!(prices, vec![14, 15], "join result");
+
+    let accepted = accepted_dynamic_filters(&plan);
+    let at_prefetch = rg_pruned_at_prefetch(&plan);
+    let at_poll = rg_pruned_at_poll(&plan);
+    // Only rendered when an assertion below fails.
+    let rendered = || {
+        format!(
+            "accepted={accepted} at_prefetch={at_prefetch} at_poll={at_poll}\nplan:\n{}",
+            datafusion::physical_plan::displayable(plan.as_ref()).indent(true)
+        )
+    };
+
+    // (2) The join's dynamic filter must reach the indexed scan — the whole point of the broadcast shape:
+    // build side and probe scan share one plan in one process, so FilterPushdown can deliver it.
+    assert!(
+        accepted > 0,
+        "expected the join's dynamic filter to reach QueryShardExec\n{}",
+        rendered()
+    );
+
+    // (3) And it must prune. Build keys land only in RG0, so the other three are excluded at the prefetch
+    // phase: a join filter is complete once the build side is collected, unlike a tightening TopK heap.
+    assert_eq!(
+        (at_prefetch, at_poll),
+        (3, 0),
+        "expected 3 of 4 RGs pruned, all at the prefetch phase\n{}",
+        rendered()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn broadcast_join_filter_prunes_by_membership_not_just_range() {
+    // Build keys at both extremes — 15 in RG0, 0 in RG3 — so the build side's min/max envelope spans every
+    // row group and a pure range filter would prune nothing. Two are pruned anyway, which shows the pushed
+    // filter is an IN-list evaluated per value against each row group's statistics: RG1 (8..11) and RG2
+    // (4..7) hold neither key.
+    //
+    // This is the mechanism a runtime filter inherits for free on broadcast shapes, and why a value-set
+    // payload beats a MinMax one. It holds only below `hash_join_inlist_pushdown_max_distinct_values`
+    // (default 150 per partition); above it DataFusion uses a hash lookup `PruningPredicate` cannot read.
+    let (mut prices, plan) = run_broadcast_join(vec![15, 0]).await;
+    prices.sort_unstable();
+    assert_eq!(prices, vec![0, 15], "join result");
+    assert_eq!(
+        (rg_pruned_at_prefetch(&plan), rg_pruned_at_poll(&plan)),
+        (2, 0),
+        "RG1 and RG2 hold neither key → pruned despite the envelope spanning all RGs"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn broadcast_join_with_a_key_in_every_row_group_prunes_nothing() {
+    // Negative control: one build key per row group, so no row group is
+    // provably excluded. Guards the two tests above against passing for a
+    // reason unrelated to the build side's values.
+    let (mut prices, plan) = run_broadcast_join(vec![15, 11, 7, 3]).await;
+    prices.sort_unstable();
+    assert_eq!(prices, vec![3, 7, 11, 15], "join result");
+    assert_eq!(
+        rg_pruned_at_prefetch(&plan) + rg_pruned_at_poll(&plan),
+        0,
+        "every row group holds a build key → nothing is provably excluded"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

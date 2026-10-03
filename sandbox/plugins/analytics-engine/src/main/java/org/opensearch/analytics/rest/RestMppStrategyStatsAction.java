@@ -10,6 +10,7 @@ package org.opensearch.analytics.rest;
 
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
+import org.opensearch.analytics.exec.join.RuntimeFilterMetrics;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -32,8 +33,15 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * <p>Response shape (counts are cumulative since node start):
  * <pre>
- * { "strategies": { "BROADCAST": 3, "HASH_SHUFFLE": 0, "HASH_SHUFFLE_AGG": 1, "COORDINATOR_CENTRIC": 12 } }
+ * {
+ *   "strategies":      { "BROADCAST": 3, "HASH_SHUFFLE": 0, "HASH_SHUFFLE_AGG": 1, "COORDINATOR_CENTRIC": 12 },
+ *   "runtime_filters": { "SHUFFLE_PLANNED": 1, "SHUFFLE_PLANTED": 1, "PAYLOAD_ATTACHED": 2, ... }
+ * }
  * </pre>
+ *
+ * <p>Runtime-filter counters share this endpoint because they answer the same question for the same
+ * reason: what did the dispatcher actually do, as opposed to what the plan asked for. Both exist so a
+ * test can prove a mechanism fired rather than silently declining.
  *
  * <p>Counters reflect <b>join- and aggregate-shaped queries only</b> — scans without an MPP-
  * eligible operator above them are not recorded. The dispatcher records the routed strategy on
@@ -47,9 +55,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestMppStrategyStatsAction extends BaseRestHandler {
 
     private final MppStrategyMetrics metrics;
+    private final RuntimeFilterMetrics runtimeFilterMetrics;
 
-    public RestMppStrategyStatsAction(MppStrategyMetrics metrics) {
+    public RestMppStrategyStatsAction(MppStrategyMetrics metrics, RuntimeFilterMetrics runtimeFilterMetrics) {
         this.metrics = metrics;
+        this.runtimeFilterMetrics = runtimeFilterMetrics;
     }
 
     @Override
@@ -65,11 +75,17 @@ public class RestMppStrategyStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         Map<MppStrategy, Long> snapshot = metrics.snapshot();
+        Map<RuntimeFilterMetrics.Counter, Long> runtimeFilters = runtimeFilterMetrics.snapshot();
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
                 builder.startObject("strategies");
                 for (Map.Entry<MppStrategy, Long> entry : snapshot.entrySet()) {
+                    builder.field(entry.getKey().name(), entry.getValue());
+                }
+                builder.endObject();
+                builder.startObject("runtime_filters");
+                for (Map.Entry<RuntimeFilterMetrics.Counter, Long> entry : runtimeFilters.entrySet()) {
                     builder.field(entry.getKey().name(), entry.getValue());
                 }
                 builder.endObject();
