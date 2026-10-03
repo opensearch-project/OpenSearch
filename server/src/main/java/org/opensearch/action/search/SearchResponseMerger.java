@@ -130,6 +130,7 @@ final class SearchResponseMerger {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
+            // no cluster contributed anything, so no cluster could have reported shard info either
             return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
         }
         int totalShards = 0;
@@ -144,6 +145,10 @@ final class SearchResponseMerger {
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
+        // shard info is reported only when this request asked for it and a cluster was able to supply it: a cluster older
+        // than the feature never receives the flag and so contributes nothing
+        final boolean shardInfoRequested = Boolean.TRUE.equals(searchRequestContext.getRequest().shardInfo());
+        final List<SearchShardInfo> shardInfos = new ArrayList<>();
 
         SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats(trackTotalHitsUpTo);
 
@@ -154,6 +159,10 @@ final class SearchResponseMerger {
             numReducePhases += searchResponse.getNumReducePhases();
 
             Collections.addAll(failures, searchResponse.getShardFailures());
+
+            if (shardInfoRequested && searchResponse.getShardInfo() != null) {
+                shardInfos.add(searchResponse.getShardInfo());
+            }
 
             profileResults.putAll(searchResponse.getProfileResults());
 
@@ -229,6 +238,7 @@ final class SearchResponseMerger {
             numReducePhases
         );
         long tookInMillis = searchTimeProvider.buildTookInMillis();
+        final SearchShardInfo mergedShardInfo = shardInfos.isEmpty() ? null : SearchShardInfo.merge(shardInfos);
         return new SearchResponse(
             response,
             null,
@@ -239,7 +249,8 @@ final class SearchResponseMerger {
             searchRequestContext.getPhaseTook(),
             shardFailures,
             clusters,
-            null
+            null,
+            mergedShardInfo
         );
     }
 

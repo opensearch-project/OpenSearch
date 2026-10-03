@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -674,14 +675,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     searchShardsResponses,
                                     searchContext,
                                     searchRequest.pointInTimeBuilder().getKeepAlive(),
-                                    remoteClusterIndices
+                                    remoteClusterIndices,
+                                    Boolean.TRUE.equals(searchRequest.shardInfo())
                                 );
                             } else {
                                 remoteAliasFilters = getRemoteAliasFilters(searchShardsResponses);
                                 remoteShardIterators = getRemoteShardsIterator(
                                     searchShardsResponses,
                                     remoteClusterIndices,
-                                    remoteAliasFilters
+                                    remoteAliasFilters,
+                                    Boolean.TRUE.equals(searchRequest.shardInfo())
                                 );
                             }
                             int localClusters = localIndices == null ? 0 : 1;
@@ -773,6 +776,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.isTerminatedEarly(),
                         searchResponse.getNumReducePhases()
                     );
+                    // The section is reported only when this request asked for it and the remote was able to supply it:
+                    // a remote older than the feature never receives the flag and so returns nothing. withClusterAlias
+                    // is defensive normalisation rather than the usual source of attribution, since a remote stamps its
+                    // own entries from the local cluster alias it was given; it only fills in entries that arrive
+                    // without one, and never overwrites attribution the remote already applied.
+                    final SearchShardInfo remoteShardInfo = searchResponse.getShardInfo();
+                    final SearchShardInfo shardInfo = Boolean.TRUE.equals(searchRequest.shardInfo()) && remoteShardInfo != null
+                        ? remoteShardInfo.withClusterAlias(clusterAlias)
+                        : null;
                     listener.onResponse(
                         new SearchResponse(
                             internalSearchResponse,
@@ -784,7 +796,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchRequestContext.getPhaseTook(),
                             searchResponse.getShardFailures(),
                             new SearchResponse.Clusters(1, 1, 0),
-                            searchResponse.pointInTimeId()
+                            searchResponse.pointInTimeId(),
+                            shardInfo
                         )
                     );
                 }
@@ -792,6 +805,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 public void onFailure(Exception e) {
                     if (skipUnavailable) {
+                        // the remote never answered, so it reported no shard info
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, new SearchResponse.Clusters(1, 0, 1)));
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
@@ -1034,13 +1048,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    /**
+     * Returns whether a remote cluster's shards may be described in the opt-in {@code shard_info} response section.
+     * A cluster is capable only when every node that would serve the search understands the feature, so a cluster part
+     * way through an upgrade is treated as not capable. This keeps the section's contract identical whether or not
+     * round-trips are minimized: with minimized round-trips an older remote never receives the request flag and so
+     * reports nothing, and without them this node declines to describe shards the remote could not have described
+     * itself.
+     */
+    private static boolean supportsShardInfo(ClusterSearchShardsResponse searchShardsResponse) {
+        return Arrays.stream(searchShardsResponse.getNodes()).allMatch(node -> node.getVersion().onOrAfter(Version.V_3_8_0));
+    }
+
     static List<SearchShardIterator> getRemoteShardsIterator(
         Map<String, ClusterSearchShardsResponse> searchShardsResponses,
         Map<String, OriginalIndices> remoteIndicesByCluster,
-        Map<String, AliasFilter> aliasFilterMap
+        Map<String, AliasFilter> aliasFilterMap,
+        boolean shardInfoRequested
     ) {
         final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
         for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+            final boolean includeInShardInfo = shardInfoRequested && supportsShardInfo(entry.getValue());
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : entry.getValue().getGroups()) {
                 // add the cluster name to the remote index names for indices disambiguation
                 // this ends up in the hits returned with the search response
@@ -1055,7 +1083,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusterAlias,
                     shardId,
                     Arrays.asList(clusterSearchShardsGroup.getShards()),
-                    new OriginalIndices(finalIndices, originalIndices.indicesOptions())
+                    new OriginalIndices(finalIndices, originalIndices.indicesOptions()),
+                    includeInShardInfo
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1067,10 +1096,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, ClusterSearchShardsResponse> searchShardsResponses,
         SearchContextId searchContextId,
         TimeValue searchContextKeepAlive,
-        Map<String, OriginalIndices> remoteClusterIndices
+        Map<String, OriginalIndices> remoteClusterIndices,
+        boolean shardInfoRequested
     ) {
         final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
         for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+            final boolean includeInShardInfo = shardInfoRequested && supportsShardInfo(entry.getValue());
             for (ClusterSearchShardsGroup group : entry.getValue().getGroups()) {
                 final ShardId shardId = group.getShardId();
                 final String clusterAlias = entry.getKey();
@@ -1083,7 +1114,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     targetNodes,
                     remoteClusterIndices.get(clusterAlias),
                     perNode.getSearchContextId(),
-                    searchContextKeepAlive
+                    searchContextKeepAlive,
+                    includeInShardInfo
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1168,7 +1200,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 localIndices,
                 searchRequest.getLocalClusterAlias(),
                 searchContext,
-                searchRequest.pointInTimeBuilder().getKeepAlive()
+                searchRequest.pointInTimeBuilder().getKeepAlive(),
+                Boolean.TRUE.equals(searchRequest.shardInfo())
             );
         } else {
             ResolvedIndices.Local.Concrete indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
@@ -1191,8 +1224,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     nodeSearchCounts,
                     slice
                 );
+            // the local cluster always understands the feature, so participation depends only on the request
+            final boolean includeInShardInfo = Boolean.TRUE.equals(searchRequest.shardInfo());
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
-                .map(it -> new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices))
+                .map(
+                    it -> new SearchShardIterator(
+                        searchRequest.getLocalClusterAlias(),
+                        it.shardId(),
+                        it.getShardRoutings(),
+                        localIndices,
+                        includeInShardInfo
+                    )
+                )
                 .collect(Collectors.toList());
             aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
             indexRoutings = routingMap;
@@ -1640,7 +1683,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices originalIndices,
         String localClusterAlias,
         SearchContextId searchContext,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean includeInShardInfo
     ) {
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
@@ -1656,7 +1700,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         targetNodes,
                         originalIndices,
                         perNode.getSearchContextId(),
-                        keepAlive
+                        keepAlive,
+                        includeInShardInfo
                     )
                 );
             }

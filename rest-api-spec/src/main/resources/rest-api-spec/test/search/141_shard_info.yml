@@ -1,0 +1,98 @@
+setup:
+  - skip:
+      version: " - 3.7.99"
+      reason: shard_info was introduced in 3.8.0
+  - do:
+      indices.create:
+          index: index_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                created_at:
+                   type: date
+                   format: "strict_date"
+  - do:
+      indices.create:
+          index: index_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                created_at:
+                   type: date
+                   format: "strict_date"
+  - do:
+      index:
+        index: index_1
+        id: 1
+        body: { "created_at": "2016-01-01" }
+  - do:
+      index:
+        index: index_2
+        id: 2
+        body: { "created_at": "2017-01-01" }
+  - do:
+      indices.refresh: {}
+
+---
+"shard_info returns an entry for every executed shard":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        shard_info: true
+        body: { "size": 0, "query": { "match_all": {} } }
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - length: { _shards.shard_info.successful: 2 }
+  - length: { _shards.shard_info.skipped: 0 }
+  - length: { _shards.shard_info.failed: 0 }
+  # entries are canonically sorted by index, so index_1 comes first
+  - match: { _shards.shard_info.successful.0.index: index_1 }
+  - match: { _shards.shard_info.successful.0.shard: 0 }
+  - match: { _shards.shard_info.successful.0.primary: true }
+  - match: { _shards.shard_info.successful.0.state: STARTED }
+  - is_true: _shards.shard_info.successful.0.node_id
+  - is_true: _shards.shard_info.successful.0.node_name
+  - match: { _shards.shard_info.successful.1.index: index_2 }
+
+---
+"skipped shards are listed without node attribution":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        shard_info: true
+        pre_filter_shard_size: 1
+        body: { "size": 0, "query": { "range": { "created_at": { "gte": "2016-02-01", "lt": "2017-02-01" } } } }
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { _shards.failed: 0 }
+  # the arrays reconcile with the counters: successful entries + skipped entries == _shards.successful
+  - length: { _shards.shard_info.successful: 1 }
+  - length: { _shards.shard_info.skipped: 1 }
+  - length: { _shards.shard_info.failed: 0 }
+  - match: { _shards.shard_info.successful.0.index: index_2 }
+  - match: { _shards.shard_info.skipped.0.index: index_1 }
+  - match: { _shards.shard_info.skipped.0.shard: 0 }
+  # No node executed anything for a skipped shard, so the entry carries index and shard and nothing else.
+  # Asserting the field count tests absence; is_false would also pass on a rendered "primary": false.
+  - length: { _shards.shard_info.skipped.0: 2 }
+
+---
+"shard_info is absent unless requested":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size": 0, "query": { "match_all": {} } }
+
+  - match: { _shards.total: 2 }
+  - is_false: _shards.shard_info

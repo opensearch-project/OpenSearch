@@ -68,6 +68,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
     private final PlainIterator<String> targetNodesIterator;
+    @Nullable
+    private final List<ShardRouting> shardRoutings;
+    private final boolean includeInShardInfo;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
@@ -79,13 +82,39 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
+        this(clusterAlias, shardId, shards, originalIndices, false);
+    }
+
+    /**
+     * Same as {@link #SearchShardIterator(String, ShardId, List, OriginalIndices)}, additionally marking this shard as
+     * participating in the opt-in {@code shard_info} response section. Participation is opt-in for two reasons: the
+     * given routings are retained for the lifetime of the search so that the primary flag and shard state can be
+     * reported, which for a remote cluster's shards would otherwise become collectable as soon as the iterators are
+     * built; and a cluster older than the feature must not be described at all, even when this node resolved its shards
+     * itself and could describe them accurately.
+     *
+     * @param clusterAlias       the alias of the cluster where the shard is located
+     * @param shardId            shard id of the group
+     * @param shards             shards to iterate
+     * @param originalIndices    the indices that the search request originally related to (before any rewriting happened)
+     * @param includeInShardInfo whether this shard is reported in {@code shard_info}, and its routings retained
+     */
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<ShardRouting> shards,
+        OriginalIndices originalIndices,
+        boolean includeInShardInfo
+    ) {
         this(
             clusterAlias,
             shardId,
             shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
+            includeInShardInfo ? shards : null,
             originalIndices,
             null,
-            null
+            null,
+            includeInShardInfo
         );
     }
 
@@ -97,12 +126,47 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         ShardSearchContextId searchContextId,
         TimeValue searchContextKeepAlive
     ) {
+        this(clusterAlias, shardId, targetNodeIds, originalIndices, searchContextId, searchContextKeepAlive, false);
+    }
+
+    /**
+     * Same as {@link #SearchShardIterator(String, ShardId, List, OriginalIndices, ShardSearchContextId, TimeValue)},
+     * additionally marking this shard as participating in the opt-in {@code shard_info} response section. Shards
+     * targeted through plain node ids have no routings, so such an entry reports neither the primary flag nor the
+     * shard state, but it is still reported unless the cluster it belongs to predates the feature.
+     *
+     * @param includeInShardInfo whether this shard is reported in {@code shard_info}
+     */
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<String> targetNodeIds,
+        OriginalIndices originalIndices,
+        ShardSearchContextId searchContextId,
+        TimeValue searchContextKeepAlive,
+        boolean includeInShardInfo
+    ) {
+        this(clusterAlias, shardId, targetNodeIds, null, originalIndices, searchContextId, searchContextKeepAlive, includeInShardInfo);
+    }
+
+    private SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<String> targetNodeIds,
+        @Nullable List<ShardRouting> shardRoutings,
+        OriginalIndices originalIndices,
+        ShardSearchContextId searchContextId,
+        TimeValue searchContextKeepAlive,
+        boolean includeInShardInfo
+    ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
+        this.shardRoutings = shardRoutings == null ? null : List.copyOf(shardRoutings);
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
+        this.includeInShardInfo = includeInShardInfo;
         assert searchContextKeepAlive == null || searchContextId != null;
     }
 
@@ -146,6 +210,29 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     List<String> getTargetNodeIds() {
         return targetNodesIterator.asList();
+    }
+
+    /**
+     * Returns the shard routings this iterator was created from, in target order, or {@code null}
+     * when they were not retained. They are retained only when this shard participates in
+     * {@code shard_info}, so this is {@code null} for an ordinary search even though routings were
+     * available. It is also {@code null} whenever the iterator was created from plain node ids,
+     * which is how point-in-time readers are resolved, whether they are local or remote; shards of
+     * a remote cluster otherwise have routings available, since they are resolved through the
+     * {@code _search_shards} API, which reports the remote routing table.
+     */
+    @Nullable
+    List<ShardRouting> getShardRoutings() {
+        return shardRoutings;
+    }
+
+    /**
+     * Returns whether this shard is reported in the opt-in {@code shard_info} response section. It is {@code false}
+     * for a search that did not ask for the section, and for the shards of a cluster older than the feature, whose
+     * shards are searched as usual but never described.
+     */
+    boolean includeInShardInfo() {
+        return includeInShardInfo;
     }
 
     /**
