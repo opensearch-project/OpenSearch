@@ -1416,6 +1416,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestContext searchRequestContext
     ) {
         if (preFilter) {
+            CoordinatorTimestampPruner.pruneShards(shardIterators, clusterState, searchRequest);
             return new CanMatchPreFilterSearchPhase(
                 logger,
                 searchTransportService,
