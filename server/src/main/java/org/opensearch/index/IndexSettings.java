@@ -224,6 +224,19 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    /**
+     * When enabled, the primary bulk path for a batched-append-capable engine (the composite
+     * {@code DataFormatAwareEngine}) appends all successful primary index operations of one bulk-shard-request chunk
+     * to the translog in a single batched write instead of one write per operation. Default false; dynamic so a
+     * benchmark can A/B the same build. When false, behaviour is byte-for-byte the current per-op path.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
+        "index.translog.batch_append.enabled",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch (s) {
             case "false":
@@ -1048,6 +1061,7 @@ public final class IndexSettings {
     }
 
     private volatile boolean warmerEnabled;
+    private volatile boolean translogBatchAppendEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
@@ -1250,6 +1264,7 @@ public final class IndexSettings {
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
+        translogBatchAppendEnabled = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
@@ -1386,6 +1401,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING, this::setTranslogBatchAppendEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
@@ -1795,6 +1811,19 @@ public final class IndexSettings {
 
     private void setEnableWarmer(boolean enableWarmer) {
         this.warmerEnabled = enableWarmer;
+    }
+
+    /**
+     * Whether the primary bulk path should append successful primary index operations to the translog in a single
+     * batched write per bulk-shard-request chunk (composite engine only). See
+     * {@link #INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING}.
+     */
+    public boolean isTranslogBatchAppendEnabled() {
+        return translogBatchAppendEnabled;
+    }
+
+    private void setTranslogBatchAppendEnabled(boolean enabled) {
+        this.translogBatchAppendEnabled = enabled;
     }
 
     /**

@@ -492,20 +492,39 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 long startTime = System.nanoTime();
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(
-                        context,
-                        updateHelper,
-                        nowInMillisSupplier,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
-                    ) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
+                // Batch the translog append of successful primary index ops across this bulk-shard-request chunk. The
+                // batch is thread-confined and must be flushed on this thread; we flush it before any update/delete
+                // item (so a read of a just-indexed doc sees it) and in the finally block (so it never crosses threads
+                // when we yield for a mapping update). For a non-batching engine this is a no-op batch and the loop
+                // behaves exactly as before.
+                Engine.TranslogBatch beginResult = primary.beginTranslogBatch();
+                final Engine.TranslogBatch translogBatch = beginResult != null ? beginResult : Engine.NO_OP_TRANSLOG_BATCH;
+                try {
+                    while (context.hasMoreOperationsToExecute()) {
+                        final DocWriteRequest<?> current = context.getCurrent();
+                        if (current != null
+                            && (current.opType() == DocWriteRequest.OpType.UPDATE || current.opType() == DocWriteRequest.OpType.DELETE)) {
+                            context.mergeLocationToSync(translogBatch.flush());
+                        }
+                        if (executeBulkItemRequest(
+                            context,
+                            updateHelper,
+                            nowInMillisSupplier,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again
+                            // once its done so we just break out here. The finally block flushes the batch before we
+                            // yield the thread, so it never crosses threads.
+                            return;
+                        }
+                        assert context.isInitial(); // either completed and moved to next or reset
                     }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                } finally {
+                    // Idempotent: an empty or already-flushed batch is a no-op. Folds the batch max into locationToSync
+                    // so finishRequest fsyncs to the correct location.
+                    context.mergeLocationToSync(translogBatch.flush());
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 long serviceTimeNanos = System.nanoTime() - startTime;

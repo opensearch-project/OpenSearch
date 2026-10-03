@@ -494,6 +494,44 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * A thread-confined scope that batches the translog append of successful primary index operations executed within
+     * it, so an engine can issue one {@link org.opensearch.index.translog.TranslogManager#add(java.util.List)} call per
+     * bulk-shard-request chunk instead of one {@code add} per item. Created by {@link #beginTranslogBatch()}.
+     * <p>
+     * The default {@link #beginTranslogBatch()} returns {@link #NO_OP_TRANSLOG_BATCH}, under which engines keep writing
+     * inline exactly as today; only an engine that overrides it (currently {@code DataFormatAwareEngine}) defers.
+     * <p>
+     * A batch is confined to the thread that created it. {@link #flush()} performs the single batched append, assigns
+     * each deferred result its location, advances the processed checkpoint for each op, and returns the max
+     * {@link Translog.Location} of the batch (or {@code null} when empty). It is idempotent, so the bulk loop may flush
+     * it before an update/delete item and again in its {@code finally} block. If the append fails, {@code flush()}
+     * completes every deferred entry exceptionally and fails the engine, matching the inline tragic-translog-error path.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.0.0")
+    public interface TranslogBatch {
+        /**
+         * Flush the pending batched operations with a single translog append and return the max location of the batch,
+         * or {@code null} if the batch is empty. Idempotent.
+         */
+        @Nullable
+        Translog.Location flush();
+    }
+
+    /** A {@link TranslogBatch} that batches nothing; every op is written inline as before. */
+    public static final TranslogBatch NO_OP_TRANSLOG_BATCH = () -> null;
+
+    /**
+     * Begin a translog batch for the current thread. The returned {@link TranslogBatch} must be flushed on the same
+     * thread (the bulk action flushes it before each update/delete item and in its {@code finally} block). The default
+     * is a no-op batch, so engines that do not opt in keep appending inline.
+     */
+    public TranslogBatch beginTranslogBatch() {
+        return NO_OP_TRANSLOG_BATCH;
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}

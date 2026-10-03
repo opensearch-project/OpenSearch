@@ -252,4 +252,15 @@ public interface Indexer
     default void onMergesDrained(Runnable listener) {
         throw new UnsupportedOperationException("onMergesDrained not supported on " + getClass().getSimpleName());
     }
+
+    /**
+     * Begins a thread-confined translog batch so the primary bulk path can append all successful primary index
+     * operations of one bulk-shard-request chunk in a single translog write. The default returns
+     * {@link Engine#NO_OP_TRANSLOG_BATCH}, under which every op is appended inline exactly as today; only an indexer
+     * that opts in (the data-format-aware primary engine) defers. The caller must flush the returned batch on the
+     * same thread.
+     */
+    default Engine.TranslogBatch beginTranslogBatch() {
+        return Engine.NO_OP_TRANSLOG_BATCH;
+    }
 }
