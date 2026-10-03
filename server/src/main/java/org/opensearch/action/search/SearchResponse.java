@@ -190,6 +190,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.phaseTook = phaseTook;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
+        assert internalResponse.timedOutShards() >= 0 : "timedOutShards must be non-negative: " + internalResponse.timedOutShards();
         assert scrollId == null || pointInTimeId == null : "SearchResponse can't have both scrollId ["
             + scrollId
             + "] and searchContextId ["
@@ -279,6 +280,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
+     * The number of shards that timed out during the search.
+     */
+    public int getTimedOutShards() {
+        return internalResponse.timedOutShards();
+    }
+
+    /**
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
@@ -362,6 +370,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             getSuccessfulShards(),
             getSkippedShards(),
             getFailedShards(),
+            getTimedOutShards(),
             getShardFailures()
         );
         clusters.toXContent(builder, params);
@@ -391,6 +400,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int successfulShards = -1;
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
+        int timedOutShards = 0; // 0 for BWC
         String scrollId = null;
         String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
@@ -438,6 +448,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                 totalShards = parser.intValue();
                             } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skippedShards = parser.intValue();
+                            } else if (RestActions.TIMED_OUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                timedOutShards = parser.intValue();
                             } else {
                                 parser.skipChildren();
                             }
@@ -535,6 +547,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             aggs,
             suggest,
             timedOut,
+            timedOutShards,
             terminatedEarly,
             profile,
             numReducePhases,

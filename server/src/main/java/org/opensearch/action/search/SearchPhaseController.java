@@ -464,6 +464,7 @@ public final class SearchPhaseController {
                 topDocsStats.fetchHits,
                 topDocsStats.getMaxScore(),
                 false,
+                0,
                 null,
                 null,
                 null,
@@ -538,6 +539,7 @@ public final class SearchPhaseController {
             topDocsStats.fetchHits,
             topDocsStats.getMaxScore(),
             topDocsStats.timedOut,
+            topDocsStats.timedOutShards,
             topDocsStats.terminatedEarly,
             reducedSuggest,
             aggregations,
@@ -682,6 +684,8 @@ public final class SearchPhaseController {
         final float maxScore;
         // <code>true</code> if at least one reduced result timed out
         final boolean timedOut;
+        // the number of shards that timed out during the query phase
+        final int timedOutShards;
         // non null and true if at least one reduced result was terminated early
         final Boolean terminatedEarly;
         // the reduced suggest results
@@ -708,6 +712,7 @@ public final class SearchPhaseController {
             long fetchHits,
             float maxScore,
             boolean timedOut,
+            int timedOutShards,
             Boolean terminatedEarly,
             Suggest suggest,
             InternalAggregations aggregations,
@@ -726,6 +731,7 @@ public final class SearchPhaseController {
             this.fetchHits = fetchHits;
             this.maxScore = maxScore;
             this.timedOut = timedOut;
+            this.timedOutShards = timedOutShards;
             this.terminatedEarly = terminatedEarly;
             this.suggest = suggest;
             this.aggregations = aggregations;
@@ -759,6 +765,7 @@ public final class SearchPhaseController {
                 suggest,
                 mergedProfileResults,
                 timedOut,
+                timedOutShards,
                 terminatedEarly,
                 numReducePhases
             );
@@ -843,6 +850,7 @@ public final class SearchPhaseController {
         long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut;
+        int timedOutShards;
         Boolean terminatedEarly;
 
         TopDocsStats(int trackTotalHitsUpTo) {
@@ -889,6 +897,7 @@ public final class SearchPhaseController {
             }
             if (timedOut) {
                 this.timedOut = true;
+                this.timedOutShards++;
             }
             if (terminatedEarly != null) {
                 if (this.terminatedEarly == null) {

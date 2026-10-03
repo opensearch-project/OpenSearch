@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
@@ -366,7 +367,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     expectedString.append("{\"total\":0,");
                     expectedString.append("\"successful\":0,");
                     expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
+                    expectedString.append("\"failed\":0,");
+                    expectedString.append("\"timed_out\":0},");
                 }
                 expectedString.append("\"hits\":");
                 {
@@ -448,7 +450,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     expectedString.append("{\"total\":0,");
                     expectedString.append("\"successful\":0,");
                     expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
+                    expectedString.append("\"failed\":0,");
+                    expectedString.append("\"timed_out\":0},");
                 }
                 expectedString.append("\"_clusters\":");
                 {
@@ -645,5 +648,111 @@ public class SearchResponseTests extends OpenSearchTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(DUMMY_FIELD.getPreferredName(), id);
         }
+    }
+
+    public void testTimedOutShardsJsonRoundTrip() throws IOException {
+        int timedOutShards = randomIntBetween(1, 50);
+        SearchResponse original = buildTimedOutSearchResponse(true, timedOutShards);
+
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
+        original.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+
+        try (XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), bytes)) {
+            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            assertEquals(timedOutShards, parsed.getTimedOutShards());
+        }
+    }
+
+    public void testTimedOutShardsWireRoundTrip() throws IOException {
+        int timedOutShards = randomIntBetween(1, 100);
+        InternalSearchResponse original = buildTimedOutInternalSearchResponse(true, timedOutShards);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        InternalSearchResponse deserialized = new InternalSearchResponse(in);
+
+        assertEquals(timedOutShards, deserialized.timedOutShards());
+    }
+
+    public void testTimedOutShardsBwcWireRoundTrip() throws IOException {
+        int timedOutShards = randomIntBetween(1, 100);
+        InternalSearchResponse original = buildTimedOutInternalSearchResponse(true, timedOutShards);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_2_19_0);
+        original.writeTo(out);
+
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        in.setVersion(Version.V_2_19_0);
+        InternalSearchResponse deserialized = new InternalSearchResponse(in);
+
+        assertEquals(0, deserialized.timedOutShards());
+    }
+
+    public void testTimedOutShardsJsonFieldOrdering() throws IOException {
+        SearchResponse response = buildTimedOutSearchResponse(false, 0);
+
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = builder.toString();
+
+        // Within the _shards object, "timed_out" must appear after "failed"
+        int failedIdx = json.indexOf("\"failed\"");
+        int timedOutIdx = json.indexOf("\"timed_out\"", json.indexOf("\"_shards\""));
+        assertTrue("timed_out should appear after failed in _shards, json=" + json, timedOutIdx > failedIdx);
+    }
+
+    public void testTimedOutShardsZeroPresent() throws IOException {
+        SearchResponse response = buildTimedOutSearchResponse(false, 0);
+
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = builder.toString();
+
+        // The _shards section must contain "timed_out":0
+        assertTrue("Expected \"timed_out\":0 in JSON, got: " + json, json.contains("\"timed_out\":0"));
+    }
+
+    public void testTimedOutShardsMissingFieldDefaultsToZero() throws IOException {
+        // Build a JSON string that has _shards without timed_out
+        String json = "{"
+            + "\"took\":1,"
+            + "\"timed_out\":false,"
+            + "\"_shards\":{\"total\":5,\"successful\":5,\"skipped\":0,\"failed\":0},"
+            + "\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]}"
+            + "}";
+
+        try (XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), json)) {
+            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            assertEquals(0, parsed.getTimedOutShards());
+        }
+    }
+
+    public void testTimedOutShardsBooleanCountConsistency() {
+        int timedOutShards = randomIntBetween(1, 50);
+        SearchResponse response = buildTimedOutSearchResponse(true, timedOutShards);
+
+        assertTrue("timed_out should be true when timedOutShards > 0", response.isTimedOut());
+        assertTrue("timedOutShards should be > 0", response.getTimedOutShards() > 0);
+    }
+
+    public void testTimedOutShardsZeroBooleanCountConsistency() {
+        SearchResponse response = buildTimedOutSearchResponse(false, 0);
+
+        assertFalse("timed_out should be false when timedOutShards == 0", response.isTimedOut());
+        assertEquals(0, response.getTimedOutShards());
+    }
+
+    private static InternalSearchResponse buildTimedOutInternalSearchResponse(boolean timedOut, int timedOutShards) {
+        SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+        return new InternalSearchResponse(hits, null, null, null, timedOut, timedOutShards, null, 1);
+    }
+
+    private static SearchResponse buildTimedOutSearchResponse(boolean timedOut, int timedOutShards) {
+        InternalSearchResponse internal = buildTimedOutInternalSearchResponse(timedOut, timedOutShards);
+        return new SearchResponse(internal, null, 5, 5, 0, 1, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 }
