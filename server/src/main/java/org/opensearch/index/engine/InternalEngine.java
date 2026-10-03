@@ -230,7 +230,12 @@ public class InternalEngine extends Engine {
 
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final DeletionStrategyPlanner deletionStrategyPlanner;
-    private final PrimaryOperationPolicy primaryOperationPolicy;
+    /**
+     * Snapshot of {@link EngineConfig#getPrimaryOperationPolicy()}. Re-read only from
+     * {@link #refreshPrimaryOperationPolicy()}, so that a single operation sees one consistent policy even
+     * though it reads the policy at several points.
+     */
+    private volatile PrimaryOperationPolicy primaryOperationPolicy;
     private final DocumentCountTracker documentCountTracker;
 
     public InternalEngine(EngineConfig engineConfig) {
@@ -576,6 +581,25 @@ public class InternalEngine extends Engine {
             }
             return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
         }
+    }
+
+    @Override
+    public void refreshPrimaryOperationPolicy() {
+        // The write lock only orders this against other engine-level writers; the caller is responsible for
+        // ensuring no indexing operation is in flight, since an operation reads the policy more than once.
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            ensureOpen();
+            final PrimaryOperationPolicy refreshed = engineConfig.getPrimaryOperationPolicy();
+            if (refreshed != primaryOperationPolicy) {
+                logger.debug("primary operation policy changed from [{}] to [{}]", primaryOperationPolicy, refreshed);
+                primaryOperationPolicy = refreshed;
+            }
+        }
+    }
+
+    @Override
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return primaryOperationPolicy;
     }
 
     private void bootstrapAppendOnlyInfoFromWriter(DocumentIndexWriter writer) {
@@ -2170,7 +2194,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean refreshNeeded() {
-        return documentIndexWriter.hasNewIndexingOrUpdates() || super.refreshNeeded();
+        return documentIndexWriter.hasNewIndexingOrUpdates()
+            || lastRefreshedCheckpoint() < localCheckpointTracker.getProcessedCheckpoint()
+            || super.refreshNeeded();
     }
 
     /**

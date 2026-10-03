@@ -101,6 +101,7 @@ import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
@@ -142,6 +143,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -202,6 +204,7 @@ import org.opensearch.index.translog.RemoteStoreFenceOwnership;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
@@ -240,6 +243,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -329,6 +333,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Indexer> currentEngineReference = new AtomicReference<>();
+    /**
+     * The remote store hydration a recovery is currently running (segment and translog downloads that precede the engine
+     * open), so that {@link #close} can abort it. Registered and cleared under {@link #mutex} by
+     * {@link #hydrateFromRemoteStore}; cancelled by {@link #close} once the state has moved to CLOSED.
+     */
+    private final AtomicReference<CancellableThreads> remoteStoreHydration = new AtomicReference<>();
     final IndexerFactory indexerFactory;
     final EngineConfigFactory engineConfigFactory;
 
@@ -831,6 +841,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
+                        // Refresh the primary operation policy in case it has changed since the start of recovery.
+                        // No primary-origin operation can have run yet, so this is safe without blocking operations.
+                        getIndexer().refreshPrimaryOperationPolicy();
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
@@ -915,6 +928,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
+                            // This shard is about to start serving primary-origin operations, so the primary operation
+                            // policy has to match the index settings as they are now so refresh the policy.
+                            getIndexer().refreshPrimaryOperationPolicy();
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
@@ -2775,6 +2791,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
+    /**
+     * Re-resolves this shard's primary operation policy against the current index settings, blocking
+     * operations for the duration so that no operation observes a policy change mid-flight. This is the
+     * cheap alternative to {@link #resetToWriteableEngine()} for a plugin whose policy is keyed off an
+     * updatable setting and that has nothing else to rebuild when that setting changes.
+     *
+     * @throws InterruptedException if the calling thread is interrupted
+     * @throws TimeoutException if timed out waiting for in-flight operations to finish
+     *
+     * @opensearch.internal
+     */
+    @ExperimentalApi
+    public void refreshPrimaryOperationPolicy() throws InterruptedException, TimeoutException {
+        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> getIndexer().refreshPrimaryOperationPolicy());
+    }
+
+    /**
+     * Returns the {@link PrimaryOperationPolicy} in effect for this shard.
+     *
+     * @throws AlreadyClosedException if the shard's engine is closed
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return getIndexer().getPrimaryOperationPolicy();
+    }
+
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
         return mergedSegmentTransferTracker;
     }
@@ -2818,6 +2860,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 synchronized (mutex) {
                     changeState(IndexShardState.CLOSED, reason);
                 }
+                // A recovery hydrating this shard from the remote store runs outside engineMutex, so it did not hold
+                // this thread up; it now either observes CLOSED before it registers (it checks under mutex), or is
+                // registered and is interrupted here. Either way it stops writing and its engine open is refused.
+                cancelRemoteStoreHydration(reason);
             } finally {
                 final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -3310,18 +3356,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             loadGlobalCheckpointToReplicationTracker();
         }
 
-        if (isSnapshotV2Restore()) {
-            translogConfig.setDownloadRemoteTranslogOnInit(false);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+
+            getIndexer().translogManager()
+                .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
         }
+    }
 
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
-
-        if (isSnapshotV2Restore()) {
-            translogConfig.setDownloadRemoteTranslogOnInit(true);
+    /**
+     * On a remote-store shard the local translog directory is a cache of the remote copy, and the download that fills it
+     * reuses a local generation whose footer matches the checksum the remote advertises. If such a generation turns out
+     * to be corrupt inside its operations - rot that an intact footer cannot reveal - opening or replaying the translog
+     * throws {@link TranslogCorruptedException}, the shard fails, and the next recovery would reuse the very same bytes
+     * and fail the same way until {@code index.allocation.max_retries} leaves the shard unassigned.
+     * <p>
+     * Since the remote store holds an intact copy, delete the local directory so that the next attempt starts from the
+     * remote store instead. This is what a recovery did unconditionally before local generations were reused; it is now
+     * done only once the local copy has been proven wrong. Shards without a remote translog are left alone - their local
+     * translog is the only copy, and discarding it would lose data.
+     */
+    private void discardCorruptLocalRemoteTranslog(Exception failure) {
+        if (indexSettings.isRemoteTranslogStoreEnabled() == false
+            || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
+            return;
         }
-
-        getIndexer().translogManager()
-            .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        final Path translogLocation = shardPath().resolveTranslog();
+        logger.warn(
+            () -> new ParameterizedMessage(
+                "local translog at [{}] is corrupt; deleting it so that the next recovery downloads it from the remote store",
+                translogLocation
+            ),
+            failure
+        );
+        try {
+            IOUtils.rm(translogLocation);
+        } catch (IOException e) {
+            failure.addSuppressed(e);
+        }
     }
 
     /**
@@ -3345,7 +3420,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        try {
+            innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        } catch (Exception e) {
+            discardCorruptLocalRemoteTranslog(e);
+            throw e;
+        }
         assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
             : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getIndexer().translogManager().skipTranslogRecovery();
@@ -3372,68 +3452,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
+        final boolean hydrateFromRemote = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        if (hydrateFromRemote) {
+            hydrateFromRemoteStore(syncFromRemote);
+        }
+
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            if (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded()) {
-                // Seal before reading remote state on EITHER flow, translog or segment. Segments are hydrated just
-                // below, and a copy that hydrated before claiming the fence would be reading state that a previous
-                // primary - alive behind a partition - is still free to publish and garbage-collect, so its in-flight
-                // downloads can lose files it has already listed. The translog restore point read further down needs
-                // the same ordering: it either reads the restore point this copy will serve from (directly, or later
-                // when the translog construction downloads it in the snapshot V2 case), or destroys the remote
-                // translog lineage (the snapshot restore delete).
-                if (shardRouting.primary() && indexSettings.isRemoteTranslogStoreEnabled()) {
-                    sealRemoteStoreFenceForRecovery();
-                }
-                // Download missing segments from remote segment store.
-                if (syncFromRemote) {
-                    syncSegmentsFromRemoteSegmentStore(false);
-                }
-                if (shardRouting.primary()) {
-                    if (indexSettings.isRemoteTranslogStoreEnabled()) {
-                        if (syncFromRemote) {
-                            syncRemoteTranslogAndUpdateGlobalCheckpoint();
-                        } else if (isSnapshotV2Restore() == false) {
-                            // we will enter this block when we do not want to recover from remote translog.
-                            // currently only during snapshot restore, we are coming into this block.
-                            // here, as while initiliazing remote translog we cannot skip downloading translog files,
-                            // so before that step, we are deleting the translog files present in remote store.
-                            deleteTranslogFilesFromRemoteTranslog();
-                        }
-                    }
-                } else if (syncFromRemote) {
-                    // For replicas, when we download segments from remote segment store, we need to make sure that local
-                    // translog is having the same UUID that is referred by the segments. If they are different, engine open
-                    // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
-                    // indices as replica would only need to read translog in failover scenario and we always fetch data
-                    // from remote translog at the time of failover.
-                    final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
-                    final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
-                    final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    Translog.createEmptyTranslog(
-                        shardPath().resolveTranslog(),
-                        shardId(),
-                        checkpoint,
-                        getPendingPrimaryTerm(),
-                        translogUUID,
-                        FileChannel::open
-                    );
-                }
+            // Snapshot V2 has already downloaded the translog for its pinned timestamp from the source repository.
+            // Preserve that point-in-time copy; other remote recoveries perform the normal incremental reconciliation.
+            final boolean downloadRemoteTranslogOnInit = translogConfig.downloadRemoteTranslogOnInit();
+            if (isSnapshotV2Restore()) {
+                translogConfig.setDownloadRemoteTranslogOnInit(false);
             }
-            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            // TODO: For composite engine, this would be replaced by a separate factory.
-            final Indexer newEngine = indexerFactory.createIndexer(config);
-            onNewEngine(newEngine);
-            currentEngineReference.set(newEngine);
+            try {
+                // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+                // TODO: For composite engine, this would be replaced by a separate factory.
+                final Indexer newEngine = indexerFactory.createIndexer(config);
+                onNewEngine(newEngine);
+                currentEngineReference.set(newEngine);
 
-            if (indexSettings.isSegRepEnabledOrRemoteNode()) {
-                // set initial replication checkpoints into tracker.
-                updateReplicationCheckpoint();
+                if (indexSettings.isSegRepEnabledOrRemoteNode()) {
+                    // set initial replication checkpoints into tracker.
+                    updateReplicationCheckpoint();
+                }
+                // We set active because we are now writing operations to the engine; this way,
+                // we can flush if we go idle after some time and become inactive.
+                active.set(true);
+            } finally {
+                translogConfig.setDownloadRemoteTranslogOnInit(downloadRemoteTranslogOnInit);
             }
-            // We set active because we are now writing operations to the engine; this way,
-            // we can flush if we go idle after some time and become inactive.
-            active.set(true);
         }
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
@@ -3448,6 +3497,91 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean isSnapshotV2Restore() {
         return routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && ((SnapshotRecoverySource) routingEntry().recoverySource()).pinnedTimestamp() > 0;
+    }
+
+    /**
+     * Hydrates remote segments and translog before engine construction. Remote I/O runs outside {@link #engineMutex};
+     * a store reference keeps the shard path alive, and {@link #close} cancels the registered operation. Registration
+     * and the CLOSED transition are serialized by {@link #mutex}, then engine construction rechecks CLOSED under
+     * engineMutex.
+     */
+    private void hydrateFromRemoteStore(boolean syncFromRemote) throws IOException {
+        assert Thread.holdsLock(engineMutex) == false : "hydrating from the remote store under engineMutex";
+        assert Thread.holdsLock(mutex) == false : "hydrating from the remote store under mutex";
+        assert indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final CancellableThreads cancellableThreads = new CancellableThreads();
+        store.incRef();
+        try {
+            synchronized (mutex) {
+                verifyNotClosed();
+                if (remoteStoreHydration.compareAndSet(null, cancellableThreads) == false) {
+                    throw new IllegalIndexShardStateException(shardId, state, "remote store hydration is already running");
+                }
+            }
+            try {
+                cancellableThreads.executeIO(() -> {
+                    // A primary must claim the fence before reading either remote flow. Peer-recovery relocation targets
+                    // deliberately skip the seal inside sealRemoteStoreFenceForRecovery.
+                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                        sealRemoteStoreFenceForRecovery();
+                    }
+                    if (syncFromRemote) {
+                        syncSegmentsFromRemoteSegmentStore(false);
+                    }
+                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                        if (syncFromRemote) {
+                            syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                        } else if (isSnapshotV2Restore() == false) {
+                            deleteTranslogFilesFromRemoteTranslog();
+                        }
+                    } else if (shardRouting.primary() == false && syncFromRemote) {
+                        // For replicas, when we download segments from remote segment store, we need to make sure that local
+                        // translog is having the same UUID that is referred by the segments. If they are different, engine open
+                        // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
+                        // indices as replica would only need to read translog in failover scenario and we always fetch data
+                        // from remote translog at the time of failover.
+                        final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
+                        final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
+                        final long checkpoint = Long.parseLong(
+                            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                        );
+                        Translog.createEmptyTranslog(
+                            shardPath().resolveTranslog(),
+                            shardId(),
+                            checkpoint,
+                            getPendingPrimaryTerm(),
+                            translogUUID,
+                            FileChannel::open
+                        );
+                    }
+                });
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                // Only close() cancels this, so the shard is closed; report it as such, the way any other operation on
+                // a closed shard would, and keep the interrupted download's own failure for the log.
+                final IndexShardClosedException closed = new IndexShardClosedException(
+                    shardId,
+                    "shard closed while hydrating from the remote store"
+                );
+                closed.addSuppressed(e);
+                throw closed;
+            } finally {
+                remoteStoreHydration.compareAndSet(cancellableThreads, null);
+            }
+        } finally {
+            store.decRef();
+        }
+    }
+
+    /**
+     * Aborts the remote store hydration that a recovery of this shard is running, if any. Called by {@link #close} once
+     * the state is CLOSED. Interrupts the hydrating thread, whose in-flight file write fails with
+     * {@link java.nio.channels.ClosedByInterruptException}; the recovery then fails with {@link IndexShardClosedException}.
+     */
+    private void cancelRemoteStoreHydration(String reason) {
+        final CancellableThreads hydration = remoteStoreHydration.get();
+        if (hydration != null) {
+            hydration.cancel("shard closed: " + reason);
+        }
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -4510,6 +4644,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + primaryContext
                 + "]";
 
+        // The target's engine was built at the start of the recovery; refresh so the relocated primary uses the
+        // policy matching the settings as they are now
+        getIndexer().refreshPrimaryOperationPolicy();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

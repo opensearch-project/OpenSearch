@@ -9,6 +9,8 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.DefaultPrimaryOperationPolicy;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.seqno.SeqNoStats;
 
 import java.io.IOException;
@@ -160,4 +162,22 @@ public interface IndexerStateManager {
      * @throws IOException if an I/O error occurs while filling gaps
      */
     int fillSeqNoGaps(long primaryTerm) throws IOException;
+
+    /**
+     * Re-resolves the policy governing how this indexer handles primary-origin operations, so that a shard
+     * becoming a primary uses the policy matching the index settings as they are now rather than as they
+     * were when the indexer was built.
+     * <p>
+     * Must only be called while operations on the shard are blocked, because the policy affects
+     * sequence-number assignment. Defaults to a no-op for indexers that never serve primary-origin
+     * operations.
+     */
+    default void refreshPrimaryOperationPolicy() {}
+
+    /**
+     * Returns the policy currently in effect on this indexer.
+     */
+    default PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return DefaultPrimaryOperationPolicy.INSTANCE;
+    }
 }

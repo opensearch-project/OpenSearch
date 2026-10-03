@@ -554,6 +554,30 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
         assertTrue("listener added after close must fire immediately", fired.get());
     }
 
+    /** A removable close listener fires on close, and is no longer fired once it has been removed. */
+    public void testRemovableCloseListenerCanBeGivenBack() {
+        FlightServerChannel ch = newChannel(5_000);
+        AtomicInteger fires = new AtomicInteger(0);
+        java.util.function.BiConsumer<Void, ? super Exception> kept = (v, e) -> fires.incrementAndGet();
+        java.util.function.BiConsumer<Void, ? super Exception> removed = (v, e) -> fail("a removed listener must not fire");
+
+        ch.addCloseListener(kept);
+        ch.addCloseListener(removed);
+        ch.removeCloseListener(removed);
+
+        ch.close();
+        assertEquals("the listener that was kept must fire exactly once", 1, fires.get());
+    }
+
+    /** A removable close listener registered after close() fires immediately. */
+    public void testAddRemovableCloseListenerAfterCloseFiresImmediately() {
+        FlightServerChannel ch = newChannel(5_000);
+        ch.close();
+        AtomicBoolean fired = new AtomicBoolean(false);
+        ch.addCloseListener((java.util.function.BiConsumer<Void, ? super Exception>) (v, e) -> fired.set(true));
+        assertTrue("listener added after close must fire immediately", fired.get());
+    }
+
     /** A throwing close listener must not strand the remaining listeners. */
     public void testThrowingCloseListenerDoesNotStrandOthers() {
         FlightServerChannel ch = newChannel(5_000);
