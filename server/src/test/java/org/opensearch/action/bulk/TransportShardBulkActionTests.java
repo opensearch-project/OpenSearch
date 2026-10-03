@@ -47,6 +47,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.TransportReplicationAction.PrimaryResult;
 import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.opensearch.action.update.UpdateHelper;
@@ -73,6 +74,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
@@ -105,6 +107,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
@@ -768,6 +771,53 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testBatchedTranslogFinishFailureFailsRequestAcknowledgement() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 0, true, null)
+        );
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        EngineException appendFailure = new EngineException(shardId, "simulated batched append failure");
+        when(batch.finish()).thenThrow(appendFailure);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged after a batched translog append failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), equalTo(appendFailure));
     }
 
     public void testFailedUpdatePreparationDoesNotTriggerRefresh() throws Exception {

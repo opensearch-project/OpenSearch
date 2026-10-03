@@ -251,12 +251,45 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
+
+    public void testRemoteSegrepBatchedTranslogAppendAndRealtimeGet() throws Exception {
+        InternalEngine batchEngine = spy(engine);
+        doReturn(true).when(batchEngine).isTranslogBatchingEligible();
+        Engine.TranslogBatch batch = batchEngine.beginTranslogBatch();
+        assertThat(batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+
+        ParsedDocument firstDoc = testParsedDocument("batch-1", null, testDocument(), B_1, null);
+        Engine.Index firstOp = indexForDoc(firstDoc);
+        Engine.IndexResult first = batchEngine.index(firstOp);
+        assertThat(first.getTranslogLocation(), nullValue());
+        assertThat(batchEngine.getProcessedLocalCheckpoint(), equalTo(NO_OPS_PERFORMED));
+
+        try (
+            Engine.GetResult get = batchEngine.get(new Engine.Get(true, true, firstDoc.id(), firstOp.uid()), batchEngine::acquireSearcher)
+        ) {
+            assertTrue(get.exists());
+        }
+        assertThat(first.getTranslogLocation(), notNullValue());
+
+        ParsedDocument secondDoc = testParsedDocument("batch-2", null, testDocument(), B_2, null);
+        Engine.IndexResult second = batchEngine.index(indexForDoc(secondDoc));
+        assertThat(second.getTranslogLocation(), nullValue());
+        Translog.Location maxLocation = batch.finish();
+        assertThat(second.getTranslogLocation(), notNullValue());
+        assertThat(maxLocation, equalTo(second.getTranslogLocation()));
+        assertThat(batchEngine.getProcessedLocalCheckpoint(), equalTo(1L));
+    }
+
+    public void testTranslogBatchingIgnoredWithoutRemoteStore() {
+        assertThat(engine.beginTranslogBatch(), sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+    }
 
     public void testVersionMapAfterAutoIDDocument() throws IOException {
         engine.refresh("warm_up");

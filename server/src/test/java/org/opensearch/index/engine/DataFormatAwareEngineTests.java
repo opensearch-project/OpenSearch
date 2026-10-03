@@ -70,6 +70,7 @@ import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -3876,8 +3877,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, provider));
     }
 
-    /** Builds a DFA engine config with the batched-translog-append toggle set to {@code enabled}. */
-    private EngineConfig buildBatchDFAEngineConfig(Store store, Path translogPath, DocumentLookupProvider provider, boolean enabled) {
+    /** Builds a DFA engine config with the batched-translog-append toggle and remote-store eligibility. */
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore
+    ) {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -3885,6 +3892,12 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
             .put(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name())
             .put(IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getKey(), enabled);
+        if (remoteStore) {
+            settings.put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo");
+        }
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
 
         TranslogConfig translogConfig = new TranslogConfig(
@@ -3928,9 +3941,19 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     private DataFormatAwareEngine createBatchDFAEngine(Store store, Path translogPath, DocumentLookupProvider provider, boolean enabled)
         throws IOException {
+        return createBatchDFAEngine(store, translogPath, provider, enabled, true);
+    }
+
+    private DataFormatAwareEngine createBatchDFAEngine(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore
+    ) throws IOException {
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
-        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled));
+        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore));
     }
 
     // ----- Batched translog append (index.translog.batch_append.enabled) -----
@@ -3973,8 +3996,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) numDocs - 1));
             assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
 
-            // A second flush is a no-op (idempotent) and returns null.
-            assertThat(batch.flush(), nullValue());
+            // A second flush has no new work and returns the same cumulative max location.
+            assertThat(batch.flush(), equalTo(expectedMax));
 
             // Persisted advances only once the translog is fsynced.
             engine.translogManager().syncTranslog();
@@ -4004,8 +4027,86 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // The self-read flushed the batch: the result now has a location and processed advanced.
             assertThat(result.getTranslogLocation(), notNullValue());
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
-            // A later explicit flush is a harmless no-op.
-            assertThat(batch.flush(), nullValue());
+            // The forced append keeps the scope open: later operations form a new chunk in the same bulk.
+            Engine.IndexResult second = engine.index(indexOp(createParsedDocWithInput("2", null)));
+            assertThat(second.getTranslogLocation(), nullValue());
+            Translog.Location finalMax = batch.finish();
+            assertThat(second.getTranslogLocation(), notNullValue());
+            assertThat(finalMax, equalTo(second.getTranslogLocation()));
+        }
+    }
+
+    public void testBatchedAppendCrossThreadRealtimeGetForcesFlush() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult first = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            AtomicReference<DocumentLookupResult> lookup = new AtomicReference<>();
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            Thread reader = new Thread(() -> {
+                try {
+                    lookup.set(getByIdLookup(engine, realtimeGet("1")));
+                } catch (Exception e) {
+                    failure.set(e);
+                }
+            });
+            reader.start();
+            reader.join();
+
+            assertThat(failure.get(), nullValue());
+            assertTrue(lookup.get().exists());
+            assertThat(first.getTranslogLocation(), notNullValue());
+
+            // A forced flush does not close the owning bulk scope.
+            Engine.IndexResult second = engine.index(indexOp(createParsedDocWithInput("2", null)));
+            assertThat(second.getTranslogLocation(), nullValue());
+            batch.finish();
+            assertThat(second.getTranslogLocation(), notNullValue());
+        }
+    }
+
+    public void testBatchedAppendFlushesAtOperationLimit() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult first = null;
+            for (int i = 0; i < 1_000; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                if (first == null) {
+                    first = result;
+                }
+            }
+            assertThat("the operation cap must append the first chunk", first.getTranslogLocation(), notNullValue());
+
+            Engine.IndexResult nextChunk = engine.index(indexOp(createParsedDocWithInput("next", null)));
+            assertThat("the next chunk remains pending", nextChunk.getTranslogLocation(), nullValue());
+            batch.finish();
+            assertThat(nextChunk.getTranslogLocation(), notNullValue());
+        }
+    }
+
+    public void testRefreshFlushesPendingTranslogBatchBeforePublishing() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(result.getTranslogLocation(), nullValue());
+
+            engine.refresh("test pending translog fence");
+
+            assertThat(result.getTranslogLocation(), notNullValue());
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
+            batch.finish();
+        }
+    }
+
+    public void testBatchedAppendRequiresRemoteStore() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat(batch, sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(result.getTranslogLocation(), notNullValue());
         }
     }
 
