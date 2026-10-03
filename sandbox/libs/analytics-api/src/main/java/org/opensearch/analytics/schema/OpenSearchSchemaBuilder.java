@@ -27,10 +27,12 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -335,6 +337,11 @@ public class OpenSearchSchemaBuilder {
         };
     }
 
+    // OpenSearch mapping "type" values this builder special-cases.
+    private static final String TYPE_OBJECT = "object";
+    private static final String TYPE_NESTED = "nested";
+    private static final String TYPE_FLAT_OBJECT = "flat_object";
+
     @SuppressWarnings("unchecked")
     private static void addLeafFields(
         RelDataTypeFactory.Builder builder,
@@ -348,15 +355,25 @@ public class OpenSearchSchemaBuilder {
             String fieldType = (String) fieldProps.get("type");
             // Object types: implicit when "properties" is present without "type", or explicit "type: object".
             // Recurse into sub-properties so dotted leaf paths ("city.location.latitude") appear as flat columns.
-            if (fieldType == null || "object".equals(fieldType)) {
+            if (fieldType == null || TYPE_OBJECT.equals(fieldType)) {
                 Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
                 if (nested != null) {
                     addLeafFields(builder, typeFactory, nested, fieldName);
                 }
                 continue;
             }
-            // Nested type (array-of-sub-docs) is a different beast — deferred.
-            if ("nested".equals(fieldType)) {
+            // A top-level flat_object is unsupported (no backend can scan it) and dropped; only a
+            // flat_object *child* of a nested field is exposed, as a MAP struct child (buildNestedStructType).
+            // nested → ARRAY<ROW<leaf children...>>.
+            if (TYPE_NESTED.equals(fieldType)) {
+                Map<String, Object> nestedProps = (Map<String, Object>) fieldProps.get("properties");
+                if (nestedProps != null) {
+                    RelDataType structType = buildNestedStructType(typeFactory, nestedProps);
+                    if (structType != null) {
+                        RelDataType arrayType = typeFactory.createArrayType(structType, -1);
+                        builder.add(fieldName, typeFactory.createTypeWithNullability(arrayType, true));
+                    }
+                }
                 continue;
             }
             String format = (String) fieldProps.get("format");
@@ -398,5 +415,66 @@ public class OpenSearchSchemaBuilder {
             LOGGER.log(Level.WARNING, "Invalid scaling_factor value: " + raw, e);
             return NO_SCALING_FACTOR;
         }
+    }
+
+    /**
+     * Builds a Calcite ROW type for the struct inside a nested LIST&lt;STRUCT&gt; column.
+     * Recursively handles nested-in-nested (becomes ARRAY&lt;ROW&gt; inside the struct).
+     */
+    @SuppressWarnings("unchecked")
+    private static RelDataType buildNestedStructType(RelDataTypeFactory typeFactory, Map<String, Object> properties) {
+        // Downstream matches struct fields by position, so this order must match the parquet write
+        // side. Children are sorted by field name (via TreeMap) to give a deterministic order the
+        // write side (ArrowSchemaBuilder) is expected to produce too.
+        //
+        // TODO: add a read/write struct-parity test once the write path lands and both builders are
+        // reachable from one test module. They pick the child set/order/type independently, so a
+        // mismatch would shift field positions and corrupt values read back, with no guard today.
+        TreeMap<String, RelDataType> sorted = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : properties.entrySet()) {
+            Map<String, Object> fieldProps = (Map<String, Object>) entry.getValue();
+            String fieldType = (String) fieldProps.get("type");
+            if (TYPE_NESTED.equals(fieldType)) {
+                // nested-in-nested: recurse as ARRAY<ROW<...>>
+                Map<String, Object> subProps = (Map<String, Object>) fieldProps.get("properties");
+                if (subProps != null) {
+                    RelDataType innerStruct = buildNestedStructType(typeFactory, subProps);
+                    if (innerStruct != null) {
+                        RelDataType innerArray = typeFactory.createArrayType(innerStruct, -1);
+                        sorted.put(entry.getKey(), typeFactory.createTypeWithNullability(innerArray, true));
+                    }
+                }
+            } else if (TYPE_FLAT_OBJECT.equals(fieldType)) {
+                // flat_object → MAP<VARCHAR,VARCHAR> struct child (matches the parquet MAP<Utf8,Utf8>).
+                sorted.put(entry.getKey(), varcharMap(typeFactory));
+            } else {
+                // Plain scalar leaf. Pass scaling_factor to the 4-arg buildLeafType like the top-level
+                // path, so a scaled_float child resolves the same here as on the write side. A plain
+                // `object` child is unsupported (buildLeafType returns null) and dropped.
+                String format = (String) fieldProps.get("format");
+                double scalingFactor = parseScalingFactor(fieldProps.get(SCALING_FACTOR_FIELD));
+                RelDataType leafType = buildLeafType(fieldType, format, scalingFactor, typeFactory);
+                if (leafType != null) {
+                    sorted.put(entry.getKey(), leafType);
+                }
+            }
+        }
+        if (sorted.isEmpty()) {
+            return null;
+        }
+        List<String> fieldNames = new ArrayList<>(sorted.keySet());
+        List<RelDataType> fieldTypes = new ArrayList<>(sorted.values());
+        return typeFactory.createStructType(fieldTypes, fieldNames);
+    }
+
+    /**
+     * Builds the {@code MAP<VARCHAR, VARCHAR>} type for a {@code flat_object} field. Non-null key,
+     * nullable value, nullable map — matching the parquet {@code MAP<Utf8,Utf8>} written on ingest.
+     */
+    private static RelDataType varcharMap(RelDataTypeFactory typeFactory) {
+        RelDataType key = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType value = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType map = typeFactory.createMapType(key, value);
+        return typeFactory.createTypeWithNullability(map, true);
     }
 }

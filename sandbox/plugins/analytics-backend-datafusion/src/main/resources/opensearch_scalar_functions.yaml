@@ -1348,3 +1348,36 @@ scalar_functions:
           - name: state
             value: any1
         return: i64
+
+  # TODO(native-array_any_match): remove this signature once we add get_field + array_any_match HOF signatures.
+  - name: "nested_any_match"
+    description: >-
+      Existential filter over a nested LIST<STRUCT> column. Returns true if any
+      element satisfies the predicate encoded as a JSON expression tree.
+      The Rust NestedAnyMatchRewriteRule rewrites this placeholder call to
+      a native array_any_match HOF before execution.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "array"
+          - value: "string"
+            name: "expr_json"
+        return: "boolean?"
+
+  # TODO(native-array_transform): remove this signature once we emit array_transform as a Substrait HOF+lambda.
+  - name: "nested_project"
+    description: >-
+      Projects a nested sub-path out of a LIST<STRUCT> column, one per-row array of the
+      sub-path across elements. The second arg is a JSON path ({"field":"name"} or
+      {"field":"attributes","key":"<k>"}). The Rust NestedProjectRewriteRule rewrites this
+      placeholder call to a native array_transform HOF before execution.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "array"
+          - value: "string"
+            name: "path_json"
+        # substrait-java's type parser rejects a nullable `?` on a compound `list<…>` type
+        # (a simple `boolean?` is fine); the analyzer recomputes the real ARRAY<leaf> type at
+        # rewrite time, so a non-nullable list here is only a placeholder signature.
+        return: "list<any1>"
