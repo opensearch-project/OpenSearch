@@ -130,6 +130,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.WARM_ROLE::equals);
     }
 
+    public static boolean isReplicaOnlyNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.REPLICA_ONLY_ROLE);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -540,6 +544,15 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public boolean isSearchNode() {
         return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
+     * Returns whether the node is a replica-only node.
+     *
+     * @return true if the node contains a replica_only role, false otherwise
+     */
+    public boolean isReplicaOnlyNode() {
+        return roles.contains(DiscoveryNodeRole.REPLICA_ONLY_ROLE);
     }
 
     /**
