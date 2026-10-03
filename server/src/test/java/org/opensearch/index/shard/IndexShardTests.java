@@ -4467,6 +4467,10 @@ public class IndexShardTests extends IndexShardTestCase {
             // now loop until we are fast enough... shouldn't take long
             primary.acquireSearcher("test").close();
         } while (primary.isSearchIdle());
+
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.MINUS_ONE).build();
+        scopedSettings.applySettings(settings);
+        assertFalse(primary.isSearchIdle());
         closeShards(primary);
     }
 
