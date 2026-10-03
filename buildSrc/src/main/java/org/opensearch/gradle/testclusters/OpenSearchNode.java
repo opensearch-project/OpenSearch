@@ -596,9 +596,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     private boolean canUseSharedDistribution() {
-        // using original location can be too long due to MAX_PATH restrictions on windows CI
-        // TODO revisit when moving to shorter paths on CI by using Teamcity
-        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // The shared distribution is an artifact transform output. Gradle 8.6+ treats those workspaces as
+        // immutable and validates them, so a node must not run with its OPENSEARCH_HOME inside one. The bin
+        // scripts are executed with their working directory set to the distribution (see
+        // runOpenSearchBinScriptWithInput) while inheriting the node's JVM options, so a relative option such
+        // as -Xlog:gc*:file=logs/gc.log writes straight into the workspace. Always run from a node-local copy,
+        // which setupNodeDistribution() creates with hard links where the filesystem allows.
+        return false;
     }
 
     private void logToProcessStdout(String message) {
