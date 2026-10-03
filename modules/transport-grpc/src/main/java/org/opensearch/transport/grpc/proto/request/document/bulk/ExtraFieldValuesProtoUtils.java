@@ -10,12 +10,18 @@ package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import com.google.protobuf.ByteString;
 import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.DoubleArrayValue;
 import org.opensearch.index.mapper.extrasource.ExtraFieldValue;
 import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.index.mapper.extrasource.FloatArrayValue;
+import org.opensearch.index.mapper.extrasource.IntArrayValue;
+import org.opensearch.index.mapper.extrasource.LongArrayValue;
 import org.opensearch.protobufs.BinaryFieldValue;
 import org.opensearch.protobufs.BulkRequestBody;
+import org.opensearch.protobufs.DoubleList;
 import org.opensearch.protobufs.FloatList;
+import org.opensearch.protobufs.IntList;
+import org.opensearch.protobufs.LongList;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +58,15 @@ final class ExtraFieldValuesProtoUtils {
             case FLOAT_ARRAY_VALUE: {
                 return toInternalFloatArrayValue(protoVal.getFloatArrayValue());
             }
+            case DOUBLE_ARRAY_VALUE: {
+                return toInternalDoubleArrayValue(protoVal.getDoubleArrayValue());
+            }
+            case INT_ARRAY_VALUE: {
+                return toInternalIntArrayValue(protoVal.getIntArrayValue());
+            }
+            case LONG_ARRAY_VALUE: {
+                return toInternalLongArrayValue(protoVal.getLongArrayValue());
+            }
             case BINARYFIELDVALUE_NOT_SET:
             default:
                 throw new IllegalArgumentException("Unsupported/empty BinaryFieldValue: " + protoVal.getBinaryFieldValueCase());
@@ -78,6 +93,75 @@ final class ExtraFieldValuesProtoUtils {
             case ENCODING_NOT_SET:
             default:
                 throw new IllegalArgumentException("FloatArrayValue.repr is not set");
+        }
+    }
+
+    private static DoubleArrayValue toInternalDoubleArrayValue(org.opensearch.protobufs.DoubleArrayValue dav) {
+        switch (dav.getEncodingCase()) {
+            case BINARY_LE: {
+                final ByteString bs = dav.getBinaryLe().getBytesLe();
+                int dim = resolvePackedDimension(bs, dav.getBinaryLe().getDimension(), Double.BYTES, "double");
+                return DoubleArrayValue.fromPackedBytes(BulkRequestParserProtoUtils.byteStringToBytesReference(bs), dim);
+            }
+            case VALUES: {
+                final DoubleList dl = dav.getValues();
+                final int count = dl.getValuesCount();
+                final double[] arr = new double[count];
+                // Important: Avoid boxing, protobuf uses primitive double list internally
+                for (int i = 0; i < count; i++) {
+                    arr[i] = dl.getValues(i);
+                }
+                return DoubleArrayValue.fromDoubleArray(arr);
+            }
+            case ENCODING_NOT_SET:
+            default:
+                throw new IllegalArgumentException("DoubleArrayValue.repr is not set");
+        }
+    }
+
+    private static IntArrayValue toInternalIntArrayValue(org.opensearch.protobufs.IntArrayValue iav) {
+        switch (iav.getEncodingCase()) {
+            case BINARY_LE: {
+                final ByteString bs = iav.getBinaryLe().getBytesLe();
+                int dim = resolvePackedDimension(bs, iav.getBinaryLe().getDimension(), Integer.BYTES, "int");
+                return IntArrayValue.fromPackedBytes(BulkRequestParserProtoUtils.byteStringToBytesReference(bs), dim);
+            }
+            case VALUES: {
+                final IntList il = iav.getValues();
+                final int count = il.getValuesCount();
+                final int[] arr = new int[count];
+                // Important: Avoid boxing, protobuf uses primitive int list internally
+                for (int i = 0; i < count; i++) {
+                    arr[i] = il.getValues(i);
+                }
+                return IntArrayValue.fromIntArray(arr);
+            }
+            case ENCODING_NOT_SET:
+            default:
+                throw new IllegalArgumentException("IntArrayValue.repr is not set");
+        }
+    }
+
+    private static LongArrayValue toInternalLongArrayValue(org.opensearch.protobufs.LongArrayValue lav) {
+        switch (lav.getEncodingCase()) {
+            case BINARY_LE: {
+                final ByteString bs = lav.getBinaryLe().getBytesLe();
+                int dim = resolvePackedDimension(bs, lav.getBinaryLe().getDimension(), Long.BYTES, "long");
+                return LongArrayValue.fromPackedBytes(BulkRequestParserProtoUtils.byteStringToBytesReference(bs), dim);
+            }
+            case VALUES: {
+                final LongList ll = lav.getValues();
+                final int count = ll.getValuesCount();
+                final long[] arr = new long[count];
+                // Important: Avoid boxing, protobuf uses primitive long list internally
+                for (int i = 0; i < count; i++) {
+                    arr[i] = ll.getValues(i);
+                }
+                return LongArrayValue.fromLongArray(arr);
+            }
+            case ENCODING_NOT_SET:
+            default:
+                throw new IllegalArgumentException("LongArrayValue.repr is not set");
         }
     }
 
