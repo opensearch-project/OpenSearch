@@ -1,0 +1,41 @@
+---
+"Ensure update_aliases actions are done sequentially when operating on the same alias"
+setup:
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                alias: alias1
+
+---
+- do:
+    indices.update_aliases:
+      body:
+        actions:
+          - remove:
+              index: test_index
+              alias: alias1
+          - add:
+              index: test_index
+              alias: alias1
+
+- do:
+    indices.get_alias:
+      name: alias1
+  - match: { test_index.aliases.alias1: {} }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test_index
