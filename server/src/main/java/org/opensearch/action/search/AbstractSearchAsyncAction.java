@@ -77,6 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -102,7 +103,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<Result> results;
-    private final ClusterState clusterState;
+    private final Supplier<ClusterState> clusterStateSupplier;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final Map<String, Set<String>> indexRoutings;
@@ -141,7 +142,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
@@ -177,7 +178,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.task = task;
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
         this.nodeIdToConnection = nodeIdToConnection;
-        this.clusterState = clusterState;
+        this.clusterStateSupplier = clusterStateSupplier;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.indexRoutings = indexRoutings;
@@ -474,7 +475,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     currentPhase.getName(),
                     nextPhase.getName(),
                     resultsFrom,
-                    clusterState.version()
+                    clusterStateSupplier.get().version()
                 );
             }
             onPhaseEnd(searchRequestContext);
@@ -548,7 +549,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         setPhaseResourceUsages();
         onShardFailure(shardIndex, shard, e);
         SearchShardTarget nextShard = FailAwareWeightedRouting.getInstance()
-            .findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
+            .findNext(shardIt, clusterStateSupplier.get(), e, () -> totalOps.incrementAndGet());
 
         final boolean lastShard = nextShard == null;
         if (logger.isTraceEnabled()) {
@@ -777,7 +778,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+            final Version minNodeVersion = clusterStateSupplier.get().nodes().getMinNodeVersion();
             final String scrollId = request.scroll() != null
                 ? TransportSearchHelper.buildScrollId(queryResults, request.indices(), minNodeVersion)
                 : null;
