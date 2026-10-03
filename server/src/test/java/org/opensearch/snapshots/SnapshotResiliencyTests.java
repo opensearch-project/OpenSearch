@@ -2261,6 +2261,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 mappingUpdatedAction.setClient(client);
                 final IndicesService mockIndicesService = mock(IndicesService.class);
                 when(mockIndicesService.getSearchResponseStatusStats()).thenReturn(new SearchResponseStatusStats());
+                final IngestService ingestService = new IngestService(
+                    clusterService,
+                    threadPool,
+                    environment,
+                    scriptService,
+                    new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                    Collections.emptyList(),
+                    client,
+                    indicesService,
+                    namedXContentRegistry,
+                    new SystemIngestPipelineCache()
+                );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
                     settings,
                     transportService,
@@ -2282,7 +2294,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     mock(RemoteStorePressureService.class),
                     new SystemIndices(emptyMap()),
-                    NoopTracer.INSTANCE
+                    NoopTracer.INSTANCE,
+                    ingestService
                 );
                 actions.put(
                     BulkAction.INSTANCE,
@@ -2290,18 +2303,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         transportService,
                         clusterService,
-                        new IngestService(
-                            clusterService,
-                            threadPool,
-                            environment,
-                            scriptService,
-                            new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
-                            Collections.emptyList(),
-                            client,
-                            indicesService,
-                            namedXContentRegistry,
-                            new SystemIngestPipelineCache()
-                        ),
+                        ingestService,
                         transportShardBulkAction,
                         client,
                         actionFilters,
