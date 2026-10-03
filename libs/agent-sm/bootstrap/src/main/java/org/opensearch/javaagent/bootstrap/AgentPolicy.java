@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 @SuppressWarnings("removal")
 public class AgentPolicy {
     private static volatile Policy policy;
+    private static final AtomicBoolean ENFORCEMENT_ENABLED = new AtomicBoolean(true);
     private static volatile Set<String> trustedHosts;
     private static volatile Set<String> trustedFileSystems;
     private static volatile BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit;
@@ -119,6 +121,25 @@ public class AgentPolicy {
     private AgentPolicy() {}
 
     /**
+     * Capability for changing whether the installed agent policy is enforced.
+     *
+     * The constructor is private so only code that installs the policy can obtain
+     * an instance. Callers must not expose the returned capability to plugins.
+     */
+    public static final class EnforcementController {
+        private EnforcementController() {}
+
+        /**
+         * Enables or disables enforcement without removing the agent instrumentation.
+         * @param enabled whether policy checks should be enforced
+         * @return {@code true} if the effective state changed
+         */
+        public boolean setEnforcementEnabled(boolean enabled) {
+            return ENFORCEMENT_ENABLED.getAndSet(enabled) != enabled;
+        }
+    }
+
+    /**
      * Set Agent policy
      * @param policy policy
      */
@@ -139,14 +160,41 @@ public class AgentPolicy {
         final Set<String> trustedFileSystems,
         final BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit
     ) {
+        initializePolicy(policy, trustedHosts, trustedFileSystems, classesThatCanExit);
+    }
+
+    /**
+     * Set Agent policy and return the capability used to control its enforcement.
+     * @param policy policy
+     * @param trustedHosts trusted hosts
+     * @param trustedFileSystems trusted file systems
+     * @param classesThatCanExit classes that are allowed to call {@link System#exit}, {@link Runtime#halt}
+     * @return capability for changing the enforcement state
+     */
+    public static EnforcementController initializePolicy(
+        Policy policy,
+        final Set<String> trustedHosts,
+        final Set<String> trustedFileSystems,
+        final BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit
+    ) {
         if (AgentPolicy.policy == null) {
             AgentPolicy.policy = policy;
             AgentPolicy.trustedHosts = Collections.unmodifiableSet(trustedHosts);
             AgentPolicy.trustedFileSystems = Collections.unmodifiableSet(trustedFileSystems);
             AgentPolicy.classesThatCanExit = classesThatCanExit;
+            ENFORCEMENT_ENABLED.set(true);
+            return new EnforcementController();
         } else {
             throw new SecurityException("The Policy has been set already: " + AgentPolicy.policy);
         }
+    }
+
+    /**
+     * Check whether the installed policy should be enforced.
+     * @return {@code true} when agent policy checks are enabled
+     */
+    public static boolean isEnforcementEnabled() {
+        return ENFORCEMENT_ENABLED.get();
     }
 
     /**
