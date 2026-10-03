@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -140,14 +139,33 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        final int valuesCount = values.docValueCount();
+                        double previousKey = Double.NEGATIVE_INFINITY;
+                        for (int j = 0; j < valuesCount; ++j) {
+                            double value = values.nextValue();
+                            double key = Math.floor((value - offset) / interval);
+                            assert key >= previousKey;
+                            if (key == previousKey) {
+                                continue;
+                            }
+                            if (hardBounds == null || hardBounds.contain(key * interval)) {
+                                long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
+                                if (bucketOrd < 0) {
+                                    bucketOrd = -1 - bucketOrd;
+                                    collectExistingBucket(sub, docs[i], bucketOrd);
+                                } else {
+                                    collectBucket(sub, docs[i], bucketOrd);
+                                }
+                            }
+                            previousKey = key;
+                        }
+                    }
+                }
             }
 
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
-            }
         };
     }
 }

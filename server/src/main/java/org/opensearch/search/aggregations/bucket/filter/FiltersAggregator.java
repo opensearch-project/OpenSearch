@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.Lucene;
@@ -194,14 +193,21 @@ public class FiltersAggregator extends BucketsAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long bucket) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    boolean matched = false;
+                    for (int j = 0; j < bits.length; j++) {
+                        if (bits[j].get(docs[i])) {
+                            collectBucket(sub, docs[i], bucketOrd(bucket, j));
+                            matched = true;
+                        }
+                    }
+                    if (showOtherBucket && matched == false) {
+                        collectBucket(sub, docs[i], bucketOrd(bucket, bits.length));
+                    }
+                }
             }
 
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
-            }
         };
     }
 
