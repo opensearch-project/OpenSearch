@@ -8,7 +8,6 @@
 
 package org.opensearch.search.startree.filter;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
@@ -25,7 +24,6 @@ import java.util.TreeSet;
 /**
  * Handles Term and Terms query like search in StarTree Dimension filtering.
  */
-@ExperimentalApi
 public class ExactMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
