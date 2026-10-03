@@ -189,6 +189,34 @@ public class SearchHitProtoUtils {
     }
 
     /**
+     * Maps OpenSearch MediaType to protobuf SourceContentType enum.
+     *
+     * @param mediaType The MediaType to map
+     * @return The corresponding SourceContentType enum value
+     */
+    private static org.opensearch.protobufs.SourceContentType mapMediaTypeToProtoEnum(
+        org.opensearch.core.xcontent.MediaType mediaType
+    ) {
+        String format = mediaType.format();
+        if (format == null) {
+            return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_UNSPECIFIED;
+        }
+
+        switch (format.toLowerCase()) {
+            case "json":
+                return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_JSON;
+            case "smile":
+                return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_SMILE;
+            case "cbor":
+                return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_CBOR;
+            case "yaml":
+                return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_YAML;
+            default:
+                return org.opensearch.protobufs.SourceContentType.SOURCE_CONTENT_TYPE_UNSPECIFIED;
+        }
+    }
+
+    /**
      * Helper method to process source information.
      *
      * @param hit The SearchHit to process
@@ -207,6 +235,13 @@ public class SearchHitProtoUtils {
                 }
             } else {
                 hitBuilder.setXSource(ByteString.copyFrom(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+            }
+
+            // Detect and set the source content type
+            org.opensearch.core.xcontent.MediaType mediaType = org.opensearch.core.xcontent.MediaTypeRegistry.xContentType(sourceRef);
+            if (mediaType != null) {
+                org.opensearch.protobufs.SourceContentType sourceContentType = mapMediaTypeToProtoEnum(mediaType);
+                hitBuilder.setXSourceContentType(sourceContentType);
             }
         }
     }
