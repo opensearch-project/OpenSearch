@@ -77,12 +77,15 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
         mergeRequest.primaryOnly(request.paramAsBoolean("primary_only", mergeRequest.primaryOnly()));
+        mergeRequest.upgrade(request.paramAsBoolean("upgrade", mergeRequest.upgrade()));
         if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             deprecationLogger.deprecate(
                 "force_merge_expunge_deletes_and_max_num_segments_deprecation",
                 "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
             );
         }
+        // The upgrade + only_expunge_deletes conflict is validated centrally in
+        // ForceMergeRequest#validate(), so it is enforced for transport/plugin callers too.
         if (request.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
         } else {
