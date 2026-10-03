@@ -612,7 +612,15 @@ public class IndexNameExpressionResolver {
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false, true, isSystemIndexAccessAllowed());
+        return resolveExpressions(state, IndicesOptions.lenientExpandOpen(), expressions);
+    }
+
+    /**
+     * Resolve an array of expressions to the set of indices and aliases that these expressions match, using the supplied options.
+     * @param options the indices options controlling wildcard expansion (e.g. whether hidden indices/aliases are included)
+     */
+    public Set<String> resolveExpressions(ClusterState state, IndicesOptions options, String... expressions) {
+        Context context = new Context(state, options, true, false, true, isSystemIndexAccessAllowed());
         List<String> resolvedExpressions = Arrays.asList(expressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);

@@ -31,6 +31,15 @@ public class SearchResponseBuilder {
     private SearchResponseBuilder() {}
 
     /**
+     * Builds an empty successful response — zero hits, no aggregations — for a request that
+     * legitimately resolved to no concrete indices (e.g. {@code allow_no_indices=true} matching
+     * nothing), mirroring vanilla {@code _search}, which answers 200 empty rather than erroring.
+     */
+    public static SearchResponse empty(SearchRequest request, long tookInMillis) throws ConversionException {
+        return build(List.of(), request, null, tookInMillis);
+    }
+
+    /**
      * Builds a SearchResponse from execution results.
      *
      * @param results execution results from the query executor

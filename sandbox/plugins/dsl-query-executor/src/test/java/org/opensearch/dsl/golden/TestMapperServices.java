@@ -8,23 +8,18 @@
 
 package org.opensearch.dsl.golden;
 
+import org.opensearch.dsl.aggregation.FieldTypeLookup;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
-
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
- * Builds a stubbed {@link MapperService} from a golden file's {@code indexMapping}
+ * Builds a stubbed {@link FieldTypeLookup} from a golden file's {@code indexMapping}
  * (field name → SQL type name), mirroring how {@link CalciteTestInfra} builds the schema
  * from the same map. Terms rendering resolves key types and formats through it exactly
  * as production resolves them through the real index mapping.
@@ -34,20 +29,17 @@ public final class TestMapperServices {
     private TestMapperServices() {}
 
     /**
-     * Creates a MapperService supplier whose {@code fieldType(name)} resolves each mapped
-     * field to the {@link MappedFieldType} matching its golden SQL type; unmapped names
-     * resolve to null.
+     * Creates a field-type lookup whose {@code fieldType(name)} resolves each mapped field to the
+     * {@link MappedFieldType} matching its golden SQL type; unmapped names resolve to null.
      *
      * @param indexMapping field name → SQL type name, as in golden files
      */
-    public static Supplier<MapperService> fromSqlMapping(Map<String, String> indexMapping) {
+    public static FieldTypeLookup fromSqlMapping(Map<String, String> indexMapping) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
         for (Map.Entry<String, String> entry : indexMapping.entrySet()) {
             fieldTypes.put(entry.getKey(), toFieldType(entry.getKey(), entry.getValue()));
         }
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(anyString())).thenAnswer(invocation -> fieldTypes.get(invocation.<String>getArgument(0)));
-        return () -> mapperService;
+        return fieldTypes::get;
     }
 
     private static MappedFieldType toFieldType(String name, String sqlType) {
