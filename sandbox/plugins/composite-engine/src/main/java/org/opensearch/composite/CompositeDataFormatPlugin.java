@@ -505,7 +505,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * each participating format is resolved through the registry, which delegates to the
      * sub-plugin without re-entering this composite.
      *
-     * @throws IllegalArgumentException if two participating formats contribute a parameter with the same name
+     * <p>A {@link ParametrizedFieldMapper.SharedParameter} contributed by several formats (for example
+     * {@code codec}) is merged into a single parameter validated by all of them, so every participating format
+     * can honour the same mapping value.
+     *
+     * @throws IllegalArgumentException if two participating formats contribute a non-shared parameter with the same name
      */
     @Override
     public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
@@ -518,13 +522,12 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
         List<ParametrizedFieldMapper.Parameter<?>> result = new ArrayList<>();
-        Set<String> seenNames = new HashSet<>();
         if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
-            collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, primaryFormatName);
+            collectParameters(result, dataFormatRegistry, contentType, indexSettings, primaryFormatName);
         }
         for (String secondaryName : secondaryFormatNames) {
             if (secondaryName != null && secondaryName.isEmpty() == false) {
-                collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, secondaryName);
+                collectParameters(result, dataFormatRegistry, contentType, indexSettings, secondaryName);
             }
         }
         return List.copyOf(result);
@@ -532,7 +535,6 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
     private static void collectParameters(
         List<ParametrizedFieldMapper.Parameter<?>> result,
-        Set<String> seenNames,
         DataFormatRegistry dataFormatRegistry,
         String contentType,
         IndexSettings indexSettings,
@@ -543,12 +545,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             indexSettings,
             dataFormatRegistry.format(formatName)
         )) {
-            if (seenNames.add(param.name) == false) {
+            if (ParametrizedFieldMapper.SharedParameter.mergeInto(result, param) == false) {
                 throw new IllegalArgumentException(
                     "Duplicate plugin mapping parameter [" + param.name + "] for content type [" + contentType + "]"
                 );
             }
-            result.add(param);
         }
     }
 
