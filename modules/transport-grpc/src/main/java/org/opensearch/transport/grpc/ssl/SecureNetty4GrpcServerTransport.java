@@ -27,12 +27,12 @@ import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
-import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
-import io.grpc.netty.shaded.io.netty.handler.ssl.JdkSslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SupportedCipherSuiteFilter;
+import io.grpc.netty.NettyServerBuilder;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.netty.handler.ssl.ApplicationProtocolNames;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.JdkSslContext;
+import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 
 /**
  * Netty4GrpcServerTransport with TLS enabled.

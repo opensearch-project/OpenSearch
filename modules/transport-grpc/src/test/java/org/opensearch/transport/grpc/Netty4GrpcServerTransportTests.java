@@ -28,7 +28,7 @@ import java.util.concurrent.ExecutorService;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
-import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
+import io.netty.channel.EventLoopGroup;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.not;
