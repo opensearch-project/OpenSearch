@@ -162,6 +162,150 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         assertEquals(150L, (long) statsMap.get("avg_initialize"));
     }
 
+    public void testMergeDebugInfoSumsNumericValuesAcrossSlices() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 3L), 100L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 2L), 100L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 4L), 100L, List.of())
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(9L, mergedDebug.get("total_buckets"));
+    }
+
+    public void testMergeDebugInfoIsDeterministicRegardlessOfSliceOrder() {
+        Map<String, Object> sliceADebug = Map.of("segments_with_single_valued_ords", 2, "segments_with_multi_valued_ords", 1);
+        Map<String, Object> sliceBDebug = Map.of("segments_with_single_valued_ords", 1, "segments_with_multi_valued_ords", 3);
+
+        List<ProfileResult> forwardOrder = List.of(
+            new ProfileResult("GlobalOrdinalsStringTermsAggregator", "str_terms", new LinkedHashMap<>(), sliceADebug, 100L, List.of()),
+            new ProfileResult("GlobalOrdinalsStringTermsAggregator", "str_terms", new LinkedHashMap<>(), sliceBDebug, 100L, List.of())
+        );
+        List<ProfileResult> reverseOrder = List.of(
+            new ProfileResult("GlobalOrdinalsStringTermsAggregator", "str_terms", new LinkedHashMap<>(), sliceBDebug, 100L, List.of()),
+            new ProfileResult("GlobalOrdinalsStringTermsAggregator", "str_terms", new LinkedHashMap<>(), sliceADebug, 100L, List.of())
+        );
+
+        Map<String, Object> mergedForward = ConcurrentAggregationProfiler.mergeDebugInfo(forwardOrder);
+        Map<String, Object> mergedReverse = ConcurrentAggregationProfiler.mergeDebugInfo(reverseOrder);
+
+        assertEquals(3, mergedForward.get("segments_with_single_valued_ords"));
+        assertEquals(4, mergedForward.get("segments_with_multi_valued_ords"));
+        assertEquals(mergedForward, mergedReverse);
+    }
+
+    public void testMergeDebugInfoPreservesIntegerTypeWhenSummingAcrossSlices() {
+        // AggregationProfilerIT unboxes segments_with_single/multi_valued_ords with a narrowing
+        // (int) cast, so summing two Integer-valued slices must stay Integer, not get promoted
+        // to Long the way a mixed-type or single-Long-source sum would.
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 2),
+                100L,
+                List.of()
+            ),
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 3),
+                100L,
+                List.of()
+            )
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(5, mergedDebug.get("segments_with_single_valued_ords"));
+        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Integer);
+    }
+
+    public void testMergeDebugInfoPreservesOriginalTypeForSingleSlice() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("segments_with_single_valued_ords", 2),
+                100L,
+                List.of()
+            )
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(2, mergedDebug.get("segments_with_single_valued_ords"));
+        assertTrue(mergedDebug.get("segments_with_single_valued_ords") instanceof Integer);
+    }
+
+    public void testMergeDebugInfoSumsMixedIntegerAndLongAsLong() {
+        // A key reported as Integer by one slice and Long by another shouldn't happen in
+        // practice (each debug key is always populated with the same type by a given
+        // aggregator), but the merge must still be safe: fall through to the wider Number
+        // path rather than only handling the Integer+Integer case.
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 2), 100L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "n_terms", new LinkedHashMap<>(), Map.of("total_buckets", 3L), 100L, List.of())
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals(5L, mergedDebug.get("total_buckets"));
+        assertTrue(mergedDebug.get("total_buckets") instanceof Long);
+    }
+
+    public void testMergeDebugInfoAssertsOnMismatchedNonNumericValues() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "dense"),
+                100L,
+                List.of()
+            ),
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "remap"),
+                100L,
+                List.of()
+            )
+        );
+        expectThrows(AssertionError.class, () -> ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices));
+    }
+
+    public void testMergeDebugInfoKeepsStaticNonNumericValues() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "dense", "has_filter", false, "deferred_aggregators", List.of("max_number")),
+                100L,
+                List.of()
+            ),
+            new ProfileResult(
+                "GlobalOrdinalsStringTermsAggregator",
+                "str_terms",
+                new LinkedHashMap<>(),
+                Map.of("collection_strategy", "dense", "has_filter", false, "deferred_aggregators", List.of("max_number")),
+                100L,
+                List.of()
+            )
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertEquals("dense", mergedDebug.get("collection_strategy"));
+        assertEquals(false, mergedDebug.get("has_filter"));
+        assertEquals(List.of("max_number"), mergedDebug.get("deferred_aggregators"));
+    }
+
+    public void testMergeDebugInfoHandlesEmptyDebugMaps() {
+        List<ProfileResult> profileResultsAcrossSlices = List.of(
+            new ProfileResult("GlobalAggregator", "test_global_agg", new LinkedHashMap<>(), Map.of(), 100L, List.of()),
+            new ProfileResult("GlobalAggregator", "test_global_agg", new LinkedHashMap<>(), Map.of(), 100L, List.of())
+        );
+        Map<String, Object> mergedDebug = ConcurrentAggregationProfiler.mergeDebugInfo(profileResultsAcrossSlices);
+        assertTrue(mergedDebug.isEmpty());
+    }
+
     public void testGetSliceLevelAggregationMap() {
         List<ProfileResult> tree = createConcurrentSearchProfileTree();
         Map<String, List<ProfileResult>> aggregationMap = ConcurrentAggregationProfiler.getSliceLevelAggregationMap(tree);
