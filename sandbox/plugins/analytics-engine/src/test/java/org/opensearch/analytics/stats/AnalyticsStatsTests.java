@@ -34,7 +34,8 @@ public class AnalyticsStatsTests extends OpenSearchTestCase {
     public void testQueriesRoundTrip() throws IOException {
         AnalyticsStats.Queries original = new AnalyticsStats.Queries(
             new AnalyticsStats.LatencyStats(50, 5000),
-            new AnalyticsStats.LatencyStats(50, 1500)
+            new AnalyticsStats.LatencyStats(50, 1500),
+            3
         );
         AnalyticsStats.Queries copy = roundTrip(original, AnalyticsStats.Queries::new);
         assertEquals(original, copy);
@@ -58,7 +59,7 @@ public class AnalyticsStatsTests extends OpenSearchTestCase {
         stages.put("COORDINATOR_REDUCE", new AnalyticsStats.StageBucket(5, 5, 0, 0, 0, new AnalyticsStats.LatencyStats(5, 50)));
 
         AnalyticsStats original = new AnalyticsStats(
-            new AnalyticsStats.Queries(new AnalyticsStats.LatencyStats(25, 600), new AnalyticsStats.LatencyStats(25, 100)),
+            new AnalyticsStats.Queries(new AnalyticsStats.LatencyStats(25, 600), new AnalyticsStats.LatencyStats(25, 100), 2),
             stages,
             new AnalyticsStats.Fragments(40, 38, 2, new AnalyticsStats.LatencyStats(40, 750))
         );
@@ -71,7 +72,7 @@ public class AnalyticsStatsTests extends OpenSearchTestCase {
 
     public void testEmptyAnalyticsStatsRoundTrip() throws IOException {
         AnalyticsStats original = new AnalyticsStats(
-            new AnalyticsStats.Queries(AnalyticsStats.LatencyStats.EMPTY, AnalyticsStats.LatencyStats.EMPTY),
+            new AnalyticsStats.Queries(AnalyticsStats.LatencyStats.EMPTY, AnalyticsStats.LatencyStats.EMPTY, 0),
             new TreeMap<>(),
             new AnalyticsStats.Fragments(0, 0, 0, AnalyticsStats.LatencyStats.EMPTY)
         );
