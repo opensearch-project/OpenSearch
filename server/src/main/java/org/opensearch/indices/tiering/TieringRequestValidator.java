@@ -25,6 +25,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -171,7 +172,7 @@ public class TieringRequestValidator {
         final String indexNames
     ) {
         final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
-        if (usages == null) {
+        if (usages == null || usages.isEmpty()) {
             logger.trace("skipping monitor as no disk usage information is available");
             return;
         }
@@ -200,30 +201,32 @@ public class TieringRequestValidator {
         final ClusterState currentState,
         final TieringValidationResult tieringValidationResult
     ) {
+        final Map<String, DiskUsage> nodeLeastAvailableDiskUsages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        if (nodeLeastAvailableDiskUsages == null || nodeLeastAvailableDiskUsages.isEmpty()) {
+            logger.trace("skipping capacity validation as no disk usage information is available");
+            return;
+        }
 
         final Set<String> eligibleNodeIds = getEligibleNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-        long totalAvailableBytesInWarmTier = getTotalAvailableBytesInWarmTier(
-            clusterInfo.getNodeLeastAvailableDiskUsages(),
-            eligibleNodeIds
-        );
+        long totalAvailableBytesInWarmTier = getTotalAvailableBytesInWarmTier(nodeLeastAvailableDiskUsages, eligibleNodeIds);
 
         Map<Index, Long> indexSizes = new HashMap<>();
         for (Index index : tieringValidationResult.getAcceptedIndices()) {
             indexSizes.put(index, getIndexPrimaryStoreSize(currentState, clusterInfo, index.getName()));
         }
 
-        if (indexSizes.values().stream().mapToLong(Long::longValue).sum() < totalAvailableBytesInWarmTier) {
+        if (indexSizes.values().stream().mapToLong(Long::longValue).sum() <= totalAvailableBytesInWarmTier) {
             return;
         }
-        HashMap<Index, Long> sortedIndexSizes = indexSizes.entrySet()
+        LinkedHashMap<Index, Long> sortedIndexSizes = indexSizes.entrySet()
             .stream()
             .sorted(Map.Entry.comparingByValue())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, HashMap::new));
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
 
         long requestIndexBytes = 0L;
         for (Index index : sortedIndexSizes.keySet()) {
             requestIndexBytes += sortedIndexSizes.get(index);
-            if (requestIndexBytes >= totalAvailableBytesInWarmTier) {
+            if (requestIndexBytes > totalAvailableBytesInWarmTier) {
                 tieringValidationResult.addToRejected(index, "insufficient node capacity");
             }
         }
@@ -259,7 +262,10 @@ public class TieringRequestValidator {
     static long getTotalAvailableBytesInWarmTier(final Map<String, DiskUsage> usages, final Set<String> nodeIds) {
         long totalAvailableBytes = 0;
         for (String node : nodeIds) {
-            totalAvailableBytes += usages.get(node).getFreeBytes();
+            final DiskUsage nodeUsage = usages.get(node);
+            if (nodeUsage != null) {
+                totalAvailableBytes += nodeUsage.getFreeBytes();
+            }
         }
         return totalAvailableBytes;
     }
