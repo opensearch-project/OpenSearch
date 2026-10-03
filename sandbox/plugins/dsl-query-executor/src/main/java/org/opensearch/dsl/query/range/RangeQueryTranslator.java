@@ -18,7 +18,6 @@ import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.query.QueryTranslator;
 import org.opensearch.dsl.query.TranslatorMapperRegistry;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 
@@ -98,13 +97,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         RangeQueryBuilder rangeQuery = (RangeQueryBuilder) query;
         String fieldName = rangeQuery.fieldName();
 
-        if (rangeQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("Range query 'boost' parameter is not supported");
-        }
-
-        if (rangeQuery.queryName() != null) {
-            throw new ConversionException("Range query '_name' parameter is not supported");
-        }
+        rejectScoringParams(rangeQuery, "Range");
 
         // Relation check: per legacy SimpleMappedFieldType.rangeQuery() and DateFieldType.rangeQuery(),
         // DISJOINT is rejected; INTERSECTS/CONTAINS/WITHIN are silently ignored (scalar fields produce

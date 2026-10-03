@@ -10,6 +10,7 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.converter.ConversionContext;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -29,7 +30,8 @@ public class MatchAllQueryTranslator implements QueryTranslator {
     }
 
     @Override
-    public RexNode convert(QueryBuilder query, ConversionContext ctx) {
+    public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
+        rejectScoringParams(query, "Match all");
         return ctx.getRexBuilder().makeLiteral(true);
     }
 }
