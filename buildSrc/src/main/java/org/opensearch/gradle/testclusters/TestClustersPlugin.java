@@ -36,8 +36,10 @@ import org.opensearch.gradle.JdkDownloadPlugin;
 import org.opensearch.gradle.ReaperPlugin;
 import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.FipsBuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.opensearch.gradle.test.FipsPlugin;
 import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -111,6 +113,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // register cluster hooks
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+
+        // apply FIPS plugin for FIPS 140-3 compliance support
+        if (FipsBuildParams.isInFipsMode()) {
+            project.getPluginManager().apply(FipsPlugin.class);
+        }
     }
 
     private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(Project project, ReaperService reaper) {
