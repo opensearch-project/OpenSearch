@@ -32,8 +32,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -42,6 +40,8 @@ import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
+
+import picocli.CommandLine.Option;
 
 /**
  * Base settings class for key store commands.
@@ -58,14 +58,15 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
      * Option to force operations without prompting for confirmation.
      * When specified, operations proceed without asking for user input.
      */
-    protected OptionSpec<Void> forceOption;
+    @Option(names = { "-f", "--force" }, description = "Force operation without prompting for confirmation")
+    protected boolean force;
 
     /**
      * Creates a new BaseKeyStoreCommand with the specified description and existence requirement.
      *
-     * @param description The description of the command
+     * @param description       The description of the command
      * @param keyStoreMustExist If true, the keystore must exist before executing the command.
-     *                         If false, a new keystore may be created if none exists.
+     *                          If false, a new keystore may be created if none exists.
      */
     public BaseKeyStoreCommand(String description, boolean keyStoreMustExist) {
         super(description);
@@ -75,19 +76,18 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
     /**
      * Executes the keystore command by loading/creating the keystore and handling password management.
      * If the keystore doesn't exist and keyStoreMustExist is false, prompts to create a new one
-     * unless the force option is specified.
+     * unless the {@code --force} option is specified.
      *
      * @param terminal The terminal to use for user interaction
-     * @param options The command-line options provided
-     * @param env The environment settings
-     * @throws Exception if there are errors during keystore operations
+     * @param env      The environment settings
+     * @throws Exception    if there are errors during keystore operations
      * @throws UserException if the keystore is required but doesn't exist
      */
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, Environment env) throws Exception {
         try {
-            final Path configFile = env.configDir();
-            keyStore = KeyStoreWrapper.load(configFile);
+            final Path configDir = env.configDir();
+            keyStore = KeyStoreWrapper.load(configDir);
             if (keyStore == null) {
                 if (keyStoreMustExist) {
                     throw new UserException(
@@ -96,7 +96,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                             + KeyStoreWrapper.keystorePath(env.configDir())
                             + "]. Use 'create' command to create one."
                     );
-                } else if (options.has(forceOption) == false) {
+                } else if (force == false) {
                     if (terminal.promptYesNo("The opensearch keystore does not exist. Do you want to create it?", false) == false) {
                         terminal.println("Exiting without creating keystore.");
                         return;
@@ -104,12 +104,12 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                 }
                 keyStorePassword = new SecureString(new char[0]);
                 keyStore = KeyStoreWrapper.create();
-                keyStore.save(configFile, keyStorePassword.getChars());
+                keyStore.save(configDir, keyStorePassword.getChars());
             } else {
                 keyStorePassword = keyStore.hasPassword() ? readPassword(terminal, false) : new SecureString(new char[0]);
                 keyStore.decrypt(keyStorePassword.getChars());
             }
-            executeCommand(terminal, options, env);
+            executeCommand(terminal, env);
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {
@@ -144,9 +144,8 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
      * {@link #getKeyStore()} and {@link #getKeyStorePassword()} respectively.
      *
      * @param terminal The terminal to use for user interaction
-     * @param options The command line options that were specified
-     * @param env The environment configuration
+     * @param env      The environment configuration
      * @throws Exception if there is an error executing the command
      */
-    protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    protected abstract void executeCommand(Terminal terminal, Environment env) throws Exception;
 }

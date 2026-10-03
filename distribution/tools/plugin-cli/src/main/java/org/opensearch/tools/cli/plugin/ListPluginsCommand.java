@@ -32,7 +32,6 @@
 
 package org.opensearch.tools.cli.plugin;
 
-import joptsimple.OptionSet;
 import org.opensearch.Version;
 import org.opensearch.cli.Terminal;
 import org.opensearch.common.cli.EnvironmentAwareCommand;
@@ -48,9 +47,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import picocli.CommandLine.Command;
+
 /**
- * A command for the plugin cli to list plugins installed in opensearch.
+ * A command for the plugin cli to list plugins installed in OpenSearch.
  */
+@Command(name = "list", description = "Lists installed OpenSearch plugins", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class ListPluginsCommand extends EnvironmentAwareCommand {
 
     ListPluginsCommand() {
@@ -58,7 +60,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, Environment env) throws Exception {
         if (Files.exists(env.pluginsDir()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsDir());
         }
@@ -77,6 +79,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
     }
 
     private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
+        // Note: preserved existing semantics (resolving against pluginsDir)
         PluginInfo info = PluginInfo.readFromProperties(env.pluginsDir().resolve(plugin));
         terminal.println(Terminal.Verbosity.SILENT, prefix + info.getName());
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
