@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.secure_sm.policy.Policy;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -19,14 +20,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.PermissionCollection;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.UUID;
 
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-@SuppressWarnings("removal")
 public class FileInterceptorNegativeIntegTests {
     private static Path getTestDir() {
         Path baseDir = Path.of(System.getProperty("user.dir"));
