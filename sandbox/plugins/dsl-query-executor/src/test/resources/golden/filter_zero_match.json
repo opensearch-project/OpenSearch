@@ -1,0 +1,61 @@
+{
+  "testName": "filter_zero_match",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "impossible": {
+        "filter": {
+          "term": {
+            "status": "nonexistent_value"
+          }
+        },
+        "aggregations": {
+          "avg_price": {
+            "avg": {
+              "field": "price"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], avg_price=[AVG($1)], _count=[COUNT()])",
+    "  LogicalFilter(condition=[=($3, CAST('nonexistent_value':VARCHAR):VARCHAR)])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["avg_price", "_count"],
+  "mockResultRows": [
+    [null, 0]
+  ],
+  "mockCountRow": {
+    "_total": 5
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 5,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "impossible": {
+        "doc_count": 0,
+        "avg_price": {
+          "value": null
+        }
+      }
+    }
+  }
+}

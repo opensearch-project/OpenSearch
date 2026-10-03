@@ -39,7 +39,9 @@ import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
+import org.opensearch.dsl.query.UnresolvedQueryCall;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
@@ -181,6 +183,9 @@ public class SearchSourceConverter {
                 aggCtx = aggCtx.withParentPlan(parentPlan);
             }
             RelNode aggInput = preAggConverter.convert(base, aggCtx);
+            // Apply own filter + ancestor filter predicates (delegates to the single canonical
+            // implementation that handles conversion, validation, and LogicalFilter wrapping).
+            aggInput = applyAggregationFilters(aggInput, metadata, aggCtx);
             RelNode aggs = aggConverter.convert(aggInput, metadata);
             aggs = postAggConverter.convert(aggs, aggCtx);
             builtPlansByPath.put(aggPathKey(metadata.getAggNamePath()), aggs);
@@ -196,7 +201,7 @@ public class SearchSourceConverter {
             if (metadata.getFetch() == null) {
                 continue;
             }
-            String aggName = metadata.getAggNamePath().get(0); // fetch implies a root-level, single-field plan
+            String aggName = metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1); // the defining aggregation's own name
             if (metadata.getHavingMinDocCount() != null) {
                 // min_doc_count > 1: the eligible count must exclude below-threshold groups
                 // (classic reduce drops them without counting them as "other"), which no flat
@@ -209,6 +214,16 @@ public class SearchSourceConverter {
             } else if (metadata.eligibleDocCountIsTotal()) {
                 // missing substitution makes every matching doc eligible — COUNT(*) serves
                 totalServesAsEligibleCount = true;
+            } else if (hasAncestorOrOwnFilter(metadata)) {
+                // The eligible-doc count must be scoped to the same filtered document set as
+                // the aggregation plan itself: a filter parent narrows both what the child
+                // aggregates AND how many documents are "eligible" for sum_other_doc_count.
+                // Without this, eligibleDocCount would be the unfiltered COUNT(field) from the
+                // flat count plan — yielding sum_other_doc_count = corpusCount - returned,
+                // which exceeds the parent's doc_count.
+                builder.add(
+                    new QueryPlans.QueryPlan(QueryPlans.Type.COUNT, buildFilteredEligibleCountPlan(searchSource, table, metadata, aggName))
+                );
             } else {
                 String fieldName = metadata.getGroupByFieldNames().get(0);
                 RelDataTypeField field = base.getRowType().getField(fieldName, false, false);
@@ -307,6 +322,122 @@ public class SearchSourceConverter {
             );
         }
         return LogicalAggregate.create(base, ImmutableBitSet.of(), null, calls);
+    }
+
+    /**
+     * Returns true when the metadata carries any filter predicates — either its own defining
+     * filter query or inherited ancestor filters. When true, the eligible-doc count plan must
+     * be built individually with those predicates applied, rather than sharing the flat
+     * unfiltered COUNT plan. The defining aggregation's own filter is no longer stored among
+     * the ancestor filters, so no name-based self-deduplication is needed here.
+     */
+    private boolean hasAncestorOrOwnFilter(AggregationMetadata metadata) {
+        return metadata.getFilterQuery().isPresent() || !metadata.getAncestorFilters().isEmpty();
+    }
+
+    /**
+     * Builds an individual eligible-doc count plan for a bounded aggregation whose document set
+     * is narrowed by filter predicates (its own filter query and/or ancestor filters). The plan
+     * applies the same predicate set as the aggregation plan:
+     *
+     * <pre>
+     * Aggregate(COUNT(field) AS _eligible$&lt;aggName&gt;)   // COUNT(*) when a `missing` value applies
+     *   [LogicalFilter(ancestorFilter2)]
+     *   [LogicalFilter(ancestorFilter1)]
+     *   [LogicalFilter(ownFilterQuery)]
+     *     Scan → query filter
+     * </pre>
+     *
+     * <p>This ensures {@code sum_other_doc_count = eligibleDocCount - returnedDocCount} is
+     * scoped to the filtered document set, not the full corpus.
+     */
+    private RelNode buildFilteredEligibleCountPlan(
+        SearchSourceBuilder searchSource,
+        RelOptTable table,
+        AggregationMetadata metadata,
+        String aggName
+    ) throws ConversionException {
+        ConversionContext ctx = new ConversionContext(searchSource, newCluster(), table);
+        RelNode countInput = buildBase(ctx);
+
+        // Apply the same filter predicates the aggregation plan applies — reusing the existing
+        // conversion path (QUERY_REGISTRY.convert + LogicalFilter.create) to stay consistent.
+        countInput = applyAggregationFilters(countInput, metadata, ctx);
+
+        String fieldName = metadata.getGroupByFieldNames().get(0);
+        List<Integer> countArgs;
+        if (metadata.getMissingValues().containsKey(fieldName)) {
+            // A `missing` value substitutes null-field docs into a bucket, making them eligible;
+            // SQL COUNT(field) excludes nulls, so count ALL filtered docs with COUNT(*) instead.
+            countArgs = List.of();
+        } else {
+            RelDataTypeField field = countInput.getRowType().getField(fieldName, false, false);
+            if (field == null) {
+                throw new ConversionException("Group-by field '" + fieldName + "' not found in schema");
+            }
+            countArgs = List.of(field.getIndex());
+        }
+
+        RelDataType bigint = ctx.getCluster().getTypeFactory().createSqlType(SqlTypeName.BIGINT);
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            false,
+            false,
+            countArgs,
+            -1,
+            RelCollations.EMPTY,
+            bigint,
+            QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + aggName
+        );
+        return LogicalAggregate.create(countInput, ImmutableBitSet.of(), null, List.of(countCall));
+    }
+
+    /**
+     * Applies the aggregation's own filter query and accumulated ancestor filter predicates to
+     * the given input node. Reuses the same conversion and injection logic as the aggregation
+     * plan loop so that predicate translation stays consistent in one place.
+     *
+     * <p>Skips predicates that convert to literal TRUE (match_all) since they have no effect.
+     * The defining aggregation's own filter is applied once via
+     * {@link AggregationMetadata#getFilterQuery()} and is not stored among the ancestor filters,
+     * so the ancestor loop applies only genuine ancestors — including one that legally reuses
+     * this aggregation's name.
+     */
+    private RelNode applyAggregationFilters(RelNode input, AggregationMetadata metadata, ConversionContext ctx) throws ConversionException {
+        // Apply the defining aggregation's own filter query first
+        if (metadata.getFilterQuery().isPresent()) {
+            QueryBuilder filterQuery = metadata.getFilterQuery().get();
+            RexNode predicate = QUERY_REGISTRY.convert(filterQuery, ctx);
+            if (predicate instanceof UnresolvedQueryCall unresolvedCall) {
+                throw new ConversionException(
+                    "Filter aggregation ["
+                        + metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1)
+                        + "] contains an unsupported query type: "
+                        + unresolvedCall.getQueryBuilder().getWriteableName()
+                );
+            }
+            if (!predicate.isAlwaysTrue()) {
+                input = LogicalFilter.create(input, predicate);
+            }
+        }
+        // Apply ancestor filter predicates
+        for (AggregationMetadataBuilder.AncestorFilter ancestor : metadata.getAncestorFilters()) {
+            RexNode ancestorPredicate = QUERY_REGISTRY.convert(ancestor.query(), ctx);
+            if (ancestorPredicate instanceof UnresolvedQueryCall unresolvedCall) {
+                throw new ConversionException(
+                    "Filter aggregation ["
+                        + ancestor.aggName()
+                        + "] contains an unsupported query type: "
+                        + unresolvedCall.getQueryBuilder().getWriteableName()
+                );
+            }
+            // A match_all filter converts to literal TRUE — skip injection since it has no effect.
+            if (!ancestorPredicate.isAlwaysTrue()) {
+                input = LogicalFilter.create(input, ancestorPredicate);
+            }
+        }
+        return input;
     }
 
     /**

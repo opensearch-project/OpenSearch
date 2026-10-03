@@ -1,0 +1,44 @@
+{
+  "testName": "filter_match_all_nested_in_terms",
+  "indexName": "test-index",
+  "planShapeOnly": true,
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "by_brand": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "all_in_bucket": {
+            "filter": {
+              "match_all": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$1], sort1=[$0], dir0=[DESC], dir1=[ASC], fetch=[10])",
+    "  LogicalAggregate(group=[{2}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[IS NOT NULL($2)])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "_count"],
+  "mockResultRows": [
+    ["BrandA", 3],
+    ["BrandB", 2]
+  ],
+  "mockCountRow": {
+    "_total": 5,
+    "_eligible$by_brand": 5
+  }
+}
