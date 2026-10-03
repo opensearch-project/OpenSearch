@@ -38,8 +38,10 @@ import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -214,10 +216,30 @@ public interface RestHandler {
 
         protected final String path;
         protected final Method method;
+        private final Set<Property> properties;
+
+        /**
+         * Properties that describe how a route should be handled.
+         */
+        @PublicApi(since = "3.9.0")
+        public enum Property {
+            /**
+             * Indicates that the route performs an administrative operation. Authorization plugins may apply additional restrictions to
+             * administrative routes beyond ordinary action privileges.
+             */
+            ADMINISTRATIVE
+        }
 
         public Route(Method method, String path) {
+            this(method, path, new Property[0]);
+        }
+
+        public Route(Method method, String path, Property... properties) {
             this.path = path;
             this.method = method;
+            EnumSet<Property> routeProperties = EnumSet.noneOf(Property.class);
+            Collections.addAll(routeProperties, Objects.requireNonNull(properties, "Route properties must not be null"));
+            this.properties = Collections.unmodifiableSet(routeProperties);
         }
 
         public String getPath() {
@@ -230,6 +252,10 @@ public interface RestHandler {
 
         public Method getMethod() {
             return method;
+        }
+
+        public boolean hasProperty(Property property) {
+            return properties.contains(property);
         }
 
         @Override
