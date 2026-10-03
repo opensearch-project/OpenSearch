@@ -26,6 +26,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
@@ -42,6 +43,17 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 public class ClusterStateChecksumTests extends OpenSearchTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -164,6 +176,41 @@ public class ClusterStateChecksumTests extends OpenSearchTestCase {
         ClusterStateChecksum checksum1 = new ClusterStateChecksum(state2, threadPool);
         ClusterStateChecksum checksum2 = new ClusterStateChecksum(state3, threadPool);
         assertEquals(checksum2, checksum1);
+    }
+
+    public void testConstructorDoesNotDeadlockWhenAChecksumTaskFails() throws Exception {
+        // Wrap an otherwise valid cluster state so that one checksum task (routing table)
+        // fails while the other ten succeed. This exercises the guarantee that a failure in
+        // any single task must not leak the internal CountDownLatch and cause the constructor
+        // to block indefinitely.
+        ClusterState spyState = spy(generateClusterState());
+        RoutingTable failingRoutingTable = mock(RoutingTable.class);
+        doThrow(new IOException("simulated routing table failure")).when(failingRoutingTable)
+            .writeVerifiableTo(any(BufferedChecksumStreamOutput.class));
+        doReturn(failingRoutingTable).when(spyState).routingTable();
+
+        // If the latch is leaked, the constructor blocks forever. Isolate that failure mode
+        // into a bounded wait so a regression does not hang the test JVM.
+        try (ExecutorService driver = Executors.newSingleThreadExecutor()) {
+            Future<ClusterStateChecksum> future = driver.submit(() -> new ClusterStateChecksum(spyState, threadPool));
+            try {
+                future.get(10, TimeUnit.SECONDS);
+                fail("Expected constructor to propagate the failing checksum task as an exception");
+            } catch (java.util.concurrent.ExecutionException e) {
+                Throwable cause = e.getCause();
+                assertTrue(
+                    "Expected RemoteStateTransferException but got " + cause.getClass().getName(),
+                    cause instanceof RemoteStateTransferException
+                );
+                assertTrue(
+                    "Expected the original IOException as the root cause but got " + cause.getCause(),
+                    cause.getCause() instanceof IOException
+                );
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                fail("ClusterStateChecksum constructor did not return within 10s; latch was likely leaked");
+            }
+        }
     }
 
     private ClusterState generateClusterState() {
