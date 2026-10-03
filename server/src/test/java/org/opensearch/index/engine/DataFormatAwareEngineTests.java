@@ -104,7 +104,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
@@ -3871,6 +3874,158 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, provider));
+    }
+
+    /** Builds a DFA engine config with the batched-translog-append toggle set to {@code enabled}. */
+    private EngineConfig buildBatchDFAEngineConfig(Store store, Path translogPath, DocumentLookupProvider provider, boolean enabled) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name())
+            .put(IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getKey(), enabled);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
+
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        DataFormatRegistry registry = createMockRegistry();
+        CommitterFactory committerFactory = config -> new InMemoryCommitter(store);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(committerFactory)
+            .eventListener(new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .documentLookupProvider(provider)
+            .build();
+    }
+
+    private DataFormatAwareEngine createBatchDFAEngine(Store store, Path translogPath, DocumentLookupProvider provider, boolean enabled)
+        throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled));
+    }
+
+    // ----- Batched translog append (index.translog.batch_append.enabled) -----
+
+    /**
+     * Batch on: N index ops executed inside a batch defer their translog append. Before flush, no result has a
+     * location and the processed/persisted checkpoints have not advanced. flush() assigns every result its location,
+     * advances the processed checkpoint to N-1, returns the batch max location, and does NOT mark anything persisted
+     * (the fsync callback does that).
+     */
+    public void testBatchedAppendDefersThenFlushes() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final int numDocs = 10;
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat("opt-in must produce a real (non-no-op) batch", batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+            final List<Engine.IndexResult> results = new ArrayList<>();
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat("op must have an assigned seqNo", result.getSeqNo(), equalTo((long) i));
+                assertThat("translog location must be deferred (null) before flush", result.getTranslogLocation(), nullValue());
+                results.add(result);
+            }
+            // Nothing processed or persisted yet -- the batch has not been flushed.
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+            final Translog.Location max = batch.flush();
+            assertThat("flush must return the batch max location", max, notNullValue());
+
+            Translog.Location expectedMax = null;
+            for (Engine.IndexResult result : results) {
+                assertThat("every result gets a location after flush", result.getTranslogLocation(), notNullValue());
+                if (expectedMax == null || result.getTranslogLocation().compareTo(expectedMax) > 0) {
+                    expectedMax = result.getTranslogLocation();
+                }
+            }
+            assertThat(max, equalTo(expectedMax));
+            // Processed advances to N-1 on flush; persisted is NOT marked by flush (only the fsync callback does).
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) numDocs - 1));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+            // A second flush is a no-op (idempotent) and returns null.
+            assertThat(batch.flush(), nullValue());
+
+            // Persisted advances only once the translog is fsynced.
+            engine.translogManager().syncTranslog();
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo((long) numDocs - 1));
+
+            // The ops are replayable from the translog, proving the batched append wrote them.
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * Same-thread realtime GET of a doc whose translog location is still pending (indexed earlier in the same batch
+     * that has not been flushed) must flush the batch in place and succeed, rather than deadlocking.
+     */
+    public void testBatchedAppendSelfReadFlushesPending() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat("location deferred before any flush", result.getTranslogLocation(), nullValue());
+
+            // Realtime get on the SAME thread resolves the pending location by flushing the batch in place.
+            DocumentLookupResult getResult = getByIdLookup(engine, realtimeGet("1"));
+            assertTrue("self-read of a pending doc must find it", getResult.exists());
+            assertThat(getResult.seqNo(), equalTo(0L));
+
+            // The self-read flushed the batch: the result now has a location and processed advanced.
+            assertThat(result.getTranslogLocation(), notNullValue());
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
+            // A later explicit flush is a harmless no-op.
+            assertThat(batch.flush(), nullValue());
+        }
+    }
+
+    /**
+     * Setting off: {@link Engine#beginTranslogBatch()} returns the no-op batch and every op is appended inline exactly
+     * as before -- each result carries its location immediately and the processed checkpoint advances per op.
+     */
+    public void testBatchedAppendDisabledIsInlineBehaviour() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat("toggle off must yield the shared no-op batch", batch, sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+            final int numDocs = 5;
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat("inline op must carry its location immediately", result.getTranslogLocation(), notNullValue());
+                assertThat("processed advances per op inline", engine.getProcessedLocalCheckpoint(), equalTo((long) i));
+            }
+            assertThat("no-op batch flush returns null", batch.flush(), nullValue());
+        }
     }
 
     private Engine.Get realtimeGet(String id) {

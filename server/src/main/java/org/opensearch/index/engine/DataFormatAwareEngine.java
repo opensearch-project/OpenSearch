@@ -179,6 +179,11 @@ public class DataFormatAwareEngine implements Indexer {
     private final LocalCheckpointTracker localCheckpointTracker;
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
 
+    // The translog batch active for the current thread, if any (set by beginTranslogBatch()). Confined to one thread
+    // for the duration of a single bulk-shard-request chunk; successful primary Index ops defer their translog append
+    // into it. Null means inline appends (the default and every non-batched call path).
+    private final ThreadLocal<DataFormatTranslogBatch> activeBatch = new ThreadLocal<>();
+
     // Wall-clock time (ms) of the last version-map delete-tombstone prune; used to throttle maybePruneDeletes().
     protected volatile long lastDeleteVersionPruneTimeMSec;
 
@@ -792,48 +797,190 @@ public class DataFormatAwareEngine implements Indexer {
             }
         }
 
+        // When a translog batch is active for THIS thread and this is a successful primary (non-translog-origin) Index
+        // op, defer its translog append into the batch. The version, seqNo and term are already known; only the
+        // Location is deferred inside a PendingLocation held by the version-map entry. The batch's flush() assigns the
+        // location, marks the seqNo processed, and (via the fsync callback) marks it persisted -- so we must NOT run
+        // the inline markSeqNoAsProcessed / markSeqNoAsPersisted tail below for a deferred op. Deletes and NoOps stay
+        // inline (handled by the non-deferred branch and by delete()).
+        boolean deferred = false;
+        final DataFormatTranslogBatch batch = activeBatch.get();
         if (index.origin().isFromTranslog() == false) {
-            final Translog.Location location;
-            if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
-                location = translogManager.add(new Translog.Index(index, indexResult));
+            if (batch != null && indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                final IndexVersionValue.PendingLocation pending = new IndexVersionValue.PendingLocation(Thread.currentThread(), batch);
                 versionMap.maybePutIndexUnderLock(
                     index.uid().bytes(),
-                    new IndexVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
+                    IndexVersionValue.withPendingLocation(pending, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
                 );
-            } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
-                && indexResult.getFailure() != null
-                && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                    final Engine.NoOp noOp = new Engine.NoOp(
-                        indexResult.getSeqNo(),
-                        index.primaryTerm(),
-                        index.origin(),
-                        index.startTime(),
-                        indexResult.getFailure().toString()
+                batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
+                deferred = true;
+            } else {
+                final Translog.Location location;
+                if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                    location = translogManager.add(new Translog.Index(index, indexResult));
+                    versionMap.maybePutIndexUnderLock(
+                        index.uid().bytes(),
+                        new IndexVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
                     );
-                    location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-                } else {
-                    location = null;
-                }
-            indexResult.setTranslogLocation(location);
+                } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
+                    && indexResult.getFailure() != null
+                    && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                        final Engine.NoOp noOp = new Engine.NoOp(
+                            indexResult.getSeqNo(),
+                            index.primaryTerm(),
+                            index.origin(),
+                            index.startTime(),
+                            indexResult.getFailure().toString()
+                        );
+                        location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                    } else {
+                        location = null;
+                    }
+                indexResult.setTranslogLocation(location);
+            }
         }
-        // Non-translog-origin successful operations must be recorded in the translog for durability
-        assert index.origin().isFromTranslog()
-            || indexResult.getResultType() != Engine.Result.Type.SUCCESS
-            || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
-        // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
-        assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
-            : "translog-origin op should not have a translog location";
 
-        // Track the sequence number
-        assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
-        localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-        if (indexResult.getTranslogLocation() == null) {
-            localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+        if (deferred == false) {
+            // Non-translog-origin successful operations must be recorded in the translog for durability
+            assert index.origin().isFromTranslog()
+                || indexResult.getResultType() != Engine.Result.Type.SUCCESS
+                || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
+            // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
+            assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
+                : "translog-origin op should not have a translog location";
+
+            // Track the sequence number
+            assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
+            localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+            if (indexResult.getTranslogLocation() == null) {
+                localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+            }
+        } else {
+            // The batch owns processed-checkpoint advancement (on flush) and persisted-checkpoint advancement (on the
+            // translog fsync callback). The seqNo must still be valid.
+            assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
         }
 
         indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
+        if (deferred == false) {
+            indexResult.freeze();
+        }
+        // A deferred result is frozen by the batch flush, once its translog location has been set.
         return indexResult;
+    }
+
+    /**
+     * Begin a translog batch for the current (bulk) thread. Returns a no-op batch -- leaving today's inline-append
+     * behaviour byte-for-byte unchanged -- unless {@code index.translog.batch_append.enabled} is set, read once here
+     * per batch begin. The returned batch is confined to this thread and installed in {@link #activeBatch} for the
+     * duration of the bulk-shard-request chunk; {@link DataFormatTranslogBatch#flush()} clears it.
+     */
+    @Override
+    public Engine.TranslogBatch beginTranslogBatch() {
+        if (engineConfig.getIndexSettings().isTranslogBatchAppendEnabled() == false) {
+            return Engine.NO_OP_TRANSLOG_BATCH;
+        }
+        // A batch is thread-confined; a stale non-flushed batch on this thread would indicate a prior bulk that failed
+        // to flush in its finally block, which must not happen. Overwrite defensively (the old entries, if any, keep
+        // their own references) and install the new one.
+        final DataFormatTranslogBatch batch = new DataFormatTranslogBatch();
+        activeBatch.set(batch);
+        return batch;
+    }
+
+    /**
+     * A thread-confined {@link Engine.TranslogBatch} for {@link DataFormatAwareEngine}. Successful primary Index ops
+     * append into {@link #entries}; {@link #flush()} performs one {@link TranslogManager#add(java.util.List)} call,
+     * assigns each result/pending its location, advances the processed checkpoint per op, and returns the batch's max
+     * {@link Translog.Location}. It takes neither the engine read lock nor any uid lock, so it is safe to call from a
+     * self-read inside {@link IndexVersionValue.PendingLocation#resolve()} (which holds both).
+     */
+    final class DataFormatTranslogBatch implements Engine.TranslogBatch, IndexVersionValue.PendingLocation.SelfFlusher {
+
+        private final class Entry {
+            final Translog.Operation operation;
+            final Engine.IndexResult result;
+            final IndexVersionValue.PendingLocation pending;
+            final long seqNo;
+
+            Entry(Translog.Operation operation, Engine.IndexResult result, IndexVersionValue.PendingLocation pending, long seqNo) {
+                this.operation = operation;
+                this.result = result;
+                this.pending = pending;
+                this.seqNo = seqNo;
+            }
+        }
+
+        private final List<Entry> entries = new ArrayList<>();
+        private boolean flushed = false;
+
+        void add(Translog.Operation operation, Engine.IndexResult result, IndexVersionValue.PendingLocation pending, long seqNo) {
+            assert flushed == false : "cannot add to an already-flushed translog batch";
+            entries.add(new Entry(operation, result, pending, seqNo));
+        }
+
+        @Override
+        public void flushForPendingRead() {
+            // Self-read inside the same bulk thread. flush() is idempotent and the ThreadLocal is cleared below, so a
+            // later finally-flush is a no-op.
+            flush();
+        }
+
+        @Override
+        public Translog.Location flush() {
+            if (flushed) {
+                return null;
+            }
+            flushed = true;
+            // Detach from the thread first: once we start flushing, no further op may defer into this batch, and a
+            // self-read re-entrant flush() must early-return via the flushed guard.
+            if (activeBatch.get() == this) {
+                activeBatch.remove();
+            }
+            if (entries.isEmpty()) {
+                return null;
+            }
+            final List<Translog.Operation> ops = new ArrayList<>(entries.size());
+            for (Entry e : entries) {
+                ops.add(e.operation);
+            }
+            final Translog.Location[] locations;
+            try {
+                locations = translogManager.add(ops);
+            } catch (Exception ex) {
+                // Mirror the inline tragic-translog-error path: every acked-pending reader must observe the failure,
+                // and the engine must fail so recovery replays the translog.
+                final EngineException failure = (ex instanceof EngineException)
+                    ? (EngineException) ex
+                    : new EngineException(shardId, "failed to flush batched translog append of [" + entries.size() + "] ops", ex);
+                for (Entry e : entries) {
+                    e.pending.completeExceptionally(failure);
+                }
+                failEngine("failed to flush batched translog append", ex);
+                throw failure;
+            }
+            assert locations.length == entries.size() : "translog batch returned "
+                + locations.length
+                + " locations for "
+                + entries.size()
+                + " ops";
+            Translog.Location max = null;
+            for (int i = 0; i < entries.size(); i++) {
+                final Entry e = entries.get(i);
+                final Translog.Location loc = locations[i];
+                e.result.setTranslogLocation(loc);
+                e.result.freeze();
+                e.pending.complete(loc);
+                // Processed advances now that the op is framed into the translog buffer with a known location; persisted
+                // advances later via the translog fsync persisted-seqno consumer, exactly as for an inline written op.
+                localCheckpointTracker.markSeqNoAsProcessed(e.seqNo);
+                if (max == null || loc.compareTo(max) > 0) {
+                    max = loc;
+                }
+            }
+            entries.clear();
+            return max;
+        }
     }
 
     /**

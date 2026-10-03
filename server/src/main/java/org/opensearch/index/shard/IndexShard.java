@@ -1316,6 +1316,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return previousState;
     }
 
+    /**
+     * Begin a translog batch for the current thread on this shard's indexer. The caller (the primary bulk path) must
+     * flush and close the returned batch on the same thread. Indexers that do not opt in return a no-op batch (the
+     * {@link org.opensearch.index.engine.exec.Indexer#beginTranslogBatch()} default), so the bulk loop runs unchanged.
+     */
+    public Engine.TranslogBatch beginTranslogBatch() {
+        return getIndexer().beginTranslogBatch();
+    }
+
     public Engine.IndexResult applyIndexOperationOnPrimary(
         long version,
         VersionType versionType,

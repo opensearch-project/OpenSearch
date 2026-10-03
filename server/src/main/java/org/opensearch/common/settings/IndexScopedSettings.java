@@ -150,6 +150,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
                 IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING,
                 IndexSettings.INDEX_WARMER_ENABLED_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING,
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
                 IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING,
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
