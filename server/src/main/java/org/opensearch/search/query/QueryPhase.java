@@ -164,7 +164,8 @@ public class QueryPhase {
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
                 searchContext.getProfilers(),
-                searchContext.request()
+                searchContext.request(),
+                searchContext.getTask() == null ? -1L : searchContext.getTask().getQueueWaitNanos()
             );
             searchContext.queryResult().profileResults(shardResults);
         }
