@@ -120,6 +120,7 @@ public final class DissectParser {
     private final List<DissectPair> matchPairs;
     private final String pattern;
     private String leadingDelimiter = "";
+    private final int leadingDelimiterByteLength;
     private final int maxMatches;
     private final int maxResults;
     private final int appendCount;
@@ -133,6 +134,8 @@ public final class DissectParser {
         while (matcher.find()) {
             leadingDelimiter = matcher.group(1);
         }
+        // precompute the leading delimiter's UTF-8 byte length; parse() indexes into the input byte[] with it
+        this.leadingDelimiterByteLength = leadingDelimiter.getBytes(StandardCharsets.UTF_8).length;
         List<DissectPair> matchPairs = new ArrayList<>();
         matcher = KEY_DELIMITER_FIELD_PATTERN.matcher(pattern.substring(leadingDelimiter.length()));
         while (matcher.find()) {
@@ -225,8 +228,8 @@ public final class DissectParser {
             DissectPair dissectPair = it.next();
             DissectKey key = dissectPair.getKey();
             byte[] delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
-            // start dissection after the first delimiter
-            int i = leadingDelimiter.length();
+            // start dissection after the leading delimiter, measured in bytes to stay aligned with the input byte[]
+            int i = leadingDelimiterByteLength;
             int valueStart = i;
             int lookAheadMatches;
             // start walking the input string byte by byte, look ahead for matches where needed
