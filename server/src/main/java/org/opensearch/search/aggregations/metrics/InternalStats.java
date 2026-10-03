@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,6 +87,19 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         this.min = min;
         this.max = max;
         this.format = formatter;
+    }
+
+    /**
+     * Scales the two values that count documents, {@code count} and {@code sum}, and leaves {@code min} and
+     * {@code max} as measured, since they estimate the population's extremes already. {@code avg} is unaffected
+     * because {@code count} and {@code sum} scale by the same factor.
+     * <p>
+     * {@link InternalExtendedStats} inherits this and extends it to {@code sumOfSqrs}, which keeps its variance and
+     * standard deviation unchanged for the same reason.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalStats(name, samplingContext.scaleUp(count), samplingContext.scaleUp(sum), min, max, format, getMetadata());
     }
 
     /**

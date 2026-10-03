@@ -41,6 +41,7 @@ import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -254,6 +255,25 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         return new Bucket(format, keyed, prototype.key, prototype.from, prototype.to, prototype.docCount, aggregations);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        List<Bucket> scaled = new ArrayList<>(buckets.size());
+        for (Bucket bucket : buckets) {
+            scaled.add(
+                new Bucket(
+                    format,
+                    keyed,
+                    bucket.key,
+                    bucket.from,
+                    bucket.to,
+                    samplingContext.scaleUp(bucket.docCount),
+                    bucket.aggregations.finalizeSampling(samplingContext)
+                )
+            );
+        }
+        return create(scaled);
     }
 
     @Override

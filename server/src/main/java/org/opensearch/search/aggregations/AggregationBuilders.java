@@ -60,6 +60,7 @@ import org.opensearch.search.aggregations.bucket.range.IpRangeAggregationBuilder
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.sampler.RandomSamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.Sampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
@@ -206,6 +207,13 @@ public class AggregationBuilders {
      */
     public static SamplerAggregationBuilder sampler(String name) {
         return new SamplerAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@code random_sampler} aggregation with the given name.
+     */
+    public static RandomSamplerAggregationBuilder randomSampler(String name) {
+        return new RandomSamplerAggregationBuilder(name);
     }
 
     /**

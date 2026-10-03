@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -337,6 +338,25 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public B createBucket(InternalAggregations aggregations, B prototype) {
         return getFactory().createBucket(aggregations, prototype);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        List<B> scaled = new ArrayList<>(ranges.size());
+        for (B range : ranges) {
+            scaled.add(
+                getFactory().createBucket(
+                    range.getKey(),
+                    range.from,
+                    range.to,
+                    samplingContext.scaleUp(range.getDocCount()),
+                    ((InternalAggregations) range.getAggregations()).finalizeSampling(samplingContext),
+                    range.keyed,
+                    range.format
+                )
+            );
+        }
+        return create(scaled);
     }
 
     @SuppressWarnings("unchecked")

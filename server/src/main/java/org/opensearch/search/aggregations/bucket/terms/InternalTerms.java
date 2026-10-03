@@ -45,6 +45,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.KeyComparable;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -561,6 +562,38 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             subAggs = InternalAggregations.reduce(aggregationsList, context);
         }
         return createBucket(docCount, subAggs, docCountError, buckets.get(0));
+    }
+
+    /**
+     * Scales every bucket's {@code doc_count}, the counts of documents that fell outside the returned buckets, and the
+     * doc count error bounds, which are themselves counts of documents. A negative error is the "unknown" sentinel and
+     * is left as it is.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        List<B> scaledBuckets = new ArrayList<>(getBuckets().size());
+        for (B bucket : getBuckets()) {
+            long bucketDocCountError = bucket.showDocCountError() ? scaleUpDocCountError(bucket.getDocCountError(), samplingContext) : -1;
+            scaledBuckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.getDocCount()),
+                    ((InternalAggregations) bucket.getAggregations()).finalizeSampling(samplingContext),
+                    bucketDocCountError,
+                    bucket
+                )
+            );
+        }
+        return create(
+            getName(),
+            scaledBuckets,
+            reduceOrder,
+            scaleUpDocCountError(getDocCountError(), samplingContext),
+            samplingContext.scaleUp(getSumOfOtherDocCounts())
+        );
+    }
+
+    private static long scaleUpDocCountError(long docCountError, SamplingContext samplingContext) {
+        return docCountError > 0 ? samplingContext.scaleUp(docCountError) : docCountError;
     }
 
     protected abstract void setDocCountError(long docCountError);

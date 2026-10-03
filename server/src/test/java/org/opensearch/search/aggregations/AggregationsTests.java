@@ -61,6 +61,7 @@ import org.opensearch.search.aggregations.bucket.range.InternalBinaryRangeTests;
 import org.opensearch.search.aggregations.bucket.range.InternalDateRangeTests;
 import org.opensearch.search.aggregations.bucket.range.InternalGeoDistanceTests;
 import org.opensearch.search.aggregations.bucket.range.InternalRangeTests;
+import org.opensearch.search.aggregations.bucket.sampler.InternalRandomSamplerTests;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.InternalMultiTermsTests;
@@ -154,6 +155,7 @@ public class AggregationsTests extends OpenSearchTestCase {
         new InternalGlobalTests(),
         new InternalFilterTests(),
         new InternalSamplerTests(),
+        new InternalRandomSamplerTests(),
         new InternalRangeTests(),
         new InternalDateRangeTests(),
         new InternalGeoDistanceTests(),

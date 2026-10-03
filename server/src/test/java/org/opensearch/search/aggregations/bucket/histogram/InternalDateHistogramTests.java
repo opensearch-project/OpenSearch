@@ -38,6 +38,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
@@ -213,5 +214,26 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                 throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
+    }
+
+    public void testFinalizeSamplingScalesBucketDocCounts() {
+        InternalDateHistogram histogram = new InternalDateHistogram(
+            "histo",
+            java.util.Collections.singletonList(
+                new InternalDateHistogram.Bucket(1000L, 4L, false, DocValueFormat.RAW, InternalAggregations.EMPTY)
+            ),
+            BucketOrder.key(true),
+            1L,
+            0L,
+            null,
+            DocValueFormat.RAW,
+            false,
+            null
+        );
+
+        InternalDateHistogram scaled = (InternalDateHistogram) histogram.finalizeSampling(new SamplingContext(0.1));
+
+        assertEquals(40L, scaled.getBuckets().get(0).getDocCount());
+        assertEquals(1000L, ((ZonedDateTime) scaled.getBuckets().get(0).getKey()).toInstant().toEpochMilli());
     }
 }
