@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 set -e -o pipefail
 
 # Files created by Elasticsearch should always be group writable too
