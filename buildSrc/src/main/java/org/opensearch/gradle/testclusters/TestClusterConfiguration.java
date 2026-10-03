@@ -128,6 +128,8 @@ public interface TestClusterConfiguration {
 
     String getTransportPortURI();
 
+    String getAuxTransportPortURI(String auxTransportType);
+
     List<String> getAllHttpSocketURI();
 
     List<String> getAllTransportPortURI();
