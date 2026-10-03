@@ -1,0 +1,53 @@
+{
+  "testName": "multi_terms_three_sources",
+  "indexName": "test-index",
+  "indexMapping": {
+    "brand": "VARCHAR",
+    "region": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "brand" },
+            { "field": "region" },
+            { "field": "status" }
+          ]
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$3], sort1=[$0], sort2=[$1], sort3=[$2], dir0=[DESC], dir1=[ASC], dir2=[ASC], dir3=[ASC])",
+    "  LogicalAggregate(group=[{0, 1, 2}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[AND(IS NOT NULL($0), IS NOT NULL($1), IS NOT NULL($2))])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "region", "status", "_count"],
+  "mockResultRows": [
+    ["Nike", "US", "active", 10],
+    ["Adidas", "EU", "inactive", 7]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": { "value": 0, "relation": "eq" },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "combo": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          { "key": ["Nike", "US", "active"], "key_as_string": "Nike|US|active", "doc_count": 10 },
+          { "key": ["Adidas", "EU", "inactive"], "key_as_string": "Adidas|EU|inactive", "doc_count": 7 }
+        ]
+      }
+    }
+  }
+}
