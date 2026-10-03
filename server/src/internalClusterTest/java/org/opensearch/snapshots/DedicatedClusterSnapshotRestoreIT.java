@@ -46,6 +46,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -983,6 +984,61 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         assertEquals(restoreResponse.getRestoreInfo().totalShards(), restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
+    }
+
+    /**
+     * Tests that a snapshot of a shrunken index, restored into a new index, does not inherit the resize source of the
+     * shrink. The restored index gets a new UUID, so the recorded source can never be resolved again, and leaving it in
+     * place makes cluster recovery treat the index as a resize target that no node is allowed to hold.
+     */
+    public void testRestoreOfShrunkIndexDropsResizeSourceSettings() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String repo = "test-repo";
+        final String snapshot = "test-snap";
+        final String sourceIdx = "test-idx";
+        final String shrunkIdx = "test-idx-shrunk";
+        final String restoredIdx = "test-idx-restored";
+
+        createRepository(repo, "fs");
+
+        assertAcked(prepareCreate(sourceIdx, 0, indexSettingsNoReplicas(between(2, 4))));
+        ensureGreen();
+        indexRandomDocs(sourceIdx, randomIntBetween(10, 100));
+
+        logger.info("--> shrink the index");
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(sourceIdx)
+                .setSettings(Settings.builder().put("index.blocks.write", true))
+                .get()
+        );
+        assertAcked(client().admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
+        assertNotNull(
+            "the shrink target is expected to record its resize source",
+            clusterAdmin().prepareState().get().getState().metadata().index(shrunkIdx).getResizeSourceIndex()
+        );
+
+        logger.info("--> snapshot the shrunk index and delete the shrink source");
+        createSnapshot(repo, snapshot, Collections.singletonList(shrunkIdx));
+        assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
+
+        logger.info("--> restore the shrunk index under a new name");
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)
+            .setWaitForCompletion(true)
+            .setIndices(shrunkIdx)
+            .setRenamePattern(shrunkIdx)
+            .setRenameReplacement(restoredIdx)
+            .get();
+        assertEquals(restoreResponse.getRestoreInfo().totalShards(), restoreResponse.getRestoreInfo().successfulShards());
+        ensureYellow(restoredIdx);
+
+        final IndexMetadata restored = clusterAdmin().prepareState().get().getState().metadata().index(restoredIdx);
+        assertNull("the restored index must not inherit a resize source", restored.getResizeSourceIndex());
+        assertFalse(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.exists(restored.getSettings()));
+        assertFalse(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.exists(restored.getSettings()));
     }
 
     public void testSnapshotWithDateMath() {
