@@ -52,8 +52,7 @@ final class IndexVersionValue extends VersionValue {
      * Exactly one of these is non-null. When the version value is produced inline (the normal path and every
      * non-batched engine) {@link #translogLocation} is set directly. When it is produced by a batched translog
      * append whose actual {@link Translog.Location} is not yet known, {@link #pending} holds the deferred location
-     * and {@link #getLocation()} resolves it (flushing the owning batch when the reader is the owning thread, or
-     * waiting for the owner to flush otherwise).
+     * and {@link #getLocation()} resolves it by forcing the containing batch chunk to append synchronously.
      */
     private final Translog.Location translogLocation;
     private final PendingLocation pending;
@@ -122,39 +121,25 @@ final class IndexVersionValue extends VersionValue {
     }
 
     /**
-     * A translog {@link Translog.Location} that is not yet known because its operation was appended to a batched
-     * translog write that has not been flushed. The owning batch thread calls {@link #complete(Translog.Location)}
-     * (or {@link #completeExceptionally(RuntimeException)}) when it flushes. A reader resolves the location via
-     * {@link #resolve()}:
-     * <ul>
-     *   <li>If the reader is the thread that owns the batch (a self-read inside the same bulk), the batch is flushed
-     *       in place and the location returned -- waiting would deadlock, since the owner is the reader.</li>
-     *   <li>Otherwise the reader blocks until the owner flushes. The window is bounded because the owning bulk thread
-     *       always flushes before it yields the thread. The wait happens under the uid lock and engine read lock, and
-     *       {@link SelfFlusher#flushForPendingRead()} takes neither, so it cannot deadlock.</li>
-     * </ul>
+     * A translog {@link Translog.Location} awaiting a batched append. Any reader resolving the location forces the
+     * current batch chunk to append synchronously; concurrent readers join the same serialized flush and observe the
+     * same completion or failure.
      *
      * @opensearch.internal
      */
     static final class PendingLocation {
-        /**
-         * Flushes the owning batch so that a self-read (same-thread) can observe its own write. Implemented by the
-         * engine's {@code TranslogBatch}; kept as a tiny interface so {@link IndexVersionValue} does not depend on the
-         * engine batch type.
-         */
-        interface SelfFlusher {
+        /** Flushes the batch chunk containing this pending location. */
+        interface Flusher {
             void flushForPendingRead();
         }
 
-        private final Thread owner;
-        private final SelfFlusher selfFlusher;
+        private final Flusher flusher;
         private final CountDownLatch latch = new CountDownLatch(1);
         private volatile Translog.Location location;
         private volatile RuntimeException failure;
 
-        PendingLocation(Thread owner, SelfFlusher selfFlusher) {
-            this.owner = owner;
-            this.selfFlusher = selfFlusher;
+        PendingLocation(Flusher flusher) {
+            this.flusher = flusher;
         }
 
         void complete(Translog.Location resolved) {
@@ -168,19 +153,18 @@ final class IndexVersionValue extends VersionValue {
         }
 
         Translog.Location resolve() {
-            if (latch.getCount() == 0) {
-                return result();
+            if (latch.getCount() != 0) {
+                // The batch serializes concurrent flushes. This call either appends the chunk containing this entry
+                // or joins the flush already in progress; it does not wait for the owning bulk to finish.
+                flusher.flushForPendingRead();
             }
-            if (Thread.currentThread() == owner) {
-                // Self-read: flush our own batch in place. flushForPendingRead() completes this pending.
-                selfFlusher.flushForPendingRead();
-                return result();
-            }
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("interrupted while waiting for a pending translog location", e);
+            if (latch.getCount() != 0) {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted while waiting for a pending translog location", e);
+                }
             }
             return result();
         }

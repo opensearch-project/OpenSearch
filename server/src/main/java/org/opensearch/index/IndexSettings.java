@@ -226,10 +226,9 @@ public final class IndexSettings {
     );
 
     /**
-     * When enabled, the primary bulk path for a batched-append-capable engine (the composite
-     * {@code DataFormatAwareEngine}) appends all successful primary index operations of one bulk-shard-request chunk
-     * to the translog in a single batched write instead of one write per operation. Default false; dynamic so a
-     * benchmark can A/B the same build. When false, behaviour is byte-for-byte the current per-op path.
+     * When enabled on a remote-backed index using segment replication and a remote translog, the primary bulk path
+     * appends successful primary index operations in bounded batches instead of one write per operation. Local-store
+     * and document-replication engines retain the normal per-operation path. Default false; dynamic for controlled rollout.
      */
     public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
         "index.translog.batch_append.enabled",
@@ -1814,9 +1813,8 @@ public final class IndexSettings {
     }
 
     /**
-     * Whether the primary bulk path should append successful primary index operations to the translog in a single
-     * batched write per bulk-shard-request chunk (composite engine only). See
-     * {@link #INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING}.
+     * Whether an eligible remote-backed segment-replication engine should batch successful primary index operations.
+     * Local-store and document-replication engines ignore this setting and retain per-operation appends.
      */
     public boolean isTranslogBatchAppendEnabled() {
         return translogBatchAppendEnabled;
