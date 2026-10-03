@@ -34,7 +34,9 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
@@ -45,6 +47,7 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
@@ -66,10 +69,12 @@ import org.opensearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -243,7 +248,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            false
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -284,5 +290,145 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields.length, equalTo(1));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields[0], equalTo(0));
+    }
+
+    public void testNodeLevelFanoutBatchesByMaxConcurrentShardRequests() throws Exception {
+        final List<NodeSearchRequest> nodeRequests = runNodeLevelFanout(new SearchSourceBuilder().size(0), 5, 2);
+
+        assertThat(nodeRequests.size(), equalTo(3));
+        assertThat(nodeRequests.get(0).shardCount(), equalTo(2));
+        assertThat(nodeRequests.get(1).shardCount(), equalTo(2));
+        assertThat(nodeRequests.get(2).shardCount(), equalTo(1));
+    }
+
+    public void testNodeLevelFanoutHandlesRequestWithoutExplicitSource() throws Exception {
+        final List<NodeSearchRequest> nodeRequests = runNodeLevelFanout(null, 2, 5);
+
+        assertThat(nodeRequests.size(), equalTo(1));
+        assertNotNull(nodeRequests.get(0).shardRequest(0).source());
+    }
+
+    private List<NodeSearchRequest> runNodeLevelFanout(SearchSourceBuilder source, int numShards, int maxConcurrentShardRequests)
+        throws Exception {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        final DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        final Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        lookup.put("node_1", new SearchAsyncActionTests.MockConnection(node));
+        final List<NodeSearchRequest> nodeRequests = new CopyOnWriteArrayList<>();
+        final SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                SearchActionListener<SearchPhaseResult> listener
+            ) {
+                fail("node-level fanout should not send per-shard query requests");
+            }
+
+            @Override
+            public void sendQueryThenFetchByNode(
+                Transport.Connection connection,
+                NodeSearchRequest request,
+                SearchTask task,
+                ActionListener<NodeSearchResponse<SearchPhaseResult>> listener
+            ) {
+                nodeRequests.add(request);
+                final List<SearchPhaseResult> results = new ArrayList<>(request.shardCount());
+                final List<Exception> failures = new ArrayList<>(request.shardCount());
+                for (int i = 0; i < request.shardCount(); i++) {
+                    final ShardSearchRequest shardRequest = request.shardRequest(i);
+                    final QuerySearchResult queryResult = new QuerySearchResult(
+                        new ShardSearchContextId("node", shardRequest.shardId().id()),
+                        new SearchShardTarget(connection.getNode().getId(), shardRequest.shardId(), null, OriginalIndices.NONE),
+                        shardRequest
+                    );
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    queryResult.from(0);
+                    queryResult.size(0);
+                    results.add(queryResult);
+                    failures.add(null);
+                }
+                listener.onResponse(new NodeSearchResponse<>(results, failures));
+            }
+        };
+        final SearchRequest searchRequest = new SearchRequest("idx");
+        searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        searchRequest.setBatchedReduceSize(2);
+        searchRequest.allowPartialSearchResults(false);
+        if (source != null) {
+            searchRequest.source(source);
+        }
+        final CountDownLatch latch = new CountDownLatch(1);
+        final GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            false,
+            node,
+            null
+        );
+        final Executor executor = OpenSearchExecutors.newDirectExecutorService();
+        final SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        final SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        final QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            task.getProgressListener(),
+            writableRegistry(),
+            shardsIter.size(),
+            exc -> {}
+        );
+        final SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+            logger,
+            searchTransportService,
+            (clusterAlias, nodeId) -> lookup.get(nodeId),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            controller,
+            executor,
+            resultConsumer,
+            searchRequest,
+            null,
+            shardsIter,
+            timeProvider,
+            null,
+            task,
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                searchRequest,
+                () -> null
+            ),
+            NoopTracer.INSTANCE,
+            true
+        ) {
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                        latch.countDown();
+                    }
+                };
+            }
+        };
+        action.start();
+        latch.await();
+        return nodeRequests;
     }
 }
