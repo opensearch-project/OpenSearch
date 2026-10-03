@@ -470,7 +470,17 @@ final class DocumentParser {
             }
 
             if (newMapper instanceof ObjectMapper objectMapper) {
-                parentMappers.add(objectMapper);
+                ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
+                if (objectMapper.name().equals(lastParent.name())) {
+                    // The update is rooted at the mapper already on top of the stack. This happens when a
+                    // disable_objects parent was created dynamically in this same document (e.g. via a dynamic
+                    // template), so createExistingMapperUpdate rooted the update at the last parent itself.
+                    // Pushing it would duplicate the mapper on the stack and popMappers would then nest it
+                    // inside itself, so merge it into the existing entry instead.
+                    parentMappers.set(parentMappers.size() - 1, lastParent.merge(objectMapper));
+                } else {
+                    parentMappers.add(objectMapper);
+                }
             } else {
                 addToLastMapper(parentMappers, newMapper, true);
             }

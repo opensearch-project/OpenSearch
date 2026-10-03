@@ -2929,6 +2929,66 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("literalvalue", doc3.rootDoc().getField("outer.literal.field.name").stringValue());
     }
 
+    public void testDisableObjectsViaDynamicTemplate() throws Exception {
+        // Ensure disable_objects works when applied through a dynamic template, including on the
+        // first document, where the object mapper and its flattened fields are created together
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("attributes_flat");
+                    {
+                        b.field("match", "attributes");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "object");
+                            b.field("disable_objects", true);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("attributes");
+            {
+                b.startObject("foo");
+                {
+                    b.field("bar", "baz");
+                    b.startObject("qux");
+                    {
+                        b.field("deep", true);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.field("count", 42);
+            }
+            b.endObject();
+        }));
+
+        assertNotNull("Field 'attributes.foo.bar' should exist", doc.rootDoc().getField("attributes.foo.bar"));
+        assertNotNull("Field 'attributes.foo.qux.deep' should exist", doc.rootDoc().getField("attributes.foo.qux.deep"));
+        assertNotNull("Field 'attributes.count' should exist", doc.rootDoc().getField("attributes.count"));
+
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper attributesMapper = update.root().getMapper("attributes");
+        assertTrue(attributesMapper instanceof ObjectMapper);
+        ObjectMapper attributes = (ObjectMapper) attributesMapper;
+        assertTrue("disable_objects should be set from the dynamic template", attributes.disableObjects());
+        assertNotNull("Flattened leaf 'foo.bar' should be mapped", attributes.getMapper("foo.bar"));
+        assertNotNull("Flattened leaf 'foo.qux.deep' should be mapped", attributes.getMapper("foo.qux.deep"));
+        assertNotNull(attributes.getMapper("count"));
+        assertNull("No intermediate object mapper should be created", attributes.getMapper("foo"));
+    }
+
     public void testRootMapperNameVariations() throws Exception {
         // Test to ensure both empty and "_doc" root mapper names are handled correctly
         // This comprehensively tests the condition: parentPath.isEmpty() || parentPath.equals("_doc")
