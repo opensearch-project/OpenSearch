@@ -810,12 +810,12 @@ public class DataFormatAwareEngine implements Indexer {
         if (index.origin().isFromTranslog() == false) {
             if (batch != null && indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 final IndexVersionValue.PendingLocation pending = new IndexVersionValue.PendingLocation(batch);
+                indexResult.setTook(System.nanoTime() - index.startTime());
+                batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
                 versionMap.maybePutIndexUnderLock(
                     index.uid().bytes(),
                     IndexVersionValue.withPendingLocation(pending, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
                 );
-                indexResult.setTook(System.nanoTime() - index.startTime());
-                batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
                 deferred = true;
             } else {
                 final Translog.Location location;
