@@ -18,7 +18,8 @@ use datafusion::execution::context::SessionContext;
 use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
 use datafusion::logical_expr::function::AccumulatorArgs;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, EmitTo, GroupsAccumulator, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl,
+    Signature, Volatility,
 };
 use datafusion::physical_expr::expressions::Column;
 
@@ -75,6 +76,13 @@ fn eval_approx_distinct(state_col: &ArrayRef) -> Result<ColumnarValue> {
             DataFusionError::Execution("reduce_eval(approx_distinct): expected Binary state".into())
         })?;
 
+    let n = binary.len();
+    if n == 0 {
+        return Ok(ColumnarValue::Array(Arc::new(UInt64Array::from(
+            Vec::<u64>::new(),
+        ))));
+    }
+
     let field: Arc<Field> = Arc::new(Field::new("x", DataType::Int64, true));
     let schema = Arc::new(datafusion::arrow::datatypes::Schema::new(vec![field
         .as_ref()
@@ -82,31 +90,29 @@ fn eval_approx_distinct(state_col: &ArrayRef) -> Result<ColumnarValue> {
     let expr: Arc<dyn datafusion::physical_plan::PhysicalExpr> = Arc::new(Column::new("x", 0));
     let ret_field: Arc<Field> = Arc::new(Field::new("r", DataType::UInt64, true));
 
-    let mut results = Vec::with_capacity(binary.len());
-    for i in 0..binary.len() {
-        if binary.is_null(i) {
-            results.push(0u64);
-            continue;
-        }
-        let mut acc = approx_distinct_udaf().accumulator(AccumulatorArgs {
-            return_field: ret_field.clone(),
-            schema: &schema,
-            ignore_nulls: false,
-            order_bys: &[],
-            name: "x",
-            is_distinct: false,
-            exprs: &[expr.clone()],
-            expr_fields: &[field.clone()],
-            is_reversed: false,
-        })?;
-        let state_array: ArrayRef = Arc::new(BinaryArray::from(vec![binary.value(i)]));
-        acc.merge_batch(&[state_array])?;
-        match acc.evaluate()? {
-            ScalarValue::UInt64(Some(v)) => results.push(v),
-            _ => results.push(0),
-        }
-    }
-    Ok(ColumnarValue::Array(Arc::new(UInt64Array::from(results))))
+    // DF55 emits ADAPTIVE per-group HLL state: dense (16384-byte registers) for
+    // high-cardinality groups, sparse (variable-length LE-u64 hash list) for
+    // low-cardinality ones. Only the grouped accumulator decodes both; the
+    // per-group HLLAccumulator's merge rejects any state != 16384 bytes. Merge
+    // each row's partial state as its own group so the grouped decoder handles
+    // sparse and dense uniformly, then read per-group cardinalities. Null/empty
+    // state rows are skipped by merge_batch and evaluate to 0.
+    let mut acc = approx_distinct_udaf().create_groups_accumulator(AccumulatorArgs {
+        return_field: ret_field.clone(),
+        schema: &schema,
+        ignore_nulls: false,
+        order_bys: &[],
+        name: "x",
+        is_distinct: false,
+        exprs: &[expr.clone()],
+        expr_fields: &[field.clone()],
+        is_reversed: false,
+    })?;
+
+    let group_indices: Vec<usize> = (0..n).collect();
+    let state_array: ArrayRef = Arc::new(binary.clone());
+    acc.merge_batch(&[state_array], &group_indices, n)?;
+    Ok(ColumnarValue::Array(acc.evaluate(EmitTo::All)?))
 }
 
 #[cfg(test)]
@@ -156,6 +162,56 @@ mod tests {
             ColumnarValue::Array(arr) => {
                 let uint_arr = arr.as_any().downcast_ref::<UInt64Array>().unwrap();
                 assert_eq!(uint_arr.value(0), 5); // 5 distinct values
+            }
+            _ => panic!("expected Array"),
+        }
+    }
+
+    /// Regression (DF55): a grouped `approx_distinct` emits SPARSE per-group state
+    /// (variable length, != 16384 bytes) for low-cardinality groups. The old
+    /// per-group `HLLAccumulator::merge_batch` rejected it with "Impossibly got
+    /// invalid binary array from states" → HTTP 500 on grouped `dc() by <col>`
+    /// TopK-reduce queries. `eval_approx_distinct` must decode sparse state.
+    #[test]
+    fn test_reduce_eval_approx_distinct_sparse_group_state() {
+        let field: Arc<Field> = Arc::new(Field::new("x", DataType::Int64, true));
+        let schema = Arc::new(datafusion::arrow::datatypes::Schema::new(vec![field
+            .as_ref()
+            .clone()]));
+        let expr: Arc<dyn datafusion::physical_plan::PhysicalExpr> = Arc::new(Column::new("x", 0));
+        let ret_field: Arc<Field> = Arc::new(Field::new("r", DataType::UInt64, true));
+
+        // Two low-cardinality groups → both serialize as SPARSE state.
+        let mut gacc = approx_distinct_udaf()
+            .create_groups_accumulator(AccumulatorArgs {
+                return_field: ret_field.clone(),
+                schema: &schema,
+                ignore_nulls: false,
+                order_bys: &[],
+                name: "x",
+                is_distinct: false,
+                exprs: &[expr.clone()],
+                expr_fields: &[field.clone()],
+                is_reversed: false,
+            })
+            .unwrap();
+        let values: ArrayRef = Arc::new(datafusion::arrow::array::Int64Array::from(vec![
+            1, 2, 3, 10, 11,
+        ]));
+        let group_indices = vec![0usize, 0, 0, 1, 1];
+        gacc.update_batch(&[values], &group_indices, None, 2)
+            .unwrap();
+        let state = gacc.state(EmitTo::All).unwrap();
+        let binary = state[0].as_any().downcast_ref::<BinaryArray>().unwrap();
+        // The state that tripped the old path: NOT the dense 16384-byte form.
+        assert_ne!(binary.value(0).len(), 16384);
+
+        let result = eval_approx_distinct(&(Arc::new(binary.clone()) as ArrayRef)).unwrap();
+        match result {
+            ColumnarValue::Array(arr) => {
+                let uint_arr = arr.as_any().downcast_ref::<UInt64Array>().unwrap();
+                assert_eq!(uint_arr.value(0), 3); // {1,2,3}
+                assert_eq!(uint_arr.value(1), 2); // {10,11}
             }
             _ => panic!("expected Array"),
         }
