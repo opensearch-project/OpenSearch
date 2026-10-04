@@ -828,6 +828,7 @@ public class DataFormatAwareEngine implements Indexer {
                 } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                     && indexResult.getFailure() != null
                     && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                        flushActiveBatchBeforeInlineWrite();
                         final Engine.NoOp noOp = new Engine.NoOp(
                             indexResult.getSeqNo(),
                             index.primaryTerm(),
@@ -908,6 +909,18 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /**
+     * Deletes, no-ops and the no-op recorded for a failed index are written inline. If this bulk thread still holds
+     * index operations in its batch, append them first so the translog keeps request order (an index of a document
+     * precedes the delete of the same document) whichever path the caller took.
+     */
+    private void flushActiveBatchBeforeInlineWrite() {
+        final TranslogBatchScope batch = activeBatch.get();
+        if (batch != null) {
+            batch.flush();
+        }
+    }
+
     /** Force every live bulk scope to append its current chunk before publishing a catalog snapshot. */
     private void flushActiveTranslogBatches() {
         for (TranslogBatchScope batch : activeBatches) {
@@ -930,6 +943,7 @@ public class DataFormatAwareEngine implements Indexer {
             || delete.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY
             || delete.origin() == Engine.Operation.Origin.LOCAL_RESET
             : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + delete.origin();
+        flushActiveBatchBeforeInlineWrite();
         final Engine.DeleteResult deleteResult;
         int reservedDocs = 0;
         try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
@@ -1076,6 +1090,7 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
+        flushActiveBatchBeforeInlineWrite();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return innerNoOp(noOp);

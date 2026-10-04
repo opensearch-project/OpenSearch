@@ -257,7 +257,8 @@ public interface Indexer
      * Begins a thread-confined translog batch so the primary bulk path can append all successful primary index
      * operations of one bulk-shard-request chunk in a single translog write. The default returns
      * {@link Engine#NO_OP_TRANSLOG_BATCH}, under which every op is appended inline exactly as today; only an indexer
-     * that opts in (the data-format-aware primary engine) defers. The caller must flush the returned batch on the
+     * that opts in defers: the data-format-aware engine directly, or an eligible {@code InternalEngine} through its
+     * {@code EngineBackedIndexer} wrapper. The caller must flush the returned batch on the
      * same thread.
      */
     default Engine.TranslogBatch beginTranslogBatch() {

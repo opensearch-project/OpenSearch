@@ -244,6 +244,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -289,6 +290,118 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testTranslogBatchingIgnoredWithoutRemoteStore() {
         assertThat(engine.beginTranslogBatch(), sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+    }
+
+    /**
+     * An update is a second index of the same id inside the batch. Both operations are deferred into the same chunk,
+     * the version map holds the newer pending entry, and a realtime GET sees the update. After finish both have
+     * increasing locations and the translog carries both in request order.
+     */
+    public void testBatchedUpdateOfSameDocumentKeepsOrderAndLatestVersion() throws Exception {
+        InternalEngine batchEngine = spy(engine);
+        doReturn(true).when(batchEngine).isTranslogBatchingEligible();
+        Engine.TranslogBatch batch = batchEngine.beginTranslogBatch();
+
+        ParsedDocument v1 = testParsedDocument("upd", null, testDocument(), B_1, null);
+        ParsedDocument v2 = testParsedDocument("upd", null, testDocument(), B_2, null);
+        Engine.IndexResult first = batchEngine.index(indexForDoc(v1));
+        Engine.IndexResult second = batchEngine.index(indexForDoc(v2));
+        assertThat(first.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(second.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(second.getVersion(), equalTo(first.getVersion() + 1));
+        assertThat(first.getTranslogLocation(), nullValue());
+        assertThat(second.getTranslogLocation(), nullValue());
+
+        // Realtime GET resolves the pending location (forcing the chunk) and observes the second version.
+        try (Engine.GetResult get = batchEngine.get(new Engine.Get(true, true, "upd", newUid("upd")), batchEngine::acquireSearcher)) {
+            assertTrue(get.exists());
+            assertThat(get.version(), equalTo(second.getVersion()));
+        }
+        Translog.Location max = batch.finish();
+        assertThat(first.getTranslogLocation(), notNullValue());
+        assertThat(second.getTranslogLocation(), notNullValue());
+        assertThat(first.getTranslogLocation().compareTo(second.getTranslogLocation()), lessThan(0));
+        assertThat(max, equalTo(second.getTranslogLocation()));
+        assertThat(batchEngine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            Translog.Operation op1 = snapshot.next();
+            Translog.Operation op2 = snapshot.next();
+            assertThat(snapshot.next(), nullValue());
+            assertThat(op1.seqNo(), equalTo(0L));
+            assertThat(op2.seqNo(), equalTo(1L));
+            assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+            assertThat(op2.opType(), equalTo(Translog.Operation.Type.INDEX));
+        }
+    }
+
+    /**
+     * A delete is written inline. When the same thread still holds a pending index of that document in its batch,
+     * the engine must append the pending chunk before the delete, so the translog order is index then delete and a
+     * replay can never resurrect the document. Also checks the realtime GET after the delete and the sync location.
+     */
+    public void testBatchedIndexThenInlineDeleteFlushesPendingChunkFirst() throws Exception {
+        InternalEngine batchEngine = spy(engine);
+        doReturn(true).when(batchEngine).isTranslogBatchingEligible();
+        Engine.TranslogBatch batch = batchEngine.beginTranslogBatch();
+
+        ParsedDocument doc = testParsedDocument("del", null, testDocument(), B_1, null);
+        Engine.IndexResult indexed = batchEngine.index(indexForDoc(doc));
+        assertThat(indexed.getTranslogLocation(), nullValue());
+
+        Engine.DeleteResult deleted = batchEngine.delete(
+            new Engine.Delete(
+                "del",
+                newUid("del"),
+                UNASSIGNED_SEQ_NO,
+                primaryTerm.get(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                System.nanoTime(),
+                UNASSIGNED_SEQ_NO,
+                0
+            )
+        );
+        assertThat(deleted.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertTrue(deleted.isFound());
+        // The delete flushed the pending chunk: the index now has a location older than the delete's.
+        assertThat(indexed.getTranslogLocation(), notNullValue());
+        assertThat(indexed.getTranslogLocation().compareTo(deleted.getTranslogLocation()), lessThan(0));
+
+        try (Engine.GetResult get = batchEngine.get(new Engine.Get(true, true, "del", newUid("del")), batchEngine::acquireSearcher)) {
+            assertFalse(get.exists());
+        }
+        // Nothing is pending any more, so finish reports the chunk location, which is older than the delete; the
+        // bulk layer keeps the greater of the two (see BulkPrimaryExecutionContext#mergeLocationToSync).
+        Translog.Location finishLocation = batch.finish();
+        assertThat(finishLocation, equalTo(indexed.getTranslogLocation()));
+        assertThat(batchEngine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            Translog.Operation op1 = snapshot.next();
+            Translog.Operation op2 = snapshot.next();
+            assertThat(snapshot.next(), nullValue());
+            assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+            assertThat(op2.opType(), equalTo(Translog.Operation.Type.DELETE));
+            assertThat(op1.seqNo(), lessThan(op2.seqNo()));
+        }
+    }
+
+    /**
+     * {@link org.opensearch.index.shard.IndexShard} never calls the engine directly; it goes through
+     * {@link EngineBackedIndexer}. The wrapper must forward the batching decision, otherwise the {@code Indexer}
+     * default returns the no-op batch and every eligible shard silently keeps appending inline.
+     */
+    public void testEngineBackedIndexerForwardsBeginTranslogBatch() throws Exception {
+        InternalEngine batchEngine = spy(engine);
+        doReturn(true).when(batchEngine).isTranslogBatchingEligible();
+        EngineBackedIndexer indexer = new EngineBackedIndexer(batchEngine);
+        Engine.TranslogBatch batch = indexer.beginTranslogBatch();
+        assertThat(batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+        assertThat(batch.finish(), nullValue());
+
+        assertThat(new EngineBackedIndexer(engine).beginTranslogBatch(), sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
     }
 
     /**

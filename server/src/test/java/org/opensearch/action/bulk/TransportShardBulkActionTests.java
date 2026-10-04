@@ -896,6 +896,142 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     /**
+     * A batched index result carries no translog location when it is recorded; its chunk is appended by the flush that
+     * precedes the delete. The delete is then written inline at a later location, and {@code finish()} reports only
+     * the greatest location the batch itself appended, which is older than the delete. The request must sync to the
+     * delete's location, otherwise an acknowledged delete can escape the sync (or the remote upload after a generation
+     * roll). Regression test for the review finding on PR #23224.
+     */
+    public void testInlineDeleteAfterLastBatchFlushWinsOverOlderFinishLocation() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("idx").source(Requests.INDEX_CONTENT_TYPE, "field", "value")),
+            new BulkItemRequest(1, new DeleteRequest("index", "del")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        final Translog.Location chunkLocation = new Translog.Location(1, 10, 10);
+        final Translog.Location deleteLocation = new Translog.Location(1, 20, 10);
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+        // The flush before the delete appends the pending index chunk; finish has nothing left and reports the same
+        // (older) greatest batch location.
+        when(batch.flush()).thenReturn(chunkLocation);
+        when(batch.finish()).thenReturn(chunkLocation);
+
+        // Deferred index result: no location yet, as the real engines return under batching.
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 10, true, null)
+        );
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(
+            new FakeDeleteResult(1, 1, 11, true, deleteLocation)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Translog.Location> synced = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(
+                    result -> synced.set(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location)
+                ),
+                latch
+            ),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        InOrder inOrder = inOrder(shard, batch);
+        inOrder.verify(shard).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        inOrder.verify(batch).flush();
+        inOrder.verify(shard).applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong());
+        inOrder.verify(batch).finish();
+        assertThat(synced.get(), equalTo(deleteLocation));
+    }
+
+    /**
+     * Dynamic mapping update in the middle of a batched bulk: the first document is deferred (null location) into
+     * scope 1, the second needs a mapping update, so scope 1 is finished before the yield and reports its chunk
+     * location; the retry runs on another thread in scope 2, whose finish reports a later location. The request must
+     * sync to the later location, and both items must be acknowledged.
+     */
+    public void testMappingUpdateMidBatchSyncsToLaterScopeLocation() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("a").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")),
+            new BulkItemRequest(1, new IndexRequest("index").id("b").source(Requests.INDEX_CONTENT_TYPE, "newfield", "baz")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        Engine.IndexResult deferredA = new FakeIndexResult(1, 1, 0, true, null);
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        Engine.IndexResult deferredB = new FakeIndexResult(1, 1, 1, true, null);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            deferredA,
+            mappingUpdate,
+            deferredB
+        );
+
+        final Translog.Location scope1Location = new Translog.Location(1, 10, 10);
+        final Translog.Location scope2Location = new Translog.Location(1, 30, 10);
+        List<Engine.TranslogBatch> batches = new CopyOnWriteArrayList<>();
+        when(shard.beginTranslogBatch()).thenAnswer(invocation -> {
+            Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+            Translog.Location loc = batches.isEmpty() ? scope1Location : scope2Location;
+            when(batch.flush()).thenReturn(loc);
+            when(batch.finish()).thenReturn(loc);
+            batches.add(batch);
+            return batch;
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> primaryResult = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(
+                    result -> primaryResult.set((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result)
+                ),
+                latch
+            ),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        assertThat(batches.size(), equalTo(2));
+        verify(batches.get(0)).finish();
+        verify(batches.get(1)).finish();
+        assertThat(primaryResult.get().location, equalTo(scope2Location));
+        for (BulkItemRequest item : primaryResult.get().replicaRequest().items()) {
+            assertNotNull(item.primaryResponse());
+            assertFalse(item.primaryResponse().isFailed());
+        }
+    }
+
+    /**
      * When an operation requires a dynamic mapping update, execution yields the thread. Before yielding, the current
      * batch scope must be finalized with {@link Engine.TranslogBatch#finish()} (so a pending chunk never crosses
      * threads), and when execution resumes on another thread it must open a brand-new batch via

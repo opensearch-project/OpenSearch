@@ -1043,6 +1043,7 @@ public class InternalEngine extends Engine {
                             && indexResult.getFailure() != null
                             && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
                                 // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                                flushActiveBatchBeforeInlineWrite();
                                 final NoOp noOp = new NoOp(
                                     indexResult.getSeqNo(),
                                     index.primaryTerm(),
@@ -1120,6 +1121,18 @@ public class InternalEngine extends Engine {
         activeBatches.remove(batch);
         if (activeBatch.get() == batch) {
             activeBatch.remove();
+        }
+    }
+
+    /**
+     * Deletes, no-ops and the no-op recorded for a failed index are written to the translog inline. If this bulk thread
+     * still holds index operations in its batch, append them first so the translog keeps request order: an index of
+     * a document must precede the delete of the same document, whichever path the caller took to get here.
+     */
+    private void flushActiveBatchBeforeInlineWrite() {
+        final TranslogBatchScope batch = activeBatch.get();
+        if (batch != null) {
+            batch.flush();
         }
     }
 
@@ -1286,6 +1299,7 @@ public class InternalEngine extends Engine {
         versionMap.enforceSafeAccess();
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+        flushActiveBatchBeforeInlineWrite();
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
@@ -1445,6 +1459,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public NoOpResult noOp(final NoOp noOp) throws IOException {
+        flushActiveBatchBeforeInlineWrite();
         final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();

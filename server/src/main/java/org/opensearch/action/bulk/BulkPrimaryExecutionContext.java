@@ -37,7 +37,7 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -186,15 +186,21 @@ class BulkPrimaryExecutionContext {
     }
 
     /**
-     * Folds an externally produced translog {@link Translog.Location} into {@code locationToSync}. Used by the batched
-     * translog append: a deferred index result carries a null location when {@link #markOperationAsExecuted} runs, so
-     * the batch's max location is merged in here once the batch is flushed.
+     * Folds a translog {@link Translog.Location} into {@code locationToSync}, keeping the greatest one seen so far.
+     * <p>
+     * Locations are no longer guaranteed to arrive in increasing order once index operations are batched: a deferred
+     * index result carries a null location when {@link #markOperationAsExecuted} runs (it is folded in when its chunk
+     * is appended), and {@link org.opensearch.index.engine.Engine.TranslogBatch#finish()} reports the greatest location
+     * the batch appended, which is older than an update, delete or no-op the engine wrote inline after the last chunk
+     * flush. Taking the maximum keeps every operation of the request, batched or inline, covered by the final sync.
      */
-    public void mergeLocationToSync(Translog.Location location) {
+    public void mergeLocationToSync(@Nullable Translog.Location location) {
         if (location == null) {
             return;
         }
-        locationToSync = TransportWriteAction.locationToSync(locationToSync, location);
+        if (locationToSync == null || location.compareTo(locationToSync) > 0) {
+            locationToSync = location;
+        }
     }
 
     private BulkItemRequest getCurrentItem() {
@@ -300,7 +306,8 @@ class BulkPrimaryExecutionContext {
                 executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
-                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                // A batched index result has no location yet; its chunk's location is folded in on flush/finish.
+                mergeLocationToSync(result.getTranslogLocation());
                 break;
             case FAILURE:
                 if (result.getFailure() instanceof AppendOnlyIndexOperationRetryException) {

@@ -104,6 +104,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -3885,6 +3886,18 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         boolean enabled,
         boolean remoteStore
     ) {
+        return buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, null);
+    }
+
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly
+    ) {
+
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -3892,6 +3905,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
             .put(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name())
             .put(IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getKey(), enabled);
+        if (appendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly);
+        }
         if (remoteStore) {
             settings.put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
@@ -3951,9 +3967,21 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         boolean enabled,
         boolean remoteStore
     ) throws IOException {
+        return createBatchDFAEngine(store, translogPath, provider, enabled, remoteStore, null);
+    }
+
+    /** {@code appendOnly == false} enables updates (a second index of an existing id); {@code null} keeps the default. */
+    private DataFormatAwareEngine createBatchDFAEngine(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly
+    ) throws IOException {
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
-        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore));
+        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, appendOnly));
     }
 
     // ----- Batched translog append (index.translog.batch_append.enabled) -----
@@ -4005,6 +4033,76 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // The ops are replayable from the translog, proving the batched append wrote them.
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * An update is a second index of the same id inside the batch: both are deferred, the version map carries the
+     * newer pending entry, a realtime GET observes the update, and after finish the translog holds both in order.
+     */
+    public void testBatchedUpdateOfSameDocumentKeepsOrderAndLatestVersion() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true, true, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult first = engine.index(indexOp(createParsedDocWithInput("upd", null)));
+            Engine.IndexResult second = engine.index(indexOp(createParsedDocWithInput("upd", null)));
+            assertThat(first.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(second.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(second.getVersion(), equalTo(first.getVersion() + 1));
+            assertThat(first.getTranslogLocation(), nullValue());
+            assertThat(second.getTranslogLocation(), nullValue());
+
+            DocumentLookupResult updated = getByIdLookup(engine, realtimeGet("upd"));
+            assertTrue(updated.exists());
+            assertThat(updated.seqNo(), equalTo(second.getSeqNo()));
+            Translog.Location max = batch.finish();
+            assertThat(first.getTranslogLocation(), notNullValue());
+            assertThat(first.getTranslogLocation().compareTo(second.getTranslogLocation()), lessThan(0));
+            assertThat(max, equalTo(second.getTranslogLocation()));
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+            try (Translog.Snapshot snapshot = ((InternalTranslogManager) engine.translogManager()).getTranslog().newSnapshot()) {
+                Translog.Operation op1 = snapshot.next();
+                Translog.Operation op2 = snapshot.next();
+                assertThat(snapshot.next(), nullValue());
+                assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op2.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op1.seqNo(), equalTo(0L));
+                assertThat(op2.seqNo(), equalTo(1L));
+            }
+        }
+    }
+
+    /**
+     * A delete is written inline. With the same document still pending in this thread's batch, the engine must append
+     * the chunk before the delete so the translog order is index then delete; a realtime GET then misses, and finish
+     * reports the (older) chunk location, which the bulk layer merges by maximum.
+     */
+    public void testBatchedIndexThenInlineDeleteFlushesPendingChunkFirst() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult indexed = engine.index(indexOp(createParsedDocWithInput("del", null)));
+            assertThat(indexed.getTranslogLocation(), nullValue());
+
+            Engine.DeleteResult deleted = engine.delete(deleteOp("del"));
+            assertThat(deleted.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue(deleted.isFound());
+            assertThat(indexed.getTranslogLocation(), notNullValue());
+            assertThat(indexed.getTranslogLocation().compareTo(deleted.getTranslogLocation()), lessThan(0));
+
+            assertFalse(getByIdLookup(engine, realtimeGet("del")).exists());
+            assertThat(batch.finish(), equalTo(indexed.getTranslogLocation()));
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+            try (Translog.Snapshot snapshot = ((InternalTranslogManager) engine.translogManager()).getTranslog().newSnapshot()) {
+                Translog.Operation op1 = snapshot.next();
+                Translog.Operation op2 = snapshot.next();
+                assertThat(snapshot.next(), nullValue());
+                assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op2.opType(), equalTo(Translog.Operation.Type.DELETE));
+                assertThat(op1.seqNo(), lessThan(op2.seqNo()));
+            }
         }
     }
 
