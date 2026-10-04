@@ -228,11 +228,12 @@ public final class IndexSettings {
     /**
      * When enabled on a remote-backed index using segment replication and a remote translog, the primary bulk path
      * appends successful primary index operations in bounded batches instead of one write per operation. Local-store
-     * and document-replication engines retain the normal per-operation path. Default false; dynamic for controlled rollout.
+     * and document-replication engines retain the normal per-operation path regardless of this setting. Default true,
+     * so eligible indexes batch unless an operator opts out; dynamic for controlled rollout.
      */
     public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
         "index.translog.batch_append.enabled",
-        false,
+        true,
         Property.Dynamic,
         Property.IndexScope
     );
