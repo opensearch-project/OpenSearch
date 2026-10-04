@@ -148,6 +148,16 @@ public class HierarchicalRoutingSearchProcessorTests extends AbstractBuilderTest
         assertThat(transformedRequest.routing(), equalTo(expectedRouting));
     }
 
+    public void testMultiCharacterSeparatorNormalization() throws Exception {
+        HierarchicalRoutingSearchProcessor processor = createProcessor("path_field", 2, "->", true);
+        String expectedRouting = computeExpectedRouting("company->engineering", "->");
+
+        for (String path : new String[] { "company->engineering->team", "company->->engineering->team", "->->company->->->engineering" }) {
+            SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().query(new TermQueryBuilder("path_field", path)));
+            assertThat("Path: " + path, processor.processRequest(request).routing(), equalTo(expectedRouting));
+        }
+    }
+
     public void testShouldAndMustNotClausesIgnored() throws Exception {
         HierarchicalRoutingSearchProcessor processor = createProcessor("path_field", 2, "/", true);
 

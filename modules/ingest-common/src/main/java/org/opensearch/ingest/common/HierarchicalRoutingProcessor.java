@@ -59,7 +59,7 @@ public final class HierarchicalRoutingProcessor extends AbstractProcessor {
         this.ignoreMissing = ignoreMissing;
         this.overrideExisting = overrideExisting;
         this.pathSeparatorPattern = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(pathSeparator));
-        this.multiSeparatorPattern = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(pathSeparator) + "{2,}");
+        this.multiSeparatorPattern = java.util.regex.Pattern.compile("(?:" + java.util.regex.Pattern.quote(pathSeparator) + "){2,}");
     }
 
     @Override
@@ -145,10 +145,9 @@ public final class HierarchicalRoutingProcessor extends AbstractProcessor {
      */
     private String extractAnchor(String[] segments, int depth) {
         StringBuilder anchor = new StringBuilder();
-        int effectiveDepth = Math.min(depth, segments.length);
         int addedSegments = 0;
 
-        for (int i = 0; i < effectiveDepth && addedSegments < depth; i++) {
+        for (int i = 0; i < segments.length && addedSegments < depth; i++) {
             if (!Strings.isNullOrEmpty(segments[i])) {
                 if (addedSegments > 0) {
                     anchor.append(pathSeparator);
