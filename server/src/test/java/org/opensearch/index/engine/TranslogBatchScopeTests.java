@@ -8,12 +8,15 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -126,6 +129,45 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
 
         final EngineException resolved = expectThrows(EngineException.class, pending::resolve);
         assertThat(resolved, sameInstance(thrown));
+    }
+
+    /**
+     * An {@link AlreadyClosedException} from the translog (closed by a tragic event such as a fenced remote upload, or
+     * by an engine close) must surface as itself, not wrapped: {@code TransportActions#isShardNotAvailableException}
+     * recognises the bare exception and the coordinating node then retries the bulk on the re-promoted primary, exactly
+     * as it does when a per-operation {@code Translog#add} throws it. Every pending location observes the same instance
+     * and the engine callback still receives it so the engine can fail on the underlying tragic event.
+     */
+    public void testAlreadyClosedAppendFailureIsNotWrapped() throws Exception {
+        final TranslogManager translogManager = mock(TranslogManager.class);
+        final AlreadyClosedException closed = new AlreadyClosedException("translog is already closed", new IOException("fenced"));
+        when(translogManager.add(anyList())).thenThrow(closed);
+
+        final AtomicReference<Exception> failEngineCause = new AtomicReference<>();
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+        final TranslogBatchScope scope = new TranslogBatchScope(
+            translogManager,
+            tracker,
+            SHARD_ID,
+            (reason, ex) -> failEngineCause.set(ex),
+            batch -> {}
+        );
+
+        final IndexVersionValue.PendingLocation pending = new IndexVersionValue.PendingLocation(scope);
+        scope.add(op(8), indexResult(0L), pending, 0L);
+
+        final AlreadyClosedException thrown = expectThrows(AlreadyClosedException.class, scope::finish);
+        assertThat(thrown, sameInstance(closed));
+        assertTrue(TransportActions.isShardNotAvailableException(thrown));
+
+        final AlreadyClosedException resolved = expectThrows(AlreadyClosedException.class, pending::resolve);
+        assertThat(resolved, sameInstance(closed));
+        assertThat(failEngineCause.get(), sameInstance(closed));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(NO_OPS_PERFORMED));
+
+        // The scope stays failed with that same exception.
+        final AlreadyClosedException onFinishAgain = expectThrows(AlreadyClosedException.class, scope::finish);
+        assertThat(onFinishAgain, sameInstance(closed));
     }
 
     /**

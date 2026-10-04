@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
@@ -186,9 +187,23 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
         try {
             locations = translogManager.add(operations);
         } catch (Exception ex) {
-            final EngineException appendFailure = (ex instanceof EngineException)
-                ? (EngineException) ex
-                : new EngineException(shardId, "failed to append batched translog chunk of [" + chunk.size() + "] operations", ex);
+            final RuntimeException appendFailure;
+            if (ex instanceof AlreadyClosedException) {
+                // The translog was closed under us, by a tragic event (for example a fenced remote upload) or an engine
+                // close. Surface the AlreadyClosedException itself, exactly as a per-operation Translog#add does: it is a
+                // shard-not-available signal (TransportActions#isShardNotAvailableException), so the coordinating node
+                // retries the bulk on the re-promoted primary instead of failing the client. Wrapping it in an
+                // EngineException would hide that signal, because EngineException is not an OpenSearchWrapperException.
+                appendFailure = (AlreadyClosedException) ex;
+            } else if (ex instanceof EngineException) {
+                appendFailure = (EngineException) ex;
+            } else {
+                appendFailure = new EngineException(
+                    shardId,
+                    "failed to append batched translog chunk of [" + chunk.size() + "] operations",
+                    ex
+                );
+            }
             failure = appendFailure;
             entries.clear();
             pendingBytes = 0L;
