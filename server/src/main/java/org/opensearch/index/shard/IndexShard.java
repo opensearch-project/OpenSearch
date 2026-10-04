@@ -230,6 +230,7 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -649,6 +650,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * To be delegated to {@link ReplicationTracker} so that relevant remote store based
      * operations can be ignored during engine migration
      * <p>
+     * This tracks the remote translog specifically, because the tracker uses it to decide whether a replica can be
+     * excluded from the replication group. A shard on a {@code segments_only} node keeps its translog locally, so it
+     * must stay in the replication group even though its segments live in a remote store.
+     * <p>
      * Has explicit null checks to ensure that the {@link ReplicationTracker#invariant()}
      * checks does not fail during a cluster manager state update when the latest replication group
      * calculation is not yet done and the cached replication group details are available
@@ -656,7 +661,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            return node.isRemoteStoreNode();
+            return node.isRemoteTranslogStoreNode();
         }
         return false;
     };
@@ -3435,6 +3440,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         innerOpenEngineAndTranslog(globalCheckpointSupplier, true);
     }
 
+    /**
+     * Whether this shard rebuilds its translog from the primary instead of from a remote store. This is the case for a
+     * write replica of an index whose segments live in a remote store but whose translog does not, as happens when the
+     * cluster runs in {@code segments_only} mode. Such a replica receives operations through node-to-node replication,
+     * so restoring it from the remote store would discard a translog that is the only durable copy of those operations.
+     * Search-only replicas never receive operations and so are excluded.
+     */
+    private boolean recoversTranslogFromPeer() {
+        return shardRouting.primary() == false
+            && shardRouting.isSearchOnly() == false
+            && indexSettings.isRemoteTranslogStoreEnabled() == false
+            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+    }
+
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
         syncFromRemote = syncFromRemote && indexSettings.isRemoteSnapshot() == false;
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
@@ -3452,7 +3471,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
-        final boolean hydrateFromRemote = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
+            && recoversTranslogFromPeer() == false;
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }
