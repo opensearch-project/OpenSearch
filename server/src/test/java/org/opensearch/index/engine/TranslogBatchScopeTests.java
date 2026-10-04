@@ -14,6 +14,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -279,5 +280,66 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
             () -> scope.add(op(16), indexResult(1L), new IndexVersionValue.PendingLocation(scope), 1L)
         );
         assertThat(e, instanceOf(IllegalStateException.class));
+    }
+
+    /**
+     * The chunk caps are per-scope values supplied by the engine from index settings, not the compiled-in defaults.
+     * With an operation cap of 3 the fourth add must already have forced an append of the first three, and with a
+     * byte cap smaller than two operations every add after the first closes the previous chunk.
+     */
+    public void testConfiguredCapsCloseChunks() throws Exception {
+        final TranslogManager translogManager = mock(TranslogManager.class);
+        final AtomicInteger appends = new AtomicInteger();
+        final AtomicInteger appendedOps = new AtomicInteger();
+        when(translogManager.add(anyList())).thenAnswer(invocation -> {
+            final List<?> ops = invocation.getArgument(0);
+            appends.incrementAndGet();
+            final Translog.Location[] locations = new Translog.Location[ops.size()];
+            for (int i = 0; i < ops.size(); i++) {
+                locations[i] = new Translog.Location(1L, appendedOps.getAndIncrement() * 16L, 16);
+            }
+            return locations;
+        });
+
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+        final TranslogBatchScope byCount = new TranslogBatchScope(
+            translogManager,
+            tracker,
+            SHARD_ID,
+            (reason, ex) -> {},
+            batch -> {},
+            3,
+            Long.MAX_VALUE
+        );
+        for (long seqNo = 0; seqNo < 3; seqNo++) {
+            byCount.add(op(16), indexResult(seqNo), new IndexVersionValue.PendingLocation(byCount), seqNo);
+        }
+        // Reaching the cap appends eagerly: three ops in, one append out, well below the 1,000 default.
+        assertThat(appends.get(), equalTo(1));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(2L));
+        byCount.add(op(16), indexResult(3L), new IndexVersionValue.PendingLocation(byCount), 3L);
+        assertThat(appends.get(), equalTo(1));
+        byCount.finish();
+        assertThat(appends.get(), equalTo(2));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(3L));
+
+        appends.set(0);
+        final TranslogBatchScope byBytes = new TranslogBatchScope(
+            translogManager,
+            tracker,
+            SHARD_ID,
+            (reason, ex) -> {},
+            batch -> {},
+            Integer.MAX_VALUE,
+            24
+        );
+        byBytes.add(op(16), indexResult(4L), new IndexVersionValue.PendingLocation(byBytes), 4L);
+        assertThat(appends.get(), equalTo(0));
+        // 16 + 16 > 24: the second add closes the first chunk before joining a new one.
+        byBytes.add(op(16), indexResult(5L), new IndexVersionValue.PendingLocation(byBytes), 5L);
+        assertThat(appends.get(), equalTo(1));
+        byBytes.finish();
+        assertThat(appends.get(), equalTo(2));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(5L));
     }
 }

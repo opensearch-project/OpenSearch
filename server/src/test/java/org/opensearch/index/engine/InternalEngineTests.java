@@ -401,7 +401,8 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.TranslogBatch batch = batchEngine.beginTranslogBatch();
         assertThat(batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
 
-        final int cap = TranslogBatchScope.MAX_OPERATIONS;
+        final int cap = engine.config().getIndexSettings().getTranslogBatchAppendMaxOperations();
+        assertThat(cap, equalTo(TranslogBatchScope.DEFAULT_MAX_OPERATIONS));
         List<Engine.IndexResult> results = new ArrayList<>(cap);
         for (int i = 0; i < cap; i++) {
             ParsedDocument doc = testParsedDocument("cap-" + i, null, testDocument(), B_1, null);
