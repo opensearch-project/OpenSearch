@@ -26,8 +26,8 @@ import java.util.function.Consumer;
  */
 final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValue.PendingLocation.Flusher {
 
-    static final int MAX_OPERATIONS = 1_000;
-    static final long MAX_BYTES = 1L << 20;
+    static final int DEFAULT_MAX_OPERATIONS = 1_000;
+    static final long DEFAULT_MAX_BYTES = 1L << 20;
 
     private static final class Entry {
         private final Translog.Operation operation;
@@ -54,6 +54,8 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
     private final ShardId shardId;
     private final BiConsumer<String, Exception> failEngine;
     private final Consumer<TranslogBatchScope> onFinished;
+    private final int maxOperations;
+    private final long maxBytes;
     private final List<Entry> entries = new ArrayList<>();
 
     private long pendingBytes;
@@ -68,11 +70,27 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
         BiConsumer<String, Exception> failEngine,
         Consumer<TranslogBatchScope> onFinished
     ) {
+        this(translogManager, localCheckpointTracker, shardId, failEngine, onFinished, DEFAULT_MAX_OPERATIONS, DEFAULT_MAX_BYTES);
+    }
+
+    TranslogBatchScope(
+        TranslogManager translogManager,
+        LocalCheckpointTracker localCheckpointTracker,
+        ShardId shardId,
+        BiConsumer<String, Exception> failEngine,
+        Consumer<TranslogBatchScope> onFinished,
+        int maxOperations,
+        long maxBytes
+    ) {
+        assert maxOperations >= 1 : maxOperations;
+        assert maxBytes >= 1 : maxBytes;
         this.translogManager = translogManager;
         this.localCheckpointTracker = localCheckpointTracker;
         this.shardId = shardId;
         this.failEngine = failEngine;
         this.onFinished = onFinished;
+        this.maxOperations = maxOperations;
+        this.maxBytes = maxBytes;
     }
 
     synchronized void add(
@@ -83,12 +101,12 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
     ) {
         ensureActive();
         final long operationBytes = Math.max(1L, operation.estimateSize());
-        if (entries.isEmpty() == false && (entries.size() >= MAX_OPERATIONS || pendingBytes + operationBytes > MAX_BYTES)) {
+        if (entries.isEmpty() == false && (entries.size() >= maxOperations || pendingBytes + operationBytes > maxBytes)) {
             flushChunk();
         }
         entries.add(new Entry(operation, result, pending, seqNo));
         pendingBytes += operationBytes;
-        if (entries.size() >= MAX_OPERATIONS || pendingBytes >= MAX_BYTES) {
+        if (entries.size() >= maxOperations || pendingBytes >= maxBytes) {
             flushChunk();
         }
     }

@@ -1107,7 +1107,9 @@ public class InternalEngine extends Engine {
             localCheckpointTracker,
             shardId,
             this::failEngine,
-            this::onTranslogBatchFinished
+            this::onTranslogBatchFinished,
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
         );
         activeBatch.set(batch);
         activeBatches.add(batch);
