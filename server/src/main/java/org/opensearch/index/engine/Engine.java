@@ -503,8 +503,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * continues. {@link #finish()} appends the final chunk and closes the scope.
      * <p>
      * A flush may be initiated by another thread resolving a pending realtime GET. Implementations must serialize
-     * concurrent add/flush activity. If an append fails, all affected requests must fail; an implementation that has
-     * already applied those operations to its indexing engine must also fence the engine.
+     * concurrent add/flush activity. If an append fails, all affected requests must fail with the exception the
+     * per-operation translog path would have thrown, and the engine is consulted exactly as for a per-operation
+     * translog failure: it fails only if the exception is the translog's own tragic event.
      *
      * @opensearch.api
      */

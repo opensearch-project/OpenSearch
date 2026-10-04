@@ -13,6 +13,7 @@ import org.opensearch.action.support.TransportActions;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -56,23 +57,26 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
     }
 
     /**
-     * When the underlying batched translog append throws, the scope must: complete every pending location
-     * exceptionally with the same failure, invoke failEngine exactly once, advance no checkpoint, surface no max
-     * location, and keep rethrowing the identical failure on any later flush()/finish().
+     * The failure contract is the per-operation one: when the batched translog append throws, the scope completes every
+     * pending location exceptionally with the same exception the single-operation path would have thrown, consults
+     * maybeFailEngine exactly once with the raw exception (so the engine fails only if that exception is the translog's
+     * tragic event), advances no checkpoint, surfaces no max location, and keeps rethrowing the identical failure on any
+     * later flush()/finish(). A RuntimeException from the translog (here the TranslogException the translog itself uses
+     * for a non-IO write failure) propagates as the very same instance.
      */
-    public void testAppendFailureFailsEveryPendingAndFencesEngine() throws Exception {
+    public void testAppendFailureFailsEveryPendingAndConsultsMaybeFailEngineOnce() throws Exception {
         final TranslogManager translogManager = mock(TranslogManager.class);
-        final RuntimeException appendFailure = new RuntimeException("disk full");
+        final TranslogException appendFailure = new TranslogException(SHARD_ID, "Failed to write batch", new RuntimeException("boom"));
         when(translogManager.add(anyList())).thenThrow(appendFailure);
 
         final LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-        final AtomicInteger failEngineCalls = new AtomicInteger();
-        final AtomicReference<Exception> failEngineCause = new AtomicReference<>();
+        final AtomicInteger maybeFailEngineCalls = new AtomicInteger();
+        final AtomicReference<Exception> maybeFailEngineCause = new AtomicReference<>();
         final AtomicInteger onFinishedCalls = new AtomicInteger();
 
         final TranslogBatchScope scope = new TranslogBatchScope(translogManager, tracker, SHARD_ID, (reason, ex) -> {
-            failEngineCalls.incrementAndGet();
-            failEngineCause.set(ex);
+            maybeFailEngineCalls.incrementAndGet();
+            maybeFailEngineCause.set(ex);
         }, batch -> onFinishedCalls.incrementAndGet());
 
         final IndexVersionValue.PendingLocation firstPending = new IndexVersionValue.PendingLocation(scope);
@@ -80,55 +84,59 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
         scope.add(op(16), indexResult(0L), firstPending, 0L);
         scope.add(op(16), indexResult(1L), secondPending, 1L);
 
-        // flush() triggers the (failing) append and must rethrow the wrapped failure.
-        final EngineException thrown = expectThrows(EngineException.class, scope::flush);
-        assertThat(thrown.getCause(), sameInstance(appendFailure));
+        // flush() triggers the (failing) append and rethrows the translog's own exception, unwrapped.
+        final TranslogException thrown = expectThrows(TranslogException.class, scope::flush);
+        assertThat(thrown, sameInstance(appendFailure));
 
-        // Every pending location was completed exceptionally with that very EngineException, so resolve() rethrows it
-        // without hanging (the latch is already counted down).
-        final EngineException firstResolved = expectThrows(EngineException.class, firstPending::resolve);
-        final EngineException secondResolved = expectThrows(EngineException.class, secondPending::resolve);
-        assertThat(firstResolved, sameInstance(thrown));
-        assertThat(secondResolved, sameInstance(thrown));
+        // Every pending location was completed exceptionally with that same instance, so resolve() rethrows it without
+        // hanging (the latch is already counted down).
+        assertThat(expectThrows(TranslogException.class, firstPending::resolve), sameInstance(appendFailure));
+        assertThat(expectThrows(TranslogException.class, secondPending::resolve), sameInstance(appendFailure));
 
-        // The engine was fenced exactly once with the original cause, and the scope reported itself finished once.
-        assertThat(failEngineCalls.get(), equalTo(1));
-        assertThat(failEngineCause.get(), sameInstance(appendFailure));
+        // The engine was consulted exactly once with the raw exception, and the scope reported itself finished once.
+        assertThat(maybeFailEngineCalls.get(), equalTo(1));
+        assertThat(maybeFailEngineCause.get(), sameInstance(appendFailure));
         assertThat(onFinishedCalls.get(), equalTo(1));
 
         // No checkpoint advanced: nothing was durably appended.
         assertThat(tracker.getProcessedCheckpoint(), equalTo(NO_OPS_PERFORMED));
 
         // Subsequent flush() and finish() keep rethrowing the identical failure and do not re-invoke the translog or
-        // re-fence the engine.
-        final EngineException onFlushAgain = expectThrows(EngineException.class, scope::flush);
-        assertThat(onFlushAgain, sameInstance(thrown));
-        final EngineException onFinishAgain = expectThrows(EngineException.class, scope::finish);
-        assertThat(onFinishAgain, sameInstance(thrown));
-        assertThat(failEngineCalls.get(), equalTo(1));
+        // consult the engine again.
+        assertThat(expectThrows(TranslogException.class, scope::flush), sameInstance(appendFailure));
+        assertThat(expectThrows(TranslogException.class, scope::finish), sameInstance(appendFailure));
+        assertThat(maybeFailEngineCalls.get(), equalTo(1));
     }
 
     /**
-     * A non-{@link EngineException} thrown by the translog is wrapped in an {@link EngineException} that carries the
-     * shard id and the original cause, and that wrapper is what every pending location observes.
+     * The one case that needs a carrier: a checked {@link IOException} from the translog cannot cross the unchecked
+     * batch interface, so it is wrapped in the translog's own {@link TranslogException} carrying the shard id, exactly
+     * as {@code Translog#add} wraps its non-IO failures. The engine still sees the raw IOException, which is what it
+     * compares against the translog's tragic exception.
      */
-    public void testAppendFailureWrapsNonEngineExceptionWithShardId() throws Exception {
+    public void testCheckedAppendFailureIsCarriedByTranslogException() throws Exception {
         final TranslogManager translogManager = mock(TranslogManager.class);
-        final IllegalStateException raw = new IllegalStateException("boom");
+        final IOException raw = new IOException("disk full");
         when(translogManager.add(anyList())).thenThrow(raw);
 
+        final AtomicReference<Exception> maybeFailEngineCause = new AtomicReference<>();
         final LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-        final TranslogBatchScope scope = new TranslogBatchScope(translogManager, tracker, SHARD_ID, (reason, ex) -> {}, batch -> {});
+        final TranslogBatchScope scope = new TranslogBatchScope(
+            translogManager,
+            tracker,
+            SHARD_ID,
+            (reason, ex) -> maybeFailEngineCause.set(ex),
+            batch -> {}
+        );
 
         final IndexVersionValue.PendingLocation pending = new IndexVersionValue.PendingLocation(scope);
         scope.add(op(8), indexResult(0L), pending, 0L);
 
-        final EngineException thrown = expectThrows(EngineException.class, scope::finish);
+        final TranslogException thrown = expectThrows(TranslogException.class, scope::finish);
         assertThat(thrown.getCause(), sameInstance(raw));
         assertThat(thrown.getShardId(), equalTo(SHARD_ID));
-
-        final EngineException resolved = expectThrows(EngineException.class, pending::resolve);
-        assertThat(resolved, sameInstance(thrown));
+        assertThat(expectThrows(TranslogException.class, pending::resolve), sameInstance(thrown));
+        assertThat(maybeFailEngineCause.get(), sameInstance(raw));
     }
 
     /**
@@ -136,20 +144,20 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
      * by an engine close) must surface as itself, not wrapped: {@code TransportActions#isShardNotAvailableException}
      * recognises the bare exception and the coordinating node then retries the bulk on the re-promoted primary, exactly
      * as it does when a per-operation {@code Translog#add} throws it. Every pending location observes the same instance
-     * and the engine callback still receives it so the engine can fail on the underlying tragic event.
+     * and the engine callback receives it so maybeFailEngine can fail the engine on the underlying tragic event.
      */
     public void testAlreadyClosedAppendFailureIsNotWrapped() throws Exception {
         final TranslogManager translogManager = mock(TranslogManager.class);
         final AlreadyClosedException closed = new AlreadyClosedException("translog is already closed", new IOException("fenced"));
         when(translogManager.add(anyList())).thenThrow(closed);
 
-        final AtomicReference<Exception> failEngineCause = new AtomicReference<>();
+        final AtomicReference<Exception> maybeFailEngineCause = new AtomicReference<>();
         final LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         final TranslogBatchScope scope = new TranslogBatchScope(
             translogManager,
             tracker,
             SHARD_ID,
-            (reason, ex) -> failEngineCause.set(ex),
+            (reason, ex) -> maybeFailEngineCause.set(ex),
             batch -> {}
         );
 
@@ -160,14 +168,12 @@ public class TranslogBatchScopeTests extends OpenSearchTestCase {
         assertThat(thrown, sameInstance(closed));
         assertTrue(TransportActions.isShardNotAvailableException(thrown));
 
-        final AlreadyClosedException resolved = expectThrows(AlreadyClosedException.class, pending::resolve);
-        assertThat(resolved, sameInstance(closed));
-        assertThat(failEngineCause.get(), sameInstance(closed));
+        assertThat(expectThrows(AlreadyClosedException.class, pending::resolve), sameInstance(closed));
+        assertThat(maybeFailEngineCause.get(), sameInstance(closed));
         assertThat(tracker.getProcessedCheckpoint(), equalTo(NO_OPS_PERFORMED));
 
         // The scope stays failed with that same exception.
-        final AlreadyClosedException onFinishAgain = expectThrows(AlreadyClosedException.class, scope::finish);
-        assertThat(onFinishAgain, sameInstance(closed));
+        assertThat(expectThrows(AlreadyClosedException.class, scope::finish), sameInstance(closed));
     }
 
     /**

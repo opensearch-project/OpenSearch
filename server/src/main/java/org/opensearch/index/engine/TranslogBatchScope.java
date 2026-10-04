@@ -8,11 +8,11 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
     private final TranslogManager translogManager;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final ShardId shardId;
-    private final BiConsumer<String, Exception> failEngine;
+    private final BiConsumer<String, Exception> maybeFailEngine;
     private final Consumer<TranslogBatchScope> onFinished;
     private final int maxOperations;
     private final long maxBytes;
@@ -68,17 +68,17 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
         TranslogManager translogManager,
         LocalCheckpointTracker localCheckpointTracker,
         ShardId shardId,
-        BiConsumer<String, Exception> failEngine,
+        BiConsumer<String, Exception> maybeFailEngine,
         Consumer<TranslogBatchScope> onFinished
     ) {
-        this(translogManager, localCheckpointTracker, shardId, failEngine, onFinished, DEFAULT_MAX_OPERATIONS, DEFAULT_MAX_BYTES);
+        this(translogManager, localCheckpointTracker, shardId, maybeFailEngine, onFinished, DEFAULT_MAX_OPERATIONS, DEFAULT_MAX_BYTES);
     }
 
     TranslogBatchScope(
         TranslogManager translogManager,
         LocalCheckpointTracker localCheckpointTracker,
         ShardId shardId,
-        BiConsumer<String, Exception> failEngine,
+        BiConsumer<String, Exception> maybeFailEngine,
         Consumer<TranslogBatchScope> onFinished,
         int maxOperations,
         long maxBytes
@@ -88,7 +88,7 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
         this.translogManager = translogManager;
         this.localCheckpointTracker = localCheckpointTracker;
         this.shardId = shardId;
-        this.failEngine = failEngine;
+        this.maybeFailEngine = maybeFailEngine;
         this.onFinished = onFinished;
         this.maxOperations = maxOperations;
         this.maxBytes = maxBytes;
@@ -187,23 +187,17 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
         try {
             locations = translogManager.add(operations);
         } catch (Exception ex) {
-            final RuntimeException appendFailure;
-            if (ex instanceof AlreadyClosedException) {
-                // The translog was closed under us, by a tragic event (for example a fenced remote upload) or an engine
-                // close. Surface the AlreadyClosedException itself, exactly as a per-operation Translog#add does: it is a
-                // shard-not-available signal (TransportActions#isShardNotAvailableException), so the coordinating node
-                // retries the bulk on the re-promoted primary instead of failing the client. Wrapping it in an
-                // EngineException would hide that signal, because EngineException is not an OpenSearchWrapperException.
-                appendFailure = (AlreadyClosedException) ex;
-            } else if (ex instanceof EngineException) {
-                appendFailure = (EngineException) ex;
-            } else {
-                appendFailure = new EngineException(
-                    shardId,
-                    "failed to append batched translog chunk of [" + chunk.size() + "] operations",
-                    ex
-                );
-            }
+            // Identical handling to a per-operation Translog#add failing inside InternalEngine#index: the translog has
+            // already recorded its own tragic event (closeOnTragicEvent) if the failure was one, the engine is asked
+            // maybeFailEngine with the raw exception so it fails only when that exception IS the tragic event (or an
+            // AlreadyClosedException over one), and the request fails with the same exception the single-operation path
+            // would have thrown. In particular an AlreadyClosedException is surfaced as itself so that
+            // TransportActions#isShardNotAvailableException still holds and the coordinating node retries on the
+            // re-promoted primary. Only the checked IOException needs an unchecked carrier for this interface; the
+            // translog's own TranslogException is used, as Translog#add does for its non-IO failures.
+            final RuntimeException appendFailure = (ex instanceof RuntimeException)
+                ? (RuntimeException) ex
+                : new TranslogException(shardId, "Failed to write batch of [" + chunk.size() + "] operations", ex);
             failure = appendFailure;
             entries.clear();
             pendingBytes = 0L;
@@ -213,7 +207,7 @@ final class TranslogBatchScope implements Engine.TranslogBatch, IndexVersionValu
                 }
             }
             onFinished.accept(this);
-            failEngine.accept("failed to append batched translog chunk", ex);
+            maybeFailEngine.accept("translog batch append", ex);
             throw appendFailure;
         }
 

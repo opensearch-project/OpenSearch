@@ -1107,7 +1107,9 @@ public class InternalEngine extends Engine {
             translogManager,
             localCheckpointTracker,
             shardId,
-            this::failEngineOnBatchAppendFailure,
+            // Same decision as a per-operation translog failure in index(): fail the engine only if the exception is the
+            // translog's tragic event (or an AlreadyClosedException over one); otherwise only the request fails.
+            this::maybeFailEngine,
             this::onTranslogBatchFinished,
             engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
             engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
@@ -1115,20 +1117,6 @@ public class InternalEngine extends Engine {
         activeBatch.set(batch);
         activeBatches.add(batch);
         return batch;
-    }
-
-    /**
-     * A batched append that fails is handled like a per-operation {@code Translog#add} failure in {@link #index}: an
-     * {@link AlreadyClosedException} means the translog (or the engine) was already closed, so the engine is failed on
-     * the underlying tragic event through {@link #maybeFailEngine} rather than on the symptom; any other failure is a
-     * fresh tragic event and fails the engine directly.
-     */
-    private void failEngineOnBatchAppendFailure(String reason, Exception ex) {
-        if (ex instanceof AlreadyClosedException) {
-            maybeFailEngine("translog batch append", ex);
-        } else {
-            failEngine(reason, ex);
-        }
     }
 
     private void onTranslogBatchFinished(TranslogBatchScope batch) {

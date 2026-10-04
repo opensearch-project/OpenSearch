@@ -892,7 +892,9 @@ public class DataFormatAwareEngine implements Indexer {
             translogManager,
             localCheckpointTracker,
             shardId,
-            this::failEngineOnBatchAppendFailure,
+            // Same decision as a per-operation translog failure in index(): fail the engine only if the exception is the
+            // translog's tragic event (or an AlreadyClosedException over one); otherwise only the request fails.
+            this::maybeFailEngine,
             this::onTranslogBatchFinished,
             engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
             engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
@@ -900,19 +902,6 @@ public class DataFormatAwareEngine implements Indexer {
         activeBatch.set(batch);
         activeBatches.add(batch);
         return batch;
-    }
-
-    /**
-     * Mirrors {@code InternalEngine}: an {@link AlreadyClosedException} from a batched append means the translog (or the
-     * engine) was already closed, so the engine is failed on the underlying tragic event via {@link #maybeFailEngine};
-     * any other append failure is itself the tragic event and fails the engine directly.
-     */
-    private void failEngineOnBatchAppendFailure(String reason, Exception ex) {
-        if (ex instanceof AlreadyClosedException) {
-            maybeFailEngine("translog batch append", ex);
-        } else {
-            failEngine(reason, ex);
-        }
     }
 
     private void onTranslogBatchFinished(TranslogBatchScope batch) {
