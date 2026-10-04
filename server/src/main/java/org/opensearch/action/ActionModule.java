@@ -545,6 +545,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
@@ -1269,6 +1270,20 @@ public class ActionModule extends AbstractModule {
          */
         public boolean isActionRegistered(String actionName) {
             return registeredActionNames.contains(actionName);
+        }
+
+        /**
+         * Returns an immutable snapshot of the action names registered on this node.
+         * Includes core and plugin actions, dynamic actions, and named routes with their legacy action names.
+         * Transport handlers registered outside this registry are not included.
+         * <p>
+         * Later registrations and removals do not change the returned set. Concurrent changes may or may not
+         * be reflected in the snapshot; it is not an atomic view of registration operations.
+         *
+         * @return registered action names in lexicographic order
+         */
+        public Set<String> getRegisteredActionNames() {
+            return Collections.unmodifiableSet(new TreeSet<>(registeredActionNames));
         }
 
         /**
