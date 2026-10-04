@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.delete.DeleteResponse;
@@ -104,6 +105,16 @@ public class MergesWithDeletesIT extends AbstractCompositeEngineIT {
             .setMapping("name", "type=keyword", "value", "type=integer")
             .get();
         ensureGreen(INDEX);
+    }
+
+    /** Drops and recreates the index, so a sweep can run each of its cases against a clean shard. */
+    private void recreateIndex() {
+        try {
+            client().admin().indices().prepareDelete(INDEX).get();
+        } catch (Exception ignored) {
+            // first iteration of a sweep — nothing to drop yet
+        }
+        createIndex();
     }
 
     /** Multi-shard composite index for concurrent-traffic tests. */
@@ -428,6 +439,183 @@ public class MergesWithDeletesIT extends AbstractCompositeEngineIT {
         assertFalse(exists("d9"));
         assertTrue(exists("d100"));
         assertCrossFormatRowAligned(11);
+    }
+
+    /**
+     * A generation of documents nothing ever touches. A force merge over a lone generation is planned as
+     * nothing to do, so a sweep needs this second generation to survive for the merge to actually run.
+     */
+    private List<String> indexBystanderGeneration() throws Exception {
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            String id = "bystander" + i;
+            assertEquals(RestStatus.CREATED, indexDoc(id, -1 - i).status());
+            ids.add(id);
+        }
+        refresh();
+        return ids;
+    }
+
+    /**
+     * The delete of a row in a lone generation must still be reclaimed by a force merge. Fails today:
+     * merge planning cannot see the hidden row, so it decides there is nothing to merge.
+     */
+    @AwaitsFix(bugUrl = "DataFormatAwareMergePolicy.DataFormatMergeContext.numDeletesToMerge() returns 0, so TieredMergePolicy "
+        + "sees no deletes and findForcedMerges bails out on a lone generation")
+    public void testLoneGenerationWithDeletesIsStillMerged() throws Exception {
+        createIndex();
+
+        for (int i = 0; i < 20; i++) {
+            assertEquals(RestStatus.CREATED, indexDoc("d" + i, i).status());
+        }
+        refresh();
+        assertEquals("all 20 rows written", 20L, parquetRows());
+
+        for (int i = 0; i < 5; i++) {
+            assertEquals(DocWriteResponse.Result.DELETED, deleteDoc("d" + i).getResult());
+        }
+        refresh();
+
+        assertEquals(0, forceMergeToOne().getFailedShards());
+        assertEquals("the lone generation's deleted rows must be physically dropped", 15L, parquetRows());
+    }
+
+    /** Every delete density must merge to the exact survivor set, with both formats still row-aligned. */
+    public void testDeleteDensitySweepAcrossAMerge() throws Exception {
+        int total = 200;
+        int perGeneration = 50;
+
+        for (int density : new int[] { 0, 1, 30, 50, 99, 100 }) {
+            recreateIndex();
+            List<String> bystanders = indexBystanderGeneration();
+
+            List<String> ids = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                String id = "d" + i;
+                assertEquals(RestStatus.CREATED, indexDoc(id, i).status());
+                ids.add(id);
+                if ((i + 1) % perGeneration == 0) {
+                    refresh();
+                }
+            }
+
+            // Scattered rather than contiguous, so the merge has to renumber around gaps everywhere.
+            Set<String> deleted = new HashSet<>(randomSubsetOf(total * density / 100, ids));
+            for (String id : deleted) {
+                assertEquals(DocWriteResponse.Result.DELETED, deleteDoc(id).getResult());
+            }
+
+            // The 30% case also updates a further 30%, so superseded copies and deletes merge together.
+            if (density == 30) {
+                List<String> survivors = new ArrayList<>(ids);
+                survivors.removeAll(deleted);
+                for (String id : randomSubsetOf(total * 30 / 100, survivors)) {
+                    assertEquals(DocWriteResponse.Result.UPDATED, indexDoc(id, 9999).getResult());
+                }
+            }
+            refresh();
+
+            assertEquals(0, forceMergeToOne().getFailedShards());
+
+            int survivors = total - deleted.size() + bystanders.size();
+            String context = density + "% delete density";
+            assertEquals(context + ": live rows after the merge", survivors, (int) parquetRows());
+            assertParquetFileRowCountsMatchCatalog();
+            for (String id : ids) {
+                assertEquals(context + ": resolution of " + id, deleted.contains(id) == false, exists(id));
+            }
+            for (String id : bystanders) {
+                assertTrue(context + ": untouched bystander " + id + " must survive", exists(id));
+            }
+            assertCrossFormatRowAligned(survivors);
+        }
+    }
+
+    /** Four generations emptied to 0/50/99/100% must merge into one correct segment. */
+    public void testGenerationMixSweepAcrossAMerge() throws Exception {
+        createIndex();
+
+        int perGeneration = 100;
+        int[] densities = { 0, 50, 99, 100 };
+
+        List<List<String>> generations = new ArrayList<>();
+        for (int g = 0; g < densities.length; g++) {
+            List<String> ids = new ArrayList<>();
+            for (int i = 0; i < perGeneration; i++) {
+                String id = "g" + g + "_" + i;
+                assertEquals(RestStatus.CREATED, indexDoc(id, g * perGeneration + i).status());
+                ids.add(id);
+            }
+            refresh();
+            generations.add(ids);
+        }
+
+        Set<String> deleted = new HashSet<>();
+        for (int g = 0; g < densities.length; g++) {
+            for (String id : randomSubsetOf(perGeneration * densities[g] / 100, generations.get(g))) {
+                assertEquals(DocWriteResponse.Result.DELETED, deleteDoc(id).getResult());
+                deleted.add(id);
+            }
+        }
+        refresh();
+
+        assertEquals(0, forceMergeToOne().getFailedShards());
+
+        int survivors = densities.length * perGeneration - deleted.size();
+        assertEquals("0/50/99/100% mix leaves 100 + 50 + 1 + 0 survivors", 151, survivors);
+        assertEquals("live rows after merging a mixed-density generation set", survivors, (int) parquetRows());
+        assertParquetFileRowCountsMatchCatalog();
+        for (List<String> ids : generations) {
+            for (String id : ids) {
+                assertEquals("resolution of " + id, deleted.contains(id) == false, exists(id));
+            }
+        }
+        assertCrossFormatRowAligned(survivors);
+    }
+
+    /**
+     * Repeated "update everything, delete a few, merge" rounds must keep the physical row count tracking
+     * the live doc count, not the cumulative write count: each merge reclaims what the last round superseded.
+     */
+    public void testRepeatedUpdateHeavyMergeCyclesStabilise() throws Exception {
+        createIndex();
+        List<String> bystanders = indexBystanderGeneration();
+
+        int total = 100;
+        List<String> live = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            String id = "d" + i;
+            assertEquals(RestStatus.CREATED, indexDoc(id, 0).status());
+            live.add(id);
+        }
+        refresh();
+
+        int rounds = 5;
+        for (int round = 1; round <= rounds; round++) {
+            for (String id : live) {
+                assertEquals(DocWriteResponse.Result.UPDATED, indexDoc(id, round).getResult());
+            }
+            List<String> toDelete = randomSubsetOf(Math.max(1, live.size() * 5 / 100), live);
+            for (String id : toDelete) {
+                assertEquals(DocWriteResponse.Result.DELETED, deleteDoc(id).getResult());
+            }
+            live.removeAll(toDelete);
+            refresh();
+
+            assertEquals(0, forceMergeToOne().getFailedShards());
+
+            int expected = live.size() + bystanders.size();
+            String context = "round " + round;
+            assertEquals(context + ": physical rows must equal live docs, not accumulate", expected, (int) parquetRows());
+            assertParquetFileRowCountsMatchCatalog();
+            assertCrossFormatRowAligned(expected);
+        }
+
+        for (String id : live) {
+            GetResponse g = client().prepareGet(INDEX, id).setRealtime(false).get();
+            assertTrue("survivor must resolve after " + rounds + " rounds: " + id, g.isExists());
+            assertEquals("survivor must carry the last round's value", rounds, ((Number) g.getSourceAsMap().get("value")).intValue());
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
