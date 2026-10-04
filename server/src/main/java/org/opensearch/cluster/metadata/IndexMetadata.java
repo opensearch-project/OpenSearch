@@ -96,6 +96,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
@@ -1973,6 +1974,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
+        return readFrom(in, UnaryOperator.identity());
+    }
+
+    static IndexMetadata readFrom(StreamInput in, UnaryOperator<MappingMetadata> mappingDeduplicator) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
@@ -1987,7 +1992,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
-            MappingMetadata mappingMd = new MappingMetadata(in);
+            MappingMetadata mappingMd = mappingDeduplicator.apply(new MappingMetadata(in));
             builder.putMapping(mappingMd);
         }
         int aliasesSize = in.readVInt();

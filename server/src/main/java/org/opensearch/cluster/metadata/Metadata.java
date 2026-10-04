@@ -1154,7 +1154,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in), false);
+            builder.put(IndexMetadata.readFrom(in, builder.mappingPool::deduplicate), false);
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -1229,15 +1229,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
          */
         IndexMetadata deduplicate(IndexMetadata indexMetadata) {
             final MappingMetadata mapping = indexMetadata.mapping();
-            if (mapping == null) {
-                return indexMetadata;
-            }
+            return mapping == null ? indexMetadata : indexMetadata.withMappingMetadata(deduplicate(mapping));
+        }
+
+        /**
+         * Returns the pooled instance of the given mapping. A mapping the pool hasn't seen yet joins it.
+         */
+        MappingMetadata deduplicate(MappingMetadata mapping) {
             final MappingMetadata sharedMapping = mappings.get(mapping);
             if (sharedMapping != null) {
-                return indexMetadata.withMappingMetadata(sharedMapping);
+                return sharedMapping;
             }
             mutableMappings().put(mapping, mapping);
-            return indexMetadata;
+            return mapping;
         }
 
         void replaced(@Nullable IndexMetadata previous, IndexMetadata updated) {

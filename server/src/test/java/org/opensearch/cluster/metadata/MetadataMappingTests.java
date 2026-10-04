@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -205,6 +206,23 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         Metadata deserializedMetadata = copyWriteable(metadata, REGISTRY, Metadata::readFrom);
 
         assertSame(deserializedMetadata.index("index-1").mapping(), deserializedMetadata.index("index-2").mapping());
+    }
+
+    public void testReadingIndexMetadataUsesDeduplicatedMapping() throws Exception {
+        IndexMetadata index = newIndexWithMapping("index-1", MAPPING_JSON);
+        MappingMetadata sharedMapping = new MappingMetadata(new CompressedXContent(MAPPING_JSON));
+
+        IndexMetadata read;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            index.writeTo(out);
+            read = IndexMetadata.readFrom(out.bytes().streamInput(), mapping -> {
+                assertEquals(sharedMapping, mapping);
+                return sharedMapping;
+            });
+        }
+
+        assertSame(sharedMapping, read.mapping());
+        assertEquals(index, read);
     }
 
     public void testParsingXContentDeduplicatesMappings() throws Exception {

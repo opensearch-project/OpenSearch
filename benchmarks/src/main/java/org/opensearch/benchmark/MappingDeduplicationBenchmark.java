@@ -6,11 +6,17 @@ package org.opensearch.benchmark;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -20,6 +26,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
@@ -38,6 +45,8 @@ public class MappingDeduplicationBenchmark {
     private IndexMetadata[] input;
     private Metadata previous;
     private IndexMetadata changed;
+    private BytesReference serialized;
+    private NamedWriteableRegistry registry;
 
     @Setup
     public void setup() throws Exception {
@@ -63,6 +72,11 @@ public class MappingDeduplicationBenchmark {
             .putMapping(new MappingMetadata(new CompressedXContent(mapping(fields, distinct))))
             .mappingVersion(2)
             .build();
+        registry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            previous.writeTo(out);
+            serialized = out.bytes();
+        }
     }
 
     private static String mapping(int fields, int group) {
@@ -90,6 +104,13 @@ public class MappingDeduplicationBenchmark {
     @Benchmark
     public Metadata oneMappingUpdate() {
         return Metadata.builder(previous).put(changed, false).build();
+    }
+
+    @Benchmark
+    public Metadata readFrom() throws IOException {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
+            return Metadata.readFrom(in);
+        }
     }
 
     public static void main(String[] args) throws Exception {
