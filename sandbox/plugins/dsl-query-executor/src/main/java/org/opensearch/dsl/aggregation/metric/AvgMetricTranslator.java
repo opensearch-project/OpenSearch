@@ -10,18 +10,27 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Translates AVG metric aggregation to Calcite. */
 public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregationBuilder> {
 
-    /** Creates an AVG metric translator. */
-    public AvgMetricTranslator() {}
+    /**
+     * Creates an AVG metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public AvgMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        super(mapperServiceSupplier);
+    }
 
     @Override
     public Class<AvgAggregationBuilder> getAggregationType() {
@@ -44,10 +53,13 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
      * count=0, which renders as {@code "value": null} like legacy.
      */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value, Map<String, Object> metadata) {
-        if (value == null) {
-            return new InternalAvg(name, 0.0, 0, DocValueFormat.RAW, metadata);
+    public InternalAggregation toInternalAggregation(AvgAggregationBuilder agg, Map<String, Object> values) {
+        DocValueFormat format = resolveFormat(agg);
+        Map<String, Object> metadata = AggregationTranslator.userMetadata(agg);
+        Object result = getResult(agg, values);
+        if (result == null) {
+            return new InternalAvg(agg.getName(), 0.0, 0, format, metadata);
         }
-        return new InternalAvg(name, toDouble(value), 1, DocValueFormat.RAW, metadata);
+        return new InternalAvg(agg.getName(), toDouble(result), 1, format, metadata);
     }
 }
