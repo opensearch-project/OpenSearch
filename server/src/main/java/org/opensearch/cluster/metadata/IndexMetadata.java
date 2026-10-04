@@ -1228,6 +1228,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final Map<String, MappingMetadata> mappings;
 
+    private final MappingMetadata mapping;
+
     private final Map<String, DiffableStringMap> customData;
 
     private final Map<Integer, Set<String>> inSyncAllocationIds;
@@ -1313,6 +1315,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + numberOfSearchOnlyReplicas + 1);
         this.settings = settings;
         this.mappings = Collections.unmodifiableMap(mappings);
+        this.mapping = mappings.isEmpty() ? null : mappings.values().iterator().next();
         this.customData = Collections.unmodifiableMap(customData);
         this.aliases = Collections.unmodifiableMap(aliases);
         this.inSyncAllocationIds = Collections.unmodifiableMap(inSyncAllocationIds);
@@ -1348,6 +1351,51 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ingestionStatus = ingestionStatus;
         this.splitShardsMetadata = splitShardsMetadata;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+    }
+
+    /**
+     * Copies all fields from {@code source}, including the ones emerged from the settings, replaces its mappings.
+     */
+    private IndexMetadata(IndexMetadata source, MappingMetadata mapping) {
+        this.routingNumShards = source.routingNumShards;
+        this.routingFactor = source.routingFactor;
+        this.routingPartitionSize = source.routingPartitionSize;
+        this.numberOfShards = source.numberOfShards;
+        this.numberOfReplicas = source.numberOfReplicas;
+        this.numberOfSearchOnlyReplicas = source.numberOfSearchOnlyReplicas;
+        this.index = source.index;
+        this.version = source.version;
+        this.mappingVersion = source.mappingVersion;
+        this.settingsVersion = source.settingsVersion;
+        this.aliasesVersion = source.aliasesVersion;
+        this.primaryTermsMap = source.primaryTermsMap;
+        this.state = source.state;
+        this.aliases = source.aliases;
+        this.settings = source.settings;
+        this.mappings = Map.of(mapping.type(), mapping);
+        this.mapping = mapping;
+        this.customData = source.customData;
+        this.inSyncAllocationIds = source.inSyncAllocationIds;
+        this.totalNumberOfShards = source.totalNumberOfShards;
+        this.requireFilters = source.requireFilters;
+        this.includeFilters = source.includeFilters;
+        this.excludeFilters = source.excludeFilters;
+        this.initialRecoveryFilters = source.initialRecoveryFilters;
+        this.indexCreatedVersion = source.indexCreatedVersion;
+        this.indexUpgradedVersion = source.indexUpgradedVersion;
+        this.waitForActiveShards = source.waitForActiveShards;
+        this.rolloverInfos = source.rolloverInfos;
+        this.isSystem = source.isSystem;
+        this.isRemoteSnapshot = source.isRemoteSnapshot;
+        this.indexTotalShardsPerNodeLimit = source.indexTotalShardsPerNodeLimit;
+        this.indexTotalPrimaryShardsPerNodeLimit = source.indexTotalPrimaryShardsPerNodeLimit;
+        this.indexTotalRemoteCapableShardsPerNodeLimit = source.indexTotalRemoteCapableShardsPerNodeLimit;
+        this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = source.indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
+        this.isAppendOnlyIndex = source.isAppendOnlyIndex;
+        this.bulkAdaptiveShardSelectionEnabled = source.bulkAdaptiveShardSelectionEnabled;
+        this.context = source.context;
+        this.ingestionStatus = source.ingestionStatus;
+        this.splitShardsMetadata = source.splitShardsMetadata;
     }
 
     public Index getIndex() {
@@ -1552,10 +1600,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public MappingMetadata mapping() {
-        for (final MappingMetadata cursor : mappings.values()) {
-            return cursor;
+        return mapping;
+    }
+
+    /**
+     * Returns a copy of this instance with the given mapping, which must be equal to the current one.
+     */
+    IndexMetadata withMappingMetadata(MappingMetadata mapping) {
+        if (mapping() == mapping) {
+            return this;
         }
-        return null;
+        assert mapping.equals(mapping()) : "replacement mapping for [" + index + "] must be equal to the current one";
+        return new IndexMetadata(this, mapping);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";

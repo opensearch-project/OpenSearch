@@ -75,11 +75,13 @@ import org.opensearch.plugins.MapperPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -285,6 +287,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private final Map<String, SortedMap<Long, String>> systemTemplatesLookup;
 
+    private final Map<MappingMetadata, MappingMetadata> mappingPool;
+
     Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -303,7 +307,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, SortedMap<Long, String>> systemTemplatesLookup
+        Map<String, SortedMap<Long, String>> systemTemplatesLookup,
+        Map<MappingMetadata, MappingMetadata> mappingPool
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -341,6 +346,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
         this.systemTemplatesLookup = systemTemplatesLookup;
+        this.mappingPool = mappingPool;
     }
 
     public long version() {
@@ -1122,7 +1128,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         @Override
         public Metadata apply(Metadata part) {
-            Builder builder = builder();
+            Builder builder = new Builder(part.mappingPool);
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1200,6 +1206,113 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     /**
+     * Holds one instance of each distinct mapping used by the indices of a {@link Builder}. Indices with equal mappings point
+     * to that instance, so the heap keeps one copy per mapping instead of one per index.
+     * <p>
+     * The builder starts from the read-only pool of the previous {@link Metadata} and copies it on the first change.
+     * An unchanged index then keeps its {@link IndexMetadata} instance, and IndexMetadata rebuilds an index only if
+     * its mapping isn't the pool instance yet.
+     */
+    private static final class MappingPool {
+        private Map<MappingMetadata, MappingMetadata> mappings;
+        private boolean copied;
+        private boolean checkAll;
+        private Set<MappingMetadata> candidates = Collections.emptySet();
+
+        MappingPool(Map<MappingMetadata, MappingMetadata> mappings, boolean checkAll) {
+            this.mappings = mappings;
+            this.checkAll = checkAll;
+        }
+
+        /**
+         * Returns the index metadata pointing to the pooled instance of its mapping. A mapping the pool hasn't seen yet joins it.
+         */
+        IndexMetadata deduplicate(IndexMetadata indexMetadata) {
+            final MappingMetadata mapping = indexMetadata.mapping();
+            if (mapping == null) {
+                return indexMetadata;
+            }
+            final MappingMetadata sharedMapping = mappings.get(mapping);
+            if (sharedMapping != null) {
+                return indexMetadata.withMappingMetadata(sharedMapping);
+            }
+            mutableMappings().put(mapping, mapping);
+            return indexMetadata;
+        }
+
+        void replaced(@Nullable IndexMetadata previous, IndexMetadata updated) {
+            if (previous != null && previous.mapping() != updated.mapping()) {
+                mayBeUnused(previous.mapping());
+            }
+        }
+
+        void removed(IndexMetadata removed) {
+            mayBeUnused(removed.mapping());
+        }
+
+        private void mayBeUnused(@Nullable MappingMetadata mapping) {
+            if (mapping == null || checkAll) {
+                return;
+            }
+            if (candidates.isEmpty()) {
+                candidates = Collections.newSetFromMap(new IdentityHashMap<>());
+            }
+            candidates.add(mapping);
+        }
+
+        void clear() {
+            mappings = Collections.emptyMap();
+            copied = false;
+            checkAll = false;
+            candidates = Collections.emptySet();
+        }
+
+        /**
+         * Drops mappings that none of the given indices use and returns the pool as a read-only map. The next change copies it.
+         */
+        Map<MappingMetadata, MappingMetadata> freeze(Collection<IndexMetadata> indices) {
+            if (checkAll) {
+                final Set<MappingMetadata> all = Collections.newSetFromMap(new IdentityHashMap<>(mappings.size()));
+                all.addAll(mappings.values());
+                purgeUnused(indices, all);
+            } else if (!candidates.isEmpty()) {
+                purgeUnused(indices, candidates);
+            }
+            checkAll = false;
+            candidates = Collections.emptySet();
+            if (copied) {
+                mappings = Collections.unmodifiableMap(mappings);
+                copied = false;
+            }
+            return mappings;
+        }
+
+        private void purgeUnused(Collection<IndexMetadata> indices, Set<MappingMetadata> unused) {
+            for (IndexMetadata indexMetadata : indices) {
+                if (unused.isEmpty()) {
+                    return;
+                }
+                final MappingMetadata mapping = indexMetadata.mapping();
+                assert mapping == null || mappings.get(mapping) == mapping : "index ["
+                    + indexMetadata.getIndex()
+                    + "] must use a pooled mapping";
+                unused.remove(mapping);
+            }
+            for (MappingMetadata mapping : unused) {
+                mutableMappings().remove(mapping);
+            }
+        }
+
+        private Map<MappingMetadata, MappingMetadata> mutableMappings() {
+            if (copied == false) {
+                mappings = new HashMap<>(mappings);
+                copied = true;
+            }
+            return mappings;
+        }
+    }
+
+    /**
      * Builder of metadata.
      *
      * @opensearch.api
@@ -1223,13 +1336,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private Map<String, SortedMap<Long, String>> systemTemplatesLookup;
 
+        private final MappingPool mappingPool;
+
         public Builder() {
+            this(Collections.emptyMap());
+        }
+
+        private Builder(Map<MappingMetadata, MappingMetadata> mappingPool) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = new HashMap<>();
             templates = new HashMap<>();
             customs = new HashMap<>();
             previousMetadata = null;
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+            this.mappingPool = new MappingPool(mappingPool, mappingPool.isEmpty() == false);
         }
 
         public Builder(Metadata metadata) {
@@ -1244,13 +1364,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.templates = new HashMap<>(metadata.templates.getTemplates());
             this.customs = new HashMap<>(metadata.customs);
             this.previousMetadata = metadata;
+            this.mappingPool = new MappingPool(metadata.mappingPool, false);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            IndexMetadata indexMetadata = mappingPool.deduplicate(indexMetadataBuilder.build());
+            IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            mappingPool.replaced(previous, indexMetadata);
             return this;
         }
 
@@ -1262,7 +1384,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (incrementVersion) {
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
             }
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            indexMetadata = mappingPool.deduplicate(indexMetadata);
+            IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            mappingPool.replaced(previous, indexMetadata);
             return this;
         }
 
@@ -1287,17 +1411,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder remove(String index) {
-            indices.remove(index);
+            final IndexMetadata removed = indices.remove(index);
+            if (removed != null) {
+                mappingPool.removed(removed);
+            }
             return this;
         }
 
         public Builder removeAllIndices() {
             indices.clear();
+            mappingPool.clear();
             return this;
         }
 
         public Builder indices(final Map<String, IndexMetadata> indices) {
-            this.indices.putAll(indices);
+            for (IndexMetadata indexMetadata : indices.values()) {
+                put(indexMetadata, false);
+            }
             return this;
         }
 
@@ -1671,7 +1801,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 Arrays.copyOf(previousMetadata.allClosedIndices, previousMetadata.allClosedIndices.length),
                 Arrays.copyOf(previousMetadata.visibleClosedIndices, previousMetadata.visibleClosedIndices.length),
                 Collections.unmodifiableSortedMap(previousMetadata.indicesLookup),
-                systemTemplatesLookup
+                systemTemplatesLookup,
+                mappingPool.freeze(indices.values())
             );
         }
 
@@ -1795,7 +1926,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                systemTemplatesLookup
+                systemTemplatesLookup,
+                mappingPool.freeze(indices.values())
             );
         }
 
