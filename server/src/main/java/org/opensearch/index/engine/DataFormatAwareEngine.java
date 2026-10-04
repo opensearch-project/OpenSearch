@@ -2605,7 +2605,7 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private long currentMappingVersion() {
-        return engineConfig.getMapperService().documentMapper().getVersion();
+        return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
     }
 
     /**
