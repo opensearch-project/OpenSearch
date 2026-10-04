@@ -118,6 +118,40 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertFieldType(rowType, "locked", SqlTypeName.VARCHAR);
     }
 
+    public void testNonKeywordMultiValueFieldsPreserveArrayComponentTypes() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"count\":{\"type\":\"integer\",\"multi_value\":true},"
+            + "\"total\":{\"type\":\"long\",\"multi_value\":true},"
+            + "\"scaled\":{\"type\":\"scaled_float\",\"scaling_factor\":100,\"multi_value\":true},"
+            + "\"ratio\":{\"type\":\"double\",\"multi_value\":true},"
+            + "\"active\":{\"type\":\"boolean\",\"multi_value\":true},"
+            + "\"created\":{\"type\":\"date\",\"multi_value\":true},"
+            + "\"address\":{\"type\":\"ip\",\"multi_value\":true},"
+            + "\"payload\":{\"type\":\"binary\",\"multi_value\":true},"
+            + "\"message\":{\"type\":\"text\",\"multi_value\":true}"
+            + "}}";
+        RelDataType rowType = OpenSearchSchemaBuilder.buildSchema(buildClusterStateRaw("typed_arrays", mapping))
+            .getTable("typed_arrays")
+            .getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        assertArrayComponent(rowType, "count", SqlTypeName.INTEGER);
+        assertArrayComponent(rowType, "total", SqlTypeName.BIGINT);
+        assertArrayComponent(rowType, "scaled", SqlTypeName.BIGINT);
+        assertArrayComponent(rowType, "ratio", SqlTypeName.DOUBLE);
+        assertArrayComponent(rowType, "active", SqlTypeName.BOOLEAN);
+        assertArrayComponent(rowType, "created", SqlTypeName.TIMESTAMP);
+        assertArrayComponent(rowType, "address", SqlTypeName.VARBINARY);
+        assertArrayComponent(rowType, "payload", SqlTypeName.VARBINARY);
+        assertArrayComponent(rowType, "message", SqlTypeName.VARCHAR);
+    }
+
+    private static void assertArrayComponent(RelDataType rowType, String field, SqlTypeName component) {
+        RelDataType type = rowType.getField(field, true, false).getType();
+        assertEquals(field, SqlTypeName.ARRAY, type.getSqlTypeName());
+        assertEquals(field, component, type.getComponentType().getSqlTypeName());
+        assertTrue(field, type.isNullable());
+    }
+
     /**
      * Test that multiple indices produce multiple tables.
      */
