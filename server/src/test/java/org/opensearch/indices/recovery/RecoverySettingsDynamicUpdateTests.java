@@ -42,6 +42,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
@@ -132,6 +134,24 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
                 .build()
         );
         assertEquals(25, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
+    }
+
+    public void testPrimaryResyncTimeout() {
+        assertEquals(30, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDEX_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)).build()
+        );
+        assertEquals(5, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RecoverySettings.INDEX_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+                    .build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("indices.replication.resync_timeout"));
+        assertEquals(5, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
     }
 
     public void testRetryDelayStateSync() {
