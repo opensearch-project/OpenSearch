@@ -219,6 +219,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected DerivedFieldGenerator derivedFieldGenerator;
+    // Set once, right after build, from Mapper.Builder#indexExplicit. Not carried through merge or rebuild.
+    private boolean indexExplicit;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -420,6 +422,38 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new AssertionError(e);
         }
+    }
+
+    /** Copy of this mapper with {@code replacement} as its multi-fields. */
+    FieldMapper withMultiFields(MultiFields replacement) {
+        FieldMapper copy = clone();
+        copy.multiFields = replacement;
+        return copy;
+    }
+
+    /** True when the mapping this mapper was parsed from spelled out {@code index}. */
+    boolean isIndexExplicit() {
+        return indexExplicit;
+    }
+
+    /** Copies {@link Mapper.Builder#indexExplicit} onto a freshly built mapper. */
+    static void markIndexExplicit(Mapper mapper, Mapper.Builder<?> builder) {
+        if (builder.indexExplicit && mapper instanceof FieldMapper fieldMapper) {
+            fieldMapper.indexExplicit = true;
+        }
+    }
+
+    /**
+     * Copy of this mapper with {@code index: false} and all other parameters kept; {@code this} if already
+     * not indexed. Used by {@link DocumentMapper} to record a pluggable format's declined search capability.
+     *
+     * @param context builder context whose path is this field's parent path
+     * @throws UnsupportedOperationException if this mapper type cannot be rebuilt; legacy mappers must override
+     */
+    protected FieldMapper withIndexDisabled(BuilderContext context) {
+        throw new UnsupportedOperationException(
+            "mapper [" + name() + "] of type [" + contentType() + "] cannot be recorded as [index: false]"
+        );
     }
 
     @Override
@@ -812,6 +846,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         Mapper.Builder value = cursor.getValue();
                         Mapper mapper = value.build(context);
                         assert mapper instanceof FieldMapper;
+                        markIndexExplicit(mapper, value);
                         mapperBuilders.put(key, mapper);
                     }
                     context.setMultiField(prevMultiField);
@@ -862,6 +897,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
             final Map<String, FieldMapper> mappers = Collections.unmodifiableMap(newMappersBuilder);
             return new MultiFields(mappers);
+        }
+
+        /** Copy with the sub-fields named in {@code replacements} swapped for the given mappers. */
+        MultiFields withReplaced(Map<String, FieldMapper> replacements) {
+            final Map<String, FieldMapper> newMappers = new HashMap<>(mappers);
+            newMappers.putAll(replacements);
+            return new MultiFields(newMappers);
         }
 
         @Override

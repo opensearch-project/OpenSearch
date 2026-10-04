@@ -117,6 +117,13 @@ public interface DataFormatPlugin {
      * multiple sub-formats and must restrict which of them may claim capabilities there (e.g. the
      * composite plugin); a plugin backing a single format has nothing to restrict.
      *
+     * <p>A plugin may decline the field's search capability by leaving it out of the assigned map rather
+     * than throwing, but only for a {@code flat_object} or for a whole nested scope; the server asks about a
+     * scope with a keyword probe. It records that as {@code index: false} on the nested object or the
+     * flat_object (see {@link org.opensearch.index.mapper.DocumentMapper}), and rejects a mapping that sets
+     * {@code index} there itself or that declines search anywhere else. Storage-shaped capabilities cannot be
+     * declined; leaving one unassigned must throw.
+     *
      * @param fieldType the field type to assign capabilities to
      * @param indexSettings the index settings
      * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
