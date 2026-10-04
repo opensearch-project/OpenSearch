@@ -126,6 +126,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -158,6 +159,8 @@ public class InternalEngine extends Engine {
     protected final TranslogManager translogManager;
     protected final DocumentIndexWriter documentIndexWriter;
     protected final LocalCheckpointTracker localCheckpointTracker;
+    private final ThreadLocal<TranslogBatchScope> activeBatch = new ThreadLocal<>();
+    private final Set<TranslogBatchScope> activeBatches = ConcurrentHashMap.newKeySet();
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     protected final SoftDeletesPolicy softDeletesPolicy;
     protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
@@ -1016,44 +1019,63 @@ public class InternalEngine extends Engine {
                     }
 
                 }
+                boolean deferred = false;
                 if (index.origin().isFromTranslog() == false) {
-                    final Translog.Location location;
-                    if (indexResult.getResultType() == Result.Type.SUCCESS) {
-                        location = translogManager.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && indexResult.getFailure() != null
-                        && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                            // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                            final NoOp noOp = new NoOp(
-                                indexResult.getSeqNo(),
-                                index.primaryTerm(),
-                                index.origin(),
-                                index.startTime(),
-                                indexResult.getFailure().toString()
+                    final TranslogBatchScope batch = activeBatch.get();
+                    if (batch != null && indexResult.getResultType() == Result.Type.SUCCESS) {
+                        final IndexVersionValue.PendingLocation pending = plan.executeOpOnEngine
+                            ? new IndexVersionValue.PendingLocation(batch)
+                            : null;
+                        indexResult.setTook(System.nanoTime() - index.startTime());
+                        batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
+                        if (pending != null) {
+                            versionMap.maybePutIndexUnderLock(
+                                index.uid().bytes(),
+                                IndexVersionValue.withPendingLocation(pending, plan.version, index.seqNo(), index.primaryTerm())
                             );
-                            location = innerNoOp(noOp).getTranslogLocation();
-                        } else {
-                            location = null;
                         }
-                    indexResult.setTranslogLocation(location);
+                        deferred = true;
+                    } else {
+                        final Translog.Location location;
+                        if (indexResult.getResultType() == Result.Type.SUCCESS) {
+                            location = translogManager.add(new Translog.Index(index, indexResult));
+                        } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                            && indexResult.getFailure() != null
+                            && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                                // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                                final NoOp noOp = new NoOp(
+                                    indexResult.getSeqNo(),
+                                    index.primaryTerm(),
+                                    index.origin(),
+                                    index.startTime(),
+                                    indexResult.getFailure().toString()
+                                );
+                                location = innerNoOp(noOp).getTranslogLocation();
+                            } else {
+                                location = null;
+                            }
+                        indexResult.setTranslogLocation(location);
+                    }
                 }
-                if (plan.executeOpOnEngine && indexResult.getResultType() == Result.Type.SUCCESS) {
+                if (deferred == false && plan.executeOpOnEngine && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.version, index.seqNo(), index.primaryTerm())
                     );
                 }
-                localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null
-                    && !(indexResult.getFailure() != null
-                        && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
-                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
-                    localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                if (deferred == false) {
+                    localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+                    if (indexResult.getTranslogLocation() == null
+                        && !(indexResult.getFailure() != null
+                            && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
+                        // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
+                        assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                    }
+                    indexResult.setTook(System.nanoTime() - index.startTime());
+                    indexResult.freeze();
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
-                indexResult.freeze();
                 return indexResult;
             } finally {
                 documentCountTracker.releaseInFlightDocs(reservedDocs);
@@ -1069,6 +1091,49 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw e;
+        }
+    }
+
+    @Override
+    public Engine.TranslogBatch beginTranslogBatch() {
+        if (isTranslogBatchingEligible() == false) {
+            return Engine.NO_OP_TRANSLOG_BATCH;
+        }
+        if (activeBatch.get() != null) {
+            throw new IllegalStateException("a translog batch is already active on this bulk thread");
+        }
+        final TranslogBatchScope batch = new TranslogBatchScope(
+            translogManager,
+            localCheckpointTracker,
+            shardId,
+            this::failEngine,
+            this::onTranslogBatchFinished,
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
+        );
+        activeBatch.set(batch);
+        activeBatches.add(batch);
+        return batch;
+    }
+
+    private void onTranslogBatchFinished(TranslogBatchScope batch) {
+        activeBatches.remove(batch);
+        if (activeBatch.get() == batch) {
+            activeBatch.remove();
+        }
+    }
+
+    protected boolean isTranslogBatchingEligible() {
+        final IndexSettings settings = engineConfig.getIndexSettings();
+        return settings.isTranslogBatchAppendEnabled()
+            && settings.isRemoteStoreEnabled()
+            && settings.isRemoteTranslogStoreEnabled()
+            && settings.isSegRepEnabledOrRemoteNode();
+    }
+
+    private void flushActiveTranslogBatches() {
+        for (TranslogBatchScope batch : activeBatches) {
+            batch.flush();
         }
     }
 
@@ -1506,6 +1571,8 @@ public class InternalEngine extends Engine {
     final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
+        // A remote-segrep bulk may have applied Lucene documents whose translog locations are still deferred.
+        flushActiveTranslogBatches();
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
         try {
@@ -1689,6 +1756,7 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
+                flushActiveTranslogBatches();
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
@@ -2108,6 +2176,11 @@ public class InternalEngine extends Engine {
             assert (isWriteLockHeld()) || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                final EngineException closeFailure = new EngineException(shardId, "engine closed with pending translog batches: " + reason);
+                for (TranslogBatchScope batch : activeBatches) {
+                    batch.abort(closeFailure);
+                }
+                activeBatches.clear();
                 this.versionMap.clear();
                 if (internalReaderManager != null) {
                     internalReaderManager.removeListener(versionMap);

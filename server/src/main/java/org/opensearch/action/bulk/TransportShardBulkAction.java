@@ -492,20 +492,37 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 long startTime = System.nanoTime();
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(
-                        context,
-                        updateHelper,
-                        nowInMillisSupplier,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
-                    ) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
+                // Batch successful primary index operations for eligible remote-backed segment-replication engines. A
+                // realtime GET or the size cap may flush a chunk from another thread while this scope remains open;
+                // updates/deletes flush the current chunk for ordering, and finally always appends and closes it.
+                Engine.TranslogBatch beginResult = primary.beginTranslogBatch();
+                final Engine.TranslogBatch translogBatch = beginResult != null ? beginResult : Engine.NO_OP_TRANSLOG_BATCH;
+                try {
+                    while (context.hasMoreOperationsToExecute()) {
+                        final DocWriteRequest<?> current = context.getCurrent();
+                        if (current != null
+                            && (current.opType() == DocWriteRequest.OpType.UPDATE || current.opType() == DocWriteRequest.OpType.DELETE)) {
+                            context.mergeLocationToSync(translogBatch.flush());
+                        }
+                        if (executeBulkItemRequest(
+                            context,
+                            updateHelper,
+                            nowInMillisSupplier,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again
+                            // once its done so we just break out here. The finally block flushes the batch before we
+                            // yield the thread, so it never crosses threads.
+                            return;
+                        }
+                        assert context.isInitial(); // either completed and moved to next or reset
                     }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                } finally {
+                    // Finish appends the final chunk and detaches the scope. It also returns the greatest location
+                    // appended by an earlier size- or realtime-GET-triggered flush.
+                    context.mergeLocationToSync(translogBatch.finish());
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 long serviceTimeNanos = System.nanoTime() - startTime;

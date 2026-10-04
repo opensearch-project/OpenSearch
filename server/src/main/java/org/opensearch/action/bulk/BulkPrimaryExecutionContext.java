@@ -185,6 +185,18 @@ class BulkPrimaryExecutionContext {
         return locationToSync;
     }
 
+    /**
+     * Folds an externally produced translog {@link Translog.Location} into {@code locationToSync}. Used by the batched
+     * translog append: a deferred index result carries a null location when {@link #markOperationAsExecuted} runs, so
+     * the batch's max location is merged in here once the batch is flushed.
+     */
+    public void mergeLocationToSync(Translog.Location location) {
+        if (location == null) {
+            return;
+        }
+        locationToSync = TransportWriteAction.locationToSync(locationToSync, location);
+    }
+
     private BulkItemRequest getCurrentItem() {
         return request.items()[currentIndex];
     }

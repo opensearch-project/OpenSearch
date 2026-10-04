@@ -494,6 +494,45 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * A bulk-request scope that batches successful primary index operations before appending them to the translog.
+     * Created by {@link #beginTranslogBatch()}.
+     * <p>
+     * The default {@link #beginTranslogBatch()} returns {@link #NO_OP_TRANSLOG_BATCH}, under which engines keep writing
+     * inline exactly as today; only an engine that overrides it defers. {@link #flush()} appends the currently pending
+     * chunk but keeps the scope open, allowing a realtime GET or a size limit to force an early append while the bulk
+     * continues. {@link #finish()} appends the final chunk and closes the scope.
+     * <p>
+     * A flush may be initiated by another thread resolving a pending realtime GET. Implementations must serialize
+     * concurrent add/flush activity. If an append fails, all affected requests must fail; an implementation that has
+     * already applied those operations to its indexing engine must also fence the engine.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.0.0")
+    public interface TranslogBatch {
+        /** Append the currently pending chunk and return the greatest location appended by this scope so far. */
+        @Nullable
+        Translog.Location flush();
+
+        /** Append the final pending chunk, close this scope, and return its greatest translog location. */
+        @Nullable
+        default Translog.Location finish() {
+            return flush();
+        }
+    }
+
+    /** A {@link TranslogBatch} that batches nothing; every op is written inline as before. */
+    public static final TranslogBatch NO_OP_TRANSLOG_BATCH = () -> null;
+
+    /**
+     * Begin a translog batch for the current bulk-request execution scope. The default is a no-op batch, so engines
+     * that do not opt in keep appending inline.
+     */
+    public TranslogBatch beginTranslogBatch() {
+        return NO_OP_TRANSLOG_BATCH;
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
