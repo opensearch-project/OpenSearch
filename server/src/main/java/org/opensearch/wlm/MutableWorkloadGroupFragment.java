@@ -36,11 +36,18 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     public static final String RESILIENCY_MODE_STRING = "resiliency_mode";
     public static final String RESOURCE_LIMITS_STRING = "resource_limits";
     public static final String SETTINGS_STRING = "settings";
+    public static final String THROTTLING_STRING = "throttling";
     private ResiliencyMode resiliencyMode;
     private Map<ResourceType, Double> resourceLimits;
     private Settings settings;
+    private Settings throttling;
 
-    public static final List<String> acceptedFieldNames = List.of(RESILIENCY_MODE_STRING, RESOURCE_LIMITS_STRING, SETTINGS_STRING);
+    public static final List<String> acceptedFieldNames = List.of(
+        RESILIENCY_MODE_STRING,
+        RESOURCE_LIMITS_STRING,
+        SETTINGS_STRING,
+        THROTTLING_STRING
+    );
 
     public MutableWorkloadGroupFragment() {}
 
@@ -52,11 +59,39 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     }
 
     public MutableWorkloadGroupFragment(ResiliencyMode resiliencyMode, Map<ResourceType, Double> resourceLimits, Settings settings) {
-        validateResourceLimits(resourceLimits);
-        WorkloadGroupSearchSettings.validate(settings);
+        this(resiliencyMode, resourceLimits, settings, Settings.EMPTY);
+    }
+
+    public MutableWorkloadGroupFragment(
+        ResiliencyMode resiliencyMode,
+        Map<ResourceType, Double> resourceLimits,
+        Settings settings,
+        Settings throttling
+    ) {
+        this(resiliencyMode, resourceLimits, settings, throttling, true);
+    }
+
+    /**
+     * @param validate whether to eagerly validate the fields. Pass {@code false} only for internal reconstruction of an
+     *                 already-parsed fragment (e.g. WorkloadGroup normalizing away null clear-markers), where throttling is
+     *                 (re)checked by {@link WorkloadGroupThrottleSettings#validateMergedConfig} anyway.
+     */
+    public MutableWorkloadGroupFragment(
+        ResiliencyMode resiliencyMode,
+        Map<ResourceType, Double> resourceLimits,
+        Settings settings,
+        Settings throttling,
+        boolean validate
+    ) {
+        if (validate) {
+            validateResourceLimits(resourceLimits);
+            WorkloadGroupSearchSettings.validate(settings);
+            WorkloadGroupThrottleSettings.validate(throttling);
+        }
         this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.throttling = throttling != null ? throttling : Settings.EMPTY;
     }
 
     public MutableWorkloadGroupFragment(StreamInput in) throws IOException {
@@ -78,6 +113,13 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             settings = Settings.EMPTY;
         } else {
             settings = Settings.EMPTY;
+        }
+        // throttling postdates settings, so it needs its own gate. Absent decodes to null ("keep existing"), not EMPTY,
+        // which on an update fragment means "clear all throttling".
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            throttling = Settings.readOptionalSettingsFromStream(in);
+        } else {
+            throttling = null;
         }
     }
 
@@ -119,12 +161,24 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
     }
 
+    static class ThrottlingParser implements FieldParser<Settings> {
+        public Settings parseField(XContentParser parser) throws IOException {
+            // "throttling": null means clear all throttling (disable)
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return Settings.EMPTY;
+            }
+            // Validated later; see setThrottling.
+            return Settings.fromXContent(parser);
+        }
+    }
+
     static class FieldParserFactory {
         static Optional<FieldParser<?>> fieldParserFor(String fieldName) {
             return switch (fieldName) {
                 case RESILIENCY_MODE_STRING -> Optional.of(new ResiliencyModeParser());
                 case RESOURCE_LIMITS_STRING -> Optional.of(new ResourceLimitsParser());
                 case SETTINGS_STRING -> Optional.of(new SearchSettingsParser());
+                case THROTTLING_STRING -> Optional.of(new ThrottlingParser());
                 default -> Optional.empty();
             };
         }
@@ -153,20 +207,52 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     }, SETTINGS_STRING, (builder) -> {
         try {
             builder.startObject(SETTINGS_STRING);
-            Settings s = settings != null ? settings : Settings.EMPTY;
-            Map<String, String> sortedSettingsMap = new TreeMap<>();
-            for (String key : s.keySet()) {
-                sortedSettingsMap.put(key, s.get(key));
-            }
-            for (Map.Entry<String, String> e : sortedSettingsMap.entrySet()) {
-                builder.field(e.getKey(), e.getValue());
-            }
+            writeSettingsFields(builder, settings);
             builder.endObject();
             return null;
         } catch (IOException e) {
             throw new IllegalStateException("writing error encountered for the field " + SETTINGS_STRING);
         }
+    }, THROTTLING_STRING, (builder) -> {
+        try {
+            // Unlike settings (always emitted as {}), throttling is omitted entirely when unset.
+            Settings t = throttling != null ? throttling : Settings.EMPTY;
+            if (t.isEmpty() == false) {
+                builder.startObject(THROTTLING_STRING);
+                writeThrottlingFields(builder, t);
+                builder.endObject();
+            }
+            return null;
+        } catch (IOException e) {
+            throw new IllegalStateException("writing error encountered for the field " + THROTTLING_STRING);
+        }
     });
+
+    // Emit every stored key, not an allowlist: this is also the on-disk format, so an unemitted key is lost on restart.
+    private static void writeThrottlingFields(XContentBuilder builder, Settings t) throws IOException {
+        Map<String, String> sorted = new TreeMap<>();
+        for (String key : t.keySet()) {
+            sorted.put(key, t.get(key));
+        }
+        for (Map.Entry<String, String> e : sorted.entrySet()) {
+            if (WorkloadGroupThrottleSettings.isLimitKey(e.getKey())) {
+                builder.field(e.getKey(), Integer.parseInt(e.getValue()));
+            } else {
+                builder.field(e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    private static void writeSettingsFields(XContentBuilder builder, Settings s) throws IOException {
+        Settings source = s != null ? s : Settings.EMPTY;
+        Map<String, String> sorted = new TreeMap<>();
+        for (String key : source.keySet()) {
+            sorted.put(key, source.get(key));
+        }
+        for (Map.Entry<String, String> e : sorted.entrySet()) {
+            builder.field(e.getKey(), e.getValue());
+        }
+    }
 
     public static boolean shouldParse(String field) {
         return FieldParserFactory.fieldParserFor(field).isPresent();
@@ -181,6 +267,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
                     case RESILIENCY_MODE_STRING -> setResiliencyMode((ResiliencyMode) value);
                     case RESOURCE_LIMITS_STRING -> setResourceLimits((Map<ResourceType, Double>) value);
                     case SETTINGS_STRING -> setSettings((Settings) value);
+                    case THROTTLING_STRING -> setThrottling((Settings) value);
                 }
             } catch (IllegalArgumentException e) {
                 throw e;
@@ -210,6 +297,10 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             out.writeBoolean(false);
             out.writeMap(Map.of(), StreamOutput::writeString, StreamOutput::writeString);
         }
+        // Mirrors the read path: only 3.10+ peers expect a throttling bag on the wire.
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            Settings.writeOptionalSettingsToStream(throttling, out);
+        }
     }
 
     public static void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {
@@ -234,12 +325,13 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         MutableWorkloadGroupFragment that = (MutableWorkloadGroupFragment) o;
         return Objects.equals(resiliencyMode, that.resiliencyMode)
             && Objects.equals(resourceLimits, that.resourceLimits)
-            && Objects.equals(settings, that.settings);
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(throttling, that.throttling);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resiliencyMode, resourceLimits, settings);
+        return Objects.hash(resiliencyMode, resourceLimits, settings, throttling);
     }
 
     public ResiliencyMode getResiliencyMode() {
@@ -252,6 +344,10 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     public Settings getSettings() {
         return settings;
+    }
+
+    public Settings getThrottling() {
+        return throttling;
     }
 
     /**
@@ -297,6 +393,11 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
     void setSettings(Settings settings) {
         WorkloadGroupSearchSettings.validate(settings);
         this.settings = settings != null ? settings : Settings.EMPTY;
+    }
+
+    void setThrottling(Settings throttling) {
+        // No per-key validation: the gateway read shares this parser and must stay lenient. WorkloadGroup's constructor validates.
+        this.throttling = throttling != null ? throttling : Settings.EMPTY;
     }
 
 }

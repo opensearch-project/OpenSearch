@@ -10,7 +10,10 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -20,6 +23,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
@@ -33,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -57,7 +62,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final List<DataStreamAction> actions;
 
@@ -78,6 +83,22 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         public List<DataStreamAction> getActions() {
             return actions;
+        }
+
+        /**
+         * Exposes every data stream and backing index referenced by this request's actions so that index-level
+         * authorization can be enforced. Without this, the security layer would evaluate the request as a bare
+         * cluster action and could not restrict which data streams or indices a caller may modify.
+         */
+        @Override
+        public String[] indices() {
+            return actions.stream().flatMap(action -> Stream.of(action.dataStream(), action.index())).distinct().toArray(String[]::new);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            // Names are always concrete (data stream names and ".ds-" backing index names); no wildcard expansion.
+            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         }
 
         @Override
@@ -108,7 +129,9 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse>
+        implements
+            TransportIndicesResolvingAction<Request> {
 
         private final MetadataDataStreamsService metadataDataStreamsService;
 
@@ -148,6 +171,12 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            // Names are already concrete data stream and backing index names, matching Request#indices().
+            return ResolvedIndices.of(request.indices());
         }
     }
 }
