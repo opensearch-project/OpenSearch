@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.index.mapper.IdFieldMapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,6 +76,21 @@ public class FieldStorageResolver {
         if (properties != null) {
             populateFromProperties(properties, "", primaryFormat, luceneAvailable);
         }
+        // _id is stored per document in the primary format (like ___row_id) but is not a
+        // mapping property, so register it explicitly for scans that request it.
+        this.fieldStorage.put(
+            IdFieldMapper.NAME,
+            new FieldStorageInfo(
+                IdFieldMapper.NAME,
+                "binary",
+                FieldType.BINARY,
+                List.of(primaryFormat),
+                List.of(),
+                luceneAvailable ? List.of(LUCENE_FORMAT) : List.of(),
+                false,
+                (String) null
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
