@@ -104,6 +104,16 @@ public class MetadataMappingTests extends OpenSearchTestCase {
         assertEquals(index3.getVersion() + 1, metadata.index("index-3").getVersion());
     }
 
+    public void testPuttingIndexBuilderUsesPooledMappingBeforeBuild() throws Exception {
+        IndexMetadata.Builder index2 = newIndex("index-2").putMapping(new MappingMetadata(new CompressedXContent(MAPPING_JSON)));
+
+        Metadata metadata = Metadata.builder().put(newIndexWithMapping("index-1", MAPPING_JSON), false).put(index2).build();
+
+        MappingMetadata sharedMapping = metadata.index("index-1").mapping();
+        assertSame(sharedMapping, index2.mapping());
+        assertSame(sharedMapping, metadata.index("index-2").mapping());
+    }
+
     public void testDoesNotRebuildDeduplicatedIndices() throws Exception {
         Metadata metadata = Metadata.builder()
             .put(newIndexWithMapping("index-1", MAPPING_JSON), false)

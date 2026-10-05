@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class MappingDeduplicationBenchmark {
-    @Param({ "1000", "10000" })
+    @Param({ "10000" })
     public int indices;
     @Param({ "1000" })
     public int fields;
@@ -45,6 +45,8 @@ public class MappingDeduplicationBenchmark {
     private IndexMetadata[] input;
     private Metadata previous;
     private IndexMetadata changed;
+    private IndexMetadata[] current;
+    private MappingMetadata[] equalMappings;
     private BytesReference serialized;
     private NamedWriteableRegistry registry;
 
@@ -72,6 +74,12 @@ public class MappingDeduplicationBenchmark {
             .putMapping(new MappingMetadata(new CompressedXContent(mapping(fields, distinct))))
             .mappingVersion(2)
             .build();
+        current = new IndexMetadata[indices];
+        equalMappings = new MappingMetadata[indices];
+        for (int i = 0; i < indices; i++) {
+            current[i] = previous.index("index-" + i);
+            equalMappings[i] = new MappingMetadata(new CompressedXContent(mappings[i % distinct]));
+        }
         registry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             previous.writeTo(out);
@@ -93,6 +101,22 @@ public class MappingDeduplicationBenchmark {
         Metadata.Builder builder = Metadata.builder();
         for (IndexMetadata index : input)
             builder.put(index, false);
+        return builder.build();
+    }
+
+    @Benchmark
+    public Metadata freshWithVersionIncrement() {
+        Metadata.Builder builder = Metadata.builder();
+        for (IndexMetadata index : input)
+            builder.put(index, true);
+        return builder.build();
+    }
+
+    @Benchmark
+    public Metadata putEqualMappings() {
+        Metadata.Builder builder = Metadata.builder(previous);
+        for (int i = 0; i < indices; i++)
+            builder.put(IndexMetadata.builder(current[i]).putMapping(equalMappings[i]));
         return builder.build();
     }
 

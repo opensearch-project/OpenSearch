@@ -1225,14 +1225,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         /**
-         * Returns the index metadata pointing to the pooled instance of its mapping. A mapping the pool hasn't seen yet joins it.
-         */
-        IndexMetadata deduplicate(IndexMetadata indexMetadata) {
-            final MappingMetadata mapping = indexMetadata.mapping();
-            return mapping == null ? indexMetadata : indexMetadata.withMappingMetadata(deduplicate(mapping));
-        }
-
-        /**
          * Returns the pooled instance of the given mapping. A mapping the pool hasn't seen yet joins it.
          */
         MappingMetadata deduplicate(MappingMetadata mapping) {
@@ -1374,7 +1366,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-            IndexMetadata indexMetadata = mappingPool.deduplicate(indexMetadataBuilder.build());
+            IndexMetadata indexMetadata = indexMetadataBuilder.deduplicateMapping(mappingPool::deduplicate).build();
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             mappingPool.replaced(previous, indexMetadata);
             return this;
@@ -1386,9 +1378,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
-                indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                indexMetadata = IndexMetadata.builder(indexMetadata)
+                    .version(indexMetadata.getVersion() + 1)
+                    .deduplicateMapping(mappingPool::deduplicate)
+                    .build();
+            } else {
+                indexMetadata = indexMetadata.deduplicateMapping(mappingPool::deduplicate);
             }
-            indexMetadata = mappingPool.deduplicate(indexMetadata);
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             mappingPool.replaced(previous, indexMetadata);
             return this;

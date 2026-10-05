@@ -1604,15 +1604,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return mapping;
     }
 
-    /**
-     * Returns a copy of this instance with the given mapping, which must be equal to the current one.
-     */
-    IndexMetadata withMappingMetadata(MappingMetadata mapping) {
-        if (mapping() == mapping) {
+    IndexMetadata deduplicateMapping(UnaryOperator<MappingMetadata> mappingDeduplicator) {
+        if (mapping == null) {
             return this;
         }
-        assert mapping.equals(mapping()) : "replacement mapping for [" + index + "] must be equal to the current one";
-        return new IndexMetadata(this, mapping);
+        final MappingMetadata deduplicated = mappingDeduplicator.apply(mapping);
+        if (deduplicated == mapping) {
+            return this;
+        }
+        assert deduplicated.equals(mapping) : "replacement mapping for [" + index + "] must be equal to the current one";
+        return new IndexMetadata(this, deduplicated);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -2246,7 +2247,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.aliasesVersion = indexMetadata.aliasesVersion;
             this.settings = indexMetadata.getSettings();
             this.primaryTermsMap = new HashMap<>(indexMetadata.primaryTermsMap);
-            this.mappings = new HashMap<>(indexMetadata.mappings);
+            this.mappings = new HashMap<>();
+            if (indexMetadata.mapping != null) {
+                this.mappings.put(indexMetadata.mapping.type(), indexMetadata.mapping);
+            }
             this.aliases = new HashMap<>(indexMetadata.aliases);
             this.customMetadata = new HashMap<>(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
@@ -2345,6 +2349,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (mappingMd != null) {
                 mappings.put(mappingMd.type(), mappingMd);
             }
+            return this;
+        }
+
+        Builder deduplicateMapping(UnaryOperator<MappingMetadata> mappingDeduplicator) {
+            mappings.replaceAll((type, mapping) -> mappingDeduplicator.apply(mapping));
             return this;
         }
 
