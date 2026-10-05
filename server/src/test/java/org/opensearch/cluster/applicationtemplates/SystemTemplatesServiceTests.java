@@ -11,6 +11,7 @@ package org.opensearch.cluster.applicationtemplates;
 import org.opensearch.cluster.service.applicationtemplates.TestSystemTemplatesRepositoryPlugin;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -101,32 +102,35 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testEnablingWithoutFeatureFlagRejectedAtValidation() {
-        // Feature flag intentionally NOT locked on: enabling the setting must be rejected during settings-update
-        // validation (before commit), not at apply time.
-        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
-        Settings enable = Settings.builder()
-            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true)
-            .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> cs.validate(enable, true));
-        assertTrue(e.getMessage().contains("experimental feature"));
+    public void testEnablingWithoutFeatureFlagRejectedAtValidation() throws Exception {
+        FeatureFlags.TestUtils.with(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false, () -> {
+            // Enabling the setting must be rejected during settings-update validation (before commit), not at apply time.
+            ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+            Settings enable = Settings.builder()
+                .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true)
+                .build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> cs.validate(enable, true));
+            assertTrue(e.getMessage().contains("experimental feature"));
+        });
     }
 
-    public void testValidatorDoesNotThrowOnDefaultOrDisableWhenFlagOff() {
-        // Regression guard for the DoS hazard: settings-update validation runs a setting's validator against its
-        // CURRENT/DEFAULT value on every _cluster/settings update. If this validator threw on false, every cluster
-        // settings update would be rejected whenever the (off-by-default) experimental flag is disabled. So with the
-        // flag off it must accept both the default and an explicit false. Asserting the validator directly, because
-        // ClusterSettings.validate only invokes a setting's validator when that setting's key is present in the update.
-        SystemTemplatesService.ApplicationTemplatesEnabledValidator validator =
-            new SystemTemplatesService.ApplicationTemplatesEnabledValidator();
-        validator.validate(false); // default / explicit disable — must not throw with the flag off
+    public void testValidatorDoesNotThrowOnDefaultOrDisableWhenFlagOff() throws Exception {
+        FeatureFlags.TestUtils.with(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false, () -> {
+            // Regression guard for the DoS hazard: settings-update validation runs a setting's validator against its
+            // CURRENT/DEFAULT value on every _cluster/settings update. If this validator threw on false, every cluster
+            // settings update would be rejected whenever the (off-by-default) experimental flag is disabled. So with the
+            // flag off it must accept both the default and an explicit false. Asserting the validator directly, because
+            // ClusterSettings.validate only invokes a setting's validator when that setting's key is present in the update.
+            SystemTemplatesService.ApplicationTemplatesEnabledValidator validator =
+                new SystemTemplatesService.ApplicationTemplatesEnabledValidator();
+            validator.validate(false); // default / explicit disable — must not throw with the flag off
 
-        // And an explicit disable through the settings path is accepted too.
-        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
-        Settings disable = Settings.builder()
-            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)
-            .build();
-        cs.validate(disable, true);
+            // And an explicit disable through the settings path is accepted too.
+            ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+            Settings disable = Settings.builder()
+                .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)
+                .build();
+            cs.validate(disable, true);
+        });
     }
 }
