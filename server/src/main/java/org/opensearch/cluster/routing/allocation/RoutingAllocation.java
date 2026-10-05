@@ -88,6 +88,8 @@ public class RoutingAllocation {
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
+    private AwarenessAttributeValues awarenessAttributeValues = null;
+
     private boolean ignoreDisable = false;
 
     private DebugMode debugDecision = DebugMode.OFF;
@@ -245,6 +247,23 @@ public class RoutingAllocation {
 
     public DebugMode getDebugMode() {
         return this.debugDecision;
+    }
+
+    /**
+     * Returns the distinct values of the given awareness attribute across the nodes eligible to hold a shard of the
+     * given type, with the cluster-level allocation exclude filters applied. Used by
+     * {@link org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider}, which is consulted once
+     * per (shard, node) pair, so the result is memoized here. The memo is valid only for this allocation round: a new
+     * {@link RoutingAllocation} is created per round, so it is discarded along with it and never needs invalidating.
+     *
+     * @param attributeName the awareness attribute to collect values for
+     * @param searchOnly    whether the shard is search-only, selecting search nodes rather than data nodes
+     */
+    public Set<String> awarenessAttributeValues(String attributeName, boolean searchOnly) {
+        if (awarenessAttributeValues == null) {
+            awarenessAttributeValues = new AwarenessAttributeValues(this);
+        }
+        return awarenessAttributeValues.get(attributeName, searchOnly);
     }
 
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
