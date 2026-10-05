@@ -10,8 +10,10 @@ package org.opensearch.snapshots;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -388,6 +390,191 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
         assertThat("the new retry must take the mark and be submitted", submitted, hasSize(1));
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStaleRedriveLeavesNewerRunAlone() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        retryTheDelete(service, stateWith(delete));
+        assertThat(repositoryReads, hasSize(1));
+        runFailoverHandling(service);
+        assertTrue("failover handling must have released the repository", service.tryEnterRepoLoop(REPO));
+        service.deleteSnapshotsFromRepository(delete, RepositoryData.EMPTY, Version.CURRENT);
+
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+        assertThat("a stale re-drive must not remove the delete's entry", submitted, empty());
+        assertFalse("a stale re-drive must leave the newer run's claim", service.repositoryOperations.isNotRunning(delete.uuid()));
+        assertTrue("a stale re-drive must leave the newer run's repository", service.currentlyFinalizing.contains(REPO));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStaleRedriveTouchesNothing() throws Exception {
+        final RepositoryData stillThere = RepositoryData.EMPTY.addSnapshot(
+            SNAPSHOT,
+            SnapshotState.SUCCESS,
+            Version.CURRENT,
+            ShardGenerations.EMPTY,
+            null,
+            null
+        );
+        for (int outcome = 0; outcome < 3; outcome++) {
+            submitted.clear();
+            repositoryReads.clear();
+            repositoryDeletes.clear();
+            final SnapshotsService service = service(false);
+            final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+            giveUpOnTheRemoval(service, delete);
+            retryTheDelete(service, stateWith(delete));
+            runFailoverHandling(service);
+
+            final ActionListener<RepositoryData> read = repositoryReads.remove(0);
+            if (outcome == 0) {
+                read.onResponse(RepositoryData.EMPTY);
+            } else if (outcome == 1) {
+                read.onResponse(stillThere);
+            } else {
+                read.onFailure(new IOException("repository unreadable"));
+            }
+            assertThat("a stale re-drive must not update the cluster state", submitted, empty());
+            assertThat("a stale re-drive must not run the delete", repositoryDeletes, empty());
+            assertTrue("a stale re-drive must not claim the delete", service.repositoryOperations.isNotRunning(delete.uuid()));
+            assertFalse("a stale re-drive must not take the repository", service.currentlyFinalizing.contains(REPO));
+            assertTrue("a stale re-drive must keep the delete re-drivable", service.unpublishedDeletes.contains(delete.uuid()));
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRedriveThatCannotClaimDeletePublishesNothing() throws Exception {
+        final RepositoryData stillThere = RepositoryData.EMPTY.addSnapshot(
+            SNAPSHOT,
+            SnapshotState.SUCCESS,
+            Version.CURRENT,
+            ShardGenerations.EMPTY,
+            null,
+            null
+        );
+        for (RepositoryData read : List.of(RepositoryData.EMPTY, stillThere)) {
+            submitted.clear();
+            repositoryReads.clear();
+            repositoryDeletes.clear();
+            final SnapshotsService service = service(false);
+            final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+            giveUpOnTheRemoval(service, delete);
+            retryTheDelete(service, stateWith(delete));
+            claim(service, delete);
+
+            repositoryReads.remove(0).onResponse(read);
+            assertThat("a re-drive whose claim fails must not remove the delete's entry", submitted, empty());
+            assertThat("a re-drive whose claim fails must not run the delete", repositoryDeletes, empty());
+            assertFalse("a re-drive whose claim fails must release the repository", service.currentlyFinalizing.contains(REPO));
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testMarkIsDroppedOnceItsDeleteIsGoneAndNotRunning() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        service.applyClusterState(new ClusterChangedEvent("test", stateWith(delete), stateWith(delete)));
+        assertTrue("a mark must stay while its delete is in the cluster state", service.unpublishedDeletes.contains(delete.uuid()));
+
+        claim(service, delete);
+        service.applyClusterState(new ClusterChangedEvent("test", stateWith(), stateWith(delete)));
+        assertTrue("a mark must stay while this node runs its delete", service.unpublishedDeletes.contains(delete.uuid()));
+
+        service.repositoryOperations.finishDeletion(delete.uuid());
+        service.applyClusterState(new ClusterChangedEvent("test", stateWith(), stateWith()));
+        assertThat("a mark must be dropped once its delete is gone", service.unpublishedDeletes, empty());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testDeleteIsNotMarkedWhenNoLongerClusterManager() {
+        final NotClusterManagerException notClusterManager = new NotClusterManagerException("no longer cluster-manager");
+        for (Exception failure : List.of(notClusterManager, new FailedToCommitClusterStateException("publish failed", notClusterManager))) {
+            final SnapshotsService service = service(false);
+            final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+            claim(service, delete);
+            service.createRemoveSnapshotDeletionTask(0, delete, null, RepositoryData.EMPTY).onFailure(SOURCE, failure);
+            assertThat("a node that is no longer cluster manager must not mark the delete", service.unpublishedDeletes, empty());
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testWildcardRedrivesMarkedDeleteWhoseSnapshotsAreGone() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final ClusterState state = stateWith(delete);
+
+        final ClusterStateUpdateTask request = resolve(service, RepositoryData.EMPTY, "snap-*");
+        final ClusterState after = request.execute(state);
+        assertEquals("the request must join the marked delete", delete, onlyDelete(after));
+        request.clusterStateProcessed("delete snapshot", state, after);
+        assertThat("a pattern matching only the marked delete's snapshots must re-drive it", repositoryReads, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testWildcardRedrivesMarkedDeleteWhoseSnapshotsRemain() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final RepositoryData stillThere = RepositoryData.EMPTY.addSnapshot(
+            SNAPSHOT,
+            SnapshotState.SUCCESS,
+            Version.CURRENT,
+            ShardGenerations.EMPTY,
+            null,
+            null
+        );
+        final ClusterState state = stateWith(delete);
+
+        final ClusterStateUpdateTask request = resolve(service, stillThere, "snap-*");
+        final ClusterState after = request.execute(state);
+        assertEquals("the request must join the marked delete", delete, onlyDelete(after));
+        request.clusterStateProcessed("delete snapshot", state, after);
+        assertThat("a pattern matching the marked delete's remaining snapshots must re-drive it", repositoryReads, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testWildcardMatchingAnotherSnapshotIsNotResolvedToMarkedDelete() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final SnapshotId other = new SnapshotId("snap-2", UUIDs.randomBase64UUID());
+        final RepositoryData repositoryData = RepositoryData.EMPTY.addSnapshot(
+            other,
+            SnapshotState.SUCCESS,
+            Version.CURRENT,
+            ShardGenerations.EMPTY,
+            null,
+            null
+        );
+
+        final List<SnapshotDeletionsInProgress.Entry> deletes = resolveAndExecute(service, stateWith(delete), repositoryData, "snap-*")
+            .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+            .getEntries();
+        assertTrue("the marked delete must be left as it was", deletes.contains(delete));
+        assertThat("the request must add one delete of its own", deletes, hasSize(2));
+        for (SnapshotDeletionsInProgress.Entry entry : deletes) {
+            if (entry.equals(delete) == false) {
+                assertEquals("the request must resolve to the other snapshot only", List.of(other), entry.getSnapshots());
+            }
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testAlreadyAppliedRedriveTakesMarkAddedDuringItsRead() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        retryTheDelete(service, stateWith(delete));
+        service.unpublishedDeletes.add(delete.uuid());
+
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+        assertThat("the re-drive removes the delete it found already applied", submitted, hasSize(1));
+        assertThat("a delete the re-drive claimed must not stay marked", service.unpublishedDeletes, empty());
+    }
+
     private void giveUpOnTheRemoval(SnapshotsService service, SnapshotDeletionsInProgress.Entry delete) {
         final int retries = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
         service.createRemoveSnapshotDeletionTask(retries, delete, null, RepositoryData.EMPTY)
@@ -424,6 +611,10 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
 
     private ClusterState resolveAndExecute(SnapshotsService service, ClusterState state, RepositoryData repositoryData, String... names)
         throws Exception {
+        return resolve(service, repositoryData, names).execute(state);
+    }
+
+    private ClusterStateUpdateTask resolve(SnapshotsService service, RepositoryData repositoryData, String... names) {
         final List<ClusterStateUpdateTask> resolved = new ArrayList<>();
         final Repository repository = repositoriesService.repository(REPO);
         doAnswer(invocation -> {
@@ -432,7 +623,7 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
             return null;
         }).when(repository).executeConsistentStateUpdate(any(), anyString(), any());
         service.deleteSnapshots(new DeleteSnapshotRequest(REPO, names), ActionListener.wrap(() -> {}));
-        return resolved.get(0).execute(state);
+        return resolved.get(0);
     }
 
     private static SnapshotsInProgress.Entry finalizingSnapshot(SnapshotId snapshotId) {

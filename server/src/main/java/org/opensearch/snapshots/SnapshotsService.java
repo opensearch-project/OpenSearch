@@ -1778,6 +1778,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
+            if (unpublishedDeletes.isEmpty() == false) {
+                final List<SnapshotDeletionsInProgress.Entry> deletes = event.state()
+                    .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                    .getEntries();
+                unpublishedDeletes.removeIf(
+                    uuid -> repositoryOperations.isNotRunning(uuid) && deletes.stream().noneMatch(delete -> delete.uuid().equals(uuid))
+                );
+            }
             if (event.localNodeClusterManager()) {
                 // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
                 // cluster-manager
@@ -2866,8 +2874,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Snapshots of a delete of {@code repository} whose removal this node could not publish, for the requested names that resolve
-     * to nothing else, if that delete holds every requested name. Lets a repeated DELETE find snapshots its applied delete removed.
+     * Snapshots of a delete of {@code repository} whose removal this node could not publish that match the requested names or
+     * patterns, if no other snapshot matches them. Lets a repeated DELETE find snapshots its applied delete removed, and join it.
      */
     private List<SnapshotId> unpublishedDeleteSnapshots(
         ClusterState state,
@@ -2879,18 +2887,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (unpublishedDeletes.isEmpty()) {
             return Collections.emptyList();
         }
-        final Set<String> requested = new HashSet<>(Arrays.asList(snapshotNames));
-        final Set<String> unresolved = new HashSet<>(requested);
-        repositoryData.getSnapshotIds().forEach(snapshotId -> unresolved.remove(snapshotId.getName()));
-        inProgress.forEach(snapshotId -> unresolved.remove(snapshotId.getName()));
         return state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
             .getEntries()
             .stream()
             .filter(entry -> entry.repository().equals(repository) && unpublishedDeletes.contains(entry.uuid()))
-            .filter(entry -> entry.getSnapshots().stream().map(SnapshotId::getName).collect(Collectors.toSet()).containsAll(requested))
-            .flatMap(entry -> entry.getSnapshots().stream())
-            .filter(snapshotId -> unresolved.contains(snapshotId.getName()))
-            .collect(Collectors.toList());
+            .findFirst()
+            .map(entry -> {
+                final Set<SnapshotId> held = new HashSet<>(entry.getSnapshots());
+                if (Stream.concat(repositoryData.getSnapshotIds().stream(), inProgress.stream())
+                    .anyMatch(snapshotId -> held.contains(snapshotId) == false && Regex.simpleMatch(snapshotNames, snapshotId.getName()))) {
+                    return Collections.<SnapshotId>emptyList();
+                }
+                return entry.getSnapshots()
+                    .stream()
+                    .filter(snapshotId -> Regex.simpleMatch(snapshotNames, snapshotId.getName()))
+                    .collect(Collectors.toList());
+            })
+            .orElse(Collections.emptyList());
     }
 
     // Visible for testing
@@ -3093,13 +3106,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     addDeleteListener(newDelete.uuid(), listener);
                     if (reusedExistingDelete) {
                         // Re-drive only a marked, unclaimed delete while the repository is free; the claim check is defensive.
-                        if (redriveCandidate && repositoryOperations.isNotRunning(newDelete.uuid()) && tryEnterRepoLoop(repoName)) {
-                            if (unpublishedDeletes.remove(newDelete.uuid())) {
-                                redriveDeleteFromRepository(newDelete, newState.nodes().getMinNodeVersion());
-                            } else {
-                                // The delete's retry or a claiming worker took the mark first.
-                                leaveRepoLoop(repoName);
+                        if (redriveCandidate) {
+                            final long failoversAtEntry;
+                            synchronized (currentlyFinalizing) {
+                                if (repositoryOperations.isNotRunning(newDelete.uuid()) == false || tryEnterRepoLoop(repoName) == false) {
+                                    return;
+                                }
+                                if (unpublishedDeletes.remove(newDelete.uuid()) == false) {
+                                    // The delete's retry or a claiming worker took the mark first.
+                                    leaveRepoLoop(repoName);
+                                    return;
+                                }
+                                failoversAtEntry = failovers.get();
                             }
+                            redriveDeleteFromRepository(newDelete, failoversAtEntry, newState.nodes().getMinNodeVersion());
                         }
                         return;
                     }
@@ -3173,40 +3193,77 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param deleteEntry    delete entry to re-drive
      * @param minNodeVersion minimum node version in the cluster
      */
-    private void redriveDeleteFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry, Version minNodeVersion) {
+    private void redriveDeleteFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry, long failoversAtEntry, Version minNodeVersion) {
         repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<RepositoryData>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
                 if (repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)) {
+                    // Claim it like a running delete, so its listeners stay accounted for until the removal answers them.
+                    synchronized (currentlyFinalizing) {
+                        if (failoverHandlingRan()) {
+                            keepRedrivable();
+                            return;
+                        }
+                        if (repositoryOperations.startDeletion(deleteEntry.uuid()) == false) {
+                            leaveRepoLoop(deleteEntry.repository());
+                            return;
+                        }
+                        unpublishedDeletes.remove(deleteEntry.uuid());
+                    }
                     logger.info(
                         "Delete [{}] of {} snapshot(s) in repository [{}] was already applied; removing its cluster state entry",
                         deleteEntry.uuid(),
                         deleteEntry.getSnapshots().size(),
                         deleteEntry.repository()
                     );
-                    // Claim it like a running delete, so its listeners stay accounted for until the removal answers them.
-                    repositoryOperations.startDeletion(deleteEntry.uuid());
                     removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
                     return;
                 }
-                logger.info(
-                    "Re-driving delete [{}] of {} snapshot(s) in repository [{}] whose removal from the cluster state was not published",
-                    deleteEntry.uuid(),
-                    deleteEntry.getSnapshots().size(),
-                    deleteEntry.repository()
-                );
-                // Pass the fresh data: the two-argument overload asserts the entry's recorded generation, which may since have moved.
-                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
+                synchronized (currentlyFinalizing) {
+                    if (failoverHandlingRan()) {
+                        keepRedrivable();
+                        return;
+                    }
+                    if (repositoryOperations.isNotRunning(deleteEntry.uuid()) == false) {
+                        leaveRepoLoop(deleteEntry.repository());
+                        return;
+                    }
+                    logger.info(
+                        "Re-driving delete [{}] of {} snapshot(s) in repository [{}] whose removal from the cluster state was not published",
+                        deleteEntry.uuid(),
+                        deleteEntry.getSnapshots().size(),
+                        deleteEntry.repository()
+                    );
+                    // Pass the fresh data: the two-argument overload asserts the entry's recorded generation, which may since have moved.
+                    deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                // Keep the delete re-drivable in case the task below fails to publish too.
-                unpublishedDeletes.add(deleteEntry.uuid());
-                clusterService.submitStateUpdateTask(
-                    "fail repo tasks for [" + deleteEntry.repository() + "]",
-                    new FailPendingRepoTasksTask(deleteEntry.repository(), e)
-                );
+                synchronized (currentlyFinalizing) {
+                    if (failoverHandlingRan()) {
+                        keepRedrivable();
+                        return;
+                    }
+                    // Keep the delete re-drivable in case the task below fails to publish too.
+                    unpublishedDeletes.add(deleteEntry.uuid());
+                    clusterService.submitStateUpdateTask(
+                        "fail repo tasks for [" + deleteEntry.repository() + "]",
+                        new FailPendingRepoTasksTask(deleteEntry.repository(), e)
+                    );
+                }
+            }
+
+            private boolean failoverHandlingRan() {
+                return failovers.get() != failoversAtEntry;
+            }
+
+            private void keepRedrivable() {
+                logger.debug("Dropping re-drive of delete [{}]: failover handling ran during its repository read", deleteEntry.uuid());
+                if (repositoryOperations.isNotRunning(deleteEntry.uuid())) {
+                    unpublishedDeletes.add(deleteEntry.uuid());
+                }
             }
         });
     }
@@ -3627,9 +3684,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)) {
                 // Mark full-copy deletes only: a shallow-copy delete can still have repository calls running. The mark outlives the
                 // give-up, so that a repeated DELETE can re-drive the delete.
-                final boolean redrivable = REMOTE_STORE_INDEX_SHALLOW_COPY.get(
-                    repositoriesService.repository(deleteEntry.repository()).getMetadata().settings()
-                ) == false;
+                final boolean redrivable = ExceptionsHelper.unwrap(e, NotClusterManagerException.class) == null
+                    && ExceptionsHelper.unwrap(e, FailedToCommitClusterStateException.class) != null
+                    && REMOTE_STORE_INDEX_SHALLOW_COPY.get(
+                        repositoriesService.repository(deleteEntry.repository()).getMetadata().settings()
+                    ) == false;
                 if (redrivable) {
                     unpublishedDeletes.add(deleteEntry.uuid());
                 }

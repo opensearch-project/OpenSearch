@@ -95,6 +95,14 @@ public class SnapshotDeleteRetryIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRepeatedDeleteFinishesGivenUpDelete() throws Exception {
+        repeatedDeleteFinishesGivenUpDelete("snap-1");
+    }
+
+    public void testRepeatedWildcardDeleteFinishesGivenUpDelete() throws Exception {
+        repeatedDeleteFinishesGivenUpDelete("snap-1*");
+    }
+
+    private void repeatedDeleteFinishesGivenUpDelete(String repeatedRequest) throws Exception {
         final String clusterManager = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         createRepository("test-repo", "mock");
@@ -123,7 +131,7 @@ public class SnapshotDeleteRetryIT extends AbstractSnapshotIntegTestCase {
             );
         });
 
-        assertAcked(startDeleteSnapshot("test-repo", "snap-1").get(60, TimeUnit.SECONDS));
+        assertAcked(startDeleteSnapshot("test-repo", repeatedRequest).get(60, TimeUnit.SECONDS));
         assertAcked(queued.get(60, TimeUnit.SECONDS));
         assertEquals(clusterManager, internalCluster().getClusterManagerName());
         awaitNoMoreRunningOperations();
