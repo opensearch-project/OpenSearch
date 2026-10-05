@@ -74,8 +74,12 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertTrue(plans.has(QueryPlans.Type.HITS));
         assertTrue(plans.has(QueryPlans.Type.COUNT));
 
+        // Even a default request carries fetch=size (10) so the limit pushes down to the engine.
         QueryPlans.QueryPlan plan = plans.get(QueryPlans.Type.HITS).get(0);
-        assertTrue(plan.relNode() instanceof LogicalTableScan);
+        assertTrue(plan.relNode() instanceof LogicalSort);
+        LogicalSort sort = (LogicalSort) plan.relNode();
+        assertNotNull(sort.fetch);
+        assertTrue(sort.getInput() instanceof LogicalTableScan);
     }
 
     public void testConvertResolvesFieldNames() throws ConversionException {

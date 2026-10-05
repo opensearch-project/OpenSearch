@@ -225,8 +225,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
         // AnalyticsSearchService's allocator is owned and closed by this plugin.
+        // The import staging allocator is created and closed by the search service; the handle only
+        // carries it so the coordinator-reduce path stages its imports on the same node-scoped allocator.
         coordinatorAllocatorHandle = new CoordinatorAllocatorHandle(
-            nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
+            nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE),
+            searchService.getImportStagingAllocator()
         );
 
         // Returned as components so Guice can inject them into DefaultPlanExecutor

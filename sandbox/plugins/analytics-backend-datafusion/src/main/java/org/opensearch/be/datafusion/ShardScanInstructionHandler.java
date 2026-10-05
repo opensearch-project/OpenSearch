@@ -64,31 +64,40 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
+            boolean requestsRowIds = node.requestsRowIds();
+            // Per-shard hasDeletions signal (stamped by AnalyticsSearchService). Deletions force the
+            // indexed SingleCollector path (CONJUNCTIVE) so the synthetic live-docs collector filters
+            // deleted docs from candidates; row-ids then index into the live-only bitmap.
+            boolean requiresLiveDocs = context.hasDeletedDocs();
             SessionContextHandle sessionCtxHandle;
-            if (node.requestsRowIds()) {
-                // QTF query phase — narrowed scan emits __row_id__. Use the indexed session
-                // context so the IndexedTableProvider injects shard-global row ids during scan.
-                // No delegated predicates here (delegation goes through ShardScanWithDelegationHandler),
-                // so treeShape=NO_DELEGATION and delegatedPredicateCount=0.
+            // Indexed execution is required either for QTF row IDs or for liveDocs masking. No
+            // delegated predicates here (delegation goes through ShardScanWithDelegationHandler), so
+            // delegatedPredicateCount=0. Otherwise the vanilla ListingTable path runs with zero extra
+            // work (its plan bytes let Rust widen the schema for multi-index queries).
+            if (requestsRowIds || requiresLiveDocs) {
+                int treeShape = requiresLiveDocs
+                    ? FilterTreeShape.CONJUNCTIVE.ordinal()
+                    : FilterTreeShape.NO_DELEGATION.ordinal();
                 sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
                     readerPtr,
                     runtimePtr,
                     tableName,
                     contextId,
-                    FilterTreeShape.NO_DELEGATION.ordinal(),
+                    treeShape,
                     0,
-                    true,
+                    requestsRowIds,
+                    requiresLiveDocs,
                     context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
             } else {
-                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
                 sessionCtxHandle = NativeBridge.createSessionContext(
                     readerPtr,
                     runtimePtr,
                     tableName,
                     contextId,
+                    false,
                     context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()

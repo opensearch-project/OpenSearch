@@ -25,7 +25,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Verifies response-typing mapping resolution on a coordinating-only node (hosting no shard)
  * while dynamic mapping updates arrive from documents indexed on a separate data node. Drives
  * {@link RequestScopedMapperService} against the coordinator's real {@link IndicesService} and
- * cluster state, as {@code TransportDslExecuteAction} wires it; the DSL plugins are not
+ * cluster state, as {@code TransportExecuteAction} wires it; the DSL plugins are not
  * installed because the machinery under test does not depend on the engine.
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)

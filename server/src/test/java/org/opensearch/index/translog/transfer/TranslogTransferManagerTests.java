@@ -16,6 +16,8 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -25,6 +27,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
@@ -39,9 +42,12 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -59,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
@@ -389,6 +396,292 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         uploadThread.get().interrupt();
     }
 
+    @SuppressWarnings("unchecked")
+    private void mockSuccessfulFileUploads() throws Exception {
+        doAnswer(invocationOnMock -> {
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
+            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
+            transferFileSnapshots.forEach(listener::onResponse);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), any());
+    }
+
+    /**
+     * The fence wrappers answer for both configurations. With no fence (fencing disabled) callers get the safe
+     * defaults - never superseded, a handoff transfer is a no-op, an aborted handoff may resume - so gating code
+     * never needs to know whether the feature is on. With a fence they delegate to it.
+     */
+    public void testFenceOwnershipWrappers() throws Exception {
+        // Fencing disabled: no fence.
+        TranslogTransferManager unfenced = fencedTransferManager(null, tracker);
+        assertFalse(unfenced.isFenceSuperseded(primaryTerm));
+        unfenced.transferFenceOwnership(primaryTerm, "target-alloc"); // no fence to hand over: a no-op
+        assertTrue(unfenced.revertFenceOwnership(primaryTerm));
+
+        // Fencing enabled: delegation to the fence.
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        fence.validateAndAdvance(primaryTerm);
+        TranslogTransferManager fenced = fencedTransferManager(fence, tracker);
+        assertFalse(fenced.isFenceSuperseded(primaryTerm));
+        fenced.transferFenceOwnership(primaryTerm, "target-alloc");
+        assertTrue("the target never wrote, so the revert reclaims ownership", fenced.revertFenceOwnership(primaryTerm));
+        // A strictly higher term supersedes this copy.
+        new RemoteStoreFence(container, "node-2-alloc", "node-2", shardId).validateAndAdvance(primaryTerm + 1);
+        assertTrue(fenced.isFenceSuperseded(primaryTerm));
+    }
+
+    private FsBlobContainer fenceContainer() throws IOException {
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        return (FsBlobContainer) blobStore.blobContainer(BlobPath.cleanPath());
+    }
+
+    private TranslogTransferManager fencedTransferManager(RemoteStoreFence fence, FileTransferTracker fileTransferTracker) {
+        return new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            isTranslogMetadataEnabled,
+            fence
+        );
+    }
+
+    public void testTransferSnapshotAdvancesFence() throws Exception {
+        mockSuccessfulFileUploads();
+        RemoteStoreFence fence = new RemoteStoreFence(fenceContainer(), "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicInteger uploadComplete = new AtomicInteger();
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                uploadComplete.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(primaryTerm, fence.getTerm());
+        assertEquals(0, fence.getSeq());
+
+        // A subsequent sync advances the same CAS chain
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(1, fence.getSeq());
+
+        assertEquals(2, uploadComplete.get());
+        assertNull(uploadFailure.get());
+    }
+
+    public void testTransferSnapshotFencedByNewOwnerAtSameTerm() throws Exception {
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-source-alloc", "node-source", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicInteger uploadComplete = new AtomicInteger();
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                uploadComplete.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+
+        // Relocation target (or a new primary) takes over the fence out of band
+        new RemoteStoreFence(container, "node-target-alloc", "node-target", shardId).validateAndAdvance(primaryTerm);
+
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(1, uploadComplete.get());
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+        assertTrue(uploadFailure.get().getMessage(), uploadFailure.get().getMessage().contains("fenced"));
+    }
+
+    public void testTransferSnapshotFencedByHigherTermBeforeBootstrap() throws Exception {
+        primaryTerm = randomLongBetween(1, 1000);
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        // A higher-term primary already owns the fence
+        new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId).validateAndAdvance(primaryTerm + 1);
+
+        RemoteStoreFence stalePrimaryFence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId);
+        TranslogTransferManager manager = fencedTransferManager(stalePrimaryFence, tracker);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                throw new AssertionError("upload must not be acknowledged for a fenced primary");
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        }, null));
+
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+    }
+
+    /**
+     * The fatal/retryable boundary: only a genuinely lost CAS may fail the shard. A transient repository error during
+     * the fence CAS must surface as an ordinary retryable upload failure — never as {@link TranslogFencedException},
+     * which callers treat as tragic — and the next sync must recover and claim the chain.
+     */
+    public void testTransientFenceErrorIsRetryableNotFatal() throws Exception {
+        mockSuccessfulFileUploads();
+        AtomicBoolean failNextCas = new AtomicBoolean(true);
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        FsBlobContainer container = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+                throws IOException {
+                if (failNextCas.getAndSet(false)) {
+                    throw new IOException("simulated transient repository error");
+                }
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+        };
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNotNull(uploadFailure.get());
+        assertFalse(
+            "a transient fence error must not be classified as fenced: " + uploadFailure.get(),
+            uploadFailure.get() instanceof TranslogFencedException
+        );
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogUploadFailedException);
+
+        // The retry recovers: the fence bootstraps and the upload is acknowledged.
+        uploadFailure.set(null);
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNull(uploadFailure.get());
+        assertEquals(primaryTerm, fence.getTerm());
+        assertEquals(0, fence.getSeq());
+    }
+
+    public void testFenceValidationRunsAfterMetadataUpload() throws Exception {
+        mockSuccessfulFileUploads();
+
+        // Order witness: the CAS must be issued only after the metadata upload completed ("the chain gates the
+        // ack, and the CAS follows the metadata"). A successful CAS then proves the metadata was already visible
+        // when any later takeover reads its restore point. Issued concurrently instead, the CAS can win before a
+        // takeover's sweep while the metadata PUT is still in flight; the takeover then reads a restore point
+        // without this generation and the writer acknowledges an operation no recovery will ever resolve -
+        // acked-write loss (RemoteStoreFence.tla in formal-models/ exhibits the trace with SEQUENCED = FALSE).
+        AtomicBoolean metadataUploaded = new AtomicBoolean();
+        AtomicBoolean casSawMetadataUploaded = new AtomicBoolean();
+
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        FsBlobContainer container = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+                throws IOException {
+                casSawMetadataUploaded.set(metadataUploaded.get());
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+        };
+
+        doAnswer(invocationOnMock -> {
+            metadataUploaded.set(true);
+            return null;
+        }).when(transferService).uploadBlob(any(TransferFileSnapshot.class), any(BlobPath.class), any(WritePriority.class), any());
+
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }, null));
+
+        assertTrue("fence CAS was issued before the metadata upload completed", casSawMetadataUploaded.get());
+        assertEquals(0, fence.getSeq());
+    }
+
+    public void testTakeoverBetweenMetadataUploadAndCasIsNotAcknowledged() throws Exception {
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId);
+        fence.validateAndAdvance(primaryTerm); // this copy owns the chain
+
+        // The interleaving that lost acked writes under the concurrent design: a new primary claims the fence
+        // while this upload's metadata PUT is in flight, then reads its restore point - which cannot include this
+        // generation. Sequenced, the CAS comes after the metadata and finds the chain taken, so the operation is
+        // refused rather than acknowledged: the metadata file is a harmless never-acknowledged orphan.
+        doAnswer(invocationOnMock -> {
+            new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId).validateAndAdvance(primaryTerm + 1);
+            return null;
+        }).when(transferService).uploadBlob(any(TransferFileSnapshot.class), any(BlobPath.class), any(WritePriority.class), any());
+
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                throw new AssertionError("an upload whose fence was taken over mid-flight must not be acknowledged");
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        }, null));
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+    }
+
+    public void testTransferSnapshotWithoutFenceDoesNotRequireConditionalWrites() throws Exception {
+        mockSuccessfulFileUploads();
+        // The default (unfenced) manager must behave exactly as before, i.e. no fence blob and no CAS requirement
+        assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }, null));
+    }
+
     private TransferSnapshot createTransferSnapshot() throws IOException {
         try {
             CheckpointFileSnapshot checkpointFileSnapshot1 = new CheckpointFileSnapshot(
@@ -582,6 +875,207 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
         assertTlogCkpDownloadStats();
+    }
+
+    /**
+     * A local generation whose footer checksum equals the advertised one is reused: nothing is fetched from the
+     * repository, and the tracker records both files exactly as a real download would.
+     */
+    public void testDownloadTranslogIfChangedReusesCurrentLocalGeneration() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 23, true);
+        byte[] before = Files.readAllBytes(location.resolve("translog-23.tlog"));
+
+        assertFalse(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
+
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), any(String.class));
+        verify(transferService, times(0)).downloadBlobWithMetadata(any(BlobPath.class), any(String.class));
+        assertArrayEquals(before, Files.readAllBytes(location.resolve("translog-23.tlog")));
+        assertTrue(tracker.uploaded("translog-23.tlog"));
+        assertTrue(tracker.uploaded("translog-23.ckp"));
+        assertNoDownloadStats(false);
+    }
+
+    /**
+     * When the local copy cannot be proven current the generation is downloaded, and nothing is registered with the
+     * tracker until that download has succeeded.
+     */
+    public void testDownloadTranslogIfChangedDownloadsWhenLocalGenerationIsNotCurrent() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 23, true);
+
+        assertTrue(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum + 1)));
+
+        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
+        assertArrayEquals(tlogBytes, Files.readAllBytes(location.resolve("translog-23.tlog")));
+        assertTrue(tracker.uploaded("translog-23.tlog"));
+        assertTrue(tracker.uploaded("translog-23.ckp"));
+        assertTlogCkpDownloadStats();
+    }
+
+    /**
+     * With checkpoint data carried as object metadata there is no remote {@code .ckp} object, so a downloaded
+     * generation registers only the {@code .tlog} with the tracker. A reused generation must leave the tracker in
+     * exactly the same state, so callers that iterate tracked files see no difference between the two paths.
+     */
+    public void testDownloadTranslogIfChangedInMetadataModeTracksSameFilesAsDownload() throws IOException {
+        TranslogTransferManager metadataModeManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+        // Reference: what a real metadata-mode download registers.
+        Path downloaded = createTempDir();
+        mockDownloadBlobWithMetadataResponse();
+        assertTrue(metadataModeManager.downloadTranslogIfChanged("12", "23", downloaded, null));
+        assertTrue(Files.exists(downloaded.resolve("translog-23.ckp")));
+        Set<String> afterDownload = tracker.allUploaded();
+        assertEquals(Set.of("translog-23.tlog"), afterDownload);
+
+        // A reused generation in a fresh tracker must register the very same set.
+        FileTransferTracker reuseTracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
+        TranslogTransferManager reuseManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            reuseTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+        Path reused = createTempDir();
+        long checksum = createTranslogGeneration(reused, 23, true);
+        assertFalse(reuseManager.downloadTranslogIfChanged("12", "23", reused, String.valueOf(checksum)));
+        assertEquals(afterDownload, reuseTracker.allUploaded());
+    }
+
+    /**
+     * A generation's two files are written one after the other, so a download that dies between them must not leave a
+     * stale checkpoint beside a fresh translog: the next reconciliation reads the footer at the checkpoint's offset, and
+     * a stale checkpoint with the same offset would locate the new footer and trust the pair. The download therefore
+     * removes both local files before the remote is contacted, in either mode, so no partial outcome can be trusted.
+     */
+    public void testDownloadTranslogRemovesStaleLocalFilesBeforeFetching() throws IOException {
+        for (boolean metadataMode : new boolean[] { false, true }) {
+            TranslogTransferManager manager = new TranslogTransferManager(
+                shardId,
+                transferService,
+                remoteBaseTransferPath.add(TRANSLOG.getName()),
+                remoteBaseTransferPath.add(METADATA.getName()),
+                tracker,
+                remoteTranslogTransferTracker,
+                DefaultRemoteStoreSettings.INSTANCE,
+                metadataMode
+            );
+            Path location = createTempDir();
+            long staleChecksum = createTranslogGeneration(location, 23, true);
+            Path translogPath = location.resolve("translog-23.tlog");
+            Path checkpointPath = location.resolve("translog-23.ckp");
+            assertTrue(manager.isLocalGenerationCurrent(location, 23, String.valueOf(staleChecksum)));
+
+            // The remote fails on the very first request; record what was still on disk at that moment.
+            AtomicBoolean checkpointPresentAtFetch = new AtomicBoolean(true);
+            AtomicBoolean translogPresentAtFetch = new AtomicBoolean(true);
+            Answer<Object> failFirstFetch = invocation -> {
+                checkpointPresentAtFetch.set(Files.exists(checkpointPath));
+                translogPresentAtFetch.set(Files.exists(translogPath));
+                throw new IOException("simulated failure before any byte was written");
+            };
+            when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(failFirstFetch);
+            when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(failFirstFetch);
+
+            expectThrows(IOException.class, () -> manager.downloadTranslog("12", "23", location));
+
+            assertFalse("checkpoint must be gone before the remote is contacted", checkpointPresentAtFetch.get());
+            assertFalse("translog must be gone before the remote is contacted", translogPresentAtFetch.get());
+            assertFalse(Files.exists(checkpointPath));
+            assertFalse(Files.exists(translogPath));
+            // Whatever the next attempt finds, it cannot be trusted.
+            assertFalse(manager.isLocalGenerationCurrent(location, 23, String.valueOf(staleChecksum)));
+        }
+    }
+
+    /**
+     * Every way in which the local copy can fail to prove it is identical to the remote one must fall back to a
+     * download: checksum mismatch, footer-less file, missing checkpoint, checkpoint for a different generation,
+     * truncation, or a remote that does not advertise a checksum for the generation at all.
+     */
+    public void testIsLocalGenerationCurrentFallsBackWhenLocalStateCannotBeTrusted() throws IOException {
+        // Checksum mismatch (e.g. a stale generation left behind by an earlier incarnation of the shard).
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum + 1)));
+            assertTrue(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Local generation written before footers existed.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, false);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Remote does not know the checksum (metadata uploaded by an older node).
+        {
+            Path location = createTempDir();
+            createTranslogGeneration(location, 1, true);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, null));
+        }
+        // Checkpoint file missing.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Checkpoint file belongs to another generation.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Files.delete(location.resolve(Translog.getCommitCheckpointFileName(1)));
+            createTranslogGeneration(location, 2, true);
+            Files.move(
+                location.resolve(Translog.getCommitCheckpointFileName(2)),
+                location.resolve(Translog.getCommitCheckpointFileName(1))
+            );
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Translog file truncated after the checkpoint was written.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 1, true);
+            Path translogPath = location.resolve(Translog.getFilename(1));
+            try (FileChannel channel = FileChannel.open(translogPath, StandardOpenOption.WRITE)) {
+                channel.truncate(Files.size(translogPath) - 1);
+            }
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 1, String.valueOf(checksum)));
+        }
+        // Checkpoint file corrupt (CRC no longer matches). Checkpoint.read throws the unchecked
+        // TranslogCorruptedException here, which must be treated as "cannot trust, download" rather than propagate
+        // and fail the engine open - the directory is no longer wiped before reconciliation, so a stale local
+        // checkpoint is a state the download now has to cope with.
+        {
+            Path location = createTempDir();
+            long checksum = createTranslogGeneration(location, 23, true);
+            Path checkpointPath = location.resolve(Translog.getCommitCheckpointFileName(23));
+            byte[] bytes = Files.readAllBytes(checkpointPath);
+            bytes[bytes.length / 2] ^= 0x1;
+            Files.write(checkpointPath, bytes);
+            assertFalse(translogTransferManager.isLocalGenerationCurrent(location, 23, String.valueOf(checksum)));
+            // And the full path downloads it, replacing the corrupt local files.
+            assertTrue(translogTransferManager.downloadTranslogIfChanged("12", "23", location, String.valueOf(checksum)));
+            assertArrayEquals(ckpBytes, Files.readAllBytes(checkpointPath));
+        }
+    }
+
+    private long createTranslogGeneration(Path location, long generation, boolean withFooter) throws IOException {
+        return TestTranslog.createTranslogGeneration(random(), location, generation, withFooter);
     }
 
     public void testDeleteTranslogSuccess() throws Exception {
@@ -972,12 +1466,21 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2, reader3, reader4));
         assertEquals(
-            Set.of("translog-12.tlog", "translog-23.tlog", "translog-34.tlog", "translog-45.tlog"),
+            Set.of(
+                "translog-12.tlog",
+                "translog-12.ckp",
+                "translog-23.tlog",
+                "translog-23.ckp",
+                "translog-34.tlog",
+                "translog-34.ckp",
+                "translog-45.tlog",
+                "translog-45.ckp"
+            ),
             translogTransferManager.getFileTransferTracker().allUploaded()
         );
     }
 
-    public void testPopulateFileTrackerWithLocalStateNoCkpAsMetadata() {
+    public void testPopulateFileTrackerWithLocalStateUsingTranslogMetadata() {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -995,9 +1498,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(reader2.getGeneration()).thenReturn(23L);
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
-        assertEquals(
-            Set.of("translog-12.tlog", "translog-12.ckp", "translog-23.tlog", "translog-23.ckp"),
-            translogTransferManager.getFileTransferTracker().allUploaded()
-        );
+        assertEquals(Set.of("translog-12.tlog", "translog-23.tlog"), translogTransferManager.getFileTransferTracker().allUploaded());
     }
 }

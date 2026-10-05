@@ -5520,6 +5520,140 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testPeriodicFlushTaskStartedOnDynamicEnable() throws Exception {
+        // Regular index: periodic flush disabled by default, so no task is started with the engine.
+        IndexShard primary = newStartedShard(true);
+        assertNull(primary.getPeriodicFlushTask());
+
+        updatePeriodicFlushInterval(primary, "1m");
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("enabling index.periodic_flush_interval on a live shard should start the task", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+        assertTrue(flushTask.isClosed());
+    }
+
+    public void testPeriodicFlushTaskRescheduledOnIntervalChange() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+
+        updatePeriodicFlushInterval(primary, "30s");
+
+        // The same task is kept and rescheduled with the new interval.
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        // An unchanged value is a no-op.
+        updatePeriodicFlushInterval(primary, "30s");
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskStoppedOnDynamicDisable() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+
+        updatePeriodicFlushInterval(primary, "-1");
+
+        assertTrue("disabling index.periodic_flush_interval should close the running task", flushTask.isClosed());
+        assertFalse(flushTask.isScheduled());
+        assertNull(primary.getPeriodicFlushTask());
+
+        // Re-enabling starts a fresh task.
+        updatePeriodicFlushInterval(primary, "2m");
+        IndexShard.AsyncShardFlushTask restarted = primary.getPeriodicFlushTask();
+        assertNotNull(restarted);
+        assertNotSame(flushTask, restarted);
+        assertEquals(TimeValue.timeValueMinutes(2), restarted.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskDeferredUntilEngineExists() throws Exception {
+        // Setting is enabled at creation, but the shard has no engine yet. A settings change in this
+        // state must defer the task (there is nothing to flush) rather than start it.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        // No engine yet: onSettingsChanged must not start the task.
+        primary.onSettingsChanged();
+        assertNull("periodic flush task must not start before an engine exists", primary.getPeriodicFlushTask());
+
+        // Once the engine is created during recovery, the task starts with the configured interval.
+        recoverShardFromStore(primary);
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("task should start once an engine is available", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+    }
+
+    /**
+     * Applies a dynamic update of {@code index.periodic_flush_interval} to the shard the same way
+     * {@code IndexService#updateMetadata} does: update the index settings, then notify the shard.
+     */
+    private static void updatePeriodicFlushInterval(IndexShard shard, String interval) {
+        IndexMetadata current = shard.indexSettings().getIndexMetadata();
+        Settings newSettings = Settings.builder()
+            .put(current.getSettings())
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), interval)
+            .build();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .settings(newSettings)
+            .settingsVersion(current.getSettingsVersion() + 1)
+            .build();
+        shard.indexSettings().updateIndexMetadata(updated);
+        shard.onSettingsChanged();
+    }
+
     /**
      * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
      * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,

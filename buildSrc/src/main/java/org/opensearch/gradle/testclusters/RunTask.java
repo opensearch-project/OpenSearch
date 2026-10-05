@@ -159,6 +159,11 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (OpenSearchCluster cluster : getClusters()) {
+            // A cluster numbered from an offset is another build's nodes joining the one on the default ports, so its
+            // ports start at the same offset: node <cluster>-N listens on 9200 + N and 9300 + N.
+            httpPort = Math.max(httpPort, DEFAULT_HTTP_PORT + cluster.getFirstNodeIndex());
+            transportPort = Math.max(transportPort, DEFAULT_TRANSPORT_PORT + cluster.getFirstNodeIndex());
+            debugPort = Math.max(debugPort, DEFAULT_DEBUG_PORT + cluster.getFirstNodeIndex());
             // Configure the first node with the default ports first
             OpenSearchNode firstNode = cluster.getFirstNode();
             firstNode.setHttpPort(String.valueOf(httpPort));

@@ -82,10 +82,31 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
+     * True when the index uses a pluggable data format. Remembered here so {@link #getMergeBuilder()} can
+     * rebuild a settings-less builder that still knows this, keeping parameter defaults correct (e.g.
+     * {@code index} defaulting to false) during serialization and mapping merges.
+     */
+    protected final boolean pluggableDataFormat;
+
+    /**
      * Creates a new ParametrizedFieldMapper
      */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedFieldType, multiFields, copyTo, false);
+    }
+
+    /**
+     * Creates a new ParametrizedFieldMapper, recording whether the index uses a pluggable data format.
+     */
+    protected ParametrizedFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean pluggableDataFormat
+    ) {
         super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
+        this.pluggableDataFormat = pluggableDataFormat;
     }
 
     /**
@@ -106,6 +127,71 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
+
+    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
+        return new Parameter<>(
+            "multi_value",
+            true,
+            () -> MappedFieldType.MultiValueState.AUTO,
+            (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
+                ? MappedFieldType.MultiValueState.LIST
+                : MappedFieldType.MultiValueState.SCALAR,
+            mapper -> mapper.fieldType().multiValueState()
+        ).setSerializer((builder, name, mode) -> builder.field(name, mode == MappedFieldType.MultiValueState.LIST), mode -> switch (mode) {
+            case AUTO -> "auto";
+            case SCALAR -> "false";
+            case LIST -> "true";
+        })
+            .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+            .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+            .setMergeValidator((previous, next) -> previous == MappedFieldType.MultiValueState.AUTO || previous == next);
+    }
+
+    /**
+     * Adds one successfully parsed scalar value to the pluggable document input and requests a
+     * mapping promotion when this is the second value for a supported field.
+     */
+    protected final void addFieldForPluggableFormat(ParseContext context, Object value) {
+        MappedFieldType fieldType = fieldType();
+        if (fieldType.isMultiValued() == false
+            && fieldType.isMultiValueSupported()
+            && context.documentInput().getFieldCount(fieldType.name()) > 0) {
+            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+                throw new MapperParsingException(
+                    "Field [" + fieldType.name() + "] is locked scalar by [multi_value: false] and cannot accept multiple values"
+                );
+            }
+            addMultiValueMappingUpdate(context);
+        }
+        context.documentInput().addField(fieldType, value);
+    }
+
+    /** Publishes the idempotent scalar-to-multi-value mapping update for this mapper. */
+    final void addMultiValueMappingUpdate(ParseContext context) {
+        if (fieldType().isMultiValued()) {
+            return;
+        }
+        if (fieldType().isMultiValueSupported() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
+            );
+        }
+        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] is locked scalar by [multi_value: false] and cannot promote"
+            );
+        }
+        Builder updateBuilder = getMergeBuilder();
+        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
+        if (update.fieldType().isMultiValued() == false) {
+            throw new IllegalStateException(
+                "Mapper [" + fieldType().name() + "] advertises multi-value support but did not apply [multi_value]"
+            );
+        }
+        context.addDynamicMapper(update);
+    }
 
     @Override
     public ParametrizedFieldMapper merge(Mapper mergeWith) {
@@ -213,6 +299,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
+        private BiFunction<T, T, T> mergeValueNormalizer = (current, incoming) -> incoming;
         private T value;
         private boolean isSet;
 
@@ -339,6 +426,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Normalizes an incoming mapping-update value before merge validation. This is useful for
+         * tri-state parameters where the default value means "unspecified" and must preserve the
+         * current state rather than overwrite it.
+         */
+        public Parameter<T> setMergeValueNormalizer(BiFunction<T, T, T> mergeValueNormalizer) {
+            this.mergeValueNormalizer = Objects.requireNonNull(mergeValueNormalizer);
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -354,12 +451,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+            T incoming = initializer.apply(toMerge);
             T current = getValue();
-            if (mergeValidator.test(current, value)) {
-                setValue(value);
+            T merged = mergeValueNormalizer.apply(current, incoming);
+            if (mergeValidator.test(current, merged)) {
+                setValue(merged);
             } else {
-                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(incoming));
             }
         }
 
@@ -382,7 +480,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             Function<FieldMapper, Boolean> initializer,
             boolean defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return boolParam(name, updateable, initializer, () -> defaultValue);
+        }
+
+        public static Parameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, Boolean> initializer,
+            Supplier<Boolean> defaultValue
+        ) {
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
         /**
@@ -556,6 +663,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -690,6 +801,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
         /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructors that receive index settings, so builders created
+         * for internal field types — such as derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        protected boolean pluggableDataFormat;
+
+        /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
@@ -775,6 +894,15 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * @return true when the index uses a pluggable data format. Exposed so mappers in other modules
+         *         (which cannot access the protected field across class loaders) can propagate the flag
+         *         when constructing their mapper.
+         */
+        public boolean isPluggableDataFormat() {
+            return pluggableDataFormat;
+        }
+
+        /**
          * Initialises all parameters from an existing mapper
          */
         public Builder init(FieldMapper initializer) {
@@ -783,6 +911,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
+            }
+            // Carry the pluggable-data-format flag over from the mapper being merged/serialized so a
+            // settings-less merge builder keeps the correct parameter defaults (e.g. `index` -> false).
+            if (initializer instanceof ParametrizedFieldMapper) {
+                this.pluggableDataFormat = ((ParametrizedFieldMapper) initializer).pluggableDataFormat;
             }
             return this;
         }
