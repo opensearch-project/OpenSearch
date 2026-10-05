@@ -1402,8 +1402,12 @@ public class DataFormatAwareEngine implements Indexer {
                                 .toList();
 
                             final long commitStartNanos = System.nanoTime();
-                            // A writer can be flushed while its bulk still owns deferred translog entries. Append all
-                            // such chunks before publishing the segments, so every visible document has a WAL record.
+                            // A writer can be flushed while its bulk still owns deferred translog entries. Append every
+                            // pending chunk before publishing the segments so that, for every row whose bulk thread has
+                            // reached batch.add, the WAL record exists before the row is searchable. The residual window
+                            // is a thread that has written its row to the writer but not yet called batch.add; the
+                            // stock engine has the same window between the Lucene add and translogManager.add, and in
+                            // both cases the operation is unacknowledged until its append and sync complete.
                             flushActiveTranslogBatches();
                             catalogSnapshotManager.commitNewSnapshot(finalSegments);
                             // A refresh that published segments must have rows to release; a pure delete

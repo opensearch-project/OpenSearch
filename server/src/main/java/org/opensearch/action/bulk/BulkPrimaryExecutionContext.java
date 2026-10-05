@@ -44,6 +44,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -85,6 +86,8 @@ class BulkPrimaryExecutionContext {
     private final BulkShardRequest request;
     private final IndexShard primary;
     private Translog.Location locationToSync = null;
+    @Nullable
+    private Engine.TranslogBatch translogBatch = null;
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
@@ -201,6 +204,30 @@ class BulkPrimaryExecutionContext {
         if (locationToSync == null || location.compareTo(locationToSync) > 0) {
             locationToSync = location;
         }
+    }
+
+    /**
+     * Registers the translog batch scope opened for the current execution of this request on the current thread. A
+     * scope is owned by exactly one execution; a mapping-update yield finishes it before the request is re-executed.
+     */
+    public void setTranslogBatch(Engine.TranslogBatch translogBatch) {
+        assert this.translogBatch == null : "a translog batch is already registered for this execution";
+        this.translogBatch = Objects.requireNonNull(translogBatch);
+    }
+
+    /**
+     * Finishes the registered translog batch, if any, folding the greatest location it appended into the location to
+     * sync, and unregisters it. Idempotent: the second and later calls do nothing, so the caller's finally block is
+     * safe after a mapping-update yield has already finished the scope. If {@code finish()} throws, the scope is still
+     * unregistered (it has failed and completed every pending reader exceptionally) and the exception propagates.
+     */
+    public void finishTranslogBatch() {
+        final Engine.TranslogBatch batch = translogBatch;
+        if (batch == null) {
+            return;
+        }
+        translogBatch = null;
+        mergeLocationToSync(batch.finish());
     }
 
     private BulkItemRequest getCurrentItem() {
