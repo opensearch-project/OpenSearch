@@ -115,6 +115,7 @@ import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -5872,6 +5873,67 @@ public class IndexShardTests extends IndexShardTestCase {
 
             IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
             assertThat(ex.getMessage(), containsString(IndexShard.REPLICA_SYNC_TIMEOUT_MARKER));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * The catalog-based commit accessors are the format-neutral entry point the snapshot path uses. Unlike
+     * {@code acquireLastCommittedIndexCommit} they reach the indexer directly rather than via {@code applyOnEngine},
+     * which is what allows a data-format-aware engine to be snapshotted at all.
+     */
+    public void testAcquireLastCommittedSnapshot() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(false)) {
+                final CatalogSnapshot catalogSnapshot = wrapped.get();
+                assertNotNull(catalogSnapshot);
+                assertEquals(
+                    "catalog generation must match the shard's last committed Lucene commit",
+                    shard.store().readLastCommittedSegmentsInfo().getGeneration(),
+                    catalogSnapshot.getGeneration()
+                );
+            }
+
+            // flushFirst=true must still produce a usable commit point.
+            indexDoc(shard, "_doc", "2");
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(true)) {
+                assertNotNull(wrapped.get());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAcquireLastCommittedSnapshotAndRefresh() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshotAndRefresh(false)) {
+                assertNotNull(wrapped.get());
+                assertEquals(shard.store().readLastCommittedSegmentsInfo().getGeneration(), wrapped.get().getGeneration());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A shard that has not finished recovery must refuse to hand out a commit point. */
+    public void testAcquireLastCommittedSnapshotRejectedWhenShardNotStarted() throws Exception {
+        final IndexShard shard = newShard(false);
+        try {
+            assertEquals(IndexShardState.CREATED, shard.state());
+            final IllegalIndexShardStateException e = expectThrows(
+                IllegalIndexShardStateException.class,
+                () -> shard.acquireLastCommittedSnapshot(randomBoolean())
+            );
+            assertThat(e.getMessage(), containsString("snapshot is not allowed"));
         } finally {
             closeShards(shard);
         }
