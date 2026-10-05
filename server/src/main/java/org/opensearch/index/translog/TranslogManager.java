@@ -121,6 +121,22 @@ public interface TranslogManager extends Closeable {
     Translog.Location add(Translog.Operation operation) throws IOException;
 
     /**
+     * Adds a batch of operations to the translog in a single critical section, returning per-operation locations.
+     * Default implementation falls back to repeated single adds; implementations backed by a real translog should
+     * override this to amortise buffer allocation and locking across the batch.
+     * @param operations to add to translog, in order
+     * @return the locations in the translog, parallel to {@code operations}
+     * @throws IOException throws an IO exception if adding an operation fails
+     */
+    default Translog.Location[] add(java.util.List<Translog.Operation> operations) throws IOException {
+        final Translog.Location[] locations = new Translog.Location[operations.size()];
+        for (int i = 0; i < operations.size(); i++) {
+            locations[i] = add(operations.get(i));
+        }
+        return locations;
+    }
+
+    /**
      * Checks if the translog has a pending recovery
      */
     void ensureCanFlush();
