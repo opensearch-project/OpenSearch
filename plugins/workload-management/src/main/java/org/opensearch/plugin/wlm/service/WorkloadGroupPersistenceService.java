@@ -27,12 +27,17 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.util.Collection;
 import java.util.EnumMap;
@@ -75,6 +80,7 @@ public class WorkloadGroupPersistenceService {
         Setting.Property.NodeScope
     );
     private final ClusterService clusterService;
+    private final AutoTaggingRegistry autoTaggingRegistry;
     private volatile int maxWorkloadGroupCount;
     final ThrottlingKey createWorkloadGroupThrottlingKey;
     final ThrottlingKey deleteWorkloadGroupThrottlingKey;
@@ -86,14 +92,17 @@ public class WorkloadGroupPersistenceService {
      * @param clusterService {@link ClusterService} - The cluster service to be used by WorkloadGroupPersistenceService
      * @param settings {@link Settings} - The settings to be used by WorkloadGroupPersistenceService
      * @param clusterSettings {@link ClusterSettings} - The cluster settings to be used by WorkloadGroupPersistenceService
+     * @param autoTaggingRegistry node-local feature registry
      */
     @Inject
     public WorkloadGroupPersistenceService(
         final ClusterService clusterService,
         final Settings settings,
-        final ClusterSettings clusterSettings
+        final ClusterSettings clusterSettings,
+        final AutoTaggingRegistry autoTaggingRegistry
     ) {
         this.clusterService = clusterService;
+        this.autoTaggingRegistry = autoTaggingRegistry;
         this.createWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP, true);
         this.deleteWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP, true);
         this.updateWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP, true);
@@ -365,5 +374,67 @@ public class WorkloadGroupPersistenceService {
      */
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    /**
+     * Validates the effective throttling configuration for an update. Throttling updates are partial, so a fragment that
+     * only changes {@code node_limit} must inherit the existing {@code by} value before enforceability is checked.
+     *
+     * @param request the update request
+     * @param clusterState state containing the currently stored workload group
+     * @throws IllegalArgumentException if the effective config cannot be enforced
+     */
+    public void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState));
+    }
+
+    static Settings getEffectiveThrottling(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+        Settings incomingThrottling = request.getmMutableWorkloadGroupFragment().getThrottling();
+        if (incomingThrottling == null || incomingThrottling.isEmpty()) {
+            return incomingThrottling;
+        }
+        return clusterState.metadata()
+            .workloadGroups()
+            .values()
+            .stream()
+            .filter(group -> group.getName().equals(request.getName()))
+            .findFirst()
+            .map(
+                group -> updateExistingWorkloadGroup(group, request.getmMutableWorkloadGroupFragment()).getMutableWorkloadGroupFragment()
+                    .getThrottling()
+            )
+            .orElse(incomingThrottling);
+    }
+
+    /**
+     * Rejects principal-scoped throttling when no principal attribute is registered: no bucket can be resolved, so the
+     * limit would always fail open. Called from the transport actions, not a cluster-state applier, because throwing
+     * while applying cluster state wedges the cluster-manager.
+     *
+     * @param throttling the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
+     * @throws IllegalArgumentException if the config cannot be enforced
+     */
+    public void validateThrottlingIsEnforceable(Settings throttling) {
+        if (throttling == null || throttling.isEmpty()) {
+            return;
+        }
+        String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {
+            return;
+        }
+        try {
+            FeatureType featureType = autoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+            if (featureType.getAllowedAttributesRegistry().containsKey(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "throttling.by ["
+                        + by
+                        + "] needs a principal attribute provider (the security plugin) to be installed, otherwise the "
+                        + "limit can never be enforced. Omit [by] to use whole-group throttling instead."
+                );
+            }
+        } catch (ResourceNotFoundException e) {
+            // Feature type not registered yet. Skip: throttling fails open anyway, so a false rejection is worse.
+            logger.debug("WLM feature type not registered; skipping principal-attribute check for throttling config", e);
+        }
     }
 }

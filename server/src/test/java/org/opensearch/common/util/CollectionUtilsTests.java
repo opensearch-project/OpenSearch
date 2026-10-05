@@ -102,7 +102,22 @@ public class CollectionUtilsTests extends OpenSearchTestCase {
         assertDeduped(List.of(-1, 0, 2, 1, -1, 19, -1), Comparator.naturalOrder(), 5);
         // test sorted array
         assertDeduped(List.of(-1, 0, 1, 2, 19, 19), Comparator.naturalOrder(), 5);
-        // test sorted
+        // multiple consecutive duplicate runs: every run after the first previously survived because the
+        // last-retained value was tracked incorrectly, leaving spurious duplicates
+        assertDeduped(List.of(0, 0, 1, 1), Comparator.naturalOrder(), 2);
+        assertDeduped(List.of(2, 2, 2, 3, 3), Comparator.naturalOrder(), 2);
+        assertDeduped(List.of(0, 0, 1, 1, 2, 2), Comparator.naturalOrder(), 3);
+        assertDeduped(List.of(1, 1, 2, 3, 3, 3), Comparator.naturalOrder(), 3);
+        // duplicate runs followed by a trailing unique value
+        assertDeduped(List.of(0, 0, 1, 1, 2), Comparator.naturalOrder(), 3);
+        // unsorted input with several duplicate groups
+        assertDeduped(List.of(5, 1, 5, 1, 3, 3), Comparator.naturalOrder(), 3);
+        // reverse comparator across multiple runs
+        assertDeduped(List.of(1, 1, 2, 2, 3, 3), Comparator.reverseOrder(), 3);
+        // distinct object references that are equal by the comparator (values outside the Integer autobox
+        // cache): dedup must still collapse them -- equality is decided by the comparator, not by reference
+        assertDeduped(List.of(1000, 1000, 2000, 2000), Comparator.naturalOrder(), 2);
+        assertDeduped(List.of(1000, 1000, 1000, 2000, 2000), Comparator.naturalOrder(), 2);
     }
 
     public void testEmptyPartition() {
