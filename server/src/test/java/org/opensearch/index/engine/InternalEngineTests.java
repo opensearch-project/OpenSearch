@@ -556,6 +556,20 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(EngineException.class, batch::finish);
     }
 
+    /**
+     * Opening a scope on a closed engine is refused with the same {@link AlreadyClosedException} its first append would
+     * have produced, so the shard-bulk is retried on the re-promoted primary before any Lucene work is done.
+     */
+    public void testBeginTranslogBatchOnClosedEngineThrowsAlreadyClosed() throws Exception {
+        InternalEngine batchEngine = spy(engine);
+        doReturn(true).when(batchEngine).isTranslogBatchingEligible();
+        batchEngine.close();
+        assertTrue("engine must be closed", batchEngine.isClosed.get());
+
+        AlreadyClosedException closed = expectThrows(AlreadyClosedException.class, batchEngine::beginTranslogBatch);
+        assertTrue(TransportActions.isShardNotAvailableException(closed));
+    }
+
     public void testVersionMapAfterAutoIDDocument() throws IOException {
         engine.refresh("warm_up");
         ParsedDocument doc = testParsedDocument(

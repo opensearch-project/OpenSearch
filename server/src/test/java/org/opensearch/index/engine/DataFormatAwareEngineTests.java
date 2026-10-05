@@ -16,6 +16,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -4394,6 +4395,18 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
             assertThat(result.getTranslogLocation(), notNullValue());
         }
+    }
+
+    /**
+     * Opening a scope on a closed engine is refused with the same {@link AlreadyClosedException} its first append would
+     * have produced, so the shard-bulk is retried on the re-promoted primary before any Parquet or Lucene work is done.
+     */
+    public void testBeginTranslogBatchOnClosedEngineThrowsAlreadyClosed() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true);
+        engine.close();
+        AlreadyClosedException closed = expectThrows(AlreadyClosedException.class, engine::beginTranslogBatch);
+        assertTrue(TransportActions.isShardNotAvailableException(closed));
     }
 
     /**

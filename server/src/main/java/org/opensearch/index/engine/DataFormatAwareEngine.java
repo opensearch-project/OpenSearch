@@ -885,6 +885,9 @@ public class DataFormatAwareEngine implements Indexer {
             || engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode() == false) {
             return Engine.NO_OP_TRANSLOG_BATCH;
         }
+        // A scope opened against a closed engine would only fail at its first append with the same
+        // AlreadyClosedException; refuse it up front so the bulk is retried on the new primary without doing any work.
+        ensureOpen();
         if (activeBatch.get() != null) {
             throw new IllegalStateException("a translog batch is already active on this bulk thread");
         }

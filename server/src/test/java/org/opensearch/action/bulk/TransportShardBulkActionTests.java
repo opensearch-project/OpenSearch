@@ -45,6 +45,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationTask;
@@ -122,6 +123,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -945,6 +947,63 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertThat(observedFailure.get(), sameInstance(bodyFailure));
         assertThat(Arrays.asList(bodyFailure.getSuppressed()), contains(sameInstance(finishFailure)));
+        verify(batch, times(1)).finish();
+    }
+
+    /**
+     * The real failure path: a failed {@code TranslogBatchScope} stores the append exception and rethrows that very
+     * instance from {@code finish()}, so the body failure and the finish failure are the same object. It must not be
+     * attached to itself as suppressed ({@code IllegalArgumentException: Self-suppression not permitted}), because that
+     * would replace an {@link AlreadyClosedException} the coordinator retries on the re-promoted primary with one it
+     * does not recognise.
+     */
+    public void testSameFailureInstanceFromBodyAndFinishIsNotSelfSuppressed() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        // The cap-triggered chunk append fails inside batch.add during the index operation and the scope stores it...
+        AlreadyClosedException closed = new AlreadyClosedException("translog is already closed");
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenThrow(closed);
+        // ...and finish() rethrows exactly that stored instance.
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        when(batch.finish()).thenThrow(closed);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), sameInstance(closed));
+        assertThat(closed.getSuppressed(), emptyArray());
+        assertTrue(TransportActions.isShardNotAvailableException(observedFailure.get()));
         verify(batch, times(1)).finish();
     }
 

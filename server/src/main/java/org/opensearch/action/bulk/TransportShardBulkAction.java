@@ -548,13 +548,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
              * tragic event and the sync that would acknowledge any item never runs. If the body already threw, that
              * exception stays the one the client sees (per-operation, the first failing append is what propagates) and
              * the finish failure is attached as suppressed; otherwise the finish failure propagates.
+             * <p>
+             * On the common failure path both are the <em>same</em> instance: a failed {@code TranslogBatchScope} stores
+             * the append exception and rethrows it from every later call, so the body's exception (thrown out of
+             * {@code batch.add} or an ordering {@code flush()}) is exactly what {@code finish()} throws again. Attaching
+             * an exception to itself is rejected by the JDK ({@code IllegalArgumentException: Self-suppression not
+             * permitted}), which would replace an {@code AlreadyClosedException} with an exception
+             * {@code TransportActions#isShardNotAvailableException} does not recognise and defeat the coordinator's
+             * retry on the re-promoted primary. The same instance is therefore never attached to itself.
              */
             private void finishTranslogBatch(@Nullable Exception bodyFailure) {
                 try {
                     context.finishTranslogBatch();
                 } catch (RuntimeException finishFailure) {
                     if (bodyFailure != null) {
-                        bodyFailure.addSuppressed(finishFailure);
+                        if (finishFailure != bodyFailure) {
+                            bodyFailure.addSuppressed(finishFailure);
+                        }
                         return;
                     }
                     throw finishFailure;
