@@ -3649,7 +3649,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             threadPool.schedule(() -> {
                 // Before the factory: it may take state, such as a delete's re-added mark, that belongs to a newer attempt.
-                if (onDropped != null && failovers.get() != failoversAtFailure) {
+                final long failoversNow;
+                synchronized (currentlyFinalizing) {
+                    failoversNow = failovers.get();
+                }
+                if (onDropped != null && failoversNow != failoversAtFailure) {
                     logger.warn("Dropping retry for [{}]: failover handling ran after it was scheduled", source);
                     onDropped.run();
                     return;
