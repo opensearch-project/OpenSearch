@@ -54,8 +54,8 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.minGram = settings.getAsInt("min_gram", 1);
-        this.maxGram = settings.getAsInt("max_gram", 2);
+        this.minGram = settings.getAsIntStrict("min_gram", 1);
+        this.maxGram = settings.getAsIntStrict("max_gram", 2);
         this.side = parseSide(settings.get("side", "front"));
         this.preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }
