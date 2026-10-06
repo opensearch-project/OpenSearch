@@ -11,16 +11,10 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Queue;
 
 /**
- * Handles document deletion for a specific data format. Each deleter is paired with a
- * {@link Writer} and shares its generation.
- *
- * <p>For Parquet-only format, the deleter holds a per-generation Lucene writer for
- * indexing identity documents. For Lucene-only format, the deleter is a no-op wrapper
- * since Lucene natively tracks live docs.
+ * Buffers deletes for one {@link Writer} generation.
  *
  * @opensearch.experimental
  */
@@ -35,17 +29,40 @@ public interface Deleter extends Closeable {
     long generation();
 
     /**
-     * Deletes a document from the underlying format-specific storage.
+     * Deactivates the deleter and drains its buffered document IDs.
      *
-     * @param deleteInput the input containing field name, value, and generation to identify the document
-     * @return the result of the delete operation
-     * @throws IOException if an I/O error occurs
+     * @return buffered IDs to apply to the parent writer, or an empty queue if already inactive
      */
-    DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException;
-
     Queue<String> deactivate();
 
+    /**
+     * Buffers a document ID for deletion when this generation retires.
+     *
+     * @param id the document ID
+     * @return {@code true} when buffered
+     * @throws IllegalStateException if inactive
+     */
     boolean recordBufferedDeletes(String id);
 
+    /** Returns whether this deleter accepts deletes. */
     boolean isActive();
+
+    /**
+     * Records a row-id delete for application during the paired writer's flush.
+     *
+     * @param rowId insertion row id within the writer generation
+     */
+    default void recordPositionalDelete(long rowId) {
+        throw new UnsupportedOperationException("Positional delete is not supported by this deleter");
+    }
+
+    /**
+     * Returns heap used by this deleter's own buffered state. State owned by the paired writer is
+     * accounted by that writer.
+     *
+     * @return estimated bytes
+     */
+    default long ramBytesUsed() {
+        return 0L;
+    }
 }

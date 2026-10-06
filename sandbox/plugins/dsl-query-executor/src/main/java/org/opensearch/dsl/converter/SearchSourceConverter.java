@@ -130,6 +130,10 @@ public class SearchSourceConverter {
      * @throws ConversionException if DSL conversion fails
      */
     public QueryPlans convert(SearchSourceBuilder searchSource, String indexName) throws ConversionException {
+        // Fail loudly (400) on features this path does not implement, instead of silently
+        // ignoring them and returning wrong results with 200.
+        UnsupportedSearchParameters.reject(searchSource);
+
         RelOptTable table = catalogReader.getTable(List.of(indexName));
         if (table == null) {
             throw new IllegalArgumentException("Index not found in schema: " + indexName);

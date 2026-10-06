@@ -1472,6 +1472,21 @@ public class OpenSearchNode implements TestClusterConfiguration {
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
 
+    @Internal
+    String getZone() {
+        return zone;
+    }
+
+    @Internal
+    String getHttpPort() {
+        return httpPort;
+    }
+
+    @Internal
+    String getTransportPort() {
+        return transportPort;
+    }
+
     void setHttpPort(String httpPort) {
         this.httpPort = httpPort;
     }

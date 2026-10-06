@@ -1,0 +1,37 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Shared QA test fixtures consumed by both sandbox/qa/analytics-engine-rest (PPL/SQL) and
+ * sandbox/qa/dsl-standalone-server-tests (DSL _search): Dataset, DatasetProvisioner, DatasetQueryRunner,
+ * ExpectedResponseStrategy, and ResponseValidator. They live here once (package org.opensearch.analytics.qa,
+ * unchanged) instead of being duplicated in each suite, and are published as a test-jar via the
+ * testArtifacts configuration. Everything they need (test:framework, REST client, xcontent, log4j) comes
+ * from opensearch.standalone-rest-test, so no extra dependencies are declared.
+ */
+
+apply plugin: 'opensearch.standalone-rest-test'
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+}
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+    testArtifacts.extendsFrom testImplementation
+}
+
+def testJar = tasks.register("testJar", Jar) {
+    archiveAppendix = 'test'
+    from sourceSets.test.output
+}
+
+artifacts {
+    testArtifacts testJar
+}

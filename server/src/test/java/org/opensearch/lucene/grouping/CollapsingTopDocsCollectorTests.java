@@ -533,6 +533,24 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             CollapsingTopDocsCollector.createKeyword("tag", keywordFieldType, keywordMultiSort, 10, keywordAfter);
         });
         assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+
+        // SCORE and DOC sorts use a null field name and must not NPE
+        Sort[] nullFieldSorts = new Sort[] {
+            new Sort(SortField.FIELD_SCORE),
+            new Sort(SortField.FIELD_DOC),
+            Sort.RELEVANCE,
+            new Sort(new SortField(null, SortField.Type.SCORE, true)) };
+        FieldDoc nullFieldAfter = new FieldDoc(0, Float.NaN, new Object[] { 1.0f });
+        for (Sort nullFieldSort : nullFieldSorts) {
+            exception = expectThrows(IllegalArgumentException.class, () -> {
+                CollapsingTopDocsCollector.createNumeric("category", fieldType, nullFieldSort, 10, nullFieldAfter);
+            });
+            assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+            exception = expectThrows(IllegalArgumentException.class, () -> {
+                CollapsingTopDocsCollector.createKeyword("tag", keywordFieldType, nullFieldSort, 10, nullFieldAfter);
+            });
+            assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+        }
     }
 
     public void testSearchAfterWithNumericCollapse() throws IOException {

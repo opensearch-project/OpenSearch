@@ -192,9 +192,9 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Single-value semantics are enforced at the {@link ParquetDocumentInput} layer:
-     * if an array field produces multiple values for the same field type, only the
-     * last value is retained (last-value-wins).
+     * Field Shape is decided at the {@link ParquetDocumentInput} layer: fields mapped with
+     * {@code multi_value: true} accumulate every value into one list-valued pair,
+     * and all other fields still reject a second value.
      *
      * @param doc the document input containing field-value pairs
      */
@@ -366,10 +366,18 @@ public class VSRManager implements AutoCloseable {
         ManagedVSR activeVSR = managedVSR.get();
         boolean changed = false;
         for (Field schemaField : newSchema.getFields()) {
-            if (activeVSR.getVector(schemaField.getName()) == null) {
-                Field field = new Field(schemaField.getName(), schemaField.getFieldType(), null);
-                activeVSR.addFieldVector(field);
+            FieldVector existingVector = activeVSR.getVector(schemaField.getName());
+            if (existingVector == null) {
+                // Pass the schema field through as-is: rebuilding it from name + FieldType alone
+                // would drop getChildren(), leaving a LIST column with no element vector.
+                activeVSR.addFieldVector(schemaField);
                 changed = true;
+            } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
+                throw new SchemaChangeRequiresWriterRotationException(
+                    schemaField.getName(),
+                    existingVector.getField().getType(),
+                    schemaField.getType()
+                );
             }
         }
         if (changed) {
@@ -378,6 +386,28 @@ public class VSRManager implements AutoCloseable {
             logger.debug("no changes in schema despite change in mapping version");
         }
         return changed;
+    }
+
+    /**
+     * Compares the Arrow storage shape of two fields while ignoring field names. Arrow Java
+     * renames a {@code ListVector} child from {@code element} to {@code $data$} internally, so
+     * full {@link Field#equals(Object)} comparisons spuriously report a schema change.
+     */
+    private static boolean hasSameStorageShape(Field existingField, Field schemaField) {
+        if (existingField.getType().equals(schemaField.getType()) == false) {
+            return false;
+        }
+        List<Field> existingChildren = existingField.getChildren();
+        List<Field> schemaChildren = schemaField.getChildren();
+        if (existingChildren.size() != schemaChildren.size()) {
+            return false;
+        }
+        for (int i = 0; i < existingChildren.size(); i++) {
+            if (hasSameStorageShape(existingChildren.get(i), schemaChildren.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

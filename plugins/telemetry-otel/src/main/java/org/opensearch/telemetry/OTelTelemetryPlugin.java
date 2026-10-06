@@ -55,6 +55,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
             OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
             OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS,
             OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING,
+            OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING,
+            OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING,
             OTelTelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY
         );
     }
