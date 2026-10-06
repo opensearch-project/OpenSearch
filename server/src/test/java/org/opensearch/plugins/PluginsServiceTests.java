@@ -983,6 +983,49 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(((TestExtension2) extensiblePlugin.extensions.get(1)).plugin, sameInstance(testPlugin));
     }
 
+    public void testExtensionsSkipSiblingPluginUnderSharedClassLoader() {
+        // Two plugins (A and B) extend the same extensible plugin and each contributes one SharedClassLoaderExtensionPoint
+        // SPI implementation, whose constructor binds it to its own plugin type. In this test JVM both plugins share ONE
+        // classloader, so the SPIClassIterator sees BOTH service entries while loading extensions for either plugin — the
+        // exact shared-classloader collision that breaks DataFusion/Lucene under the sandbox IT harness. PluginsService
+        // must skip the sibling's entry for each plugin instead of throwing a constructor signature mismatch.
+        TestSharedClassLoaderExtensiblePlugin extensiblePlugin = new TestSharedClassLoaderExtensiblePlugin();
+        SiblingPluginA pluginA = new SiblingPluginA();
+        SiblingPluginB pluginB = new SiblingPluginB();
+        PluginsService.loadExtensions(
+            Arrays.asList(
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, Version.CURRENT, null, null, Collections.emptyList(), false),
+                    extensiblePlugin
+                ),
+                Tuple.tuple(
+                    new PluginInfo("a", null, null, Version.CURRENT, null, null, Collections.singletonList("extensible"), false),
+                    pluginA
+                ),
+                Tuple.tuple(
+                    new PluginInfo("b", null, null, Version.CURRENT, null, null, Collections.singletonList("extensible"), false),
+                    pluginB
+                )
+            )
+        );
+
+        assertThat(extensiblePlugin.extensions, notNullValue());
+        assertThat(extensiblePlugin.extensions, hasSize(2));
+        // Exactly one instance of each implementation, each holding the plugin instance whose type its constructor
+        // declares — proving the sibling's SPI entry was skipped for the other plugin rather than mis-constructed.
+        Map<Class<?>, Plugin> pluginByExtensionType = new HashMap<>();
+        for (SharedClassLoaderExtensionPoint extension : extensiblePlugin.extensions) {
+            if (extension instanceof ExtensionForA a) {
+                pluginByExtensionType.put(ExtensionForA.class, a.plugin);
+            } else if (extension instanceof ExtensionForB b) {
+                pluginByExtensionType.put(ExtensionForB.class, b.plugin);
+            }
+        }
+        assertThat(pluginByExtensionType.keySet(), containsInAnyOrder(ExtensionForA.class, ExtensionForB.class));
+        assertThat(pluginByExtensionType.get(ExtensionForA.class), sameInstance(pluginA));
+        assertThat(pluginByExtensionType.get(ExtensionForB.class), sameInstance(pluginB));
+    }
+
     public void testNoExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         class TestExtension implements TestExtensionPoint {
@@ -1248,6 +1291,40 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public static class ThrowingConstructorExtension implements TestExtensionPoint {
         public ThrowingConstructorExtension() {
             throw new IllegalArgumentException("test constructor failure");
+        }
+    }
+
+    private static class TestSharedClassLoaderExtensiblePlugin extends Plugin implements ExtensiblePlugin {
+        private List<SharedClassLoaderExtensionPoint> extensions;
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            assert extensions == null;
+            extensions = loader.loadExtensions(SharedClassLoaderExtensionPoint.class);
+            // verify unmodifiable.
+            expectThrows(UnsupportedOperationException.class, () -> extensions.add(null));
+        }
+    }
+
+    public interface SharedClassLoaderExtensionPoint {}
+
+    public static class SiblingPluginA extends Plugin {}
+
+    public static class SiblingPluginB extends Plugin {}
+
+    public static class ExtensionForA implements SharedClassLoaderExtensionPoint {
+        public final Plugin plugin;
+
+        public ExtensionForA(SiblingPluginA plugin) {
+            this.plugin = plugin;
+        }
+    }
+
+    public static class ExtensionForB implements SharedClassLoaderExtensionPoint {
+        public final Plugin plugin;
+
+        public ExtensionForB(SiblingPluginB plugin) {
+            this.plugin = plugin;
         }
     }
 }

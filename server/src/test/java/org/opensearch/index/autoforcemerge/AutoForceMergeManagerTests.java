@@ -414,6 +414,95 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         autoForceMergeManager.close();
     }
 
+    public void testNodeValidatorThresholdOf100DisablesResourceChecks() {
+        // A threshold of 100 (the maximum) must deterministically bypass the resource check: with the exclusive
+        // '>' comparison even a fully saturated reading of exactly 100 does not exceed the threshold, so the
+        // merge is not deferred. Covers the instantaneous reading as well as the 1m and 5m moving averages.
+        Map<String, Object> thresholds = new HashMap<>();
+        thresholds.put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0);
+        thresholds.put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0);
+        thresholds.put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100.0);
+        when(cpu.getPercent()).thenReturn((short) 100);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 100);
+        // total=100 (from setUp); available=0 => disk usage is exactly 100%.
+        when(disk.getAvailable()).thenReturn(new ByteSizeValue(0));
+        setupAvailableForceMergeThreads();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, thresholds),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // Instantaneous readings of exactly 100 pass.
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        // 1m and 5m averages of exactly 100 also pass.
+        for (int i = 0; i < 10; i++) {
+            ResourceTrackerProvider.resourceTrackers.cpuOneMinute.recordUsage(100);
+            ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.recordUsage(100);
+            ResourceTrackerProvider.resourceTrackers.jvmOneMinute.recordUsage(100);
+            ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(100);
+        }
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testNodeValidatorCpuThresholdBoundaryIsExclusive() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 80.0);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
+        setupAvailableForceMergeThreads();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, settings),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // Reading exactly equal to the (non-100) threshold passes with the exclusive '>' comparison.
+        when(cpu.getPercent()).thenReturn((short) 80);
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        // Reading one above the threshold is rejected.
+        when(cpu.getPercent()).thenReturn((short) 81);
+        assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testNodeValidatorJvmThresholdBoundaryIsExclusive() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 70.0);
+        when(cpu.getPercent()).thenReturn((short) 50);
+        setupAvailableForceMergeThreads();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, settings),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // Reading exactly equal to the (non-100) threshold passes with the exclusive '>' comparison.
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 70);
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        // Reading one above the threshold is rejected.
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 71);
+        assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testNodeValidatorDiskThresholdBoundaryIsExclusive() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 80.0);
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
+        setupAvailableForceMergeThreads();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, settings),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // total=100 (from setUp); disk usage% == (total - available). available=20 => usage exactly 80% == threshold -> passes.
+        when(disk.getAvailable()).thenReturn(new ByteSizeValue(20));
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        // available=19 => usage 81% > threshold -> rejected.
+        when(disk.getAvailable()).thenReturn(new ByteSizeValue(19));
+        assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
     // ShardValidator Tests
     public void testShardValidatorWithValidShard() {
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
@@ -877,6 +966,24 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     private void setupHealthySystemResources() {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
+    }
+
+    private void setupAvailableForceMergeThreads() {
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(1)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(1)
+                    .completed(0)
+                    .waitTimeNanos(0)
+                    .parallelism(-1)
+                    .build()
+            )
+        );
+        when(threadPool.stats()).thenReturn(stats);
     }
 
     private ExecutorService setupForceMergeThreadPool() {
