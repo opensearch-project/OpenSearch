@@ -371,6 +371,12 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (skipLegacySearchSettings && fieldName.equals(LEGACY_SEARCH_SETTINGS_STRING)) {
+                        logger.warn(
+                            "Ignoring legacy [{}] in persisted workload group [{}]; it has been replaced by [{}] and its values are dropped",
+                            LEGACY_SEARCH_SETTINGS_STRING,
+                            builder.name != null ? builder.name : builder._id,
+                            MutableWorkloadGroupFragment.SETTINGS_STRING
+                        );
                         parser.skipChildren();
                         continue;
                     }
