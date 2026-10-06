@@ -631,14 +631,10 @@ pub async fn prepare_partial_plan(
     Ok(())
 }
 
-/// Whether to pin `skip_partial_aggregation_probe_ratio_threshold = 1.0`, disabling DataFusion's
-/// adaptive skip-partial-aggregation.
-///
-/// Only needed when nothing merges partial state before TopK truncates. Above one partition,
-/// `agg_mode` installs PartialReduce over a hash repartition, which merges every group key — so
-/// the pin is redundant there, and costly under DF55 where exactly 1.0 disables skip outright
-/// (datafusion#22752). At one partition there is no repartition and no PartialReduce, so skip
-/// would feed raw per-row state to TopK and produce wrong counts (#22337).
+/// Pin the skip-partial threshold to 1.0 (disabling skip) only where nothing merges partial state
+/// before TopK truncates: at >1 partition `agg_mode` installs PartialReduce, which merges every
+/// group key, so the pin is redundant and costs ~34% on unique keys. See
+/// code_analysis/q32_fix_RESULT_and_CR_evidence.md.
 fn needs_skip_partial_pin(has_topk: bool, target_partitions: usize) -> bool {
     has_topk && target_partitions == 1
 }
