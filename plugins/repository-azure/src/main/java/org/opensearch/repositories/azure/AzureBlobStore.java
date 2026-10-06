@@ -283,9 +283,8 @@ public class AzureBlobStore implements BlobStore {
         return AccessController.doPrivileged(() -> {
             final Integer readBlockSize = service.getReadBlockSize(clientName);
             if (readBlockSize != null) {
-                return azureBlob.openInputStream(
-                    new BlobInputStreamOptions().setRange(new BlobRange(position, length)).setBlockSize(readBlockSize)
-                );
+                final BlobRange range = length == null ? new BlobRange(position) : new BlobRange(position, length);
+                return azureBlob.openInputStream(new BlobInputStreamOptions().setRange(range).setBlockSize(readBlockSize));
             }
             if (length == null) {
                 return azureBlob.openInputStream(new BlobRange(position), null);
