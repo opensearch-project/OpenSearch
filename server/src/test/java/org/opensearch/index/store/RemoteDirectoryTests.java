@@ -429,12 +429,12 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
 
         BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
 
-        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
+        when(blobContainer.getBlobMetadata("segment_1")).thenReturn(blobMetadata);
 
         IndexInput indexInput = remoteDirectory.openInput("segment_1", IOContext.DEFAULT);
         assertTrue(indexInput instanceof RemoteIndexInput);
         assertEquals(100, indexInput.length());
-        verify(blobContainer).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
+        verify(blobContainer).getBlobMetadata("segment_1");
     }
 
     public void testOpenInputWithLength() throws IOException {
@@ -448,10 +448,11 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         IndexInput indexInput = remoteDirectory.openInput("segment_1", 100, IOContext.DEFAULT);
         assertTrue(indexInput instanceof RemoteIndexInput);
         assertEquals(100, indexInput.length());
-        verify(blobContainer, times(0)).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
+        verify(blobContainer, times(0)).getBlobMetadata("segment_1");
     }
 
     public void testOpenInputIOException() throws IOException {
+        when(blobContainer.getBlobMetadata("segment_1")).thenReturn(new PlainBlobMetadata("segment_1", 100));
         when(blobContainer.readBlob("segment_1")).thenThrow(new IOException("Error while reading"));
 
         assertThrows(IOException.class, () -> remoteDirectory.openInput("segment_1", IOContext.DEFAULT));
@@ -460,20 +461,20 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testOpenInputNoSuchFileException() throws IOException {
         InputStream mockInputStream = mock(InputStream.class);
         when(blobContainer.readBlob("segment_1")).thenReturn(mockInputStream);
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenThrow(new NoSuchFileException("segment_1"));
+        when(blobContainer.getBlobMetadata("segment_1")).thenThrow(new NoSuchFileException("segment_1"));
 
         assertThrows(NoSuchFileException.class, () -> remoteDirectory.openInput("segment_1", IOContext.DEFAULT));
     }
 
     public void testFileLength() throws IOException {
         BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
-        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
+        when(blobContainer.getBlobMetadata("segment_1")).thenReturn(blobMetadata);
 
         assertEquals(100, remoteDirectory.fileLength("segment_1"));
     }
 
     public void testFileLengthIOException() throws IOException {
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenThrow(new NoSuchFileException("segment_1"));
+        when(blobContainer.getBlobMetadata("segment_1")).thenThrow(new NoSuchFileException("segment_1"));
 
         assertThrows(IOException.class, () -> remoteDirectory.fileLength("segment_1"));
     }

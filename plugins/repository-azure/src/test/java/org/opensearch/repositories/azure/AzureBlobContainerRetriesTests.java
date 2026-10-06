@@ -348,6 +348,35 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("404"));
     }
 
+    public void testGetBlobMetadata() throws Exception {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container/blob_properties", exchange -> {
+            try {
+                assertEquals("HEAD", exchange.getRequestMethod());
+                requests.incrementAndGet();
+                exchange.getResponseHeaders().add("Content-Length", "123");
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                exchange.getResponseHeaders().add("ETag", "\"etag\"");
+                exchange.getResponseHeaders().add("Last-Modified", "Wed, 23 Oct 2024 10:00:00 GMT");
+                exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        final BlobMetadata metadata = blobContainer.getBlobMetadata("blob_properties");
+        assertThat(metadata.name(), equalTo("blob_properties"));
+        assertThat(metadata.length(), equalTo(123L));
+        assertThat(requests.get(), equalTo(1));
+    }
+
+    public void testGetBlobMetadataForMissingBlob() {
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        expectThrows(NoSuchFileException.class, () -> blobContainer.getBlobMetadata("missing_blob"));
+    }
+
     public void testReadBlobWithRetries() throws Exception {
         // The request retry policy counts the first attempt as retry, so we need to
         // account for that and increase the max retry count by one.
