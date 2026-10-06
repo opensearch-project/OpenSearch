@@ -110,6 +110,21 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     /**
+     * Applies {@link InternalAggregation#finalizeSampling(SamplingContext)} to each of these aggregations, so that
+     * counts measured on a sample become estimates for the population it was drawn from.
+     */
+    public InternalAggregations finalizeSampling(SamplingContext samplingContext) {
+        if (samplingContext.isNoop()) {
+            return this;
+        }
+        List<InternalAggregation> finalized = new ArrayList<>(aggregations.size());
+        for (InternalAggregation aggregation : getInternalAggregations()) {
+            finalized.add(aggregation.finalizeSampling(samplingContext));
+        }
+        return from(finalized);
+    }
+
+    /**
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
     public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {

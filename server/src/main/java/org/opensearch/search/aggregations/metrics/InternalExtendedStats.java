@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -96,6 +97,31 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
+    }
+
+    /**
+     * Extends {@link InternalStats}'s scaling to {@code sumOfSqrs}. Scaling {@code count}, {@code sum} and
+     * {@code sumOfSqrs} by the same factor leaves {@code variance = sumOfSqrs / count - (sum / count)^2} unchanged,
+     * which is the right answer: the sample variance already estimates the population variance, so it should not move
+     * while the counts become population estimates. The standard deviation and its bounds follow.
+     * <p>
+     * Overriding this is not optional. Without it this class would inherit the superclass implementation and scale
+     * {@code count} and {@code sum} but not {@code sumOfSqrs}, leaving the variance neither a sample nor a population
+     * value.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalExtendedStats(
+            name,
+            samplingContext.scaleUp(count),
+            samplingContext.scaleUp(sum),
+            min,
+            max,
+            samplingContext.scaleUp(sumOfSqrs),
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     /**

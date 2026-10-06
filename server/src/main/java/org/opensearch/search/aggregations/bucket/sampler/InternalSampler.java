@@ -32,7 +32,9 @@
 package org.opensearch.search.aggregations.bucket.sampler;
 
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.SamplingContext;
 import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
@@ -72,5 +74,25 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalSampler(name, docCount, subAggregations, metadata);
+    }
+
+    /**
+     * Deliberately scales nothing, unlike every other single-bucket aggregation, and does not recurse.
+     * <p>
+     * This {@code doc_count} is not a count of matching documents: it is the number of documents the
+     * {@link BestDocsDeferringCollector} kept, which is {@code min(shard_size, matched)} because selection is a
+     * truncation by score. Scaling it by the inverse of a sampling probability would claim "we saw {@code 1 / p} times
+     * as many as we kept", which says nothing and can exceed {@code shard_size}.
+     * <p>
+     * The same applies to everything underneath: a {@code sum} over the top {@code shard_size} documents by score is
+     * not a sample of anything, so multiplying it by {@code 1 / p} does not estimate a population. Whatever sits under
+     * a {@code sampler} therefore reports what it measured on the documents that were kept.
+     * <p>
+     * This also covers the four {@code diversified_sampler} implementations, which extend {@link SamplerAggregator} and
+     * so build an {@link InternalSampler} too.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 }

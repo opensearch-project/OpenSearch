@@ -38,6 +38,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -121,6 +122,15 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     @Override
     protected UnmappedTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    /**
+     * Nothing to scale: an unmapped terms aggregation has no buckets and no counts. The inherited implementation would
+     * throw, because the {@code create} it relies on is unsupported here.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

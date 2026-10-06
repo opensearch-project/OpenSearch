@@ -35,6 +35,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.SamplingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,6 +53,15 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     public InternalValueCount(String name, long value, Map<String, Object> metadata) {
         super(name, metadata);
         this.value = value;
+    }
+
+    /**
+     * A count of values grows linearly with the number of documents, so scaling it estimates the count over the
+     * population.
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalValueCount(name, samplingContext.scaleUp(value), getMetadata());
     }
 
     /**
