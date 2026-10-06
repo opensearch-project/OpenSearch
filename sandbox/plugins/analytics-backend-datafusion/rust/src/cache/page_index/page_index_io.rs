@@ -2016,7 +2016,7 @@ mod tests {
     /// reads — while keeping the decode scoped to the predicate col.
     #[tokio::test]
     async fn scoped_load_issues_one_whole_region_request_per_kind() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         set_whole_region_fetch_enabled(true);
 
