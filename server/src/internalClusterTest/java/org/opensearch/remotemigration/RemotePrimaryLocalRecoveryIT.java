@@ -111,7 +111,7 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
      */
     private void triggerRollingRestartForRemoteMigration(int replicaCount) throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
-        internalCluster().startNodes(numOfNodes - 3);
+        internalCluster().startDataOnlyNodes(numOfNodes - 3);
 
         // create index
         Settings indexSettings = Settings.builder()
@@ -133,13 +133,16 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
             REPOSITORY_2_NAME,
             translogRepoPath
         );
-        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback() {
-            // Update remote attributes
-            @Override
-            public Settings onNodeStopped(String nodeName) {
-                return remoteNodeAttributes;
-            }
-        });
+        // restarts only data nodes.
+        for (String nodeName : internalCluster().getDataNodeNames()) {
+            internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback() {
+                // Update remote attributes
+                @Override
+                public Settings onNodeStopped(String nodeName) {
+                    return remoteNodeAttributes;
+                }
+            });
+        }
         ensureStableCluster(numOfNodes);
         ensureGreen(TimeValue.timeValueSeconds(90), indexName);
         assertEquals(internalCluster().size(), numOfNodes);
