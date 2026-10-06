@@ -51,6 +51,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -1305,6 +1306,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -1383,6 +1385,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -1456,6 +1459,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(active, settings);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
@@ -1481,6 +1485,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
@@ -1509,6 +1514,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
@@ -1542,6 +1548,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
@@ -1612,6 +1619,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, active, primaryId));
@@ -1661,6 +1669,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
@@ -2172,6 +2181,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         final ShardId shardId = new ShardId("test", "_na_", 0);
@@ -2356,6 +2366,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(active, settings);
         tracker.updateFromClusterManager(
@@ -2378,6 +2389,145 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertTrue("Total time since timer started should be greater than 100", timer.time() >= 100);
         assertTrue("Total time since timer was created should be greater than 200", timer.totalElapsedTime() >= 200);
         assertTrue("Total elapsed time should be greater than time since timer start", timer.totalElapsedTime() - timer.time() >= 100);
+    }
+
+    private long globalCheckpointWithReplicaBehindPrimary(Settings settings, boolean shardOnRemoteEnabledNode) throws InterruptedException {
+        final AllocationId primaryId = AllocationId.newInitializing();
+        final AllocationId replicaId = AllocationId.newInitializing();
+
+        final ReplicationTracker tracker = newTracker(primaryId, settings, shardOnRemoteEnabledNode);
+        assertFalse(tracker.indexSettings().isRemoteTranslogStoreEnabled());
+
+        tracker.updateFromClusterManager(
+            1L,
+            ids(Collections.singleton(primaryId)),
+            routingTable(Collections.singleton(replicaId), primaryId)
+        );
+        tracker.activatePrimaryMode(10L);
+        tracker.initiateTracking(replicaId.getId());
+        tracker.markAllocationIdAsInSync(replicaId.getId(), 10L);
+
+        // the primary races ahead of the replica
+        tracker.updateLocalCheckpoint(primaryId.getId(), 100L);
+        tracker.updateLocalCheckpoint(replicaId.getId(), 50L);
+
+        return tracker.getGlobalCheckpoint();
+    }
+
+    /**
+     * Plain segment replication with a local translog. The replica is part of the replication group, so the global
+     * checkpoint cannot advance past it.
+     */
+    public void testGlobalCheckpointBoundedByReplicaWithoutClusterStateRepo() throws InterruptedException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        assertEquals(50L, globalCheckpointWithReplicaBehindPrimary(settings, false));
+    }
+
+    /**
+     * Segments-only remote store: index.remote_store.enabled is set because segments are uploaded, but there is no
+     * remote translog, so operations not yet uploaded as segments are durable only on the primary and replica disks.
+     * The global checkpoint must therefore still be bounded by the replica.
+     */
+    public void testGlobalCheckpointBoundedByReplicaWithSegmentsOnlyRemoteStore() throws InterruptedException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+        assertEquals(50L, globalCheckpointWithReplicaBehindPrimary(settings, false));
+    }
+
+    /**
+     * A full remote store deployment does have a remote translog, so the replica is not part of the replication group
+     * and the global checkpoint advances with the primary alone.
+     */
+    public void testGlobalCheckpointNotBoundedByReplicaWithRemoteTranslog() throws InterruptedException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+        assertEquals(100L, globalCheckpointWithReplicaBehindPrimary(settings, true));
+    }
+
+    /**
+     * Search replicas appear in the routing table but are never tracked by the primary, so they have no entry in
+     * {@link ReplicationTracker#checkpoints}. Creating the missing peer-recovery retention leases during a remote
+     * store migration must skip them; including them would dereference a null checkpoint and would also size the
+     * grouped listener for one more response than can ever arrive, leaving the leases permanently uncreated.
+     */
+    public void testCreateMissingPeerRecoveryRetentionLeasesSkipsSearchReplicas() throws InterruptedException {
+        final AllocationId primaryId = AllocationId.newInitializing();
+        final AllocationId replicaId = AllocationId.newInitializing();
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final String primaryNode = nodeIdFromAllocationId(primaryId);
+
+        // A remote-enabled primary with a docrep write replica still left in the group, which is the situation
+        // createMissingPeerRecoveryRetentionLeases() exists to repair.
+        final ReplicationTracker tracker = new ReplicationTracker(
+            shardId,
+            primaryId.getId(),
+            RemoteStoreTestsHelper.createIndexSettings(
+                true,
+                Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+            ),
+            randomNonNegativeLong(),
+            UNASSIGNED_SEQ_NO,
+            updatedGlobalCheckpoint::set,
+            () -> 0L,
+            (leases, listener) -> listener.onResponse(new ReplicationResponse()),
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            nodeId -> primaryNode.equals(nodeId)
+        );
+
+        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
+            shardId,
+            primaryNode,
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            primaryId
+        );
+        final ShardRouting writeReplica = TestShardRouting.newShardRouting(
+            shardId,
+            nodeIdFromAllocationId(replicaId),
+            null,
+            false,
+            ShardRoutingState.STARTED,
+            replicaId
+        );
+        // A started search replica. It is assigned, but the cluster manager keeps it out of the in-sync set.
+        final ShardRouting searchReplica = TestShardRouting.newShardRouting(
+            shardId,
+            "search-node",
+            null,
+            false,
+            true,
+            ShardRoutingState.STARTED,
+            null
+        );
+
+        final IndexShardRoutingTable routingTable = new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+            .addShard(writeReplica)
+            .addShard(searchReplica)
+            .build();
+
+        tracker.updateFromClusterManager(1L, ids(Sets.newHashSet(primaryId, replicaId)), routingTable);
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        tracker.initiateTracking(replicaId.getId());
+        tracker.markAllocationIdAsInSync(replicaId.getId(), NO_OPS_PERFORMED);
+        assertNull("precondition: the search replica is not tracked", tracker.checkpoints.get(searchReplica.allocationId().getId()));
+
+        final AtomicBoolean completed = new AtomicBoolean();
+        tracker.createMissingPeerRecoveryRetentionLeases(ActionListener.wrap(ignored -> completed.set(true), e -> {
+            throw new AssertionError("expected the leases to be created", e);
+        }));
+
+        assertTrue("the grouped listener must receive one response per tracked copy", completed.get());
+        assertTrue(tracker.hasAllPeerRecoveryRetentionLeases());
+
+        final Set<String> leaseIds = tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        assertThat(leaseIds, hasItem(ReplicationTracker.getPeerRecoveryRetentionLeaseId(primaryShard)));
+        assertThat(leaseIds, hasItem(ReplicationTracker.getPeerRecoveryRetentionLeaseId(writeReplica)));
+        assertThat(leaseIds, not(hasItem(ReplicationTracker.getPeerRecoveryRetentionLeaseId(searchReplica))));
     }
 
 }

@@ -445,6 +445,41 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
     }
 
+    public void testValidateMaxSizeInBytesAgainstClusterState() throws Exception {
+        // Stored script "abc" is 3 bytes. The static validator is what the cluster-settings update transport action
+        // calls (against the post-update cluster state) so an out-of-range max_size is rejected before commit rather
+        // than throwing at apply time.
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        ScriptMetadata.TYPE,
+                        new ScriptMetadata.Builder(null).storeScript(
+                            "_id",
+                            StoredScriptSource.parse(
+                                new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
+                                MediaTypeRegistry.JSON
+                            )
+                        ).build()
+                    )
+            )
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ScriptService.validateMaxSizeInBytes(2, cs));
+        assertEquals(
+            "script.max_size_in_bytes cannot be set to [2], stored script [_id] exceeds the new value with a size of [3]",
+            e.getMessage()
+        );
+
+        // Exactly the stored size is allowed, as is a larger limit.
+        ScriptService.validateMaxSizeInBytes(3, cs);
+        ScriptService.validateMaxSizeInBytes(65535, cs);
+
+        // No stored scripts (no ScriptMetadata) => nothing to validate against.
+        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
+        ScriptService.validateMaxSizeInBytes(0, empty);
+    }
+
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
@@ -456,13 +491,10 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
-        iae = expectThrows(IllegalArgumentException.class, () -> {
-            clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
-        });
-        assertEquals(
-            "script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
-            iae.getMessage()
-        );
+        // Note: lowering the max below an already stored script is rejected up front by the cluster-settings update
+        // transport action (see validateMaxSizeInBytes(int, ClusterState), covered by
+        // testValidateMaxSizeInBytesAgainstClusterState). The apply-time setter no longer throws, so applying a smaller
+        // value directly here would simply take effect; this test focuses on inline-compile limit tracking.
     }
 
     public void testConflictContextSettings() throws IOException {
