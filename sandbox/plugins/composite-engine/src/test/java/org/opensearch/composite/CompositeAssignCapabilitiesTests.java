@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -337,6 +338,58 @@ public class CompositeAssignCapabilitiesTests extends OpenSearchTestCase {
             () -> plugin.assignCapabilities(field, indexSettings, registry)
         );
         assertTrue(ex.getMessage().contains("FULL_TEXT_SEARCH"));
+    }
+
+    /**
+     * {@link DataFormatRegistry} dispatches through the scope-aware overload; the composite
+     * delegation must run there, not the single-format interface default. A plugin overriding
+     * only the scope-less overload is silently bypassed (every capability-requesting field then
+     * fails with "data format [composite] cannot cover") — this pins the override signature.
+     */
+    public void testScopeAwareOverloadRunsCompositeDelegation() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE, Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder().put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet").build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("name");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        plugin.assignCapabilities(field, indexSettings, registry, FieldScope.ROOT);
+
+        Map<DataFormat, Set<Capability>> map = field.getCapabilityMap();
+        assertEquals(1, map.size());
+        assertEquals(Set.of(Capability.COLUMNAR_STORAGE, Capability.FULL_TEXT_SEARCH), map.get(parquet));
+    }
+
+    public void testNestedScopeRejected() {
+        DataFormat parquet = CompositeTestHelper.stubFormat(
+            "parquet",
+            1,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(Capability.COLUMNAR_STORAGE, Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(parquet));
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder().put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "parquet").build()
+        );
+
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("user.name");
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> plugin.assignCapabilities(field, indexSettings, registry, FieldScope.NESTED)
+        );
+        assertTrue(ex.getMessage().contains("nested"));
+        assertTrue(ex.getMessage().contains("user.name"));
     }
 
     private static IndexSettings buildIndexSettings(Settings extra) {

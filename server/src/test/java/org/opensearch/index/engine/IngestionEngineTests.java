@@ -13,6 +13,7 @@ import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngesti
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -43,7 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.Mockito;
 
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -147,7 +147,9 @@ public class IngestionEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
         Store mockStore = spy(store);
-        doThrow(new IOException("Simulated IOException")).when(mockStore).trimUnsafeCommits(any());
+        // Not trimUnsafeCommits -- an ingestion engine no longer calls it. readLastCommittedSegmentsInfo is the
+        // next store call in InternalEngine's constructor, so it fails engine creation the same way.
+        doThrow(new IOException("Simulated IOException")).when(mockStore).readLastCommittedSegmentsInfo();
 
         EngineConfig engineConfig = config(
             indexSettings,
@@ -168,6 +170,7 @@ public class IngestionEngineTests extends EngineTestCase {
         } catch (EngineException e) {
             assertEquals("failed to create engine", e.getMessage());
             assertTrue(e.getCause() instanceof IOException);
+            assertEquals("Simulated IOException", e.getCause().getMessage());
         }
     }
 
@@ -271,6 +274,25 @@ public class IngestionEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("index")) {
             return searcher.getIndexReader().numDocs() == numDocs;
         }
+    }
+
+    public void testEngineOpensOnACommitNamingAnotherCopysTranslog() throws IOException {
+        // Stands in for the remote store case, where a copy commits SegmentInfos downloaded from another copy:
+        // associateIndexWithNewTranslog rewrites only TRANSLOG_UUID in the existing commit data.
+        waitForResults(ingestionEngine, 2);
+        ingestionEngine.flush(false, true);
+        ingestionEngine.close();
+
+        ingestionEngineStore.associateIndexWithNewTranslog(UUIDs.randomBase64UUID());
+
+        ingestionEngine = buildIngestionEngine(
+            new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED),
+            ingestionEngineStore,
+            indexSettings,
+            clusterApplierService
+        );
+
+        waitForResults(ingestionEngine, 2);
     }
 
     public void testConstructorWithNonNullIngestService() throws IOException {

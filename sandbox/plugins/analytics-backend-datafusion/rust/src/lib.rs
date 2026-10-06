@@ -51,6 +51,7 @@ pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
 pub mod shard_table_provider;
+pub mod substrait_consumer;
 
 pub mod native_node_stats;
 pub mod scoped_index_optimizer;
@@ -67,6 +68,11 @@ pub use cache::custom_cache_manager;
 pub use cache::eviction_policy;
 pub use cache::page_index as parquet_page_cache;
 pub use cache::statistics_cache;
+
+// One lock, and the one-time runtime-manager install, shared by every test that touches the
+// engine's process-global state. See the module docs for why they are not one lock each.
+#[cfg(test)]
+mod test_process_globals;
 
 #[cfg(test)]
 mod spill_e2e_test;

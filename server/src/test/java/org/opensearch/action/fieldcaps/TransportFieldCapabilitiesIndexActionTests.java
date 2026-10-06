@@ -8,15 +8,30 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
+import java.util.Collection;
 import java.util.Map;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class TransportFieldCapabilitiesIndexActionTests extends OpenSearchSingleNodeTestCase {
+
+    // The pluggable data format index needs a registered data format plus committer engine; without
+    // a committer factory EngineConfigFactory rejects index creation when pluggable is enabled.
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class, MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+    }
 
     // With disable_objects=true, {"attributes": {"foo": {"bar": "baz"}}} is flattened into the leaf
     // field "attributes.foo.bar". The intermediate path "attributes.foo" has no ObjectMapper and
@@ -152,5 +167,55 @@ public class TransportFieldCapabilitiesIndexActionTests extends OpenSearchSingle
         assertEquals("object", fields.get("user.address").values().iterator().next().getType());
         assertTrue("expected user as object", fields.containsKey("user"));
         assertEquals("object", fields.get("user").values().iterator().next().getType());
+    }
+
+    // Covers the pluggable branch in TransportFieldCapabilitiesIndexAction#shardOperation. A long
+    // with index:false, doc_values:true has isSearchable()==false but is searchable via doc values,
+    // so field caps must report searchable=true on a pluggable index and searchable=false otherwise.
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testSearchableReportedForDocValuesOnlyFieldOnPluggableIndex() throws Exception {
+        // A doc-values-only long: not indexed for search, but backed by doc values.
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num")
+            .field("type", "long")
+            .field("index", false)
+            .field("doc_values", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        // Pluggable index: doc values make the field searchable, so field caps must report true.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("pluggable")
+                .setSettings(Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true))
+                .setMapping(mapping)
+        );
+        // Pluggable indices are append-only, so a custom document id is rejected; let it auto-generate.
+        client().prepareIndex("pluggable").setSource("{\"num\": 42}", MediaTypeRegistry.JSON).get();
+        client().admin().indices().prepareRefresh("pluggable").get();
+
+        FieldCapabilitiesResponse pluggableResponse = client().fieldCaps(new FieldCapabilitiesRequest().fields("num").indices("pluggable"))
+            .actionGet();
+        assertTrue(
+            "doc-values-only field must be searchable on a pluggable index",
+            pluggableResponse.get().get("num").get("long").isSearchable()
+        );
+
+        // Normal index: same mapping, no pluggable setting. The field stays non-searchable.
+        assertAcked(client().admin().indices().prepareCreate("normal").setMapping(mapping));
+        client().prepareIndex("normal").setSource("{\"num\": 42}", MediaTypeRegistry.JSON).get();
+        client().admin().indices().prepareRefresh("normal").get();
+
+        FieldCapabilitiesResponse normalResponse = client().fieldCaps(new FieldCapabilitiesRequest().fields("num").indices("normal"))
+            .actionGet();
+        assertFalse(
+            "doc-values-only field must not be searchable on a normal index",
+            normalResponse.get().get("num").get("long").isSearchable()
+        );
     }
 }

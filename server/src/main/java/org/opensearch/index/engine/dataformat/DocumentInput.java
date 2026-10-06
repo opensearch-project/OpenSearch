@@ -40,6 +40,22 @@ public interface DocumentInput<T> extends AutoCloseable {
     void addField(MappedFieldType fieldType, Object value);
 
     /**
+     * Signals the start of a {@code nested} element, before its fields arrive through {@link #addField}.
+     * Emitted once per array element and always paired with {@link #endNestedElement()}, even if
+     * parsing fails. Plain objects emit no signals. The default implementation is a no-op.
+     *
+     * @param path the full dotted path of the field this element belongs to
+     */
+    default void startNestedElement(String path) {}
+
+    /**
+     * Signals that the element opened by the matching {@link #startNestedElement(String)} ends.
+     * Fields arriving after this call belong to the enclosing scope. The default implementation
+     * is a no-op.
+     */
+    default void endNestedElement() {}
+
+    /**
      * Adds a row ID field to the document.
      *
      * @param rowIdFieldName the name of the row ID field

@@ -1003,13 +1003,12 @@ mod tests {
     use crate::cache::eviction_policy::PolicyType;
     use crate::cache::page_index::{
         clear_scoped_cache_for_test, column_index_cache_stats, offset_index_cache_stats,
-        SCOPED_CACHE_TEST_GUARD,
     };
     use crate::cache::{CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_OFFSET_INDEX};
 
     #[test]
     fn set_column_index_cache_registers_and_sets_limit() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
@@ -1026,7 +1025,7 @@ mod tests {
 
     #[test]
     fn set_offset_index_cache_registers_and_sets_limit() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
@@ -1043,7 +1042,7 @@ mod tests {
 
     #[test]
     fn clear_cache_type_column_index_clears_scoped_cache() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
@@ -1059,7 +1058,7 @@ mod tests {
 
     #[test]
     fn get_memory_consumed_by_type_returns_scoped_stats() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
@@ -1083,7 +1082,7 @@ mod tests {
 
     #[test]
     fn remove_files_evicts_scoped_cache_when_registered() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();
@@ -1098,7 +1097,7 @@ mod tests {
 
     #[test]
     fn clear_all_clears_scoped_cache_when_registered() {
-        let _g = SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         clear_scoped_cache_for_test();
 
         let mut mgr = CustomCacheManager::new();

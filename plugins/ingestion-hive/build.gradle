@@ -19,7 +19,7 @@ opensearchplugin {
 versions << [
   'hadoopCommon': versions.hadoop3,
   'parquetHadoop': '1.15.0',
-  'thrift': '0.23.0',
+  'thrift': '0.24.0',
   'testcontainers': '2.0.5',
   'docker': '3.7.1',
   'ducttape': '1.0.8',
