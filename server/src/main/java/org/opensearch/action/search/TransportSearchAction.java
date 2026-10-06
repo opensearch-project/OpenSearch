@@ -490,6 +490,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
 
+            // A request that fails before its first phase starts never reaches AbstractSearchAsyncAction, which is
+            // what normally emits the terminal notification, so the onRequestStart above would otherwise go unpaired
+            // and leak search.request.took.current. There is no SearchPhaseContext to report on these paths; no
+            // onRequestFailure implementation reads it, and CompositeListener isolates each listener anyway.
+            final ActionListener<SearchResponse> accountedListener = ActionListener.wrap(updatedListener::onResponse, e -> {
+                if (searchRequestContext.markRequestCompleted()) {
+                    searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(null, searchRequestContext);
+                }
+                updatedListener.onFailure(e);
+            });
+
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
@@ -517,9 +528,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 final Task parentTask = extractParentTask(originalSearchRequest);
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
-                listener = searchRequest.transformResponseListener(updatedListener);
+                listener = searchRequest.transformResponseListener(accountedListener);
             } catch (Exception e) {
-                updatedListener.onFailure(e);
+                accountedListener.onFailure(e);
                 return;
             }
 
