@@ -249,10 +249,7 @@ pub async unsafe fn create_session_context(
     let has_topk = has_partial_aggregate && substrait_has_fetch_rel(plan_bytes);
     config.options_mut().execution.parquet.pushdown_filters =
         query_config.listing_table_pushdown_filters;
-    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active.
-    // If DF abandons partial agg midstream, the partial state sent to the coordinator is
-    // incomplete — TopK sees wrong group counts and produces incorrect results.
-    if has_topk {
+    if needs_skip_partial_pin(has_topk, effective_partitions) {
         config
             .options_mut()
             .execution
@@ -632,6 +629,18 @@ pub async fn prepare_partial_plan(
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
+}
+
+/// Whether to pin `skip_partial_aggregation_probe_ratio_threshold = 1.0`, disabling DataFusion's
+/// adaptive skip-partial-aggregation.
+///
+/// Only needed when nothing merges partial state before TopK truncates. Above one partition,
+/// `agg_mode` installs PartialReduce over a hash repartition, which merges every group key — so
+/// the pin is redundant there, and costly under DF55 where exactly 1.0 disables skip outright
+/// (datafusion#22752). At one partition there is no repartition and no PartialReduce, so skip
+/// would feed raw per-row state to TopK and produce wrong counts (#22337).
+fn needs_skip_partial_pin(has_topk: bool, target_partitions: usize) -> bool {
+    has_topk && target_partitions == 1
 }
 
 /// Returns true if the Substrait plan bytes contain a FetchRel (Sort+Limit node).
@@ -1166,41 +1175,45 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_skip_partial_agg_disabled_when_has_topk() {
-        // skip_partial must be disabled (1.0) when TopK is active — if DF abandons partial
-        // agg midstream the partial state is incomplete and TopK sees wrong group counts.
-        let mut config = SessionConfig::new();
-        let has_topk = true;
-        if has_topk {
-            config
-                .options_mut()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold = 1.0;
+    /// Asserts `needs_skip_partial_pin` over `(has_topk, target_partitions, expected)` cases.
+    fn assert_pin_cases(cases: &[(bool, usize, bool)]) {
+        for &(has_topk, partitions, expected) in cases {
+            assert_eq!(
+                needs_skip_partial_pin(has_topk, partitions),
+                expected,
+                "has_topk={has_topk}, target_partitions={partitions}"
+            );
         }
-        assert_eq!(
-            config
-                .options()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold,
-            1.0,
-            "skip_partial must be disabled (1.0) when TopK is active"
-        );
+    }
+
+    // NOTE: these call the production predicate. The previous versions re-implemented the
+    // `if has_topk` branch inside the test body and asserted what they had just set, so they
+    // passed even with the production pin deleted.
+    #[test]
+    fn test_skip_partial_pin_only_at_single_partition_with_topk() {
+        assert_pin_cases(&[
+            // 1 partition: no hash repartition, so no PartialReduce merges state before TopK
+            // truncates — pin required (#22337).
+            (true, 1, true),
+            // >1: PartialReduce merges every group key, so the pin is redundant and, on DF55,
+            // costly (exactly 1.0 disables skip — datafusion#22752).
+            (true, 2, false),
+            (true, 4, false),
+            // No TopK means nothing truncates early, so skip is always safe.
+            (false, 1, false),
+            (false, 4, false),
+        ]);
     }
 
     #[test]
-    fn test_skip_partial_agg_default_when_no_topk() {
-        // When has_topk=false, skip_partial retains DF default (0.8) — no perf regression
-        // for non-TopK multi-shard queries.
-        let config = SessionConfig::new();
-        assert_eq!(
-            config
-                .options()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold,
-            0.8,
-            "non-TopK queries must retain DF default threshold"
-        );
+    fn test_skip_partial_default_threshold_is_below_one() {
+        // The pin works by setting exactly 1.0, which DF55 treats as "disabled". If the DF
+        // default ever reached 1.0, the unpinned path would silently disable skip as well.
+        let threshold = SessionConfig::new()
+            .options()
+            .execution
+            .skip_partial_aggregation_probe_ratio_threshold;
+        assert!(threshold < 1.0, "DF default must stay below 1.0, got {threshold}");
     }
 
     #[test]
