@@ -39,6 +39,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -532,6 +533,115 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
             assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(unknownSetting.getKey())));
             assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(unknownSetting.getKey())));
         }
+    }
+
+    public void testArchivedPersistentSettingDoesNotBlockUpdate() {
+        final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
+        final Set<Setting<?>> knownSettings = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(dynamicSetting))
+            .collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
+        clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final Settings existingPersistentSettings = Settings.builder()
+            .put(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting", "old-value")
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().persistentSettings(existingPersistentSettings))
+            .build();
+
+        final ClusterState clusterStateAfterUpdate = settingsUpdater.updateSettings(
+            clusterState,
+            Settings.EMPTY,
+            Settings.builder().put(dynamicSetting.getKey(), "new-value").build(),
+            logger
+        );
+
+        assertThat(
+            clusterStateAfterUpdate.metadata().persistentSettings().get(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting"),
+            equalTo("old-value")
+        );
+        assertThat(clusterStateAfterUpdate.metadata().persistentSettings().get(dynamicSetting.getKey()), equalTo("new-value"));
+    }
+
+    public void testArchivedTransientSettingDoesNotBlockUpdate() {
+        final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
+        final Set<Setting<?>> knownSettings = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(dynamicSetting))
+            .collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
+        clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final Settings existingTransientSettings = Settings.builder()
+            .put(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting", "old-value")
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().transientSettings(existingTransientSettings))
+            .build();
+
+        final ClusterState clusterStateAfterUpdate = settingsUpdater.updateSettings(
+            clusterState,
+            Settings.builder().put(dynamicSetting.getKey(), "new-value").build(),
+            Settings.EMPTY,
+            logger
+        );
+
+        assertThat(
+            clusterStateAfterUpdate.metadata().transientSettings().get(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting"),
+            equalTo("old-value")
+        );
+        assertThat(clusterStateAfterUpdate.metadata().transientSettings().get(dynamicSetting.getKey()), equalTo("new-value"));
+    }
+
+    public void testUnknownSettingInUpdateIsStillRejected() {
+        final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
+        final Set<Setting<?>> knownSettings = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(dynamicSetting))
+            .collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
+        clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final Settings existingPersistentSettings = Settings.builder()
+            .put(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting", "old-value")
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().persistentSettings(existingPersistentSettings))
+            .build();
+
+        final SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> settingsUpdater.updateSettings(
+                clusterState,
+                Settings.EMPTY,
+                Settings.builder().put(dynamicSetting.getKey(), "new-value").put("plugins.test.wrong_field_name", "new-value").build(),
+                logger
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("persistent setting [plugins.test.wrong_field_name], not recognized"));
+    }
+
+    public void testArchivedSettingCanStillBeRemoved() {
+        final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
+        final Set<Setting<?>> knownSettings = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(dynamicSetting))
+            .collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
+        clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final Settings existingPersistentSettings = Settings.builder()
+            .put(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting", "old-value")
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().persistentSettings(existingPersistentSettings))
+            .build();
+
+        final ClusterState clusterStateAfterUpdate = settingsUpdater.updateSettings(
+            clusterState,
+            Settings.EMPTY,
+            Settings.builder().putNull(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting").build(),
+            logger
+        );
+
+        assertThat(
+            clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+            not(hasItem(ARCHIVED_SETTINGS_PREFIX + "plugins.test.removed_setting"))
+        );
     }
 
     private static List<Setting<String>> unknownSettings(int numberOfUnknownSettings) {
