@@ -9,14 +9,13 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.OTelSamplerFactory;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
 import io.opentelemetry.api.common.Attributes;
@@ -36,6 +35,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ServiceAttributes;
 
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
@@ -53,10 +53,9 @@ public final class OTelResourceProvider {
      * @param settings cluster settings
      * @return OpenTelemetrySdk instance
      */
-    @SuppressWarnings("removal")
     public static OpenTelemetrySdk get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged(
-            (PrivilegedAction<OpenTelemetrySdk>) () -> get(
+            () -> get(
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
@@ -79,7 +78,7 @@ public final class OTelResourceProvider {
         ContextPropagators contextPropagators,
         Sampler sampler
     ) {
-        Resource resource = Resource.create(Attributes.of(ServiceAttributes.SERVICE_NAME, "OpenSearch"));
+        Resource resource = createResource(settings);
         SdkTracerProvider sdkTracerProvider = createSdkTracerProvider(settings, spanExporter, sampler, resource);
         SdkMeterProvider sdkMeterProvider = createSdkMetricProvider(settings, resource);
         return OpenTelemetrySdk.builder()
@@ -87,6 +86,10 @@ public final class OTelResourceProvider {
             .setMeterProvider(sdkMeterProvider)
             .setPropagators(contextPropagators)
             .buildAndRegisterGlobal();
+    }
+
+    private static Resource createResource(Settings settings) {
+        return Resource.create(Attributes.of(ServiceAttributes.SERVICE_NAME, OTEL_SERVICE_NAME_SETTING.get(settings)));
     }
 
     private static SdkMeterProvider createSdkMetricProvider(Settings settings, Resource resource) {

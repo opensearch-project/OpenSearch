@@ -28,9 +28,10 @@ import java.util.Set;
 
 /**
  * Tests for {@link org.opensearch.analytics.planner.rules.OpenSearchJoinRule}: matches
- * inner equi-joins, produces an {@link OpenSearchJoin} with both inputs SINGLETON-converted
- * (i.e. wrapped in {@link OpenSearchExchangeReducer} by Volcano), and rejects non-inner
- * and pure non-equi joins.
+ * INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins for both equi and non-equi (theta)
+ * predicates, produces an {@link OpenSearchJoin} with both inputs SINGLETON-converted
+ * (i.e. wrapped in {@link OpenSearchExchangeReducer} by Volcano), and rejects join types
+ * the engine doesn't support.
  */
 public class JoinRuleTests extends BasePlannerRulesTests {
 
@@ -141,21 +142,40 @@ public class JoinRuleTests extends BasePlannerRulesTests {
         );
     }
 
-    public void testPureNonEquiJoinMatches() {
-        // left.k < right.k — no equi conjunct. The rule used to reject pure non-equi
-        // joins; it now accepts them so DataFusion can pick a NestedLoopJoin strategy
-        // downstream. Surfaces in RelDecorrelator output for correlated subqueries
-        // with non-equi correlation predicates (e.g. WHERE outer.id > inner.uid).
+    /**
+     * Theta (non-equi) joins flow through the same SINGLETON+SINGLETON path as equi joins.
+     * The downstream {@link org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule}
+     * doesn't inspect the join condition — it gates only on distribution traits — so the
+     * marker rule produces an {@link OpenSearchJoin} regardless of equi-ness. At execution,
+     * isthmus serializes the non-equi predicate and DataFusion picks NestedLoopJoinExec.
+     * Surfaces in RelDecorrelator output for correlated subqueries with non-equi correlation
+     * predicates (e.g. WHERE outer.id > inner.uid).
+     */
+    public void testPureNonEquiJoinAlsoMatchesAndProducesOpenSearchJoin() {
+        // left.k < right.k — no equi-condition, the rule's analyzeCondition().leftKeys is empty.
         RexNode lt = rexBuilder.makeCall(
             SqlStdOperatorTable.LESS_THAN,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
         );
         RelNode result = runJoin(JoinRelType.INNER, lt);
+
+        RelNode unwrapped = RelNodeUtils.unwrapHep(result);
+        if (unwrapped instanceof OpenSearchExchangeReducer wrapper) {
+            unwrapped = RelNodeUtils.unwrapHep(wrapper.getInput());
+        }
         assertTrue(
-            "rule must match pure non-equi inner joins (DataFusion executes them as NestedLoopJoin)",
-            containsOpenSearchJoin(result)
+            "rule should produce OpenSearchJoin for theta joins too, got " + unwrapped.getClass().getSimpleName(),
+            unwrapped instanceof OpenSearchJoin
         );
+
+        // Both sides still gather SINGLETON to the coordinator — the cost gate behavior is
+        // unchanged for theta. NestedLoopJoinExec will run there at execution time.
+        OpenSearchJoin osJoin = (OpenSearchJoin) unwrapped;
+        OpenSearchExchangeReducer leftReducer = (OpenSearchExchangeReducer) RelNodeUtils.unwrapHep(osJoin.getLeft());
+        OpenSearchExchangeReducer rightReducer = (OpenSearchExchangeReducer) RelNodeUtils.unwrapHep(osJoin.getRight());
+        assertEquals(RelDistribution.Type.SINGLETON, leftReducer.getExchangeInfo().distributionType());
+        assertEquals(RelDistribution.Type.SINGLETON, rightReducer.getExchangeInfo().distributionType());
     }
 
     private void assertNonInnerJoinDoesNotMatch(JoinRelType joinType) {

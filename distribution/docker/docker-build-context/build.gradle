@@ -19,7 +19,9 @@ tasks.register("buildDockerBuildContext", Tar) {
   archiveClassifier = "docker-build-context"
   archiveBaseName = "opensearch"
   // Non-local builds don't need to specify an architecture.
-  with dockerBuildContext(null, DockerBase.ALMALINUX, false)
+  // parent.ext, not a bare name: an implicit lookup of a parent project's property is deprecated and
+  // fails in Gradle 10.
+  with parent.ext.dockerBuildContext.call(null, DockerBase.ALMALINUX, false)
 }
 
 tasks.named("assemble").configure { dependsOn "buildDockerBuildContext" }

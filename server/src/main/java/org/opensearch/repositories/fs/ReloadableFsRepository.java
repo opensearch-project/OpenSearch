@@ -189,6 +189,19 @@ public class ReloadableFsRepository extends FsRepository {
             this.slowDown = slowDown;
         }
 
+        /**
+         * Test support only. {@link FsBlobContainer} reports {@code false} here because its conditional write is
+         * emulated per JVM, which is no fencing primitive between hosts. This repository type exists to drive
+         * integration tests, whose cluster nodes all run inside a single JVM and therefore share that emulation - so
+         * within its intended use the precondition genuinely does exclude every other writer. Overriding it here keeps
+         * remote store fencing exercisable in {@code internalClusterTest} while the production {@code fs} repository
+         * stays correctly refused.
+         */
+        @Override
+        public boolean isConditionalWriteSupported() {
+            return true;
+        }
+
         @Override
         public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
             throws IOException {

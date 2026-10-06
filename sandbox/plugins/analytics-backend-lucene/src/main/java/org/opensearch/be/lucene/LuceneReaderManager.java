@@ -8,6 +8,8 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -17,10 +19,13 @@ import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -28,11 +33,9 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
 
@@ -46,12 +49,16 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * refreshed via {@link DirectoryReader#openIfChanged} and paired with a
  * {@code writer_generation → leaf index} map built by matching the catalog's
  * {@link WriterFileSet#files()} against each leaf's {@code SegmentCommitInfo.files()}.
+ * <p>
+ * Lucene is where a shard records which rows are still reachable(live docs), so this manager is also a
+ * {@link LiveDocsSource}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 @SuppressForbidden(reason = "reference counting is required here")
-public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
+public class LuceneReaderManager implements EngineReaderManager<LuceneReader>, LiveDocsSource {
+    private static final Logger logger = LogManager.getLogger(LuceneReaderManager.class);
 
     private final DataFormat dataFormat;
     private final ShardId shardId;
@@ -99,6 +106,31 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         return reader;
     }
 
+    /**
+     * Reads live and deleted counts straight off the reader registered for this snapshot.
+     */
+    @Override
+    public Map<Long, DocCounts> docCountsByGeneration(CatalogSnapshot catalogSnapshot) throws IOException {
+        LuceneReader reader = readers.get(catalogSnapshot.getId());
+        if (reader == null) {
+            // no live doc reader fallback to all the docs marked as live docs
+            logger.warn("No reader registered for catalog snapshot [version={}]; reporting no counts", catalogSnapshot.getId());
+            return Map.of();
+        }
+        List<LeafReaderContext> leaves = reader.directoryReader().leaves();
+        Map<Long, DocCounts> counts = new HashMap<>(leaves.size());
+        for (LeafReaderContext lrc : leaves) {
+            SegmentCommitInfo sci = Lucene.segmentReader(lrc.reader()).getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                // Not written by LuceneWriter, so it cannot be attributed to a catalog generation.
+                continue;
+            }
+            counts.put(Long.parseLong(genAttr), new DocCounts(lrc.reader().numDocs(), lrc.reader().numDeletedDocs()));
+        }
+        return counts;
+    }
+
     @Override
     public void beforeRefresh() throws IOException {
         // no-op
@@ -131,28 +163,35 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
     }
 
     private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
-        // Index leaves by their file set → segment name
-        Map<Set<String>, String> filesToSegName = new HashMap<>(leaves.size());
-        for (int i = 0; i < leaves.size(); i++) {
-            SegmentReader sr = (SegmentReader) leaves.get(i).reader();
-            try {
-                filesToSegName.put(new HashSet<>(sr.getSegmentInfo().files()), sr.getSegmentInfo().info.name);
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to read files for leaf " + i, e);
+        // Index leaves by writer generation → segment name.
+        Map<Long, String> generationToLeafSegment = new HashMap<>(leaves.size());
+        for (LeafReaderContext lrc : leaves) {
+            SegmentReader sr = (SegmentReader) lrc.reader();
+            SegmentCommitInfo sci = sr.getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                throw new IllegalStateException(
+                    "Lucene leaf segment=" + sci.info.name + " is missing the " + WRITER_GENERATION_ATTRIBUTE + " attribute"
+                );
             }
+            generationToLeafSegment.put(Long.parseLong(genAttr), sci.info.name);
         }
 
-        // Match catalog segments to leaves via file sets
+        // Resolve each catalog segment carrying Lucene data to its leaf's segment name by generation.
         Map<Long, String> out = new HashMap<>();
         for (Segment seg : catalogSnapshot.getSegments()) {
             WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
             if (wfs == null) {
                 continue;
             }
-            String segName = filesToSegName.get(wfs.files());
+            String segName = generationToLeafSegment.get(seg.generation());
             if (segName == null) {
                 throw new IllegalStateException(
-                    "Catalog segment gen=" + seg.generation() + " files=" + wfs.files() + " has no matching Lucene leaf"
+                    "Catalog segment gen="
+                        + seg.generation()
+                        + " has no matching Lucene leaf (leaf generations="
+                        + generationToLeafSegment.keySet()
+                        + ")"
                 );
             }
             out.put(seg.generation(), segName);

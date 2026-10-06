@@ -37,6 +37,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -118,12 +119,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,10 +159,32 @@ public class InternalEngine extends Engine {
     protected final TranslogManager translogManager;
     protected final DocumentIndexWriter documentIndexWriter;
     protected final LocalCheckpointTracker localCheckpointTracker;
+    private final ThreadLocal<TranslogBatchScope> activeBatch = new ThreadLocal<>();
+    private final Set<TranslogBatchScope> activeBatches = ConcurrentHashMap.newKeySet();
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     protected final SoftDeletesPolicy softDeletesPolicy;
     protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
     protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
+
+    /**
+     * Size of segment bytes not yet referenced by the last commit point on a remote-store shard, published by the
+     * remote segment upload path after every successful segments sync (see RemoteStoreRefreshListener). Stamped with
+     * the commit generation it was computed against: a value whose generation does not match the current last commit
+     * is stale (e.g. right after a flush) and is ignored until the next sync republishes.
+     */
+    private volatile UncommittedSegmentBytes uncommittedSegmentBytes;
+
+    private static final class UncommittedSegmentBytes {
+        private final long bytes;
+        private final long committedInfosGeneration;
+        private final long flushThresholdBytes;
+
+        private UncommittedSegmentBytes(long bytes, long committedInfosGeneration, long flushThresholdBytes) {
+            this.bytes = bytes;
+            this.committedInfosGeneration = committedInfosGeneration;
+            this.flushThresholdBytes = flushThresholdBytes;
+        }
+    }
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
@@ -208,6 +233,12 @@ public class InternalEngine extends Engine {
 
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final DeletionStrategyPlanner deletionStrategyPlanner;
+    /**
+     * Snapshot of {@link EngineConfig#getPrimaryOperationPolicy()}. Re-read only from
+     * {@link #refreshPrimaryOperationPolicy()}, so that a single operation sees one consistent policy even
+     * though it reads the policy at several points.
+     */
+    private volatile PrimaryOperationPolicy primaryOperationPolicy;
     private final DocumentCountTracker documentCountTracker;
 
     public InternalEngine(EngineConfig engineConfig) {
@@ -250,7 +281,12 @@ public class InternalEngine extends Engine {
             );
             throttle = new IndexingThrottler();
             try {
-                store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                // A pull-based index has no translog (NoOpTranslogManager), so this can only fail: there is no
+                // global checkpoint to select a safe commit against, and under remote store the commit's
+                // TRANSLOG_UUID belongs to whichever copy uploaded the segments.
+                if (engineConfig.getIndexSettings().getIndexMetadata().useIngestionSource() == false) {
+                    store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                }
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
                 String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -367,6 +403,7 @@ public class InternalEngine extends Engine {
                 documentCountTracker::tryAcquireInFlightDocs,
                 this::incrementVersionLookup
             );
+            this.primaryOperationPolicy = engineConfig.getPrimaryOperationPolicy();
             success = true;
         } finally {
             if (success == false) {
@@ -539,8 +576,33 @@ public class InternalEngine extends Engine {
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+                // This shard's sequence numbers are assigned by an upstream authority, which owns the
+                // sequence-number space; recording no-ops here could collide with operations the
+                // authority has not replicated yet.
+                return 0;
+            }
             return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
         }
+    }
+
+    @Override
+    public void refreshPrimaryOperationPolicy() {
+        // The write lock only orders this against other engine-level writers; the caller is responsible for
+        // ensuring no indexing operation is in flight, since an operation reads the policy more than once.
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            ensureOpen();
+            final PrimaryOperationPolicy refreshed = engineConfig.getPrimaryOperationPolicy();
+            if (refreshed != primaryOperationPolicy) {
+                logger.debug("primary operation policy changed from [{}] to [{}]", primaryOperationPolicy, refreshed);
+                primaryOperationPolicy = refreshed;
+            }
+        }
+    }
+
+    @Override
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return primaryOperationPolicy;
     }
 
     private void bootstrapAppendOnlyInfoFromWriter(DocumentIndexWriter writer) {
@@ -834,15 +896,28 @@ public class InternalEngine extends Engine {
     }
 
     protected boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        // sequence number should not be set when operation origin is primary
-        assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was ["
-            + seqNo
-            + "]";
+        if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+            // this primary's sequence numbers are assigned upstream, so an assigned seq no. is expected
+            assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must have a pre-assigned sequence number under policy ["
+                + primaryOperationPolicy
+                + "] but was unassigned";
+        } else {
+            // sequence number should not be set when operation origin is primary
+            assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was ["
+                + seqNo
+                + "]";
+        }
         return true;
     }
 
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
+        if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+            if (operation.seqNo() < 0) {
+                throw new IllegalStateException("expected a pre-assigned sequence number but got [" + operation.seqNo() + "]");
+            }
+            return operation.seqNo();
+        }
         assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: "
             + operation.seqNo();
         return doGenerateSeqNoForOperation(operation);
@@ -944,44 +1019,64 @@ public class InternalEngine extends Engine {
                     }
 
                 }
+                boolean deferred = false;
                 if (index.origin().isFromTranslog() == false) {
-                    final Translog.Location location;
-                    if (indexResult.getResultType() == Result.Type.SUCCESS) {
-                        location = translogManager.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && indexResult.getFailure() != null
-                        && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                            // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                            final NoOp noOp = new NoOp(
-                                indexResult.getSeqNo(),
-                                index.primaryTerm(),
-                                index.origin(),
-                                index.startTime(),
-                                indexResult.getFailure().toString()
+                    final TranslogBatchScope batch = activeBatch.get();
+                    if (batch != null && indexResult.getResultType() == Result.Type.SUCCESS) {
+                        final IndexVersionValue.PendingLocation pending = plan.executeOpOnEngine
+                            ? new IndexVersionValue.PendingLocation(batch)
+                            : null;
+                        indexResult.setTook(System.nanoTime() - index.startTime());
+                        batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
+                        if (pending != null) {
+                            versionMap.maybePutIndexUnderLock(
+                                index.uid().bytes(),
+                                IndexVersionValue.withPendingLocation(pending, plan.version, index.seqNo(), index.primaryTerm())
                             );
-                            location = innerNoOp(noOp).getTranslogLocation();
-                        } else {
-                            location = null;
                         }
-                    indexResult.setTranslogLocation(location);
+                        deferred = true;
+                    } else {
+                        final Translog.Location location;
+                        if (indexResult.getResultType() == Result.Type.SUCCESS) {
+                            location = translogManager.add(new Translog.Index(index, indexResult));
+                        } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                            && indexResult.getFailure() != null
+                            && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                                // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                                flushActiveBatchBeforeInlineWrite();
+                                final NoOp noOp = new NoOp(
+                                    indexResult.getSeqNo(),
+                                    index.primaryTerm(),
+                                    index.origin(),
+                                    index.startTime(),
+                                    indexResult.getFailure().toString()
+                                );
+                                location = innerNoOp(noOp).getTranslogLocation();
+                            } else {
+                                location = null;
+                            }
+                        indexResult.setTranslogLocation(location);
+                    }
                 }
-                if (plan.executeOpOnEngine && indexResult.getResultType() == Result.Type.SUCCESS) {
+                if (deferred == false && plan.executeOpOnEngine && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.version, index.seqNo(), index.primaryTerm())
                     );
                 }
-                localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null
-                    && !(indexResult.getFailure() != null
-                        && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
-                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
-                    localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                if (deferred == false) {
+                    localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+                    if (indexResult.getTranslogLocation() == null
+                        && !(indexResult.getFailure() != null
+                            && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
+                        // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
+                        assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                    }
+                    indexResult.setTook(System.nanoTime() - index.startTime());
+                    indexResult.freeze();
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
-                indexResult.freeze();
                 return indexResult;
             } finally {
                 documentCountTracker.releaseInFlightDocs(reservedDocs);
@@ -1000,13 +1095,73 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public Engine.TranslogBatch beginTranslogBatch() {
+        if (isTranslogBatchingEligible() == false) {
+            return Engine.NO_OP_TRANSLOG_BATCH;
+        }
+        // A scope opened against a closed engine would only fail at its first append with the same
+        // AlreadyClosedException; refuse it up front so the bulk is retried on the new primary without doing any work.
+        ensureOpen();
+        if (activeBatch.get() != null) {
+            throw new IllegalStateException("a translog batch is already active on this bulk thread");
+        }
+        final TranslogBatchScope batch = new TranslogBatchScope(
+            translogManager,
+            localCheckpointTracker,
+            shardId,
+            // Same decision as a per-operation translog failure in index(): fail the engine only if the exception is the
+            // translog's tragic event (or an AlreadyClosedException over one); otherwise only the request fails.
+            this::maybeFailEngine,
+            this::onTranslogBatchFinished,
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
+        );
+        activeBatch.set(batch);
+        activeBatches.add(batch);
+        return batch;
+    }
+
+    private void onTranslogBatchFinished(TranslogBatchScope batch) {
+        activeBatches.remove(batch);
+        if (activeBatch.get() == batch) {
+            activeBatch.remove();
+        }
+    }
+
+    /**
+     * Deletes, no-ops and the no-op recorded for a failed index are written to the translog inline. If this bulk thread
+     * still holds index operations in its batch, append them first so the translog keeps request order: an index of
+     * a document must precede the delete of the same document, whichever path the caller took to get here.
+     */
+    private void flushActiveBatchBeforeInlineWrite() {
+        final TranslogBatchScope batch = activeBatch.get();
+        if (batch != null) {
+            batch.flush();
+        }
+    }
+
+    protected boolean isTranslogBatchingEligible() {
+        final IndexSettings settings = engineConfig.getIndexSettings();
+        return settings.isTranslogBatchAppendEnabled()
+            && settings.isRemoteStoreEnabled()
+            && settings.isRemoteTranslogStoreEnabled()
+            && settings.isSegRepEnabledOrRemoteNode();
+    }
+
+    private void flushActiveTranslogBatches() {
+        for (TranslogBatchScope batch : activeBatches) {
+            batch.flush();
+        }
+    }
+
     protected final IndexingStrategy planIndexingAsNonPrimary(Index index) throws IOException {
         assert assertNonPrimaryOrigin(index);
         return indexingStrategyPlanner.planOperationAsNonPrimary(index);
     }
 
     private IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
-        return indexingStrategyPlanner.planOperationAsPrimary(index);
+        return primaryOperationPolicy.planIndex(indexingStrategyPlanner, index);
     }
 
     protected IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
@@ -1149,6 +1304,7 @@ public class InternalEngine extends Engine {
         versionMap.enforceSafeAccess();
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+        flushActiveBatchBeforeInlineWrite();
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
@@ -1173,7 +1329,8 @@ public class InternalEngine extends Engine {
                         delete.origin(),
                         delete.startTime(),
                         delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm()
+                        delete.getIfPrimaryTerm(),
+                        delete.routing()
                     );
 
                     advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
@@ -1246,7 +1403,7 @@ public class InternalEngine extends Engine {
     }
 
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
-        return deletionStrategyPlanner.planOperationAsPrimary(delete);
+        return primaryOperationPolicy.planDelete(deletionStrategyPlanner, delete);
     }
 
     protected boolean assertNonPrimaryOrigin(final Operation operation) {
@@ -1257,7 +1414,7 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id(), delete.routing());
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.version);
@@ -1307,6 +1464,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public NoOpResult noOp(final NoOp noOp) throws IOException {
+        flushActiveBatchBeforeInlineWrite();
         final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -1433,6 +1591,8 @@ public class InternalEngine extends Engine {
     final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
+        // A remote-segrep bulk may have applied Lucene documents whose translog locations are still deferred.
+        flushActiveTranslogBatches();
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
         try {
@@ -1495,6 +1655,9 @@ public class InternalEngine extends Engine {
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
         }
+        if (shouldFlushOnUncommittedSegmentBytes()) {
+            return true;
+        }
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
@@ -1502,6 +1665,92 @@ public class InternalEngine extends Engine {
             localCheckpointOfLastCommit,
             config().getIndexSettings().getFlushThresholdSize().getBytes()
         );
+    }
+
+    /**
+     * Updates the uncommitted segment bytes accounting for this (remote-store) shard. Invoked by the remote segment
+     * upload path after a successful segments sync, passing the post-refresh local segment file sizes. The uncommitted
+     * bytes are computed as the total size of local segment files that are not referenced by the last commit point,
+     * which includes newly written segments as well as updated per-segment files (e.g. live docs and doc-values
+     * updates) of already committed segments. The value is stamped with the generation of the commit point it was
+     * computed against, so a commit implicitly invalidates it.
+     *
+     * The flush threshold is stamped in alongside the bytes rather than read from settings on the flush poll, so that
+     * the engine holds no opinion about how the index setting and its cluster fallback are resolved. A threshold change
+     * therefore takes effect from the next successful segments sync, which on an actively written shard is the next
+     * refresh; turning the condition off instead discards the accounting on that sync, see
+     * {@link #clearUncommittedSegmentBytes()}.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     * @param flushThresholdBytes  uncommitted segment bytes at or above which to flush, resolved by the publisher
+     */
+    @Override
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap, long flushThresholdBytes) {
+        // the file set and the generation stamp are both taken from this single snapshot, so the published value is
+        // always internally consistent. If a flush lands between this snapshot and the publish below, the stamp no
+        // longer matches the new last commit and shouldFlushOnUncommittedSegmentBytes() rejects the value -- the
+        // race can only suppress a flush trigger until the next successful segments sync republishes, never cause
+        // a spurious flush.
+        final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
+        if (committedInfos == null) {
+            return;
+        }
+        final Set<String> committedFiles;
+        try {
+            committedFiles = new HashSet<>(committedInfos.files(false));
+        } catch (IOException e) {
+            // best-effort accounting, a failed computation must never affect the segment upload path
+            logger.debug("failed to compute uncommitted segment bytes", e);
+            return;
+        }
+        long bytes = 0;
+        for (Map.Entry<String, Long> file : localSegmentsSizeMap.entrySet()) {
+            if (committedFiles.contains(file.getKey()) == false && file.getKey().startsWith(IndexFileNames.SEGMENTS) == false) {
+                bytes += file.getValue();
+            }
+        }
+        uncommittedSegmentBytes = new UncommittedSegmentBytes(bytes, committedInfos.getGeneration(), flushThresholdBytes);
+    }
+
+    /**
+     * Discards the published accounting, disarming the uncommitted-segment-bytes flush condition until the next
+     * publication. {@link #shouldFlushOnUncommittedSegmentBytes()} already treats an absent value as "do not flush", so
+     * nulling the field is all that is needed.
+     * <p>
+     * The publisher calls this on every segments sync while the condition is disabled, so the write is guarded: only the
+     * first such sync dirties the field, the rest are a single volatile read and nothing else. A plain guarded write
+     * rather than a compare-and-set is sufficient because the field is only ever written from the segments sync path,
+     * which is serialized per shard by the refresh listener's permit; and even a lost race here could only suppress a
+     * flush trigger until the next sync, never cause a spurious flush.
+     */
+    @Override
+    public void clearUncommittedSegmentBytes() {
+        // snapshot the volatile once, as shouldFlushOnUncommittedSegmentBytes() does
+        final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
+        if (current != null) {
+            uncommittedSegmentBytes = null;
+        }
+    }
+
+    /**
+     * Checks whether the uncommitted segment bytes published by the remote segment upload path breach the threshold
+     * that was published with them. Only ever effective on remote-store shards, since the accounting is only published
+     * there and only while the condition is enabled cluster-wide by
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}; the stamped commit generation must match the
+     * current last commit so that stale values (e.g. right after a flush, before the next successful segments sync)
+     * can never re-trigger a flush.
+     */
+    private boolean shouldFlushOnUncommittedSegmentBytes() {
+        final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
+        if (current == null) {
+            return false;
+        }
+        // snapshot the volatile once so the null check and the generation comparison observe the same commit point
+        final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
+        // the threshold setting has a hard 1-byte minimum, so current.bytes >= threshold already implies bytes > 0
+        return committedInfos != null
+            && current.bytes >= current.flushThresholdBytes
+            && current.committedInfosGeneration == committedInfos.getGeneration();
     }
 
     @Override
@@ -1527,6 +1776,7 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
+                flushActiveTranslogBatches();
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
@@ -1946,6 +2196,11 @@ public class InternalEngine extends Engine {
             assert (isWriteLockHeld()) || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                final EngineException closeFailure = new EngineException(shardId, "engine closed with pending translog batches: " + reason);
+                for (TranslogBatchScope batch : activeBatches) {
+                    batch.abort(closeFailure);
+                }
+                activeBatches.clear();
                 this.versionMap.clear();
                 if (internalReaderManager != null) {
                     internalReaderManager.removeListener(versionMap);
@@ -2032,7 +2287,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean refreshNeeded() {
-        return documentIndexWriter.hasNewIndexingOrUpdates() || super.refreshNeeded();
+        return documentIndexWriter.hasNewIndexingOrUpdates()
+            || lastRefreshedCheckpoint() < localCheckpointTracker.getProcessedCheckpoint()
+            || super.refreshNeeded();
     }
 
     /**

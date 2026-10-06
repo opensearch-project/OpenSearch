@@ -32,8 +32,11 @@
 
 package org.opensearch.search.suggest.completion;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.query.RegexpFlag;
+import org.opensearch.index.query.RegexpQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -89,6 +92,49 @@ public class RegexOptionsTests extends OpenSearchTestCase {
             fail("max determinized state must be positive");
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "maxDeterminizedStates must not be negative");
+        }
+    }
+
+    public void testMaxDeterminizedStatesIsBounded() {
+        final RegexOptions.Builder builder = RegexOptions.builder();
+
+        // the ceiling and typical values are accepted
+        assertEquals(
+            RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT,
+            builder.setMaxDeterminizedStates(RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT).build().getMaxDeterminizedStates()
+        );
+        assertEquals(500, builder.setMaxDeterminizedStates(500).build().getMaxDeterminizedStates());
+
+        // anything above the ceiling is rejected
+        int aboveLimit = RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT + 1;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.setMaxDeterminizedStates(aboveLimit));
+        assertEquals(
+            "maxDeterminizedStates cannot exceed [" + RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT + "] but was [" + aboveLimit + "]",
+            e.getMessage()
+        );
+        expectThrows(IllegalArgumentException.class, () -> builder.setMaxDeterminizedStates(Integer.MAX_VALUE));
+    }
+
+    /**
+     * A legitimately-built RegexOptions cannot carry an out-of-bounds value, so hand-craft the wire
+     * bytes to prove the transport deserialization path enforces the bound too (mixed-version cluster).
+     */
+    public void testMaxDeterminizedStatesFromStreamIsBounded() throws IOException {
+        int aboveLimit = RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT + 1;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(0); // flagsValue
+            out.writeVInt(aboveLimit); // maxDeterminizedStates
+            try (StreamInput in = out.bytes().streamInput()) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RegexOptions(in));
+                assertEquals(
+                    "maxDeterminizedStates cannot exceed ["
+                        + RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT
+                        + "] but was ["
+                        + aboveLimit
+                        + "]",
+                    e.getMessage()
+                );
+            }
         }
     }
 }

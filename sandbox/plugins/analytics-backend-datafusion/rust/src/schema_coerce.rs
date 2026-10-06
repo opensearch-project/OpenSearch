@@ -89,6 +89,36 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 
+/// Convert Parquet string/binary fields to Arrow view types, including LIST children.
+/// DataFusion's `transform_schema_to_view` only rewrites top-level fields, while the
+/// coordinator declares `ARRAY<VARCHAR>` as `List<Utf8View>`.
+pub fn transform_schema_to_view_recursive(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .map(|field| Arc::new(rewrite_field_to_view(field)))
+        .collect::<Vec<_>>();
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+fn rewrite_field_to_view(field: &Field) -> Field {
+    Field::new(
+        field.name(),
+        rewrite_data_type_to_view(field.data_type()),
+        field.is_nullable(),
+    )
+    .with_metadata(field.metadata().clone())
+}
+
+fn rewrite_data_type_to_view(data_type: &DataType) -> DataType {
+    match data_type {
+        DataType::Utf8 | DataType::LargeUtf8 => DataType::Utf8View,
+        DataType::Binary | DataType::LargeBinary => DataType::BinaryView,
+        DataType::List(child) => DataType::List(Arc::new(rewrite_field_to_view(child))),
+        other => other.clone(),
+    }
+}
+
 /// Rewrite the schema to forms Substrait can bind against:
 ///   - `BinaryView` → `Binary`
 ///   - `UInt64`     → `Int64`

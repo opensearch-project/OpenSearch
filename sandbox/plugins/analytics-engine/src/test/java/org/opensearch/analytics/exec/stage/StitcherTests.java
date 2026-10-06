@@ -111,6 +111,10 @@ public class StitcherTests extends OpenSearchTestCase {
      * Success path: the single shard reports one batch, {@code shardComplete} triggers
      * {@code finish}, and the output is fed to the sink. Closing the sink (owner) releases the
      * output. Baseline that the happy path leaves nothing stranded.
+     *
+     * <p>{@code finish} must NOT close the sink itself — see
+     * {@link #testSuccessPathLeavesParentSinkOpenForItsOwner()}. The owner closes it, which is what
+     * releases the emitted output.
      */
     public void testSuccessPathTransfersOwnershipAndLeavesNoLeak() {
         OwningSink sink = new OwningSink();
@@ -123,11 +127,41 @@ public class StitcherTests extends OpenSearchTestCase {
         stitcher.shardComplete();
 
         assertEquals("onComplete fired once", 1, completes.get());
-        assertTrue("sink took ownership and was closed by finish", sink.closed);
-        assertEquals("output released once the owning sink closed it", 0, allocator.getAllocatedMemory());
-
         // A defensive stage-terminal close() must be a no-op after ownership transferred.
         stitcher.close();
+        assertEquals("output still held by the sink that now owns it", 1, sink.received.size());
+
+        sink.close(); // the sink's owner (parent stage / QueryExecution) releases it
+        assertEquals("output released once the owning sink closed it", 0, allocator.getAllocatedMemory());
+    }
+
+    /**
+     * Regression: {@code finish} must leave {@code parentSink} OPEN on the success path. A producer
+     * never closes its consumer's sink — per-input EOF is the parent's job via
+     * {@code StageExecution.attachChildren} → {@code closeChildInput}, and for a ROOT
+     * {@code LateMaterializationStageExecution} there is no parent at all: the root sink is a
+     * {@code RowProducingSink} whose {@code close()} frees and clears every buffered batch, and
+     * {@code QueryExecution} only reads the answer via {@code outputSource().readResult()} AFTER the
+     * terminal transition.
+     *
+     * <p>Before the fix, closing here made an unprojected multi-shard
+     * {@code source = idx | sort <col> | head N} return 0 rows with HTTP 200 and no error, because
+     * QTF makes {@code OpenSearchLateMaterialization} the plan root for that shape.
+     */
+    public void testSuccessPathLeavesParentSinkOpenForItsOwner() {
+        OwningSink sink = new OwningSink();
+        Stitcher stitcher = new Stitcher(allocator, outputFields(), 1, 1, sink, () -> {});
+
+        VectorSchemaRoot resp = responseBatch(new Object[] { "0" }, new Object[] { "a" });
+        stitcher.acceptBatch(resp, new int[] { 0 }, 0);
+        resp.close();
+        stitcher.shardComplete();
+
+        assertFalse("finish must not close the parent sink — its owner does", sink.closed);
+        assertEquals("the emitted batch is still readable by the sink's owner", 1, sink.received.size());
+        assertEquals("and it still carries the stitched row", 1, sink.received.get(0).getRowCount());
+
+        sink.close();
         assertEquals(0, allocator.getAllocatedMemory());
     }
 

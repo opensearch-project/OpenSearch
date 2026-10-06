@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.query;
 
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.converter.ConversionContext;
@@ -17,12 +18,18 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
  * Converts a {@link TermsQueryBuilder} to a Calcite IN RexNode.
+ *
+ * <p>For {@code scaled_float} fields, each value is scaled via {@code Math.round(value * factor)}
+ * before the IN comparison — mirroring
+ * {@code ScaledFloatFieldMapper.ScaledFloatFieldType.termsQuery}.
  */
 public class TermsQueryTranslator implements QueryTranslator {
+
+    private static final TranslatorMapperRegistry REGISTRY = TranslatorMapperRegistry.INSTANCE;
 
     @Override
     public Class<? extends QueryBuilder> getQueryType() {
@@ -59,11 +66,19 @@ public class TermsQueryTranslator implements QueryTranslator {
             throw new ConversionException("Field '" + fieldName + "' not found in schema");
         }
 
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-        List<RexNode> literals = values.stream()
-            .map(value -> ctx.getRexBuilder().makeLiteral(value, field.getType(), true))
-            .collect(Collectors.toList());
+        RelDataType fieldType = field.getType();
+        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(fieldType, field.getIndex());
 
+        BaseTranslatorMapper mapper = REGISTRY.resolve(fieldType);
+        List<RexNode> literals = new java.util.ArrayList<>();
+        for (Object value : values) {
+            Optional<RexNode> literal = mapper.toTermLiteral(value, field, ctx);
+            literal.ifPresent(literals::add);
+        }
+        if (literals.isEmpty()) {
+            return ctx.getRexBuilder().makeLiteral(false);
+        }
         return ctx.getRexBuilder().makeIn(fieldRef, literals);
     }
+
 }

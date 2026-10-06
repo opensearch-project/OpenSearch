@@ -187,12 +187,10 @@ public class BlobStoreTransferService implements TransferService {
                 metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
             }
 
-            // Read content once using inputStream() to invoke any overrides (e.g., decryption)
-            byte[] fileContent;
-            try (InputStream inputStream = fileSnapshot.inputStream()) {
-                fileContent = inputStream.readAllBytes();
-            }
-            long contentLength = fileContent.length;
+            // Length and part streams both come from the snapshot, so a subclass that transforms the bytes
+            // (e.g. decrypting a client-side encrypted translog) is honoured without the transfer service
+            // having to buffer the file. The default snapshot streams straight off the file channel.
+            long contentLength = fileSnapshot.getContentLength();
 
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
@@ -202,15 +200,13 @@ public class BlobStoreTransferService implements TransferService {
             // Only the first generation doesn't have checksum
             assert (fileSnapshot.getChecksum() != null || fileSnapshot.getName().contains("-1."));
 
-            // Use ByteArrayIndexInput for async upload with the content from inputStream()
-            String resourceDesc = "FileSnapshot[" + fileSnapshot.getName() + "]";
             uploadBlobAsyncInternal(
                 fileSnapshot.getName(),
                 fileSnapshot.getName(),
                 contentLength,
                 blobPath,
                 writePriority,
-                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDesc, fileContent), size, position),
+                fileSnapshot.offsetRangeInputStreamSupplier(),
                 fileSnapshot.getChecksum(),
                 completionListener,
                 metadata,

@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
@@ -76,6 +77,8 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
+import org.opensearch.cluster.deployment.DeploymentManagerService;
+import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -83,6 +86,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -227,6 +231,7 @@ import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ConcurrencyLimiterStatsPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.DefaultPluginComponentRegistry;
@@ -1056,6 +1061,9 @@ public class Node implements Closeable {
             clusterService.setRerouteService(rerouteService);
             clusterModule.setRerouteServiceForAllocator(rerouteService);
 
+            final DeploymentStateService deploymentStateService = new DeploymentStateService(() -> clusterService.state());
+            final DeploymentManagerService deploymentManagerService = new DeploymentManagerService(clusterService, rerouteService);
+
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
@@ -1709,7 +1717,8 @@ public class Node implements Closeable {
                 repositoryService,
                 admissionControlService,
                 cacheService,
-                nativeAllocatorStatsSupplier
+                nativeAllocatorStatsSupplier,
+                buildConcurrencyLimiterStatsSupplier(pluginsService)
             );
 
             final SearchService searchService = newSearchService(
@@ -1783,6 +1792,8 @@ public class Node implements Closeable {
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(SearchPipelineService.class).toInstance(searchPipelineService);
+                b.bind(DeploymentStateService.class).toInstance(deploymentStateService);
+                b.bind(DeploymentManagerService.class).toInstance(deploymentManagerService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
@@ -1907,6 +1918,12 @@ public class Node implements Closeable {
                 }
             });
             injector = modules.createInjector();
+
+            // Register the index creation validators for mapping updates as well, so a mapping
+            // rejected at creation cannot be introduced later through PUT _mapping.
+            final MetadataMappingService metadataMappingServiceInstance = injector.getInstance(MetadataMappingService.class);
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getIndexCreationValidators().forEach(metadataMappingServiceInstance::addIndexCreationValidator));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
@@ -2468,6 +2485,15 @@ public class Node implements Closeable {
      */
     PageCacheRecycler createPageCacheRecycler(Settings settings) {
         return new PageCacheRecycler(settings);
+    }
+
+    private static Supplier<ActionConcurrencyLimiterStats> buildConcurrencyLimiterStatsSupplier(PluginsService pluginsService) {
+        List<ConcurrencyLimiterStatsPlugin> providers = pluginsService.filterPlugins(ConcurrencyLimiterStatsPlugin.class);
+        if (providers.isEmpty()) {
+            return () -> null;
+        }
+        ConcurrencyLimiterStatsPlugin provider = providers.getFirst();
+        return provider::getConcurrencyLimiterStats;
     }
 
     /**

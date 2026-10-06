@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -230,6 +231,17 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     protected Set<AggregateCapability> aggregateCapabilities() {
         return AGG_CAPS;
+    }
+
+    @Override
+    protected Set<DataTransferCapability> dataTransferCapabilities() {
+        // Mirror the real DataFusion backend: it can both produce and consume hash-shuffle
+        // partitions. Required so OpenSearchDistributionTraitDef / HashShuffleDispatch admit this
+        // backend as a shuffle producer (filterByShuffleProducerCapability).
+        return Set.of(
+            new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"),
+            new DataTransferCapability(DataTransferCapability.Kind.CONSUMER, "arrow-ipc-partitioned")
+        );
     }
 
     // ---- SearchBackEndPlugin (storage) ----

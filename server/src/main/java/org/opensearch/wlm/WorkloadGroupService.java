@@ -16,7 +16,10 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -37,6 +40,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService.TRACKED_RESOURCES;
 
@@ -50,6 +55,15 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         TaskResourceTrackingService.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(WorkloadGroupService.class);
+
+    /**
+     * Separator between the segments of a throttle bucket key,
+     * {@code <workload_group_id><delimiter><dimension><delimiter><dimension_value>}. Safe as a separator because no
+     * segment can contain it: the id is a base64 UUID, the dimension is the internal group scope or one of
+     * {@link WorkloadGroupThrottleSettings#ALLOWED_BY_VALUES}, and only the trailing segment is caller-supplied.
+     */
+    static final String BUCKET_KEY_DELIMITER = ":";
+
     private final WorkloadGroupTaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
@@ -59,6 +73,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private final Set<WorkloadGroup> deletedWorkloadGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
     private final WorkloadGroupsStateAccessor workloadGroupsStateAccessor;
+    // Node-local in-flight counters per throttle bucket.
+    private final WorkloadGroupThrottleTracker throttleTracker = new WorkloadGroupThrottleTracker();
 
     public WorkloadGroupService(
         WorkloadGroupTaskCancellationService taskCancellationService,
@@ -310,6 +326,190 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 );
             }
         });
+    }
+
+    /**
+     * Test seam over {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)} exercising bucket resolution and
+     * the limit directly, without a task or thread context. Package-private: production callers use the task-aware variant
+     * so the request is marked counted and re-entrancy is handled.
+     *
+     * @param workloadGroupId the workload group the request is assigned to
+     * @param principal       the caller's joined principal tokens, or {@code null} (see resolver)
+     * @return a permit to close on request completion, or {@code null} if not throttled
+     * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
+     */
+    Releasable acquireThrottleOrReject(String workloadGroupId, String principal) {
+        return acquireThrottleOrReject(workloadGroupId, principal, () -> false, counted -> {});
+    }
+
+    /**
+     * Acquires one node-level throttle permit for the request, or returns {@code null} (nothing to release) when the
+     * request is not throttled: WLM disabled, default/unknown group, no {@code node_limit}, no resolvable bucket (see
+     * {@link #resolveThrottleByValue}), or a parent task whose work is already counted. The bucket is group-scoped when
+     * {@code throttling.by} is absent, or subdivided by its explicit {@code username}/{@code role} value.
+     *
+     * @param task                 the request's task; marked as counted in both the acquired and the exempted case, so the
+     *                             accounting propagates to its own nested searches
+     * @param parentAlreadyCounted supplies whether the parent task is already counted, so a nested coordinator search is
+     *                             not charged twice. Supplied lazily so the parent lookup runs only for a throttling group,
+     *                             not on every search
+     * @return a permit to close on request completion, or {@code null} if not throttled
+     * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
+     */
+    public Releasable acquireThrottleOrReject(WorkloadGroupTask task, BooleanSupplier parentAlreadyCounted) {
+        return acquireThrottleOrReject(
+            task.getWorkloadGroupId(),
+            task.getThrottlePrincipal(),
+            parentAlreadyCounted,
+            task::setThrottleCounted
+        );
+    }
+
+    /**
+     * Wraps {@code listener} so the request's throttle permit is released <em>before</em> the listener is notified: a
+     * completion listener may synchronously start new work in the same bucket (an {@code _msearch} dispatches its next
+     * sub-search from the previous one's response handler), so releasing after would spuriously 429 a request the
+     * coordinator deliberately serialized. The close is guarded so a failed release can never turn a successful search into
+     * a client-visible error.
+     *
+     * @param listener       the listener to notify once the permit has been given back
+     * @param throttlePermit the permit acquired by {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)}
+     */
+    public static <T> ActionListener<T> releaseThrottlePermitBeforeCompletion(
+        final ActionListener<T> listener,
+        final Releasable throttlePermit
+    ) {
+        return ActionListener.runBefore(listener, () -> {
+            try {
+                throttlePermit.close();
+            } catch (Exception e) {
+                logger.warn("Failed to release WLM throttle permit", e);
+            }
+        });
+    }
+
+    private Releasable acquireThrottleOrReject(
+        String workloadGroupId,
+        String principal,
+        BooleanSupplier parentAlreadyCounted,
+        Consumer<Boolean> onCounted
+    ) {
+        if (workloadManagementSettings.getWlmMode() != WlmMode.ENABLED) {
+            return null;
+        }
+        if (workloadGroupId == null || workloadGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) {
+            return null;
+        }
+        try {
+            WorkloadGroup workloadGroup = getWorkloadGroupById(workloadGroupId);
+            if (workloadGroup == null) {
+                return null;
+            }
+            Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
+            // Cheap early-out for groups that don't throttle.
+            if (throttling == null || throttling.isEmpty()) {
+                return null;
+            }
+            int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
+            if (nodeLimit < 1) {
+                return null;
+            }
+            // Nested searches inherit a counted parent's charge. Checked after the early-outs to keep the lookup off unthrottled groups.
+            if (parentAlreadyCounted.getAsBoolean()) {
+                onCounted.accept(true);
+                return null;
+            }
+            String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+            // No bucket (e.g. username/role with no principal): fail open.
+            String byValue = resolveThrottleByValue(by, principal);
+            if (byValue == null) {
+                return null;
+            }
+            String bucketKey = workloadGroupId + BUCKET_KEY_DELIMITER + by + BUCKET_KEY_DELIMITER + byValue;
+
+            Releasable permit = throttleTracker.tryAcquire(bucketKey, nodeLimit);
+            if (permit != null) {
+                onCounted.accept(true);
+                return permit;
+            }
+
+            // Name the group and dimension; the bucket key alone is opaque to an operator.
+            String target = "workload group [" + workloadGroup.getName() + "]";
+            if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by) == false) {
+                target += " for " + by + " [" + byValue + "]";
+            }
+            if (workloadGroup.getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
+                // MONITOR: count in total_would_throttle and admit.
+                logger.debug(
+                    "Request would be throttled (monitor mode, not rejected): {} reached its per-node limit of {} concurrent requests.",
+                    target,
+                    nodeLimit
+                );
+                recordThrottleStat(workloadGroupId, true);
+                onCounted.accept(true);
+                return null;
+            }
+            // SOFT enforces the throttle too; resiliency_mode only governs resource limits.
+            recordThrottleStat(workloadGroupId, false);
+            throw new OpenSearchRejectedExecutionException(
+                "Request throttled: " + target + " reached its per-node limit of " + nodeLimit + " concurrent requests."
+            );
+        } catch (OpenSearchRejectedExecutionException e) {
+            throw e; // the intended 429
+        } catch (Exception e) {
+            // Fail open on a throttle bug. DEBUG, since a deterministic failure would log at full query rate.
+            logger.debug(() -> "Skipping node-level throttle for workload group [" + workloadGroupId + "] due to an error", e);
+            return null;
+        }
+    }
+
+    /**
+     * Bumps {@code total_would_throttle} ({@code wouldThrottleOnly == true}, MONITOR observed) or {@code total_throttled}
+     * (actual rejection). Swallows stats failures so they can't mask the request's outcome, and uses the raw state map so a
+     * not-yet-registered group isn't misattributed to DEFAULT.
+     */
+    private void recordThrottleStat(String workloadGroupId, boolean wouldThrottleOnly) {
+        try {
+            WorkloadGroupState workloadGroupState = workloadGroupsStateAccessor.getWorkloadGroupStateMap().get(workloadGroupId);
+            if (workloadGroupState != null) {
+                if (wouldThrottleOnly) {
+                    workloadGroupState.totalWouldThrottle.inc();
+                } else {
+                    workloadGroupState.totalThrottled.inc();
+                }
+            }
+        } catch (Exception statsException) {
+            logger.warn("Failed to record throttle stat for workload group [" + workloadGroupId + "]", statsException);
+        }
+    }
+
+    /**
+     * Resolves the bucket key value: {@link WorkloadGroupThrottleSettings#GROUP_SCOPE} for whole-group throttling, else the
+     * principal's {@code username}/{@code role} value. When a principal carries several values for the subfield (a user in
+     * many roles), the lexicographically smallest is chosen so the same caller lands in a stable bucket.
+     *
+     * @return the bucket dimension value, or {@code null} to fail open when the principal has no usable value
+     */
+    private String resolveThrottleByValue(String by, String principal) {
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by)) {
+            return WorkloadGroupThrottleSettings.GROUP_SCOPE;
+        }
+        if (principal == null || principal.isEmpty()) {
+            return null;
+        }
+        // Trim the token, not the value: trimming past the delimiter would fold "username|alice " into alice's bucket.
+        String subfieldPrefix = by + WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_SUBFIELD_DELIMITER;
+        String selected = null;
+        for (String token : principal.split(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER)) {
+            String trimmed = token.trim();
+            if (trimmed.startsWith(subfieldPrefix)) {
+                String value = trimmed.substring(subfieldPrefix.length());
+                if (value.isEmpty() == false && (selected == null || value.compareTo(selected) < 0)) {
+                    selected = value;
+                }
+            }
+        }
+        return selected;
     }
 
     private double getNormalisedRejectionThreshold(double limit, ResourceType resourceType) {

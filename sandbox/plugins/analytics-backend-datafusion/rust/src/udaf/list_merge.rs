@@ -34,6 +34,14 @@ use datafusion::logical_expr::{
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udaf(AggregateUDF::from(ListMergeUdaf::new(false)));
     ctx.register_udaf(AggregateUDF::from(ListMergeUdaf::new(true)));
+    ctx.register_udaf(AggregateUDF::from(ListMergeUdaf::named(
+        "mv_collect",
+        false,
+    )));
+    ctx.register_udaf(AggregateUDF::from(ListMergeUdaf::named(
+        "mv_collect_distinct",
+        true,
+    )));
 }
 
 #[derive(Debug)]
@@ -45,12 +53,19 @@ pub struct ListMergeUdaf {
 
 impl ListMergeUdaf {
     pub fn new(distinct: bool) -> Self {
-        Self {
-            name: if distinct {
+        Self::named(
+            if distinct {
                 "list_merge_distinct"
             } else {
                 "list_merge"
             },
+            distinct,
+        )
+    }
+
+    pub fn named(name: &'static str, distinct: bool) -> Self {
+        Self {
+            name,
             distinct,
             signature: Signature::any(1, Volatility::Immutable),
         }
@@ -59,7 +74,7 @@ impl ListMergeUdaf {
 
 impl PartialEq for ListMergeUdaf {
     fn eq(&self, other: &Self) -> bool {
-        self.distinct == other.distinct
+        self.name == other.name && self.distinct == other.distinct
     }
 }
 impl Eq for ListMergeUdaf {}

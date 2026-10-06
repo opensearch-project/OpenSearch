@@ -134,6 +134,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
 
+    // STRICT_TLOG_OR_CKP_PATTERN matches either a translog or a checkpoint file of a specific generation.
+    static final Pattern STRICT_TLOG_OR_CKP_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.ckp|\\.tlog)$");
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
     public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogHeader.headerSizeInBytes(UUIDs.randomBase64UUID());
 
@@ -377,13 +379,22 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     public static long parseIdFromFileName(String fileName) {
-        final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
+        return parseIdFromFileName(fileName, PARSE_STRICT_ID_PATTERN);
+    }
+
+    /**
+     * Parses the generation out of {@code fileName} using {@code pattern}, whose first capturing group must be the
+     * generation. See {@link #PARSE_STRICT_ID_PATTERN} (translog files only) and {@link #STRICT_TLOG_OR_CKP_PATTERN}
+     * (translog or checkpoint files).
+     */
+    public static long parseIdFromFileName(String fileName, Pattern pattern) {
+        final Matcher matcher = pattern.matcher(fileName);
         if (matcher.matches()) {
             try {
                 return Long.parseLong(matcher.group(1));
             } catch (NumberFormatException e) {
                 throw new IllegalStateException(
-                    "number formatting issue in a file that passed PARSE_STRICT_ID_PATTERN: " + fileName + "]",
+                    "number formatting issue in a file that passed " + pattern.pattern() + ": " + fileName + "]",
                     e
                 );
             }
@@ -641,6 +652,89 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
+        } finally {
+            Releasables.close(out);
+        }
+    }
+
+    /**
+     * Adds a batch of operations to the transaction log in a single critical section. The operations are serialized
+     * into one shared buffer (one {@link ReleasableBytesStreamOutput} allocation for the whole batch), the translog
+     * read lock is acquired once, and the underlying {@link TranslogWriter} monitor is entered once. Each operation is
+     * framed exactly as {@link #add(Operation)} frames it, so the on-disk bytes and returned {@link Location}s are
+     * identical to performing the adds individually.
+     *
+     * @param operations the operations to add, in order
+     * @return the locations of the operations in the translog, parallel to {@code operations}
+     * @throws IOException if adding the operations to the translog resulted in an I/O exception
+     */
+    public Location[] add(final List<Operation> operations) throws IOException {
+        final int count = operations.size();
+        if (count == 0) {
+            return new Location[0];
+        }
+        if (count == 1) {
+            return new Location[] { add(operations.get(0)) };
+        }
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        try {
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            final BytesReference[] opBytes = new BytesReference[count];
+            final long[] seqNos = new long[count];
+            final int[] sliceStarts = new int[count];
+            final int[] sliceLens = new int[count];
+            // Serialize every op into the single shared buffer; record each op's slice bounds so framing is
+            // byte-identical to a single add (size int + body + checksum). Slices are taken from the FINAL bytes()
+            // view after all serialization, since the backing buffer may reallocate as it grows.
+            long sliceStart = 0;
+            for (int i = 0; i < count; i++) {
+                final Operation operation = operations.get(i);
+                final long start = out.position();
+                out.skip(Integer.BYTES);
+                writeOperationNoSize(checksumStreamOutput, operation);
+                final long end = out.position();
+                final int operationSize = (int) (end - Integer.BYTES - start);
+                out.seek(start);
+                out.writeInt(operationSize);
+                out.seek(end);
+                sliceStarts[i] = (int) sliceStart;
+                sliceLens[i] = (int) (end - sliceStart);
+                seqNos[i] = operation.seqNo();
+                sliceStart = end;
+            }
+            final BytesReference all = out.bytes();
+            for (int i = 0; i < count; i++) {
+                opBytes[i] = all.slice(sliceStarts[i], sliceLens[i]);
+            }
+            try (ReleasableLock ignored = readLock.acquire()) {
+                ensureOpen();
+                for (int i = 0; i < count; i++) {
+                    final Operation operation = operations.get(i);
+                    if (operation.primaryTerm() > current.getPrimaryTerm()) {
+                        assert false : "Operation term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], operation term["
+                            + operation
+                            + "]";
+                        throw new IllegalArgumentException(
+                            "Operation term is newer than the current term; "
+                                + "current term["
+                                + current.getPrimaryTerm()
+                                + "], operation term["
+                                + operation
+                                + "]"
+                        );
+                    }
+                }
+                return current.add(opBytes, seqNos);
+            }
+        } catch (final AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write batch of [" + count + "] operations", ex);
         } finally {
             Releasables.close(out);
         }
@@ -1442,9 +1536,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int FORMAT_NO_DOC_TYPE = FORMAT_NO_VERSION_TYPE + 1;
-        public static final int SERIALIZATION_FORMAT = FORMAT_NO_DOC_TYPE;
+        public static final int FORMAT_ROUTING = FORMAT_NO_DOC_TYPE + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_ROUTING;
 
         private final String id;
+        private final String routing;
         private final long seqNo;
         private final long primaryTerm;
         private final long version;
@@ -1468,22 +1564,32 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             }
             seqNo = in.readLong();
             primaryTerm = in.readLong();
+            if (format >= FORMAT_ROUTING) {
+                routing = in.readOptionalString();
+            } else {
+                routing = null;
+            }
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
+            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion(), delete.routing());
         }
 
         /** utility for testing */
         public Delete(String id, long seqNo, long primaryTerm) {
-            this(id, seqNo, primaryTerm, Versions.MATCH_ANY);
+            this(id, seqNo, primaryTerm, Versions.MATCH_ANY, null);
         }
 
         public Delete(String id, long seqNo, long primaryTerm, long version) {
+            this(id, seqNo, primaryTerm, version, null);
+        }
+
+        public Delete(String id, long seqNo, long primaryTerm, long version, String routing) {
             this.id = Objects.requireNonNull(id);
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
             this.version = version;
+            this.routing = routing;
         }
 
         @Override
@@ -1493,12 +1599,20 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         @Override
         public long estimateSize() {
-            return (id.length() * 2) + (3 * Long.BYTES); // seq_no, primary_term,
-                                                         // and version;
+            return (id.length() * 2) + (3 * Long.BYTES) // seq_no, primary_term, and version
+                + 1 // writeOptionalString presence byte
+                + (routing != null ? 2 * routing.length() : 0);
         }
 
         public String id() {
             return id;
+        }
+
+        /**
+         * Returns the routing value for this delete operation, or {@code null} if no custom routing was specified.
+         */
+        public String routing() {
+            return routing;
         }
 
         @Override
@@ -1521,7 +1635,14 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_2_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format;
+            if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+                format = SERIALIZATION_FORMAT;
+            } else if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+                format = FORMAT_NO_DOC_TYPE;
+            } else {
+                format = FORMAT_NO_VERSION_TYPE;
+            }
             out.writeVInt(format);
             if (format < FORMAT_NO_DOC_TYPE) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
@@ -1537,6 +1658,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             }
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
+            if (format >= FORMAT_ROUTING) {
+                out.writeOptionalString(routing);
+            }
         }
 
         @Override
@@ -1550,7 +1674,10 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
             Delete delete = (Delete) o;
 
-            return version == delete.version && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm;
+            return version == delete.version
+                && seqNo == delete.seqNo
+                && primaryTerm == delete.primaryTerm
+                && Objects.equals(routing, delete.routing);
         }
 
         @Override
@@ -1558,12 +1685,21 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             int result = Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
+            result = 31 * result + (routing != null ? routing.hashCode() : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "Delete{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version + '}';
+            return "Delete{"
+                + "seqNo="
+                + seqNo
+                + ", primaryTerm="
+                + primaryTerm
+                + ", version="
+                + version
+                + (routing != null ? ", routing=" + routing : "")
+                + '}';
         }
     }
 

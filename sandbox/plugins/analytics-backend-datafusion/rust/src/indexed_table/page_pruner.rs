@@ -765,14 +765,20 @@ impl StatsPruneTree {
                     children: vec![],
                 }
             }
-            BoolNode::DelegationPossible { original_expr, .. } => {
-                let key = Arc::as_ptr(original_expr) as *const () as usize;
-                let rg_can_match = match leaf_predicates.get(&key) {
-                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices, seg_arrow_schema),
-                    None => vec![true; num],
-                };
+            BoolNode::DelegationPossible { .. } => {
+                // Performance-delegated leaves are all-true, exactly like a Collector.
+                // A `DelegationPossible` predicate (e.g. `field = 'laptop'`) carries the
+                // peer backend's semantics — for analyzed text/match_only_text fields
+                // equality is a *token* match, but parquet column stats are lexicographic
+                // over the raw source string. Evaluating those stats here prunes RGs (and
+                // whole segments) whose min/max string bounds exclude the term even though
+                // a document contains it as a token — an unsound over-prune. Defer entirely
+                // to the peer backend rather than trusting raw-string stats.
+                native_bridge_common::log_debug!(
+                    "StatsPruneTree: DelegationPossible node → all-true (peer-backend semantics, raw-string stats unsound)"
+                );
                 Self {
-                    rg_can_match,
+                    rg_can_match: vec![true; num],
                     children: vec![],
                 }
             }
@@ -1655,6 +1661,100 @@ mod tests {
             spt.children[2].children[1].children[0].rg_can_match,
             vec![true, true, false, false, false]
         );
+    }
+
+    /// A `DelegationPossible` leaf must NOT be stats-pruned, even when its
+    /// `original_expr` looks stats-prunable against the parquet column.
+    ///
+    /// Motivation: for analyzed text/match_only_text fields, `field = 'laptop'`
+    /// is a *token* match evaluated by the peer backend, but the parquet column
+    /// stores the raw source string with lexicographic min/max stats. Evaluating
+    /// those stats here wrongly prunes RGs (and whole segments) whose string
+    /// bounds exclude the term even though a document contains it as a token.
+    /// The fix treats `DelegationPossible` as all-true, exactly like a Collector.
+    ///
+    /// We model this with an int column so the fixture stays simple: a predicate
+    /// (`price > 45`) that, as a plain `Predicate`, would prune to `[00001]` must
+    /// instead yield `[11111]` when wrapped in `DelegationPossible`.
+    #[test]
+    fn stats_prune_tree_delegation_possible_is_all_true() {
+        use crate::indexed_table::bool_tree::BoolNode;
+
+        // 5 RGs: price [0..9], [10..19], [20..29], [30..39], [40..49]
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "price",
+            DataType::Int32,
+            false,
+        )]));
+        let tmp = NamedTempFile::new().unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(10)
+            .set_statistics_enabled(EnabledStatistics::Chunk)
+            .build();
+        let mut w =
+            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        for i in 0..5i32 {
+            let vals: Vec<i32> = (i * 10..(i + 1) * 10).collect();
+            let batch =
+                RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))])
+                    .unwrap();
+            w.write(&batch).unwrap();
+        }
+        w.close().unwrap();
+        let meta =
+            ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
+        let arc_meta = meta.metadata().clone();
+        assert_eq!(arc_meta.num_row_groups(), 5);
+        let rg_indices: Vec<usize> = (0..5).collect();
+
+        // The underlying expr: `price > 45` → prunes to [00001] as a plain Predicate.
+        let expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
+            Arc::new(PhysColumn::new("price", 0)),
+            Operator::Gt,
+            Arc::new(Literal::new(ScalarValue::Int32(Some(45)))),
+        ));
+
+        // Build the pruning predicate under the SAME Arc identity used by the tree,
+        // so `build_from_bool_node` would find it (proving we skip it deliberately,
+        // not just because the lookup missed).
+        let mut leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = HashMap::new();
+        let key = Arc::as_ptr(&expr) as *const () as usize;
+        leaf_predicates.insert(key, build_pruning_predicate(&expr, schema.clone()).unwrap());
+
+        // Sanity: as a plain Predicate the same expr prunes to [00001].
+        let plain = StatsPruneTree::build_from_bool_node(
+            &BoolNode::Predicate(Arc::clone(&expr)),
+            &leaf_predicates,
+            &arc_meta,
+            &schema,
+            &rg_indices,
+            &schema,
+        );
+        assert_eq!(
+            plain.rg_can_match,
+            vec![false, false, false, false, true],
+            "control: plain Predicate is stats-prunable"
+        );
+
+        // As a DelegationPossible leaf, the same expr must NOT prune.
+        let delegated = BoolNode::DelegationPossible {
+            annotation_id: 7,
+            original_expr: Arc::clone(&expr),
+        };
+        let spt = StatsPruneTree::build_from_bool_node(
+            &delegated,
+            &leaf_predicates,
+            &arc_meta,
+            &schema,
+            &rg_indices,
+            &schema,
+        );
+        assert_eq!(
+            spt.rg_can_match,
+            vec![true, true, true, true, true],
+            "DelegationPossible must be all-true (peer-backend semantics)"
+        );
+        assert!(spt.children.is_empty());
     }
 
     // Schema drift: the table schema orders columns differently from the segment's own

@@ -33,6 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.deployment.DeploymentAllocationDecider;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -328,6 +329,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             AwarenessAllocationDecider.class,
             NodeLoadAwareAllocationDecider.class,
             TargetPoolAllocationDecider.class,
+            DeploymentAllocationDecider.class,
             RemoteStoreMigrationAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(

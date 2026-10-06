@@ -50,7 +50,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
     "description": "Indexing and search configuration for pmc workload",
@@ -101,7 +101,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_7": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as all",
@@ -120,7 +120,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_8": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as auto",
@@ -139,7 +139,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_9": {
     "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.0.0. Enables range query approximation.",
@@ -158,7 +158,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_10": {
     "description": "Benchmarking config for NESTED workload, benchmarks nested queries with inner-hits",
@@ -227,7 +227,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_14": {
     "description": "Intra-segment search test-procedure for http_logs with concurrent segment search mode as auto",
@@ -264,7 +264,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_16": {
     "description": "clickbench workload DSL queries test",
@@ -283,5 +283,26 @@
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
     "baseline_cluster_config": "x64-c5.2xlarge-3-shard-0-replica-snapshot-baseline"
+  },
+  "id_17": {
+    "description": "ClickBench streaming aggregation benchmark",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
+      "INSTALL_STREAMING_PLUGINS": "true",
+      "JVM_SYS_PROPS": "io.netty.allocator.numDirectArenas=16,io.netty.noUnsafe=false,io.netty.tryUnsafe=true,io.netty.tryReflectionSetAccessible=true",
+      "ADDITIONAL_CONFIG": "opensearch.experimental.feature.transport.stream.enabled:true stream.search.enabled:true arrow.flight.publish_host:127.0.0.1 arrow.flight.bind_host:127.0.0.1 search.aggregations.streaming.max_estimated_bucket_count:2000000",
+      "TEST_WORKLOAD": "clickbench",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"clickbench_3_shards\",\"use_snapshot\":true,\"snapshot_repo\":\"benchmark-workloads-repo-3x\",\"warmup_iterations\":10,\"test_iterations\":20}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "streaming-agg-clickbench"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-c5.2xlarge-3-shard-0-replica-snapshot-streaming-aggregation-baseline"
   }
 }
