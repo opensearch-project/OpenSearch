@@ -48,6 +48,7 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.common.implementation.Constants;
 import org.apache.logging.log4j.LogManager;
@@ -280,12 +281,23 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
 
         return AccessController.doPrivileged(() -> {
+            final Integer readBlockSize = service.getReadBlockSize(clientName);
+            if (readBlockSize != null) {
+                return azureBlob.openInputStream(
+                    new BlobInputStreamOptions().setRange(new BlobRange(position, length)).setBlockSize(readBlockSize)
+                );
+            }
             if (length == null) {
                 return azureBlob.openInputStream(new BlobRange(position), null);
             } else {
                 return azureBlob.openInputStream(new BlobRange(position, length), null);
             }
         });
+    }
+
+    public long getReadBlobPreferredLength() {
+        final Integer readBlockSize = service.getReadBlockSize(clientName);
+        return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
@@ -365,7 +377,7 @@ public class AzureBlobStore implements BlobStore {
             AccessController.doPrivilegedChecked(() -> {
                 final Response<?> response = blob.uploadWithResponse(
                     new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
-                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()),
+                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName)),
                     timeout(),
                     client.v2().get()
                 );
