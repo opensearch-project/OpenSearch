@@ -12,7 +12,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings.HistogramAggregation;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING;
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING;
 
 public class OTelTelemetrySettingsTests extends OpenSearchTestCase {
@@ -34,31 +34,31 @@ public class OTelTelemetrySettingsTests extends OpenSearchTestCase {
     }
 
     private static Settings histogram(String value) {
-        return Settings.builder().put(OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.getKey(), value).build();
+        return Settings.builder().put(OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.getKey(), value).build();
     }
 
     public void testHistogramAggregationDefaultsToBase2Exponential() {
         assertEquals(
             HistogramAggregation.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM,
-            OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(Settings.EMPTY)
+            OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(Settings.EMPTY)
         );
     }
 
     public void testHistogramAggregationAcceptsBothValues() {
         assertEquals(
             HistogramAggregation.EXPLICIT_BUCKET_HISTOGRAM,
-            OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(histogram("explicit_bucket_histogram"))
+            OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(histogram("explicit_bucket_histogram"))
         );
         assertEquals(
             HistogramAggregation.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM,
-            OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(histogram("base2_exponential_bucket_histogram"))
+            OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(histogram("base2_exponential_bucket_histogram"))
         );
     }
 
     public void testHistogramAggregationIsCaseInsensitive() {
         assertEquals(
             HistogramAggregation.EXPLICIT_BUCKET_HISTOGRAM,
-            OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(histogram("EXPLICIT_BUCKET_HISTOGRAM"))
+            OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(histogram("EXPLICIT_BUCKET_HISTOGRAM"))
         );
     }
 
@@ -66,9 +66,9 @@ public class OTelTelemetrySettingsTests extends OpenSearchTestCase {
         for (String invalid : new String[] { "foo", "" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(histogram(invalid))
+                () -> OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(histogram(invalid))
             );
-            assertTrue(e.getMessage(), e.getMessage().contains(OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.getKey()));
+            assertTrue(e.getMessage(), e.getMessage().contains(OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.getKey()));
         }
     }
 }

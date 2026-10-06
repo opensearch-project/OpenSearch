@@ -118,7 +118,8 @@ public final class OTelTelemetrySettings {
         Setting.Property.Final
     );
 
-    private static final String OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY = "telemetry.otel.metrics.histogram.aggregation";
+    private static final String OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING_KEY =
+        "telemetry.otel.metrics.histogram.aggregation.default";
 
     /**
      * Aggregation applied to histogram instruments.
@@ -164,7 +165,7 @@ public final class OTelTelemetrySettings {
                 "Invalid value ["
                     + value
                     + "] for setting ["
-                    + OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY
+                    + OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING_KEY
                     + "], allowed values are ["
                     + EXPLICIT_BUCKET_HISTOGRAM.value
                     + ", "
@@ -185,10 +186,10 @@ public final class OTelTelemetrySettings {
     }
 
     /**
-     * Histogram aggregation setting.
+     * Default aggregation applied to histogram instruments.
      */
-    public static final Setting<HistogramAggregation> OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING = new Setting<>(
-        OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING_KEY,
+    public static final Setting<HistogramAggregation> OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING = new Setting<>(
+        OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING_KEY,
         HistogramAggregation.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM.getValue(),
         HistogramAggregation::parse,
         Setting.Property.NodeScope,

@@ -36,7 +36,7 @@ public class OTelResourceProviderTests extends OpenSearchTestCase {
 
     public void testExplicitBucketHistogram() {
         Settings settings = Settings.builder()
-            .put(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.getKey(), "explicit_bucket_histogram")
+            .put(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.getKey(), "explicit_bucket_histogram")
             .build();
         assertEquals(MetricDataType.HISTOGRAM, recordAndGetType(settings));
     }

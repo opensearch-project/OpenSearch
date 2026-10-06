@@ -35,7 +35,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ServiceAttributes;
 
-import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING;
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
@@ -107,7 +107,7 @@ public final class OTelResourceProvider {
             .registerMetricReader(reader)
             .registerView(
                 InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
-                View.builder().setAggregation(OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.get(settings).toAggregation()).build()
+                View.builder().setAggregation(OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(settings).toAggregation()).build()
             )
             .build();
     }

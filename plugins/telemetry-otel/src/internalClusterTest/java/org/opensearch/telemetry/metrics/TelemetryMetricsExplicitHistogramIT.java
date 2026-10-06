@@ -56,7 +56,7 @@ public class TelemetryMetricsExplicitHistogramIT extends OpenSearchIntegTestCase
                 OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING.getKey(),
                 "org.opensearch.telemetry.metrics.InMemorySingletonMetricsExporter"
             )
-            .put(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_SETTING.getKey(), "explicit_bucket_histogram")
+            .put(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.getKey(), "explicit_bucket_histogram")
             .put(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }

@@ -64,7 +64,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     /**
      * Creates the Otel Histogram. The bucketing/aggregation strategy is selected by the
-     * {@code telemetry.otel.metrics.histogram.aggregation} setting and defaults to
+     * {@code telemetry.otel.metrics.histogram.aggregation.default} setting and defaults to
      * {@code base2_exponential_bucket_histogram}.
      * @param name        name of the histogram.
      * @param description any description about the metric.
