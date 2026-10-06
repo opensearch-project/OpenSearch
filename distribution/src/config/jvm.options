@@ -85,3 +85,8 @@ ${error.file}
 
 # HDFS ForkJoinPool.common() support by SecurityManager
 -Djava.util.concurrent.ForkJoinPool.common.threadFactory=org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory
+
+# For cases with high memory-mapped file counts, a lower value can improve stability and
+# prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
+# disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
+-Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
