@@ -511,6 +511,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         public ObjectMapper getChildObjectMapper() {
             return childObjectMapper;
         }
+
+        @Override
+        public InnerHitsContext.InnerHitSubContext copy() {
+            NestedInnerHitSubContext copy = new NestedInnerHitSubContext(getName(), context, parentObjectMapper, childObjectMapper);
+            copyTo(copy);
+            return copy;
+        }
     }
 
     @Override
@@ -524,3 +531,4 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 }
+
