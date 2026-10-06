@@ -35,7 +35,6 @@ package org.opensearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -57,7 +56,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -69,6 +70,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestDeduplicator;
@@ -345,6 +347,47 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     /**
+     * Rejects the shard snapshot paths that are not yet supported for multi-format (pluggable data format)
+     * shards.
+     * <p>
+     * Only the full-copy path is supported. The shallow-copy path writes a pointer into the remote store
+     * keyed by (primaryTerm, generation) and has no catalog-aware lock resolution or restore path yet, and
+     * warm shards read through a different data path entirely. Both are rejected here, at the API boundary,
+     * with a message naming the setting to change rather than failing deeper in the engine. With
+     * {@code partial=true} the rest of the snapshot still completes.
+     *
+     * @throws IndexShardSnapshotFailedException if this shard/repository combination is not supported
+     */
+    // package private for testing
+    static void ensurePluggableDataFormatSnapshotSupported(
+        final ShardId shardId,
+        final IndexSettings indexSettings,
+        final boolean remoteStoreIndexShallowCopy
+    ) {
+        if (indexSettings.isPluggableDataFormatEnabled() == false) {
+            return;
+        }
+        if (remoteStoreIndexShallowCopy && indexSettings.isRemoteStoreEnabled()) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "shallow copy snapshots are not supported for indices using a pluggable data format ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "=true]; register the repository with ["
+                    + BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey()
+                    + "=false] to take a full-copy snapshot instead"
+            );
+        }
+        if (indexSettings.isWarmIndex()) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "snapshots are not yet supported for warm indices using a pluggable data format ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+    }
+
+    /**
      * Creates shard snapshot
      *
      * @param snapshot       snapshot
@@ -384,15 +427,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
             }
 
+            ensurePluggableDataFormatSnapshotSupported(shardId, indexShard.indexSettings(), remoteStoreIndexShallowCopy);
+
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
-            GatedCloseable<IndexCommit> wrappedSnapshot = null;
+            GatedCloseable<CatalogSnapshot> wrappedSnapshot = null;
             try {
                 if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
                     long startTime = threadPool.relativeTimeInMillis();
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
                     long commitGeneration = 0L;
                     Map<String, Long> indexFilesToFileLengthMap = null;
-                    IndexCommit snapshotIndexCommit = null;
+                    CatalogSnapshot catalogSnapshot = null;
 
                     try {
                         if (closedIndex) {
@@ -404,9 +449,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             primaryTerm = lastRemoteUploadedIndexCommit.getPrimaryTerm();
                             commitGeneration = lastRemoteUploadedIndexCommit.getGeneration();
                         } else {
-                            wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
-                            snapshotIndexCommit = wrappedSnapshot.get();
-                            commitGeneration = snapshotIndexCommit.getGeneration();
+                            wrappedSnapshot = indexShard.acquireLastCommittedSnapshotAndRefresh(true);
+                            catalogSnapshot = wrappedSnapshot.get();
+                            commitGeneration = catalogSnapshot.getGeneration();
                         }
                         indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                     } catch (IOException e) {
@@ -421,9 +466,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 commitGeneration
                             );
                             indexShard.flush(new FlushRequest(shardId.getIndexName()).force(true));
-                            wrappedSnapshot = indexShard.acquireLastIndexCommit(false);
-                            snapshotIndexCommit = wrappedSnapshot.get();
-                            commitGeneration = snapshotIndexCommit.getGeneration();
+                            wrappedSnapshot = indexShard.acquireLastCommittedSnapshot(false);
+                            catalogSnapshot = wrappedSnapshot.get();
+                            commitGeneration = catalogSnapshot.getGeneration();
                             indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                         }
                     }
@@ -432,7 +477,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             indexShard.store(),
                             snapshot.getSnapshotId(),
                             indexId,
-                            snapshotIndexCommit,
+                            catalogSnapshot,
                             null,
                             snapshotStatus,
                             primaryTerm,
@@ -468,8 +513,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     );
                 } else {
                     // we flush first to make sure we get the latest writes snapshotted
-                    wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
-                    final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                    wrappedSnapshot = indexShard.acquireLastCommittedSnapshot(true);
+                    final CatalogSnapshot catalogSnapshot = wrappedSnapshot.get();
 
                     IndexMetadata indexMetadata = clusterService.state().metadata().index(indexId.getName());
 
@@ -478,8 +523,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         indexShard.mapperService(),
                         snapshot.getSnapshotId(),
                         indexId,
-                        wrappedSnapshot.get(),
-                        getShardStateId(indexShard, snapshotIndexCommit),
+                        catalogSnapshot,
+                        getShardStateId(indexShard, catalogSnapshot),
                         snapshotStatus,
                         version,
                         userMetadata,
@@ -505,13 +550,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * shard state id can be used in this case because of the possibility of a primary failover leading to different
      * shard content for the same sequence number on a subsequent snapshot.
      *
-     * @param indexShard          Shard
-     * @param snapshotIndexCommit IndexCommit for shard
+     * @param indexShard      Shard
+     * @param catalogSnapshot commit point for shard
      * @return shard state id or {@code null} if none can be used
      */
     @Nullable
-    private static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
-        final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
+    private static String getShardStateId(IndexShard indexShard, CatalogSnapshot catalogSnapshot) throws IOException {
+        final Map<String, String> userCommitData = catalogSnapshot.getUserData();
         final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
         final long maxSeqNo = seqNumInfo.maxSeqNo;
         if (maxSeqNo != seqNumInfo.localCheckpoint || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {

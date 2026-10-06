@@ -385,6 +385,23 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
         return strategy.createVerifyingOutput(metadata, output);
     }
 
+    /**
+     * Creates a verifying {@link IndexInput} appropriate for the given file's format, the read-side counterpart of
+     * {@link #createVerifyingOutput(StoreFileMetadata, IndexOutput)}. Delegates to the format's
+     * {@link FormatChecksumStrategy#createVerifyingInput} so Lucene files verify against their codec footer while
+     * formats without a footer, such as Parquet, verify the whole file against the recorded checksum.
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param input the underlying index input to wrap
+     * @return a format-appropriate verifying input
+     */
+    @ExperimentalApi
+    public Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+        String format = FileMetadata.parseDataFormat(metadata.name());
+        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(format, DEFAULT_CHECKSUM_STRATEGY);
+        return strategy.createVerifyingInput(metadata, input);
+    }
+
     public IndexOutput createOutput(FileMetadata fm, IOContext context) throws IOException {
         return createOutput(toFileIdentifier(fm), context);
     }

@@ -9,14 +9,18 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -1248,6 +1252,229 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
                 expected.getValue(),
                 parquetStrategy.computeChecksum(dfasd, "parquet/only.parquet")
             );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // createVerifyingInput: read-side counterpart of createVerifyingOutput
+    // ═══════════════════════════════════════════════════════════════
+
+    /** Reads the whole input, which is what the snapshot upload path does before calling verify(). */
+    private static void drain(IndexInput in) throws IOException {
+        byte[] buf = new byte[(int) in.length()];
+        in.readBytes(buf, 0, buf.length);
+    }
+
+    private static StoreFileMetadata metadataFor(String name, long length, long checksum) {
+        return new StoreFileMetadata(name, length, Store.digestToString(checksum), org.apache.lucene.util.Version.LATEST);
+    }
+
+    /**
+     * A non-Lucene file has no codec footer, so verification must digest the whole file and compare against the
+     * checksum recorded in the store metadata. Lucene's footer-based verifier would digest only
+     * {@code [0, length-8)} and read the file's real trailing bytes as the expected value.
+     */
+    public void testCreateVerifyingInput_nonLucene_wholeFileChecksum() throws IOException {
+        String id = "parquet/verify_ok.parquet";
+        byte[] data = "parquet payload with no lucene footer".getBytes(StandardCharsets.UTF_8);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+
+        StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            drain(verifying);
+            assertEquals("whole-file CRC32 must verify", crc.getValue(), verifying.verify());
+        }
+    }
+
+    public void testCreateVerifyingInput_nonLucene_detectsWrongChecksum() throws IOException {
+        String id = "parquet/verify_bad.parquet";
+        byte[] data = "parquet payload".getBytes(StandardCharsets.UTF_8);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        StoreFileMetadata md = metadataFor(id, data.length, 12345L); // deliberately wrong
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            drain(verifying);
+            CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
+            assertTrue(e.getMessage(), e.getMessage().contains("verification failed"));
+        }
+    }
+
+    /** Verifying a partially consumed input would digest only a prefix, so it must be rejected outright. */
+    public void testCreateVerifyingInput_nonLucene_rejectsPartialRead() throws IOException {
+        String id = "parquet/verify_partial.parquet";
+        byte[] data = "parquet payload that will not be fully read".getBytes(StandardCharsets.UTF_8);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+        StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            byte[] buf = new byte[5];
+            verifying.readBytes(buf, 0, buf.length);
+            CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
+            assertTrue(e.getMessage(), e.getMessage().contains("bytes were read"));
+        }
+    }
+
+    /** A length that disagrees with the file on disk must be rejected before the checksum is even compared. */
+    public void testCreateVerifyingInput_nonLucene_detectsLengthMismatch() throws IOException {
+        String id = "parquet/verify_len.parquet";
+        byte[] data = "parquet payload of a known length".getBytes(StandardCharsets.UTF_8);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+
+        // Correct checksum, but metadata claims a different length.
+        StoreFileMetadata md = metadataFor(id, data.length + 10, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            drain(verifying);
+            CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
+            assertTrue(e.getMessage(), e.getMessage().contains("does not match expected length"));
+        }
+    }
+
+    /**
+     * The snapshot upload path reads in part-sized chunks rather than one call, so the digest must still cover
+     * every byte when {@code checksumPosition == length}.
+     */
+    public void testCreateVerifyingInput_nonLucene_chunkedReadDigestsWholeFile() throws IOException {
+        String id = "parquet/verify_chunked.parquet";
+        byte[] data = randomByteArrayOfLength(1024);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+
+        StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            byte[] buf = new byte[7]; // deliberately not a divisor of 1024
+            long remaining = verifying.length();
+            while (remaining > 0) {
+                int n = (int) Math.min(buf.length, remaining);
+                verifying.readBytes(buf, 0, n);
+                remaining -= n;
+            }
+            assertEquals("chunked read must digest every byte", crc.getValue(), verifying.verify());
+        }
+    }
+
+    /**
+     * Byte-at-a-time reads take a separate branch from bulk reads, so confirm that path also digests every byte
+     * and never diverts trailing bytes into the stored-checksum buffer when {@code checksumPosition == length}.
+     */
+    public void testCreateVerifyingInput_nonLucene_byteAtATimeReadDigestsWholeFile() throws IOException {
+        String id = "parquet/verify_bytewise.parquet";
+        byte[] data = randomByteArrayOfLength(64);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+
+        StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            for (int i = 0; i < data.length; i++) {
+                assertEquals("byte " + i, data[i], verifying.readByte());
+            }
+            assertEquals("byte-at-a-time read must digest every byte", crc.getValue(), verifying.verify());
+        }
+    }
+
+    /** A file shorter than a Lucene footer must still verify on the non-Lucene path, where there is no footer. */
+    public void testCreateVerifyingInput_nonLucene_shorterThanLuceneFooter() throws IOException {
+        String id = "parquet/verify_tiny.parquet";
+        byte[] data = new byte[] { 1, 2, 3 };
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(id, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
+        CRC32 crc = new CRC32();
+        crc.update(data);
+
+        StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            drain(verifying);
+            assertEquals(crc.getValue(), verifying.verify());
+        }
+    }
+
+    /**
+     * {@link Store#openVerifyingInput} must route through the file's format when the directory is
+     * data-format-aware: Parquet against the recorded whole-file checksum, Lucene against its codec footer.
+     */
+    public void testStoreOpenVerifyingInput_dispatchesByFormat() throws IOException {
+        byte[] parquetData = "parquet via Store.openVerifyingInput".getBytes(StandardCharsets.UTF_8);
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput("parquet/via_store.parquet", IOContext.DEFAULT)) {
+            out.writeBytes(parquetData, parquetData.length);
+        }
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput("_via_store.si", IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "StoreDispatch", 1);
+            out.writeString("segment payload");
+            CodecUtil.writeFooter(out);
+        }
+        CRC32 parquetCrc = new CRC32();
+        parquetCrc.update(parquetData);
+        long luceneFooter = dataFormatAwareStoreDirectory.calculateChecksum("_via_store.si");
+
+        ShardId sid = new ShardId(new Index("test-index", "test-index-uuid"), 0);
+        try (
+            Store store = new Store(
+                sid,
+                IndexSettingsModule.newIndexSettings("test-index", Settings.EMPTY),
+                dataFormatAwareStoreDirectory,
+                new DummyShardLock(sid)
+            )
+        ) {
+            StoreFileMetadata parquetMd = metadataFor("parquet/via_store.parquet", parquetData.length, parquetCrc.getValue());
+            try (IndexInput in = store.openVerifyingInput("parquet/via_store.parquet", IOContext.DEFAULT, parquetMd)) {
+                drain(in);
+                assertEquals(
+                    "parquet must verify against the recorded whole-file checksum",
+                    parquetCrc.getValue(),
+                    ((Store.VerifyingIndexInput) in).verify()
+                );
+            }
+
+            // Bogus metadata checksum: the Lucene path must ignore it and use the codec footer.
+            StoreFileMetadata luceneMd = metadataFor("_via_store.si", store.directory().fileLength("_via_store.si"), 777L);
+            try (IndexInput in = store.openVerifyingInput("_via_store.si", IOContext.DEFAULT, luceneMd)) {
+                drain(in);
+                assertEquals("lucene must verify against its codec footer", luceneFooter, ((Store.VerifyingIndexInput) in).verify());
+            }
+        }
+    }
+
+    /** Lucene files keep footer semantics: the digest covers the body and the footer supplies the expected value. */
+    public void testCreateVerifyingInput_lucene_usesCodecFooter() throws IOException {
+        String name = "_verify_footer.si";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(name, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "VerifyTest", 1);
+            out.writeString("segment payload");
+            CodecUtil.writeFooter(out);
+        }
+        long footerChecksum = dataFormatAwareStoreDirectory.calculateChecksum(name);
+
+        // Deliberately pass a bogus metadata checksum: the Lucene strategy must ignore it and use the footer.
+        StoreFileMetadata md = metadataFor(name, dataFormatAwareStoreDirectory.fileLength(name), 999L);
+        try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(name, IOContext.DEFAULT)) {
+            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            drain(verifying);
+            assertEquals("lucene must verify against its codec footer", footerChecksum, verifying.verify());
         }
     }
 
