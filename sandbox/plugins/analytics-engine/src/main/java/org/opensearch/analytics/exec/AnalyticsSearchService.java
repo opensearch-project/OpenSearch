@@ -843,6 +843,15 @@ public class AnalyticsSearchService implements AutoCloseable {
             );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
+            // Lucene backend both sources the shard's hasDeletions signal (probed just below) and
+            // serves the reserved match-all collector (registered further below when there is no
+            // delegation). See FilterDelegationHandle#LIVE_DOCS_MATCH_ALL_ANNOTATION_ID.
+            AnalyticsSearchBackendPlugin luceneBackend = backends.get("lucene");
+
+            // Stamp ctx.hasDeletedDocs so ShardScanInstructionHandler can route deletion-bearing
+            // shards through the indexed deleted-doc filtering path.
+            ctx.setHasDeletedDocs(luceneBackend != null && luceneBackend.hasDeletedDocs(ctx));
+
             backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
             // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
@@ -862,30 +871,18 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
 
-                // Build a thread tracker when task resource tracking is available.
-                DelegationThreadTracker tracker = null;
-                if (taskResourceTrackingService != null) {
-                    long taskId = task.getId();
-                    TaskResourceTrackingService service = taskResourceTrackingService;
-                    tracker = new DelegationThreadTracker() {
-                        @Override
-                        public long trackStart() {
-                            long threadId = Thread.currentThread().threadId();
-                            service.taskExecutionStartedOnThread(taskId, threadId);
-                            return threadId;
-                        }
-
-                        @Override
-                        public void trackEnd(long threadId) {
-                            service.taskExecutionFinishedOnThread(taskId, threadId);
-                        }
-                    };
-                }
-
                 // Register handle and tracker together under the query's contextId so concurrent
                 // queries have isolated FFM callback bindings. The returned cleanup removes the
                 // binding after query execution completes.
-                trackerCleanup = backend.configureFilterDelegation(contextId, handle, tracker, backendContext);
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, buildDelegationThreadTracker(task), backendContext);
+            } else if (ctx.hasDeletedDocs() && luceneBackend != null && task != null && !"lucene".equals(resolved.plan.getBackendId())) {
+                // No delegation, but a non-Lucene driving backend will inject the reserved match-all
+                // Collector for deleted-doc filtering. Register a Lucene handle (no coordinator
+                // expressions) so the FFM callbacks can serve it. Skipped when Lucene is the driving
+                // backend (it applies liveDocs natively) or the shard has no deletions.
+                long contextId = task.getId();
+                FilterDelegationHandle handle = luceneBackend.getFilterDelegationHandle(java.util.List.of(), ctx);
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, buildDelegationThreadTracker(task), backendContext);
             }
 
             // Hash-shuffle producer routing: if the instruction chain produced a
@@ -938,6 +935,34 @@ public class AnalyticsSearchService implements AutoCloseable {
             }
             throw e;
         }
+    }
+
+    /**
+     * Build a {@link DelegationThreadTracker} that attributes FFM delegation callback work
+     * (createProvider/createCollector/collectDocs) to the query's task via
+     * {@link TaskResourceTrackingService}. Returns {@code null} when task resource tracking is
+     * unavailable — {@code FilterTreeCallbacks} null-guards the tracker (tracking is simply
+     * disabled for those upcalls).
+     */
+    private DelegationThreadTracker buildDelegationThreadTracker(Task task) {
+        if (taskResourceTrackingService == null) {
+            return null;
+        }
+        long taskId = task.getId();
+        TaskResourceTrackingService service = taskResourceTrackingService;
+        return new DelegationThreadTracker() {
+            @Override
+            public long trackStart() {
+                long threadId = Thread.currentThread().threadId();
+                service.taskExecutionStartedOnThread(taskId, threadId);
+                return threadId;
+            }
+
+            @Override
+            public void trackEnd(long threadId) {
+                service.taskExecutionFinishedOnThread(taskId, threadId);
+            }
+        };
     }
 
     /**

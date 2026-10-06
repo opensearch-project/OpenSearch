@@ -33,6 +33,7 @@
 package org.opensearch.common.xcontent.smile;
 
 import org.opensearch.common.xcontent.XContentConstraints;
+import org.opensearch.common.xcontent.XContentRecyclerPools;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.XObjectReadContext;
 import org.opensearch.common.xcontent.XObjectWriteContext;
@@ -87,6 +88,7 @@ public class SmileXContent implements XContent, XContentConstraints {
         builder.configure(StreamWriteFeature.AUTO_CLOSE_CONTENT, false);
         builder.configure(StreamReadFeature.STRICT_DUPLICATE_DETECTION, true);
         builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
+        builder.recyclerPool(XContentRecyclerPools.recyclerPool());
 
         smileFactory = builder.build();
         smileXContent = new SmileXContent();

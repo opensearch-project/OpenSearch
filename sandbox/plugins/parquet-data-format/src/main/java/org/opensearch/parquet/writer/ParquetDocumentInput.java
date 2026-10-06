@@ -116,10 +116,14 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     public long getFieldCount(String fieldName) {
         // Counts values, not entries: a multi-valued field is one entry holding N values, and
         // callers (single-value assertions below, the data-stream @timestamp check) mean values.
-        return collectedFields.stream()
-            .filter(fvp -> fvp.getFieldType().name().equals(fieldName))
-            .mapToLong(FieldValuePair::valueCount)
-            .sum();
+        //
+        // O(1) via the name index: addField routes every value for a name into the single pair
+        // registered under that name in `seen`, so `seen` and `collectedFields` always hold the
+        // same pairs and the lookup is exact. This is on the per-value hot path — the mapper calls
+        // it before every AUTO-state keyword value to decide on scalar-to-LIST promotion — so a
+        // linear scan of collectedFields here made document parsing quadratic in the field count.
+        FieldValuePair pair = seen.get(fieldName);
+        return pair == null ? 0 : pair.valueCount();
     }
 
     @Override

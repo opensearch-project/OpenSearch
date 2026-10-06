@@ -9,6 +9,7 @@
 package org.opensearch.be.lucene.merge;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -35,11 +36,17 @@ import java.util.List;
 public interface LuceneMergeStrategy {
 
     /**
-     * Creates the {@link MergePolicy.OneMerge} that controls how segments are merged.
+     * Creates the {@link PreparableOneMerge} that controls how segments are merged.
      *
-     * <p>Primary strategy: returns a plain {@code OneMerge} (no reader wrapping).
+     * <p>Primary strategy: returns a plain {@code PreparableOneMerge} (no reader wrapping).
      * <p>Secondary strategy: returns a {@link RowIdRemappingOneMerge} that wraps readers
      * with {@link RowIdRemappingCodecReader} for row ID remapping.
+     *
+     * <p>Returning a {@link PreparableOneMerge} (rather than a plain {@link MergePolicy.OneMerge})
+     * lets callers feed the OneMerge through the two-phase
+     * {@link org.apache.lucene.index.MergeIndexWriter#prepareMerge prepareMerge} /
+     * {@link org.apache.lucene.index.MergeIndexWriter#executeMerge executeMerge} flow when
+     * cross-format snapshot consistency is required.
      *
      * @param segments the segments to merge
      * @param rowIdMapping the row ID mapping from the primary format, or null if this is the primary
@@ -49,7 +56,7 @@ public interface LuceneMergeStrategy {
      *                               {@code .si} file via {@code setMergeInfo}
      * @return the configured OneMerge for execution
      */
-    MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration);
+    PreparableOneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration);
 
     /**
      * Builds or resolves the {@link RowIdMapping} after the merge completes.

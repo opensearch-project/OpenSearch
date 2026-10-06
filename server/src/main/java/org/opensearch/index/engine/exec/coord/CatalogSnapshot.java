@@ -16,6 +16,7 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.store.Store;
@@ -310,8 +311,38 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      */
     public abstract long getCommitDataFormatVersion();
 
-    /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
+    /**
+     * Total number of documents physically present in this snapshot.
+     */
     public abstract long getNumDocs();
+
+    /**
+     * Rows physically present in the given catalog segment, taken from the first data format the
+     * segment carries.
+     */
+    protected static long physicalRows(Segment segment) {
+        return segment.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L);
+    }
+
+    /**
+     * Sums live and deleted document counts across this snapshot's segments.
+     *
+     * @return live and deleted totals for the whole snapshot
+     */
+    public DocCounts aggregateDocCounts(Map<Long, DocCounts> docCountsByGeneration) {
+        long liveDocs = 0L;
+        long deletedDocs = 0L;
+        for (Segment segment : getSegments()) {
+            DocCounts counts = docCountsByGeneration.get(segment.generation());
+            if (counts == null) {
+                liveDocs += physicalRows(segment);
+            } else {
+                liveDocs += counts.liveDocs();
+                deletedDocs += counts.deletedDocs();
+            }
+        }
+        return new DocCounts(liveDocs, deletedDocs);
+    }
 
     /**
      * Name of the top-level commit file, or {@code null} if not yet committed.
@@ -341,9 +372,16 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      *
      * @param lastCommitData commit data map from the committer
      * @param indexSort      the index sort, or null if unsorted
+     * @param docCountsByGeneration per-generation live and deleted counts from
+     *        {@link org.opensearch.index.engine.exec.LiveDocsSource#docCountsByGeneration};
+     *        a segment absent from this map reports all of its rows live and none deleted
      * @return list of engine segments sorted by generation
      */
-    public List<org.opensearch.index.engine.Segment> buildEngineSegments(Map<String, String> lastCommitData, Sort indexSort) {
+    public List<org.opensearch.index.engine.Segment> buildEngineSegments(
+        Map<String, String> lastCommitData,
+        Sort indexSort,
+        Map<Long, DocCounts> docCountsByGeneration
+    ) {
         boolean isCommitted = resolveIsCommitted(lastCommitData);
         List<org.opensearch.index.engine.Segment> result = new java.util.ArrayList<>(getSegments().size());
         for (Segment dfSeg : getSegments()) {
@@ -354,12 +392,17 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
             if (dfSeg.dfGroupedSearchableFiles().isEmpty()) {
                 logger.warn("Segment [{}] has no searchable files; reporting 0 doc count", dfSeg.generation());
             }
-            long numRows = dfSeg.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L);
-            if (numRows > Integer.MAX_VALUE) {
-                logger.warn("Segment [{}] has {} rows exceeding Integer.MAX_VALUE; clamping docCount", dfSeg.generation(), numRows);
+            long numRows = physicalRows(dfSeg);
+            DocCounts counts = docCountsByGeneration.get(dfSeg.generation());
+            // No liveness source for this segment: every row counts as live, matching an
+            // append-only index where nothing is ever hidden.
+            long liveRows = counts != null ? counts.liveDocs() : numRows;
+            long deletedRows = counts != null ? counts.deletedDocs() : 0L;
+            if (liveRows > Integer.MAX_VALUE) {
+                logger.warn("Segment [{}] has {} live rows exceeding Integer.MAX_VALUE; clamping docCount", dfSeg.generation(), liveRows);
             }
-            seg.docCount = (int) Math.min(numRows, Integer.MAX_VALUE);
-            seg.delDocCount = 0;
+            seg.docCount = (int) Math.min(liveRows, Integer.MAX_VALUE);
+            seg.delDocCount = (int) Math.min(deletedRows, Integer.MAX_VALUE);
             seg.sizeInBytes = dfSeg.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::getTotalSize).sum();
             seg.segmentSort = indexSort;
             result.add(seg);

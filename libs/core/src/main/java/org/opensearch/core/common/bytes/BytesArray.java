@@ -34,6 +34,7 @@ package org.opensearch.core.common.bytes;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -48,12 +49,36 @@ import java.util.Arrays;
 public final class BytesArray extends AbstractBytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
+    private static final int MAX_UTF16_LENGTH_FOR_UTF8 = Integer.MAX_VALUE / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
     private final byte[] bytes;
     private final int offset;
     private final int length;
 
     public BytesArray(String bytes) {
-        this(new BytesRef(bytes));
+        this(toBytesRef(bytes));
+    }
+
+    private static BytesRef toBytesRef(String bytes) {
+        ensureUTF16LengthIsValidForUTF8Encoding(bytes.length());
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * Validates that a UTF-16 string can be UTF-8 encoded into a Lucene {@code BytesRef} without integer overflow in
+     * {@code UnicodeUtil#maxUTF8Length(int)}. Package-private: the only callers are this class and its tests.
+     *
+     * @param utf16Length UTF-16 length of the string to encode
+     */
+    static void ensureUTF16LengthIsValidForUTF8Encoding(int utf16Length) {
+        if ((long) utf16Length * UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                "UTF16 string length ["
+                    + utf16Length
+                    + "] exceeds maximum ["
+                    + MAX_UTF16_LENGTH_FOR_UTF8
+                    + "] that can be UTF-8 encoded without integer overflow"
+            );
+        }
     }
 
     public BytesArray(BytesRef bytesRef) {

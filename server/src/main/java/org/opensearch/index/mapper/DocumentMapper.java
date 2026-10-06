@@ -54,6 +54,7 @@ import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -230,7 +231,7 @@ public class DocumentMapper implements ToXContentFragment {
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
             try {
-                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
+                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings, FieldScope.ROOT);
                 for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
                     registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
                 }
@@ -383,21 +384,31 @@ public class DocumentMapper implements ToXContentFragment {
 
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
+     *
+     * @param fieldScope the mapper's current field scope; descendants of a nested
+     *                   {@link ObjectMapper} remain in {@link FieldScope#NESTED}
      */
-    private void assignCapabilitiesRecursive(Mapper mapper, DataFormatRegistry registry, IndexSettings indexSettings) {
+    private void assignCapabilitiesRecursive(
+        Mapper mapper,
+        DataFormatRegistry registry,
+        IndexSettings indexSettings,
+        FieldScope fieldScope
+    ) {
         if (mapper instanceof FieldMapper) {
-            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings);
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings, fieldScope);
             // For derived source: keyword fields with ignore_above/normalizer use a separate
             // rawValueFieldType to store the raw value for source reconstruction.
             if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
                 KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
                 if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
-                    registry.assignCapabilities(rawValueFieldType, indexSettings);
+                    registry.assignCapabilities(rawValueFieldType, indexSettings, fieldScope);
                 }
             }
         }
+        FieldScope childScope = fieldScope == FieldScope.NESTED
+            || (mapper instanceof ObjectMapper objectMapper && objectMapper.nested().isNested()) ? FieldScope.NESTED : FieldScope.ROOT;
         for (Mapper child : mapper) {
-            assignCapabilitiesRecursive(child, registry, indexSettings);
+            assignCapabilitiesRecursive(child, registry, indexSettings, childScope);
         }
     }
 
