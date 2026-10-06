@@ -50,6 +50,7 @@ import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.cache.filteredstats.FilteredStatsWarmer;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
@@ -211,6 +212,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
                 IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 FilteredStatsWarmer.INDEX_WARM_FILTERED_STATS_SETTING,
+                FilteredStatsCache.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_FACTORY_SETTING,

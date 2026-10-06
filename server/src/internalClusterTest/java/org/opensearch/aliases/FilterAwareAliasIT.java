@@ -192,7 +192,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      * containing only the visible docs. This is the ground-truth check &mdash; filtered {@code df}/{@code N}
      * must match what a real "materialized view" of the visible subset reports, not merely be "lower".
      * <p>
-     * Gated by the {@code opensearch.filter_aware_alias.filtered_stats} system property (the conservative
+     * Uses {@code enforcement: filtered_stats} on the alias (the first-class scoring mode; the conservative
      * gate that keeps constant_score the default). The property is read per request, so we set it for the
      * duration of the assertions and clear it afterwards.
      */
@@ -211,7 +211,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
 
     private void assertFilteredStatisticsMatchPhysicallyFilteredIndex(int restrictedDocs) throws Exception {
         buildCorpus(restrictedDocs);
-        addAlias("fs_pre", "pre_filter");
+        addAlias("fs_pre", "filtered_stats");
 
         // Build a physical "visible-only" index: reindex just the cardiology docs. This is the
         // ground truth for what visible-subset statistics should be.
@@ -225,10 +225,6 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         }
         refresh("patients_visible_only");
 
-        final String prop = "opensearch.filter_aware_alias.filtered_stats";
-        final String previous = System.getProperty(prop);
-        try {
-            System.setProperty(prop, "true");
 
             // Score the sample doc for the restricted-subset term through the filtered-stats alias...
             float aliasScore = sampleScore("fs_pre", RESTRICTED_TERM);
@@ -243,13 +239,6 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                 aliasScore,
                 0.01f
             );
-        } finally {
-            if (previous == null) {
-                System.clearProperty(prop);
-            } else {
-                System.setProperty(prop, previous);
-            }
-        }
     }
 
     /**
@@ -305,11 +294,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
             .size();
         assertTrue("corpus must span several segments for this test to mean anything, got " + segments, segments > 1);
 
-        addAlias("fs_multiseg", "pre_filter");
-        final String prop = "opensearch.filter_aware_alias.filtered_stats";
-        final String previous = System.getProperty(prop);
-        try {
-            System.setProperty(prop, "true");
+        addAlias("fs_multiseg", "filtered_stats");
             float aliasScore = sampleScore("fs_multiseg", RESTRICTED_TERM);
             float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
             assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
@@ -319,13 +304,6 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                 aliasScore,
                 0.01f
             );
-        } finally {
-            if (previous == null) {
-                System.clearProperty(prop);
-            } else {
-                System.setProperty(prop, previous);
-            }
-        }
     }
 
     /**
@@ -355,10 +333,6 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                         .enforcement("pre_filter")
                 )
         );
-        final String prop = "opensearch.filter_aware_alias.filtered_stats";
-        final String previous = System.getProperty(prop);
-        try {
-            System.setProperty(prop, "true");
             // hidden_only_term is planted exclusively in filtered-out documents, so it is present in the index and
             // has zero visible occurrences. The corpus is spread over many segments and the view is large enough that
             // Lucene builds a bulk scorer for the term: that is the path which asks the scorer supplier for a scorer,
@@ -397,13 +371,6 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                 .get();
             assertEquals("dfs must not fail the shard either", 0, dfs.getFailedShards());
             assertEquals("and must still match nothing", 0, dfs.getHits().getHits().length);
-        } finally {
-            if (previous == null) {
-                System.clearProperty(prop);
-            } else {
-                System.setProperty(prop, previous);
-            }
-        }
     }
 
     /**
@@ -415,48 +382,46 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      */
     public void testFilteredStatisticsGuardrailFallsBackToConstantScore() throws Exception {
         buildCorpus();
-        addAlias("fs_guard", "pre_filter");
+        addAlias("fs_guard", "filtered_stats");
 
-        final String gate = "opensearch.filter_aware_alias.filtered_stats";
-        final String budget = "opensearch.filter_aware_alias.filtered_stats.max_visible_docs";
-        final String previousGate = System.getProperty(gate);
-        final String previousBudget = System.getProperty(budget);
-        try {
-            System.setProperty(gate, "true");
+        // Unlimited by default, so filtered_stats applies and the restricted-only term is scored with real
+        // visible-subset BM25 rather than flattened.
+        float rankedScore = sampleScore("fs_guard", RESTRICTED_TERM);
+        assertTrue("sample found with no ceiling configured", rankedScore > 0f);
+        assertNotEquals(
+            "with filtered_stats applied the score should be real BM25, not the constant_score 1.0",
+            1.0f,
+            rankedScore,
+            0.0001f
+        );
 
-            // Budget well above the ~21 visible docs: filtered_stats applies, so the restricted-only term is
-            // scored with real (visible-subset) BM25 rather than flattened.
-            System.setProperty(budget, "1000000");
-            float rankedScore = sampleScore("fs_guard", RESTRICTED_TERM);
-            assertTrue("sample found with filtered_stats in budget", rankedScore > 0f);
-            assertNotEquals(
-                "with filtered_stats applied the score should be real BM25, not the constant_score 1.0",
-                1.0f,
-                rankedScore,
-                0.0001f
-            );
+        // A ceiling below the visible-subset size trips the guardrail, and the request falls back to
+        // constant_score, which scores every hit exactly 1.0.
+        setMaxVisibleDocs(1L);
+        float guardedScore = sampleScore("fs_guard", RESTRICTED_TERM);
+        assertEquals("guardrail should fall back to constant_score (flat 1.0)", 1.0f, guardedScore, 0.0001f);
 
-            // Budget below the visible-subset size: the guardrail trips and we fall back to constant_score,
-            // which scores every hit exactly 1.0.
-            System.setProperty(budget, "1");
-            float guardedScore = sampleScore("fs_guard", RESTRICTED_TERM);
-            assertEquals("guardrail should fall back to constant_score (flat 1.0)", 1.0f, guardedScore, 0.0001f);
+        // The fallback still does not expose the filtered-out documents: a term confined to them is
+        // indistinguishable from a term that exists nowhere.
+        assertEquals("fallback keeps scores independent of filtered-out documents", sampleScore("fs_guard", ABSENT_TERM), guardedScore, 0.0001f);
 
-            // The fallback is still leak-free: a term confined to filtered-out docs is indistinguishable from
-            // a term that exists nowhere.
-            assertEquals("fallback stays leak-free", sampleScore("fs_guard", ABSENT_TERM), guardedScore, 0.0001f);
-        } finally {
-            restoreProperty(gate, previousGate);
-            restoreProperty(budget, previousBudget);
-        }
+        // And removing the ceiling restores ranking, so the setting is live rather than read once at startup.
+        setMaxVisibleDocs(-1L);
+        assertNotEquals(
+            "clearing the ceiling should restore real BM25 scoring",
+            1.0f,
+            sampleScore("fs_guard", RESTRICTED_TERM),
+            0.0001f
+        );
     }
 
-    private static void restoreProperty(String key, String previous) {
-        if (previous == null) {
-            System.clearProperty(key);
-        } else {
-            System.setProperty(key, previous);
-        }
+    private void setMaxVisibleDocs(long value) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX)
+                .setSettings(Settings.builder().put("index.filter_aware_alias.filtered_stats.max_visible_docs", value))
+        );
     }
 
     /** Build a multi-shard corpus for the dfs test. Same shape as {@link #buildCorpus()} but spread
@@ -492,17 +457,28 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
     public void testFilteredStatisticsUnderDfsAcrossShards() throws Exception {
         final String index = "patients_dfs";
         buildMultiShardCorpus(index, 3);
-        AliasActions add = AliasActions.add()
-            .index(index)
-            .alias("dfs_pre")
-            .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
-            .enforcement("pre_filter");
-        assertAcked(client().admin().indices().prepareAliases().addAliasAction(add));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareAliases()
+                .addAliasAction(
+                    AliasActions.add()
+                        .index(index)
+                        .alias("dfs_pre")
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
+                        .enforcement("filtered_stats")
+                )
+                // Control view over the same corpus, scoring over the whole shard, so the assertion below is
+                // comparing two aggregation paths rather than relying on a mode toggle.
+                .addAliasAction(
+                    AliasActions.add()
+                        .index(index)
+                        .alias("dfs_post")
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
+                        .enforcement("post_filter")
+                )
+        );
 
-        final String prop = "opensearch.filter_aware_alias.filtered_stats";
-        final String previous = System.getProperty(prop);
-        try {
-            System.setProperty(prop, "true");
 
             // DFS across 3 shards: the restricted-subset term and the absent term must score identically
             // through the filtered_stats alias -- only true if per-shard filtered stats aggregate correctly.
@@ -517,19 +493,18 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                 0.0001f
             );
 
-            // Control: without filtered_stats the same dfs query DOES differ (whole-shard aggregated df),
-            // confirming the test is actually exercising the aggregation path and not a degenerate case.
-            System.setProperty(prop, "false");
-            float ctrlRestricted = dfsSampleScore("dfs_pre", RESTRICTED_TERM);
-            float ctrlAbsent = dfsSampleScore("dfs_pre", ABSENT_TERM);
-            assertTrue("control (constant_score) under dfs still resolves both terms", ctrlRestricted > 0f && ctrlAbsent > 0f);
-        } finally {
-            if (previous == null) {
-                System.clearProperty(prop);
-            } else {
-                System.setProperty(prop, previous);
-            }
-        }
+        // Control: over the same corpus, a post_filter view aggregates whole-shard statistics, so the two terms
+        // score differently. Without this the assertion above would also pass if filtered statistics were simply
+        // never computed and both terms happened to tie.
+        float ctrlRestricted = dfsSampleScore("dfs_post", RESTRICTED_TERM);
+        float ctrlAbsent = dfsSampleScore("dfs_post", ABSENT_TERM);
+        assertTrue("control view under dfs still resolves both terms", ctrlRestricted > 0f && ctrlAbsent > 0f);
+        assertNotEquals(
+            "control: whole-shard aggregated statistics must make the restricted and absent terms differ",
+            ctrlAbsent,
+            ctrlRestricted,
+            0.0001f
+        );
     }
 
     /** Score of the visible sample doc for {@code term}, forcing dfs_query_then_fetch. */

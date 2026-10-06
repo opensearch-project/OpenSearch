@@ -52,7 +52,6 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
     private static final String PLANTED = "infarction";
     private static final String MARKER = "markerterm";
     private static final int HIDDEN_COPIES = 500;
-    private static final String GATE = "opensearch.filter_aware_alias.filtered_stats";
 
     private String sampleId;
 
@@ -92,23 +91,13 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareAliases()
                 .addAliasAction(
-                    AliasActions.add().index(INDEX).alias(ALIAS).filter(QueryBuilders.termQuery("dept", VISIBLE)).enforcement("pre_filter")
+                    AliasActions.add().index(INDEX).alias(ALIAS).filter(QueryBuilders.termQuery("dept", VISIBLE)).enforcement("filtered_stats")
                 )
         );
     }
 
     private <T> T withGate(ThrowingSupplier<T> body) throws Exception {
-        String previous = System.getProperty(GATE);
-        try {
-            System.setProperty(GATE, "true");
             return body.get();
-        } finally {
-            if (previous == null) {
-                System.clearProperty(GATE);
-            } else {
-                System.setProperty(GATE, previous);
-            }
-        }
     }
 
     interface ThrowingSupplier<T> {

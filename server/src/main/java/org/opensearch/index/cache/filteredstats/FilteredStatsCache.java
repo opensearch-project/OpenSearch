@@ -27,6 +27,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SmallFloat;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.AbstractIndexComponent;
@@ -60,6 +61,25 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @ExperimentalApi
 public final class FilteredStatsCache extends AbstractIndexComponent implements Closeable {
+
+    /**
+     * Optional ceiling on how many admitted documents {@code filtered_stats} will compute statistics over, above which
+     * a request falls back to the {@code pre_filter} constant-score behaviour.
+     * <p>
+     * Unlimited by default, and a negative value is also unlimited. The first query on a segment costs one pass over
+     * the documents the view admits, which is proportional to the view rather than to the index, so a ceiling is a
+     * capacity choice for an operator who would rather lose relevance ordering than pay that cost. Defaulting it to a
+     * finite value would mean a large view quietly scoring without relevance ordering: the request succeeds, the
+     * documents are right, and only the ordering is wrong, which is harder to notice than the cost it avoids.
+     */
+    public static final Setting<Long> INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING = Setting.longSetting(
+        "index.filter_aware_alias.filtered_stats.max_visible_docs",
+        -1L,
+        -1L,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
 
     /**
      * A computation that produces a value to cache on the first miss for a (segment, filter[, field|term]) key.

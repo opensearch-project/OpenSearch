@@ -56,6 +56,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -175,39 +176,9 @@ final class DefaultSearchContext extends SearchContext {
      * property so that {@code constant_score} remains the default {@code pre_filter} behavior. Set
      * {@code -Dopensearch.filter_aware_alias.filtered_stats=true} to opt in.
      */
-    static final String FILTERED_STATISTICS_PROPERTY = "opensearch.filter_aware_alias.filtered_stats";
-
-    /**
-     * Read on each call (not cached in a {@code static final}) so tests and operators can toggle the
-     * {@code filtered_stats} sub-behavior without a JVM restart. The property is the conservative gate
-     * that keeps {@code constant_score} the default {@code pre_filter} behavior until filtered statistics
-     * graduate to a first-class wire-level scoring mode.
-     */
-    static boolean filteredStatisticsEnabled() {
-        return Boolean.parseBoolean(System.getProperty(FILTERED_STATISTICS_PROPERTY, "false"));
-    }
-
-    /**
-     * Guardrail for {@code filtered_stats}: the maximum number of visible (alias-filter-matching) documents for which
-     * filtered statistics will be computed. Filtered statistics cost O(visible postings) to build the first time a
-     * segment is queried, so on a very large view that first query can be slow; above this budget we fall back to the
-     * {@code constant_score} behavior, which is leak-free and flat but unranked. {@code -1} disables the guardrail.
-     */
-    static final String FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY = "opensearch.filter_aware_alias.filtered_stats.max_visible_docs";
-
-    static final long FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT = 1_000_000L;
-
-    static long filteredStatisticsMaxVisibleDocs() {
-        try {
-            return Long.parseLong(
-                System.getProperty(
-                    FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY,
-                    Long.toString(FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT)
-                )
-            );
-        } catch (NumberFormatException e) {
-            return FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT;
-        }
+    long filteredStatisticsMaxVisibleDocs() {
+        final IndexSettings settings = indexService.getIndexSettings();
+        return settings == null ? -1L : settings.getValue(FilteredStatsCache.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING);
     }
 
     /**
@@ -536,7 +507,9 @@ final class DefaultSearchContext extends SearchContext {
 
         if (aliasFilter != null) {
             AliasFilter requestAliasFilter = request.getAliasFilter();
-            if (requestAliasFilter != null && requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER) {
+            if (requestAliasFilter != null
+                && (requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER
+                    || requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.FILTERED_STATS)) {
                 if (useFilteredStatistics()) {
                     // Pre-filter enforcement, filtered_stats scoring: keep real BM25 scoring but restrict the
                     // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
@@ -932,16 +905,13 @@ final class DefaultSearchContext extends SearchContext {
         // Filtered BM25 statistics apply only when an alias filter is present, the alias is enforced as a
         // pre_filter, and the filtered_stats scoring sub-behavior has been opted into. Otherwise we keep
         // whole-shard statistics (post_filter, or pre_filter with the default constant_score behavior).
-        if (filteredStatisticsEnabled() == false) {
-            return false;
-        }
         if (aliasFilter == null) {
             // No alias is governing this request. A plugin may still have declared the restriction it applied, which
             // is how document-level security gets visible-only statistics without going through an alias.
             return pluginVisibleSubsetFilter != null && withinFilteredStatisticsBudget();
         }
         AliasFilter requestAliasFilter = request.getAliasFilter();
-        if (requestAliasFilter == null || requestAliasFilter.getEnforcement() != AliasFilter.Enforcement.PRE_FILTER) {
+        if (requestAliasFilter == null || requestAliasFilter.getEnforcement() != AliasFilter.Enforcement.FILTERED_STATS) {
             return false;
         }
         return withinFilteredStatisticsBudget();
@@ -986,12 +956,16 @@ final class DefaultSearchContext extends SearchContext {
             }
             withinBudget = estimate <= maxVisibleDocs;
             if (withinBudget == false) {
-                logger.debug(
-                    "filtered_stats disabled for this request: alias filter matches ~{} docs, above the {} budget "
-                        + "({}); falling back to constant_score",
+                // Warn rather than debug: the request will succeed and return the right documents, but without
+                // relevance ordering, and nothing in the response says so. An operator who set the ceiling should be
+                // able to see when it is taking effect.
+                logger.warn(
+                    "filtered_stats fell back to constant_score for this request: the filter matches ~{} documents, "
+                        + "above the [{}] ceiling of {} configured on this index. Documents and access control are "
+                        + "unaffected; relevance ordering is not applied.",
                     estimate,
-                    maxVisibleDocs,
-                    FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY
+                    FilteredStatsCache.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING.getKey(),
+                    maxVisibleDocs
                 );
             }
         } catch (IOException e) {
