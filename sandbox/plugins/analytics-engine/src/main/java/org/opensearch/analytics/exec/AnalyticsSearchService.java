@@ -62,6 +62,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -185,6 +186,19 @@ public class AnalyticsSearchService implements AutoCloseable {
      */
     public BufferAllocator getImportStagingAllocator() {
         return importStagingAllocator;
+    }
+
+    /**
+     * The names (ids) of the analytics backends registered on this node, as discovered from the
+     * {@link AnalyticsSearchBackendPlugin} SPI extensions wired into {@link org.opensearch.analytics.AnalyticsPlugin}.
+     * Test-facing introspection accessor used by the sandbox internalClusterTest harness to assert that every backend
+     * (e.g. {@code datafusion}, {@code lucene}) is actually registered; production code dispatches by name through the
+     * private {@code backends} map rather than through this view.
+     *
+     * @opensearch.internal
+     */
+    public Set<String> getRegisteredBackendNames() {
+        return Set.copyOf(backends.keySet());
     }
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
