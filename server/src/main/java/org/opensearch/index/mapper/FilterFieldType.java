@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -112,6 +113,11 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public boolean isSearchable() {
         return delegate.isSearchable();
+    }
+
+    @Override
+    public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+        return delegate.isSearchableViaDocValues(indexSettings);
     }
 
     @Override
@@ -267,6 +273,41 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         delegate.setEagerGlobalOrdinals(eagerGlobalOrdinals);
+    }
+
+    @Override
+    public boolean isMultiValued() {
+        return delegate.isMultiValued();
+    }
+
+    @Override
+    public void setMultiValued(boolean multiValued) {
+        delegate.setMultiValued(multiValued);
+    }
+
+    @Override
+    public MultiValueState multiValueState() {
+        return delegate.multiValueState();
+    }
+
+    @Override
+    public void setMultiValueState(MultiValueState multiValueState) {
+        delegate.setMultiValueState(multiValueState);
+    }
+
+    @Override
+    public boolean isMultiValueAutoPromotionEnabled() {
+        return delegate.isMultiValueAutoPromotionEnabled();
+    }
+
+    @Override
+    public boolean isMultiValueSupported() {
+        return delegate.isMultiValueSupported();
+    }
+
+    @Override
+    public void setMultiValueSupported(boolean multiValueSupported) {
+        delegate.setMultiValueSupported(multiValueSupported);
     }
 
     @Override

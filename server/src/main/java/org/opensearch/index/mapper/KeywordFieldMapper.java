@@ -73,6 +73,7 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -175,6 +176,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Float> boost = Parameter.boostParam();
 
+        /**
+         * Declares this field multi-valued for columnar data formats. Lucene is inherently
+         * multi-valued, so the flag matters only to pluggable formats whose column type is
+         * fixed per file. A scalar field can promote to multi-valued when indexing first
+         * encounters a second stored value. The transition is one-way because existing LIST
+         * files cannot be interpreted as scalar columns.
+         */
+        private final Parameter<MappedFieldType.MultiValueState> multiValue = multiValueParameter();
+
         private final IndexAnalyzers indexAnalyzers;
         private final boolean canConsumeRawValueForSource;
 
@@ -182,6 +192,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.canConsumeRawValueForSource = canConsumeRawValueForSource;
+        }
+
+        public Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            boolean canConsumeRawValueForSource,
+            List<Parameter<?>> pluginParameters
+        ) {
+            this(name, indexAnalyzers, canConsumeRawValueForSource);
+            setPluginMappingParameters(pluginParameters);
         }
 
         public Builder(String name) {
@@ -210,22 +230,27 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
-                indexed,
-                hasDocValues,
-                stored,
-                nullValue,
-                eagerGlobalOrdinals,
-                ignoreAbove,
-                indexOptions,
-                hasNorms,
-                similarity,
-                useSimilarity,
-                normalizer,
-                splitQueriesOnWhitespace,
-                boost,
-                meta
+            List<Parameter<?>> parameters = new ArrayList<>(
+                Arrays.asList(
+                    indexed,
+                    hasDocValues,
+                    stored,
+                    nullValue,
+                    eagerGlobalOrdinals,
+                    ignoreAbove,
+                    indexOptions,
+                    hasNorms,
+                    similarity,
+                    useSimilarity,
+                    normalizer,
+                    splitQueriesOnWhitespace,
+                    boost,
+                    meta,
+                    multiValue
+                )
             );
+            parameters.addAll(pluginMappingParameters());
+            return List.copyOf(parameters);
         }
 
         protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
@@ -251,6 +276,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
@@ -271,16 +297,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(
-            n,
-            c.getIndexAnalyzers(),
-            Optional.ofNullable(c.mapperService())
-                .map(MapperService::getIndexSettings)
-                .map(IndexSettings::isPluggableDataFormatEnabled)
-                .orElse(false)
-        )
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        boolean pluggableDataFormatEnabled = Optional.ofNullable(c.mapperService())
+            .map(MapperService::getIndexSettings)
+            .map(IndexSettings::isPluggableDataFormatEnabled)
+            .orElse(false);
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, c.getIndexAnalyzers(), pluggableDataFormatEnabled, pluginParameters);
+    });
 
     @Override
     protected void canDeriveSourceInternal() {
@@ -343,6 +369,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             setIndexAnalyzer(normalizer);
             setBoost(builder.boost.getValue());
+            setMultiValueState(builder.multiValue.getValue());
+            setMultiValueSupported(true);
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.useSimilarity = builder.useSimilarity.getValue();
@@ -830,10 +858,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
+    private final MappedFieldType.MultiValueState multiValueState;
     private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
     private volatile boolean canConsumeRawValueForSource;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected KeywordFieldMapper(
         String simpleName,
@@ -856,10 +887,18 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
+        this.multiValueState = builder.multiValue.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
         this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
 
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     /**
@@ -886,7 +925,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     private KeywordFieldType buildRawKeywordValueFieldType() {
         if (isIneligibleForGeneratingSource() && canConsumeRawValueForSource) {
-            return new KeywordFieldType("_ignored_source." + fieldType().name(), false, true, false, false, fieldType().meta());
+            KeywordFieldType rawValueType = new KeywordFieldType(
+                "_ignored_source." + fieldType().name(),
+                false,
+                true,
+                false,
+                false,
+                fieldType().meta()
+            );
+            // The companion carries the pre-normalization values for derived source, so it must
+            // mirror the parent's multi-value state or source reconstruction would lose values.
+            rawValueType.setMultiValueState(multiValueState);
+            rawValueType.setMultiValueSupported(true);
+            return rawValueType;
         }
         return null;
     }
@@ -940,7 +991,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
         String value = parseKeyword(textValue);
         if (value != null) {
-            context.documentInput().addField(fieldType(), value);
+            addFieldForPluggableFormat(context, value);
         }
         // For derived source: store raw value separately when normalizer/ignore_above alters it.
         // Skip for multi-field sub-fields (name contains dot) — parent field stores the raw source.
@@ -1018,6 +1069,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, canConsumeRawValueForSource).init(this);
+        Builder builder = new Builder(simpleName(), indexAnalyzers, canConsumeRawValueForSource, mappingPluginParameters);
+        return builder.init(this);
     }
 }

@@ -10,20 +10,19 @@ package org.opensearch.wlm;
 
 import org.opensearch.wlm.stats.WorkloadGroupState;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class is used to decouple {@link WorkloadGroupService} and {@link org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService} to share the
  * {@link WorkloadGroupState}s
  */
 public class WorkloadGroupsStateAccessor {
-    // This map does not need to be concurrent since we will process the cluster state change serially and update
-    // this map with new additions and deletions of entries. WorkloadGroupState is thread safe
+    // Concurrent: the cluster-applier thread updates while request threads read.
     private final Map<String, WorkloadGroupState> workloadGroupStateMap;
 
     public WorkloadGroupsStateAccessor() {
-        this(new HashMap<>());
+        this(new ConcurrentHashMap<>());
     }
 
     public WorkloadGroupsStateAccessor(Map<String, WorkloadGroupState> workloadGroupStateMap) {
@@ -39,10 +38,14 @@ public class WorkloadGroupsStateAccessor {
 
     /**
      * return WorkloadGroupState for the given workloadGroupId
-     * @param workloadGroupId
+     * @param workloadGroupId may be null when a request carried no workload group header
      * @return WorkloadGroupState for the given workloadGroupId, if id is invalid return default workload group state
      */
     public WorkloadGroupState getWorkloadGroupState(String workloadGroupId) {
+        // ConcurrentHashMap rejects a null key, and an untagged request has no id; fall back to DEFAULT.
+        if (workloadGroupId == null) {
+            return workloadGroupStateMap.get(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
+        }
         return workloadGroupStateMap.getOrDefault(
             workloadGroupId,
             workloadGroupStateMap.get(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())

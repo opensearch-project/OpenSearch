@@ -73,10 +73,26 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
         return Collections.emptyMap();
     }
 
+    /**
+     * Whether to force the MPP distributed path on every query. Default {@code false} — the suite verifies
+     * the coordinator-centric multi-shard reduce. A subclass returning {@code true} (with the tiny
+     * {@code analytics.mpp.distribute.min_rows} floor) drives the same query families through the
+     * distribution-enforcement pass + reduce-stage substrait emit, guarding the MPP-reduce shapes
+     * (percentile literal, HLL partial-state typing, computed-column type drift).
+     */
+    protected boolean forceMpp() {
+        return false;
+    }
+
     // ── provisioning ────────────────────────────────────────────────────────────
 
     @Override
     protected void onBeforeQuery() throws IOException {
+        if (forceMpp()) {
+            Request mpp = new Request("PUT", "/_cluster/settings");
+            mpp.setJsonEntity("{\"transient\":{\"analytics.mpp.enabled\": true, \"analytics.mpp.distribute.min_rows\": 1}}");
+            client().performRequest(mpp);
+        }
         if (provisioned == false) {
             DatasetProvisioner.provision(client(), BASELINE, 1);
             DatasetProvisioner.provision(client(), SHARDED, 2);
@@ -85,6 +101,18 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
             assertShardsPopulated(INDEX_2SHARD, 2);
             provisioned = true;
         }
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        // Reset the cluster-wide MPP transient a forceMpp() subclass applied, so it does not leak onto
+        // sibling test classes on the shared cluster (see TpchPplIT for the same hygiene).
+        if (forceMpp()) {
+            Request reset = new Request("PUT", "/_cluster/settings");
+            reset.setJsonEntity("{\"transient\":{\"analytics.mpp.enabled\": null, \"analytics.mpp.distribute.min_rows\": null}}");
+            client().performRequest(reset);
+        }
+        super.tearDown();
     }
 
     // ── the test ──────────────────────────────────────────────────────────────────

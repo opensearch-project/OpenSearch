@@ -41,7 +41,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchProject extends Project implements OpenSearchRelNode {
+public class OpenSearchProject extends Project implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
 
@@ -143,6 +143,52 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
             }
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * A row-wise project imposes no partitioning requirement on its input (it neither needs nor breaks a
+     * distribution) — returns {@code null} so the input keeps whatever distribution it derived. A
+     * window-bearing project ({@code RexOver}) or a {@code pinAboveExchange} project needs fully-gathered
+     * input (global window frame / coordinator-pinned literal), so it requires {@code COORDINATOR+SINGLETON}.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        if (inputIndex != 0) {
+            return null;
+        }
+        if (!containsOver() && !pinAboveExchange) {
+            return null;
+        }
+        return traitDef.coordSingleton();
+    }
+
+    /**
+     * A plain project passes the child's distribution through, REMAPPED to output columns: a hash key at
+     * input column {@code k} moves to wherever the projection places {@code k} (and degrades to ANY if the
+     * projection drops it) — exactly {@link OpenSearchDistribution#apply} over the project's
+     * {@code getPartialMapping}. A window/pinned project gathered its input to SINGLETON, so its output is
+     * SINGLETON. Returns {@code null} when the child distribution is unknown.
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        if (childDistributions.size() != 1 || childDistributions.get(0) == null) {
+            return null;
+        }
+        OpenSearchDistribution childDist = childDistributions.get(0);
+        if (containsOver() || pinAboveExchange) {
+            return traitDef.coordSingleton();
+        }
+        org.apache.calcite.util.mapping.Mappings.TargetMapping mapping = Project.getPartialMapping(
+            getInput().getRowType().getFieldCount(),
+            getProjects()
+        );
+        org.apache.calcite.rel.RelDistribution remapped = childDist.apply(mapping);
+        return remapped instanceof OpenSearchDistribution osDist ? osDist : null;
     }
 
     @Override

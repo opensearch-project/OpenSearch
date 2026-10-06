@@ -52,6 +52,8 @@ import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.DynamicFieldTypeInferencer;
+import org.opensearch.index.mapper.DynamicTemplateTypeHandler;
 import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
@@ -94,6 +96,7 @@ import org.opensearch.plugins.MapperPlugin;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,9 +117,85 @@ public class IndicesModule extends AbstractModule {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins)
+            getFieldFilter(mapperPlugins),
+            getDynamicFieldTypeInferencers(mapperPlugins),
+            getDynamicTemplateTypes(mapperPlugins)
         );
         registerBuiltinWritables();
+    }
+
+    /**
+     * Collects dynamic field type inferencers from all mapper plugins in registration order, binding
+     * each inferencer to the set of mapper type strings it declared via
+     * {@link DynamicFieldTypeInferencer#supportedTypes()}. The binding lets {@code DocumentParser}
+     * enforce that an inferencer only produces a type it declared — so it cannot emit a core built-in
+     * type, a type owned by another plugin, or a type a sibling inferencer in the same plugin owns.
+     *
+     * <p>Each declared type is validated at startup: it must be non-empty and every type must be
+     * registered by the <em>same</em> plugin via {@link MapperPlugin#getMappers()} (the registry the
+     * inferred type is later resolved and built through). An inferencer that declares nothing, or a type
+     * its plugin does not register, is a configuration error and fails node startup loudly rather than
+     * silently claiming and then dropping fields at index time.
+     */
+    private static Map<DynamicFieldTypeInferencer, Set<String>> getDynamicFieldTypeInferencers(List<MapperPlugin> mapperPlugins) {
+        Map<DynamicFieldTypeInferencer, Set<String>> inferencers = new LinkedHashMap<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            Set<String> registeredTypes = mapperPlugin.getMappers().keySet();
+            for (DynamicFieldTypeInferencer inferencer : mapperPlugin.getDynamicFieldTypeInferencers()) {
+                Set<String> supportedTypes = Set.copyOf(inferencer.supportedTypes());
+                if (supportedTypes.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "dynamic field type inferencer ["
+                            + inferencer.getClass().getName()
+                            + "] registered by ["
+                            + mapperPlugin.getClass().getName()
+                            + "] declares no supported types; supportedTypes() must return at least one type"
+                    );
+                }
+                for (String supportedType : supportedTypes) {
+                    if (registeredTypes.contains(supportedType) == false) {
+                        throw new IllegalArgumentException(
+                            "dynamic field type inferencer ["
+                                + inferencer.getClass().getName()
+                                + "] registered by ["
+                                + mapperPlugin.getClass().getName()
+                                + "] declares supported type ["
+                                + supportedType
+                                + "] that the plugin does not register via getMappers()"
+                        );
+                    }
+                }
+                inferencers.put(inferencer, supportedTypes);
+            }
+        }
+        return inferencers;
+    }
+
+    /** Merges dynamic template type handlers from all mapper plugins; throws if two plugins register the same type string. */
+    private static Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes(List<MapperPlugin> mapperPlugins) {
+        Map<String, DynamicTemplateTypeHandler> templateTypes = new LinkedHashMap<>();
+        // Tracks which plugin registered each type so a collision can name both plugins involved.
+        Map<String, String> registeredBy = new HashMap<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            String pluginName = mapperPlugin.getClass().getName();
+            Map<String, DynamicTemplateTypeHandler> pluginTypes = mapperPlugin.getDynamicTemplateTypes();
+            for (Map.Entry<String, DynamicTemplateTypeHandler> entry : pluginTypes.entrySet()) {
+                if (templateTypes.containsKey(entry.getKey())) {
+                    throw new IllegalArgumentException(
+                        "dynamic template type ["
+                            + entry.getKey()
+                            + "] is registered by both ["
+                            + registeredBy.get(entry.getKey())
+                            + "] and ["
+                            + pluginName
+                            + "]"
+                    );
+                }
+                templateTypes.put(entry.getKey(), entry.getValue());
+                registeredBy.put(entry.getKey(), pluginName);
+            }
+        }
+        return templateTypes;
     }
 
     private void registerBuiltinWritables() {

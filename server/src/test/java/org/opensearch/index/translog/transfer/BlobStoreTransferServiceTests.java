@@ -24,7 +24,9 @@ import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -54,6 +56,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -135,6 +138,86 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());
+    }
+
+    public void testUploadBlobAsyncUsesSnapshotSuppliedPartStreams() throws IOException, InterruptedException {
+        // The file on disk holds one payload; the snapshot's supplier serves a different one. The async
+        // upload must take its parts from the supplier, so a snapshot that transforms its bytes is honoured
+        // without the transfer service reading -- and therefore buffering -- the file itself.
+        // Named like a first-generation translog so the checksum assert in uploadBlob is satisfied.
+        Path testFile = createTempFile("translog-1.", ".tlog");
+        Files.write(testFile, "on-disk-bytes".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+        byte[] supplied = "supplied-bytes".getBytes(StandardCharsets.UTF_8);
+
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        ) {
+            @Override
+            public RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier() {
+                return (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput("supplied", supplied), size, position);
+            }
+
+            @Override
+            public long getContentLength() {
+                return supplied.length;
+            }
+        };
+
+        BlobStore blobStore = createTestBlobStore();
+        MockAsyncFsContainer mockAsyncFsContainer = new MockAsyncFsContainer((FsBlobStore) blobStore, BlobPath.cleanPath(), null);
+        FsBlobStore fsBlobStore = mock(FsBlobStore.class);
+        when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
+
+        BlobStoreTransferService transferServiceSpy = Mockito.spy(new BlobStoreTransferService(fsBlobStore, threadPool));
+        CountDownLatch latch = new CountDownLatch(1);
+        transferServiceSpy.uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(transferFileSnapshot.getPrimaryTerm(), BlobPath.cleanPath()),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Failed to upload blob", e);
+                }
+            }, latch),
+            WritePriority.HIGH,
+            null
+        );
+        assertTrue(latch.await(5000, TimeUnit.MILLISECONDS));
+
+        ArgumentCaptor<RemoteTransferContainer.OffsetRangeInputStreamSupplier> supplierCaptor = ArgumentCaptor.forClass(
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier.class
+        );
+        ArgumentCaptor<Long> contentLengthCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(transferServiceSpy).uploadBlobAsyncInternal(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            contentLengthCaptor.capture(),
+            Mockito.any(),
+            Mockito.any(),
+            supplierCaptor.capture(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any()
+        );
+
+        assertEquals(
+            "Length must come from the snapshot, not the file on disk",
+            supplied.length,
+            contentLengthCaptor.getValue().longValue()
+        );
+        try (OffsetRangeInputStream whole = supplierCaptor.getValue().get(supplied.length, 0)) {
+            assertEquals("supplied-bytes", new String(whole.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        // A part from a non-zero offset, which is what a multipart upload actually requests.
+        try (OffsetRangeInputStream part = supplierCaptor.getValue().get(5, 9)) {
+            assertEquals("bytes", new String(part.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     public void testUploadBlobFromInputStreamSyncFSRepo() throws IOException, InterruptedException {

@@ -67,6 +67,12 @@ pub struct DatafusionQueryConfig {
     pub force_strategy: Option<FilterStrategy>,
     pub cost_predicate: u32,
     pub cost_collector: u32,
+    /// Whether the physical planner prefers a hash join over a sort-merge join for equi-joins
+    /// (DataFusion's `optimizer.prefer_hash_join`). Only consulted on hash-shuffle WORKER sessions
+    /// today: the coordinator sets it `false` for a large-build worker join so DataFusion emits a
+    /// spillable `SortMergeJoinExec` instead of the non-spillable `HashJoinExec` build.
+    /// `true` everywhere else preserves the hash-join default.
+    pub prefer_hash_join: bool,
 }
 
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
@@ -90,6 +96,9 @@ pub struct WireDatafusionQueryConfig {
     pub force_strategy: i32,
     pub cost_predicate: i32,
     pub cost_collector: i32,
+    /// 0 = false (prefer sort-merge join), 1 = true (prefer hash join). See
+    /// [`DatafusionQueryConfig::prefer_hash_join`].
+    pub prefer_hash_join: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -108,6 +117,7 @@ impl DatafusionQueryConfig {
             force_strategy: None,
             cost_predicate: 1,
             cost_collector: 10,
+            prefer_hash_join: true,
         }
     }
 
@@ -157,6 +167,7 @@ impl DatafusionQueryConfig {
             },
             cost_predicate: w.cost_predicate as u32,
             cost_collector: w.cost_collector as u32,
+            prefer_hash_join: w.prefer_hash_join != 0,
         }
     }
 }
@@ -205,6 +216,10 @@ impl DatafusionQueryConfigBuilder {
         self.0.cost_collector = v;
         self
     }
+    pub fn prefer_hash_join(mut self, v: bool) -> Self {
+        self.0.prefer_hash_join = v;
+        self
+    }
     pub fn build(self) -> DatafusionQueryConfig {
         self.0
     }
@@ -226,6 +241,7 @@ mod tests {
         assert_eq!(c.force_strategy, None);
         assert_eq!(c.cost_predicate, 1);
         assert_eq!(c.cost_collector, 10);
+        assert!(c.prefer_hash_join);
     }
 
     #[test]
@@ -264,6 +280,7 @@ mod tests {
             force_strategy: 1,
             cost_predicate: 3,
             cost_collector: 17,
+            prefer_hash_join: 0,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
@@ -276,6 +293,7 @@ mod tests {
         assert_eq!(c.force_strategy, Some(FilterStrategy::BooleanMask));
         assert_eq!(c.cost_predicate, 3);
         assert_eq!(c.cost_collector, 17);
+        assert!(!c.prefer_hash_join);
     }
 
     #[test]
@@ -290,6 +308,7 @@ mod tests {
             force_strategy: -1,
             cost_predicate: 1,
             cost_collector: 10,
+            prefer_hash_join: 1,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };

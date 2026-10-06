@@ -31,6 +31,7 @@ use std::sync::Arc;
 use datafusion::physical_expr::PhysicalExpr;
 
 use super::index::RowGroupDocsCollector;
+use crate::indexed_table::index::CollectDocsResult;
 
 /// A node in the boolean query tree (unresolved).
 #[derive(Debug, Clone)]
@@ -100,6 +101,33 @@ impl BoolNode {
             BoolNode::Collector { .. } => 1,
             BoolNode::DelegationPossible { .. } => 0,
             BoolNode::Predicate(_) => 0,
+        }
+    }
+
+    /// Whether every row this tree can emit is guaranteed to pass through a
+    /// correctness `Collector`, so deleted docs are already excluded and no
+    /// synthetic live-docs Collector needs to be injected (see
+    /// `inject_live_docs_collector`). Coverage is decided over this executor's
+    /// bitmap-composition model, where the per-RG candidate universe still
+    /// contains deleted docs:
+    /// - `Collector` leaf: covered — its bitmap is live-docs-filtered on the
+    ///   Java side (`collectDocs` applies the segment's liveDocs).
+    /// - `DelegationPossible` / `Predicate` leaf: not covered — evaluated by the
+    ///   driving backend over a universe that still includes deleted docs.
+    /// - `And`: covered if ANY child is covered (intersection with a live-only
+    ///   set removes deleted docs regardless of the other operands).
+    /// - `Or`: covered only if ALL children are covered (the union re-admits
+    ///   deleted docs through any uncovered branch).
+    /// - `Not`: never covered — a `NOT` inverts against the RG universe, so a
+    ///   `NOT(Collector)` re-admits the deleted docs the collector had excluded.
+    ///   Coverage is only recovered by a covered sibling under an enclosing AND.
+    pub fn is_covered_by_live_docs(&self) -> bool {
+        match self {
+            BoolNode::Collector { .. } => true,
+            BoolNode::DelegationPossible { .. } | BoolNode::Predicate(_) => false,
+            BoolNode::And(children) => children.iter().any(|c| c.is_covered_by_live_docs()),
+            BoolNode::Or(children) => children.iter().all(|c| c.is_covered_by_live_docs()),
+            BoolNode::Not(_) => false,
         }
     }
 
@@ -463,6 +491,7 @@ pub fn residual_bool_to_physical_expr(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::common::ScalarValue;
@@ -473,8 +502,8 @@ mod tests {
     #[derive(Debug)]
     struct StubCollector(u8);
     impl RowGroupDocsCollector for StubCollector {
-        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-            Ok(vec![self.0 as u64])
+        fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<CollectDocsResult, String> {
+            Ok(vec![self.0 as u64].into())
         }
     }
 

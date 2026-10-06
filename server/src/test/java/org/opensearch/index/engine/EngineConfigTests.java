@@ -12,10 +12,18 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class EngineConfigTests extends OpenSearchTestCase {
 
@@ -60,6 +68,27 @@ public class EngineConfigTests extends OpenSearchTestCase {
         );
         EngineConfig engineConfig = createReadOnlyEngine(indexSettings);
         assertTrue(engineConfig.isReadOnlyReplica());
+    }
+
+    public void testEngineConfig_ToBuilderRoundTripPreservesFields() {
+        DataFormatRegistry dataFormatRegistry = mock(DataFormatRegistry.class);
+        MapperService mapperService = mock(MapperService.class);
+        CommitterFactory committerFactory = mock(CommitterFactory.class);
+        Map<String, FormatChecksumStrategy> checksumStrategies = Map.of("test-format", mock(FormatChecksumStrategy.class));
+
+        EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .dataFormatRegistry(dataFormatRegistry)
+            .mapperService(mapperService)
+            .committerFactory(committerFactory)
+            .checksumStrategies(checksumStrategies)
+            .build();
+
+        EngineConfig copy = config.toBuilder().build();
+        assertSame(dataFormatRegistry, copy.getDataFormatRegistry());
+        assertSame(mapperService, copy.getMapperService());
+        assertSame(committerFactory, copy.getCommitterFactory());
+        assertSame(checksumStrategies, copy.getChecksumStrategies());
     }
 
     private EngineConfig createReadOnlyEngine(IndexSettings indexSettings) {

@@ -51,7 +51,8 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
             chosenBytes(stage),
             config.bufferAllocator(),
             buildChildInputs(stage),
-            sink
+            sink,
+            config.importStagingAllocator()
         );
 
         // Apply instruction handlers for the reduce stage.

@@ -296,6 +296,8 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                             "Delete operation is missing ID. Skipping message."
                         );
                     } else {
+                        // TODO: routing is not available from the ingestion message; if pull-based
+                        // ingestion adds routing support, thread it through here as well.
                         operation = new Engine.Delete(
                             id,
                             new Term(IdFieldMapper.NAME, Uid.encodeId(id)),

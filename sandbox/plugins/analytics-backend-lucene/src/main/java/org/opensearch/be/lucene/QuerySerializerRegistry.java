@@ -21,11 +21,13 @@ import org.opensearch.be.lucene.serializers.MatchPhraseSerializer;
 import org.opensearch.be.lucene.serializers.MatchSerializer;
 import org.opensearch.be.lucene.serializers.MultiMatchSerializer;
 import org.opensearch.be.lucene.serializers.NotEqualsSerializer;
+import org.opensearch.be.lucene.serializers.PrefixQuerySerializer;
 import org.opensearch.be.lucene.serializers.QuerySerializer;
 import org.opensearch.be.lucene.serializers.QueryStringSerializer;
 import org.opensearch.be.lucene.serializers.RegexpSerializer;
 import org.opensearch.be.lucene.serializers.SargSerializer;
 import org.opensearch.be.lucene.serializers.SimpleQueryStringSerializer;
+import org.opensearch.be.lucene.serializers.WildcardQueryDslSerializer;
 import org.opensearch.be.lucene.serializers.WildcardQuerySerializer;
 
 import java.util.Map;
@@ -46,6 +48,8 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.QUERY_STRING, new QueryStringSerializer()),
         Map.entry(ScalarFunction.SIMPLE_QUERY_STRING, new SimpleQueryStringSerializer()),
         Map.entry(ScalarFunction.WILDCARD_QUERY, new WildcardQuerySerializer()),
+        Map.entry(ScalarFunction.PREFIX_QUERY, new PrefixQuerySerializer()),
+        Map.entry(ScalarFunction.WILDCARD_QUERY_DSL, new WildcardQueryDslSerializer()),
         Map.entry(ScalarFunction.QUERY, new QuerySerializer()),
         Map.entry(ScalarFunction.MATCHALL, new MatchAllSerializer()),
         Map.entry(ScalarFunction.EQUALS, new EqualsSerializer()),

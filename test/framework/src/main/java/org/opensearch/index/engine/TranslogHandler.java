@@ -158,6 +158,7 @@ public class TranslogHandler implements TranslogRecoveryRunner {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 return engine.prepareDelete(
                     delete.id(),
+                    delete.routing(),
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
