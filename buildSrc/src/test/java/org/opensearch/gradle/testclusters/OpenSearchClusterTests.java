@@ -173,9 +173,10 @@ public class OpenSearchClusterTests extends GradleUnitTestCase {
         try {
             run.beforeStart();
 
-            OpenSearchNode node = cluster.getFirstNode();
-            assertEquals("10000", node.getHttpPort());
-            assertEquals("10100", node.getTransportPort());
+            List<OpenSearchNode> nodes = List.copyOf(cluster.getNodes());
+
+            assertEquals(List.of("10000"), nodes.stream().map(OpenSearchNode::getHttpPort).collect(Collectors.toList()));
+            assertEquals(List.of("11000"), nodes.stream().map(OpenSearchNode::getTransportPort).collect(Collectors.toList()));
         } finally {
             System.clearProperty("tests.opensearch.http.port");
             System.clearProperty("tests.opensearch.transport.port");
