@@ -154,17 +154,17 @@ public class RunTask extends DefaultTestClustersTask {
         boolean httpPortOverridden = additionalSettings.containsKey("http.port");
         boolean transportPortOverridden = additionalSettings.containsKey("transport.port");
         final Function<OpenSearchNode, Path> getDataPath;
+        // To avoid multi-node setups having duplicate ports, we drop the ports from additional settings & math it out
+        if (httpPortOverridden) {
+            httpPort = Integer.parseInt(additionalSettings.remove("http.port"));
+        }
+        if (transportPortOverridden) {
+            transportPort = Integer.parseInt(additionalSettings.remove("transport.port"));
+        }
         if (singleNode) {
             getDataPath = n -> dataDir;
         } else {
             getDataPath = n -> dataDir.resolve(n.getName());
-            // Multi-node: extract port overrides to use as starting point, don't apply to each node
-            if (httpPortOverridden) {
-                httpPort = Integer.parseInt(additionalSettings.remove("http.port"));
-            }
-            if (transportPortOverridden) {
-                transportPort = Integer.parseInt(additionalSettings.remove("transport.port"));
-            }
         }
 
         for (OpenSearchCluster cluster : getClusters()) {
