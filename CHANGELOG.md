@@ -12,6 +12,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Deprecated
 ### Removed
 ### Fixed
+- Fix `addEmptyBuckets` from creating too many buckets when given big extended bounds ([#17718](https://github.com/opensearch-project/OpenSearch/pull/17718))
+
 ### Security
 
 [Unreleased 1.3.x]: https://github.com/opensearch-project/OpenSearch/compare/1.3.20...HEAD
