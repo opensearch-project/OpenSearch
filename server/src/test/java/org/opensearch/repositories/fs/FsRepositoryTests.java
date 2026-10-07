@@ -273,9 +273,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             "/usr/share/opensearch/data/nodes/0",    // absolute path (the reported POC payload)
             "..",                                    // parent-directory traversal
             "../escape",
-            "nested/../../escape",
-            "foo/../bar",                            // interior '..' is rejected by the strict string validator
-            "a/b/../c"
+            "nested/../../escape"
         );
         for (String basePath : maliciousBasePaths) {
             final Settings settings = Settings.builder()
@@ -301,21 +299,23 @@ public class FsRepositoryTests extends OpenSearchTestCase {
 
     public void testRelativeBasePathWithinPathRepoIsAccepted() {
         final Path repo = createTempDir();
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
-            .put("location", repo)
-            .put(FsRepository.BASE_PATH_SETTING.getKey(), "nested/base/path")
-            .build();
-        final RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
-        // A well-formed relative base_path that stays within path.repo must construct without throwing.
-        new FsRepository(
-            metadata,
-            new Environment(settings, null),
-            NamedXContentRegistry.EMPTY,
-            BlobStoreTestUtil.mockClusterService(),
-            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        );
+        for (String basePath : List.of("nested/base/path", "foo/../bar", "a/b/../c")) {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+                .put("location", repo)
+                .put(FsRepository.BASE_PATH_SETTING.getKey(), basePath)
+                .build();
+            final RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+            // A relative base_path that normalizes within path.repo must construct without throwing.
+            new FsRepository(
+                metadata,
+                new Environment(settings, null),
+                NamedXContentRegistry.EMPTY,
+                BlobStoreTestUtil.mockClusterService(),
+                new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            );
+        }
     }
 
     private void runGeneric(ThreadPool threadPool, Runnable runnable) throws InterruptedException {

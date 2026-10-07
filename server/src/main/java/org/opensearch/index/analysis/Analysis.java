@@ -69,6 +69,7 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
@@ -274,7 +275,8 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     private static List<String> getWordList(Environment env, Settings settings, String settingPath, String settingList) {
-        String wordListPath = settings.get(settingPath, null);
+        final Setting<String> pathSetting = Setting.relativePathSetting(settingPath);
+        String wordListPath = pathSetting.exists(settings) ? pathSetting.get(settings) : null;
 
         if (wordListPath == null) {
             return settings.getAsList(settingList, null);
@@ -319,7 +321,8 @@ public class Analysis {
      *          If the Reader can not be instantiated.
      */
     public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
-        String filePath = settings.get(settingPrefix, null);
+        final Setting<String> pathSetting = Setting.relativePathSetting(settingPrefix);
+        String filePath = pathSetting.exists(settings) ? pathSetting.get(settings) : null;
 
         if (filePath == null) {
             return null;
