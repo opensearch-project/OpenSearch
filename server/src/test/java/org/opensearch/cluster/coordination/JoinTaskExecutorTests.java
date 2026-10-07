@@ -86,6 +86,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -252,6 +254,43 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     public void testIsBecomeClusterManagerTask() {
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
         assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
+    }
+
+    public void testPreservesPrimaryTermsWhenBecomingClusterManager() throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.disassociateDeadNodes(any(), eq(false), anyString())).thenAnswer(invocation -> {
+            final ClusterState state = invocation.getArgument(0);
+            final IndexMetadata indexMetadata = IndexMetadata.builder(state.metadata().index("test")).primaryTerm(0, 2L).build();
+            return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(indexMetadata, false)).build();
+        });
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocation -> invocation.getArgument(0));
+
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            mock(RemoteStoreNodeService.class)
+        );
+        final DiscoveryNode localNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .primaryTerm(0, 1L)
+            .build();
+        final ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            currentState,
+            List.of(JoinTaskExecutor.newBecomeClusterManagerTask(), JoinTaskExecutor.newFinishElectionTask())
+        );
+
+        assertEquals(2L, result.resultingState.metadata().index("test").primaryTerm(0));
     }
 
     public void testJoinClusterWithNoDecommission() {
