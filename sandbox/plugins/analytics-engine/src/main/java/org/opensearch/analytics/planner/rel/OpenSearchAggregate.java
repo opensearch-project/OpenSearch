@@ -18,6 +18,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexLiteral;
@@ -469,9 +470,23 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
         );
     }
 
+    /**
+     * Hint carried on the stripped {@link LogicalAggregate} of a FINAL-mode aggregate so backend
+     * rewriters that run after stripping can still tell the coordinator-side merge half apart from
+     * the PARTIAL half. Hints are not part of the Calcite digest and survive {@code copy}, so this
+     * is a pure side-channel for the fragment convertor.
+     */
+    public static final String FINAL_MODE_HINT = "OPENSEARCH_AGGREGATE_FINAL";
+
+    /** True when {@code aggregate} is a stripped FINAL-mode {@link OpenSearchAggregate}. */
+    public static boolean isFinalMode(Aggregate aggregate) {
+        return aggregate.getHints().stream().anyMatch(hint -> FINAL_MODE_HINT.equals(hint.hintName));
+    }
+
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
         // Annotations live out-of-band; the aggCall list passes through unchanged.
-        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(), getGroupSet(), getGroupSets(), getAggCallList());
+        List<RelHint> hints = mode == AggregateMode.FINAL ? List.of(RelHint.builder(FINAL_MODE_HINT).build()) : List.of();
+        return LogicalAggregate.create(strippedChildren.getFirst(), hints, getGroupSet(), getGroupSets(), getAggCallList());
     }
 }

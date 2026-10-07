@@ -28,13 +28,12 @@ import java.util.TreeMap;
  *       three rows. An absent field yields a single {@code null} row; an empty array yields none.</li>
  * </ul>
  *
- * <p>Multi-shard grouping by a LIST key, {@code list()}/{@code values()} over a LIST input, and
- * {@code dc()} over a LIST are known gaps and are pinned with {@link AwaitsFix} so the suite
- * documents them until the linked issues are fixed.
+ * <p>{@code list()}/{@code values()} over a LIST input and {@code dc()} over a LIST are known
+ * gaps and are pinned with {@link AwaitsFix} so the suite documents them until the linked
+ * issues are fixed.
  */
 public class MultiValueAggregationIT extends MultiValueRestTestCase {
 
-    private static final String MULTI_SHARD_GROUP_BY_ISSUE = "https://github.com/opensearch-project/OpenSearch/issues/23057";
     private static final String LIST_VALUES_OVER_LIST_ISSUE = "https://github.com/opensearch-project/OpenSearch/issues/23058";
     private static final String DC_OVER_LIST_ISSUE = "https://github.com/opensearch-project/OpenSearch/issues/23059";
 
@@ -131,9 +130,8 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
         );
     }
 
-    // ---- known gaps: multi-shard GROUP BY on a LIST key --------------------------------------
+    // ---- multi-shard GROUP BY on a LIST key (coordinator reduce stage) ----------------------
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testCountByListFieldTwoShards() throws Exception {
         Map<String, Number> groups = groups(
             executePpl("source = " + TWO_SHARD_INDEX + " | stats count() as cnt by tags"),
@@ -143,7 +141,6 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
         assertEquals(EXPECTED_TAG_COUNTS, nonNullCounts(groups));
     }
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testSqlGroupByListAndScalarTwoShards() throws Exception {
         Map<String, Number> groups = groups(
             executeSql("SELECT tags, region, SUM(latency) AS total FROM " + TWO_SHARD_INDEX + " GROUP BY tags, region"),
@@ -157,7 +154,6 @@ public class MultiValueAggregationIT extends MultiValueRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = MULTI_SHARD_GROUP_BY_ISSUE)
     public void testOneShardAndTwoShardAggregatesAgree() throws Exception {
         List<String> queries = List.of(
             " | stats count() as v by tags",

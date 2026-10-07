@@ -177,7 +177,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // An optimization can be done as this will get invoked
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
-        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
+            .findFirst();
         Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
             .values()
             .stream()
@@ -231,7 +235,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
 
-                    if ((remoteDN.isEmpty() && node.isRemoteStoreNode())
+                    if ((remoteDN.isEmpty() && node.isRemoteSegmentStoreNode())
                         || (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled())) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
