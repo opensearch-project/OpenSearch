@@ -107,6 +107,31 @@ def registerCratePatch = { String crateName, String version, String patchFileNam
             if (!patchFile.exists() || !shaFile.exists()) {
                 throw new GradleException("Missing patch inputs:\n  ${patchFile}\n  ${shaFile}")
             }
+            // Cargo only WARNS when a [patch.crates-io] entry does not match the dependency
+            // requirement, then silently builds the UNPATCHED crate. For the infer_schema patch that
+            // failure is invisible: the crate compiles fine and the +30ms/query page-index reload just
+            // comes back. So assert the two agree and fail loudly. (This guard existed per-crate before
+            // the generalisation to registerCratePatch; restored here so it covers every patched crate.)
+            def manifestText = new File(rustWorkspaceDir, 'Cargo.toml').text
+            def quoted = java.util.regex.Pattern.quote(crateName)
+            // Matches either `crate = { version = "X", .. }` or `crate = "X"`.
+            def declared = null
+            [/(?m)^\s*${quoted}\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/,
+             /(?m)^\s*${quoted}\s*=\s*"([^"]+)"/].each { pat ->
+                if (declared == null) {
+                    def m = java.util.regex.Pattern.compile(pat).matcher(manifestText)
+                    if (m.find()) { declared = m.group(1) }
+                }
+            }
+            // A crate declared ONLY as a [patch.crates-io] path dep has no version requirement to
+            // cross-check; there the sha256 gate remains the sole guard.
+            if (declared != null && declared.replaceFirst(/^=/, '') != version) {
+                throw new GradleException(
+                    "${crateName} version mismatch: Cargo.toml requires '${declared}' but this task " +
+                    "patches ${version}.\nUpdate the registerCratePatch('${crateName}', ...) version in " +
+                    "build.gradle, the [patch.crates-io] path in Cargo.toml, and regenerate " +
+                    "patches/${crateName}-*.patch and patches/${crateName}-*.crate.sha256.")
+            }
             crateDownloadDir.mkdirs()
             def tarball = new File(crateDownloadDir, "${crateName}-${version}.crate")
             if (!tarball.exists()) {
