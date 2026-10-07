@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
@@ -79,7 +80,15 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        return new FieldCapabilitiesResponse(indices, responses);
+        return new FieldCapabilitiesResponse(indices, responses, randomFailures());
+    }
+
+    private static Map<String, Exception> randomFailures() {
+        Map<String, Exception> failures = new HashMap<>();
+        for (int i = randomIntBetween(0, 3); i > 0; i--) {
+            failures.put(randomAlphaOfLengthBetween(5, 10), new NoShardAvailableActionException(null, randomAlphaOfLength(10)));
+        }
+        return failures;
     }
 
     @Override
@@ -91,7 +100,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
     protected FieldCapabilitiesResponse mutateInstance(FieldCapabilitiesResponse response) {
         Map<String, Map<String, FieldCapabilities>> mutatedResponses = new HashMap<>(response.get());
 
-        int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
+        int mutation = response.get().isEmpty() ? randomFrom(0, 3) : randomIntBetween(0, 3);
 
         switch (mutation) {
             case 0:
@@ -112,8 +121,18 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
                 );
                 break;
+            case 3:
+                Map<String, Exception> failures = new HashMap<>(response.getFailures());
+                failures.put(randomAlphaOfLength(11), new NoShardAvailableActionException(null, "unavailable"));
+                return new FieldCapabilitiesResponse(response.getIndices(), response.get(), failures);
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        return new FieldCapabilitiesResponse(null, mutatedResponses, response.getFailures());
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        // A parsed failure renders its reason differently; equals() still compares the rest.
+        return false;
     }
 
     @Override
@@ -121,7 +140,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         // Disallow random fields from being inserted under the 'fields' key, as this
         // map only contains field names, and also under 'fields.FIELD_NAME', as these
         // maps only contain type names.
-        return field -> field.matches("fields(\\.\\w+)?");
+        return field -> field.matches("fields(\\.\\w+)?") || field.startsWith("failures");
     }
 
     public void testToXContent() throws IOException {
@@ -199,7 +218,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
 
         FieldCapabilitiesResponse parsed = copyViaXContent(response);
 
-        assertArrayEquals(new String[] { "index2" }, parsed.getFailedIndices());
+        assertEquals(Set.of("index2"), parsed.getFailures().keySet());
         assertTrue(parsed.getFailures().get("index2").getMessage().contains("no shard available"));
     }
 
@@ -211,7 +230,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         );
 
         FieldCapabilitiesResponse current = copyInstance(response, Version.CURRENT);
-        assertArrayEquals(new String[] { "index2" }, current.getFailedIndices());
+        assertEquals(Set.of("index2"), current.getFailures().keySet());
         assertEquals("no shard available", current.getFailures().get("index2").getMessage());
 
         Version older = VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, VersionUtils.getPreviousVersion(Version.V_3_10_0));

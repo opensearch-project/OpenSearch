@@ -253,7 +253,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
 
         private volatile int shardIndex = 0;
         private volatile int unmatchedShards = 0;
-        private volatile Exception lastFailure;
+        private volatile Exception shardFailure;
+        private volatile Exception unansweredFailure;
 
         private AsyncShardsAction(FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
             this.listener = listener;
@@ -274,7 +275,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                 throw blockException;
             }
 
-            shardsIt = clusterService.operationRouting().searchShards(clusterService.state(), new String[] { request.index() }, null, null);
+            shardsIt = clusterService.operationRouting().searchShards(clusterState, new String[] { request.index() }, null, null);
         }
 
         public void start() {
@@ -284,7 +285,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
                 logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, request), e);
-                lastFailure = e;
+                shardFailure = e;
             }
             tryNext(e);
         }
@@ -299,6 +300,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (next != null) {
                 return next;
             }
+            // No copy of this shard answered.
+            if (unansweredFailure == null) {
+                unansweredFailure = shardFailure;
+            }
+            shardFailure = null;
             moveToNextShard();
             return nextRoutingOrNull(failure);
         }
@@ -312,13 +318,17 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (shardRouting == null) {
                 if (shardsIt.size() > 0 && unmatchedShards == shardsIt.size()) {
                     listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
-                } else if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
+                } else if (unansweredFailure == null || isShardNotAvailableException(unansweredFailure)) {
                     listener.onFailure(
-                        new NoShardAvailableActionException(null, "No shard available for index [" + request.index() + "]", lastFailure)
+                        new NoShardAvailableActionException(
+                            null,
+                            "No shard available for index [" + request.index() + "]",
+                            unansweredFailure
+                        )
                     );
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
-                    listener.onFailure(lastFailure);
+                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), unansweredFailure);
+                    listener.onFailure(unansweredFailure);
                 }
                 return;
             }
@@ -352,6 +362,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                                 listener.onResponse(response);
                             } else {
                                 unmatchedShards++;
+                                shardFailure = null;
                                 moveToNextShard();
                                 tryNext(null);
                             }

@@ -36,6 +36,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.fieldcaps.FieldCapabilities;
+import org.opensearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.opensearch.action.fieldcaps.FieldCapabilitiesIndexRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
@@ -44,10 +46,13 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -56,6 +61,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -139,7 +145,7 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FieldFilterPlugin.class);
+        return Arrays.asList(FieldFilterPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testFieldAlias() {
@@ -288,7 +294,7 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
                 .get();
 
             assertIndices(response);
-            assertArrayEquals(new String[] { "unreadable" }, response.getFailedIndices());
+            assertEquals(Set.of("unreadable"), response.getFailures().keySet());
             assertEquals("No shard available for index [unreadable]", response.getFailures().get("unreadable").getMessage());
         } finally {
             assertAcked(client().admin().indices().prepareDelete("unreadable"));
@@ -312,7 +318,7 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
                 .get();
 
             assertIndices(response);
-            assertArrayEquals(new String[] { "partly-readable" }, response.getFailedIndices());
+            assertEquals(Set.of("partly-readable"), response.getFailures().keySet());
             assertEquals("No shard available for index [partly-readable]", response.getFailures().get("partly-readable").getMessage());
         } finally {
             assertAcked(client().admin().indices().prepareDelete("partly-readable"));
@@ -325,9 +331,36 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
             FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "unreadable").setFields("*").get();
 
             assertIndices(response, "old_index", "new_index");
-            assertArrayEquals(new String[] { "unreadable" }, response.getFailedIndices());
+            assertEquals(Set.of("unreadable"), response.getFailures().keySet());
         } finally {
             assertAcked(client().admin().indices().prepareDelete("unreadable"));
+        }
+    }
+
+    public void testIndexDeletedDuringTheRequestIsNotReported() {
+        assertAcked(prepareCreate("deleted").setMapping("timestamp", "type=date"));
+        ensureGreen("deleted");
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).addRequestHandlingBehavior(
+                FieldCapabilitiesAction.NAME + "[index][s]",
+                (handler, request, channel, task) -> {
+                    if ("deleted".equals(((FieldCapabilitiesIndexRequest) request).index())) {
+                        channel.sendResponse(new IndexNotFoundException("deleted"));
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
+                }
+            );
+        }
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "deleted").setFields("*").get();
+
+            assertIndices(response, "old_index", "new_index");
+            assertEquals(0, response.getFailures().size());
+        } finally {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) transportService).clearAllRules();
+            }
         }
     }
 

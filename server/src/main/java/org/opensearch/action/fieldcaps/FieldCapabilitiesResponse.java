@@ -152,13 +152,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     /**
-     * Get the names of the indices that could not be checked.
-     */
-    public String[] getFailedIndices() {
-        return failures.keySet().toArray(String[]::new);
-    }
-
-    /**
      * Returns the actual per-index field caps responses
      */
     List<FieldCapabilitiesIndexResponse> getIndexResponses() {
@@ -234,7 +227,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
     );
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Tuple<String, Exception>, Void> FAILURE_PARSER = new ConstructingObjectParser<>(
         "field_capabilities_failure",
         true,

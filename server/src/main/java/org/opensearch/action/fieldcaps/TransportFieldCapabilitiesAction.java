@@ -32,6 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
@@ -43,6 +44,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
@@ -129,7 +131,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                         @Override
                         public void onFailure(Exception e) {
-                            failures.put(index, e);
+                            // An index deleted since it was resolved has nothing left to check.
+                            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) == null) {
+                                failures.put(index, e);
+                            }
                             onResponse.run();
                         }
                     }
