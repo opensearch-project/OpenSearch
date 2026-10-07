@@ -156,6 +156,13 @@ public class RunTask extends DefaultTestClustersTask {
             getDataPath = n -> dataDir;
         } else {
             getDataPath = n -> dataDir.resolve(n.getName());
+            // Multi-node: extract port overrides to use as starting point, don't apply to each node
+            if (additionalSettings.containsKey("http.port")) {
+                httpPort = Integer.parseInt(additionalSettings.remove("http.port"));
+            }
+            if (additionalSettings.containsKey("transport.port")) {
+                transportPort = Integer.parseInt(additionalSettings.remove("transport.port"));
+            }
         }
 
         for (OpenSearchCluster cluster : getClusters()) {
@@ -168,9 +175,10 @@ public class RunTask extends DefaultTestClustersTask {
             OpenSearchNode firstNode = cluster.getFirstNode();
             firstNode.setHttpPort(String.valueOf(httpPort));
             httpPort++;
-            firstNode.setTransportPort(String.valueOf(transportPort));
+            String firstNodeTransportPort = String.valueOf(transportPort);
+            firstNode.setTransportPort(firstNodeTransportPort);
             transportPort++;
-            firstNode.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
+            firstNode.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + firstNodeTransportPort);
             cluster.setPreserveDataDir(preserveData);
             for (OpenSearchNode node : cluster.getNodes()) {
                 if (node != firstNode) {
@@ -178,7 +186,7 @@ public class RunTask extends DefaultTestClustersTask {
                     httpPort++;
                     node.setTransportPort(String.valueOf(transportPort));
                     transportPort++;
-                    node.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
+                    node.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + firstNodeTransportPort);
                 }
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
