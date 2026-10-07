@@ -70,7 +70,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -494,23 +493,66 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // Before onRequestStart, so a rejection doesn't leak the request gauges.
-                try {
-                    Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject(
-                        (WorkloadGroupTask) task,
-                        () -> parentAlreadyCounted(task)
+                final ActionListener<SearchResponse> outerListener = updatedListener;
+                final ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
+                    // notifyOnce: an exception escaping proceedWithSearch must fail (and release) through this listener,
+                    // which must never notify or release twice. The admission wrap's own onFailure would skip the release.
+                    ActionListener<SearchResponse> proceedListener = ActionListener.notifyOnce(
+                        throttlePermit == null
+                            ? outerListener
+                            : WorkloadGroupService.releaseThrottlePermitBeforeCompletion(outerListener, throttlePermit)
                     );
-                    if (throttlePermit != null) {
-                        // Release before notifying: a completion listener (e.g. _msearch) may start new work in this bucket.
-                        updatedListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(updatedListener, throttlePermit);
+                    try {
+                        proceedWithSearch(
+                            task,
+                            originalSearchRequest,
+                            searchAsyncActionProvider,
+                            proceedListener,
+                            searchRequestContext,
+                            timeProvider,
+                            requestSpan
+                        );
+                    } catch (Exception e) {
+                        proceedListener.onFailure(e);
                     }
-                } catch (OpenSearchRejectedExecutionException e) {
-                    updatedListener.onFailure(e);
-                    return;
-                }
+                }, outerListener::onFailure);
+                workloadGroupService.acquireThrottlePermit((WorkloadGroupTask) task, () -> parentAlreadyCounted(task), admissionListener);
+            } else {
+                proceedWithSearch(
+                    task,
+                    originalSearchRequest,
+                    searchAsyncActionProvider,
+                    updatedListener,
+                    searchRequestContext,
+                    timeProvider,
+                    requestSpan
+                );
             }
+        }
+    }
 
-            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
+    /**
+     * Runs the search once throttle admission granted or was skipped, inline or from the asynchronous shared-tier
+     * callback. Re-enters the request span, which may not be active on the callback's thread.
+     */
+    private void proceedWithSearch(
+        Task task,
+        SearchRequest originalSearchRequest,
+        SearchAsyncActionProvider searchAsyncActionProvider,
+        ActionListener<SearchResponse> updatedListener,
+        SearchRequestContext searchRequestContext,
+        SearchTimeProvider timeProvider,
+        Span requestSpan
+    ) {
+        try (final SpanScope ignore = tracer.withSpanInScope(requestSpan)) {
+            try {
+                searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
+            } catch (Exception e) {
+                // Defensive (the composite listener already swallows child failures): fail through updatedListener so the
+                // permit is released.
+                updatedListener.onFailure(e);
+                return;
+            }
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
@@ -558,13 +600,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Whether this request's parent task is already counted against a node-level throttle bucket, so admission charges it
-     * nothing (see {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)}); a nested
+     * Whether this request's parent task is already counted against a throttle bucket, so admission charges it
+     * nothing (see {@link WorkloadGroupService#acquireThrottlePermit(WorkloadGroupTask, BooleanSupplier, ActionListener)}); a nested
      * coordinator search issued during rewrite would otherwise make the request compete with itself. Only the immediate,
      * local parent is inspected: the rewrite client is the only thing that parents a counted coordinator search, and it is
      * wrapped only when that parent was counted, so a counted ancestor is always the immediate parent. Non-search parents
      * (an {@code _msearch} task, a reindex task) never carry the flag, so their child searches are each charged, as
-     * intended. Remote parents are skipped -- the throttle is per node, and {@code TaskManager#getTask} is node-local.
+     * intended. Remote parents are skipped because {@code TaskManager#getTask} is node-local.
      */
     private boolean parentAlreadyCounted(final Task task) {
         TaskId parentTaskId = task.getParentTaskId();

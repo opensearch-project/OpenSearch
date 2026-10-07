@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 import static org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService.TRACKED_RESOURCES;
 
@@ -75,6 +74,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private final WorkloadGroupsStateAccessor workloadGroupsStateAccessor;
     // Node-local in-flight counters per throttle bucket.
     private final WorkloadGroupThrottleTracker throttleTracker = new WorkloadGroupThrottleTracker();
+    private volatile WorkloadGroupSharedThrottleService sharedThrottleService;
 
     public WorkloadGroupService(
         WorkloadGroupTaskCancellationService taskCancellationService,
@@ -328,52 +328,109 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         });
     }
 
-    /**
-     * Test seam over {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)} exercising bucket resolution and
-     * the limit directly, without a task or thread context. Package-private: production callers use the task-aware variant
-     * so the request is marked counted and re-entrancy is handled.
-     *
-     * @param workloadGroupId the workload group the request is assigned to
-     * @param principal       the caller's joined principal tokens, or {@code null} (see resolver)
-     * @return a permit to close on request completion, or {@code null} if not throttled
-     * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
-     */
-    Releasable acquireThrottleOrReject(String workloadGroupId, String principal) {
-        return acquireThrottleOrReject(workloadGroupId, principal, () -> false, counted -> {});
+    /** Late-binds the cluster-level ({@code shared_limit}) tier, which needs the transport service built after this one. */
+    public void setSharedThrottleService(WorkloadGroupSharedThrottleService sharedThrottleService) {
+        this.sharedThrottleService = sharedThrottleService;
     }
 
     /**
-     * Acquires one node-level throttle permit for the request, or returns {@code null} (nothing to release) when the
-     * request is not throttled: WLM disabled, default/unknown group, no {@code node_limit}, no resolvable bucket (see
-     * {@link #resolveThrottleByValue}), or a parent task whose work is already counted. The bucket is group-scoped when
-     * {@code throttling.by} is absent, or subdivided by its explicit {@code username}/{@code role} value.
+     * Admits a search against the node-local allowance ({@code node_limit}), then the shared allowance
+     * ({@code shared_limit}, a cluster-wide overflow pool on top of every node's local allowance) if the local bucket is
+     * full. Only shared admission can complete asynchronously. A counted parent exempts nested searches at both tiers.
+     * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit.
      *
-     * @param task                 the request's task; marked as counted in both the acquired and the exempted case, so the
-     *                             accounting propagates to its own nested searches
-     * @param parentAlreadyCounted supplies whether the parent task is already counted, so a nested coordinator search is
-     *                             not charged twice. Supplied lazily so the parent lookup runs only for a throttling group,
-     *                             not on every search
-     * @return a permit to close on request completion, or {@code null} if not throttled
-     * @throws OpenSearchRejectedExecutionException if the bucket is already at its node limit
+     * @param task the search task to mark as counted when admitted against a throttle
+     * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
+     * @param listener receives a permit to release on completion, {@code null} when no permit is needed, or a 429
      */
-    public Releasable acquireThrottleOrReject(WorkloadGroupTask task, BooleanSupplier parentAlreadyCounted) {
-        return acquireThrottleOrReject(
-            task.getWorkloadGroupId(),
-            task.getThrottlePrincipal(),
-            parentAlreadyCounted,
-            task::setThrottleCounted
-        );
+    public void acquireThrottlePermit(WorkloadGroupTask task, BooleanSupplier parentAlreadyCounted, ActionListener<Releasable> listener) {
+        final ThrottlePlan plan;
+        try {
+            plan = resolveThrottlePlan(task.getWorkloadGroupId(), task.getThrottlePrincipal());
+        } catch (Exception e) {
+            logger.debug(() -> "Skipping throttle for workload group [" + task.getWorkloadGroupId() + "] due to an error", e);
+            listener.onResponse(null);
+            return;
+        }
+        if (plan == null) {
+            listener.onResponse(null);
+            return;
+        }
+        final boolean inherited;
+        try {
+            inherited = parentAlreadyCounted.getAsBoolean();
+        } catch (Exception e) {
+            logger.debug(() -> "Skipping throttle for workload group [" + task.getWorkloadGroupId() + "] due to an error", e);
+            listener.onResponse(null);
+            return;
+        }
+        if (inherited) {
+            task.setThrottleCounted(true);
+            listener.onResponse(null);
+            return;
+        }
+
+        if (plan.nodeLimit() > 0) {
+            final Releasable localPermit;
+            try {
+                localPermit = throttleTracker.tryAcquire(plan.bucketKey(), plan.nodeLimit());
+            } catch (Exception e) {
+                logger.debug(
+                    () -> "Skipping node-level throttle for workload group [" + task.getWorkloadGroupId() + "] due to an error",
+                    e
+                );
+                listener.onResponse(null);
+                return;
+            }
+            if (localPermit != null) {
+                task.setThrottleCounted(true);
+                listener.onResponse(localPermit);
+                return;
+            }
+        }
+
+        if (plan.sharedLimit() < 1) {
+            deliverThrottleBreach(plan, false, task, listener);
+            return;
+        }
+        WorkloadGroupSharedThrottleService sharedService = sharedThrottleService;
+        if (sharedService == null) {
+            // Defensive (only test-built instances lack it): fail closed like any unanswerable shared acquire.
+            deliverThrottleBreach(plan, true, task, listener);
+            return;
+        }
+        final boolean monitor = plan.workloadGroup().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR;
+        // MONITOR proceeds on every outcome, so the shared tier never delivers a search-pool rejection for it.
+        sharedService.acquireAsync(plan.bucketKey(), plan.sharedLimit(), monitor, ActionListener.wrap(permit -> {
+            task.setThrottleCounted(true);
+            listener.onResponse(permit);
+        }, e -> {
+            if (WorkloadGroupSharedThrottleService.isDenial(e)) {
+                deliverThrottleBreach(plan, false, task, listener);
+            } else if (e instanceof OpenSearchRejectedExecutionException && monitor == false) {
+                // The search pool rejected the hand-off (permit already released): a real 429, not a throttle breach.
+                listener.onFailure(e);
+            } else {
+                // The shared tier could not answer: fail closed so shared_limit is never silently exceeded (MONITOR admits).
+                if (WorkloadGroupSharedThrottleService.isUnavailable(e) == false) {
+                    logger.debug(() -> "Shared throttle for workload group [" + task.getWorkloadGroupId() + "] failed", e);
+                }
+                deliverThrottleBreach(plan, true, task, listener);
+            }
+        }));
     }
 
     /**
      * Wraps {@code listener} so the request's throttle permit is released <em>before</em> the listener is notified: a
      * completion listener may synchronously start new work in the same bucket (an {@code _msearch} dispatches its next
      * sub-search from the previous one's response handler), so releasing after would spuriously 429 a request the
-     * coordinator deliberately serialized. The close is guarded so a failed release can never turn a successful search into
-     * a client-visible error.
+     * coordinator deliberately serialized. Accepted: for a remote shared permit this only sends the fire-and-forget
+     * RELEASE, so a follow-up acquire can reach the owner before that release and see the bucket full, a rare false
+     * 429 under saturation. The close is guarded so a failed release can never turn a successful search into an error.
      *
-     * @param listener       the listener to notify once the permit has been given back
-     * @param throttlePermit the permit acquired by {@link #acquireThrottleOrReject(WorkloadGroupTask, BooleanSupplier)}
+     * @param listener       the listener to notify once the permit has been released (or, if remote, its release sent)
+     * @param throttlePermit the permit acquired by
+     *                       {@link #acquireThrottlePermit(WorkloadGroupTask, BooleanSupplier, ActionListener)}
      */
     public static <T> ActionListener<T> releaseThrottlePermitBeforeCompletion(
         final ActionListener<T> listener,
@@ -388,79 +445,90 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         });
     }
 
-    private Releasable acquireThrottleOrReject(
-        String workloadGroupId,
-        String principal,
-        BooleanSupplier parentAlreadyCounted,
-        Consumer<Boolean> onCounted
+    private void deliverThrottleBreach(
+        ThrottlePlan plan,
+        boolean sharedUnavailable,
+        WorkloadGroupTask task,
+        ActionListener<Releasable> listener
     ) {
+        try {
+            onThrottleBreach(plan, sharedUnavailable, task);
+        } catch (OpenSearchRejectedExecutionException e) {
+            listener.onFailure(e);
+            return;
+        }
+        listener.onResponse(null);
+    }
+
+    private void onThrottleBreach(ThrottlePlan plan, boolean sharedUnavailable, WorkloadGroupTask task) {
+        if (plan.workloadGroup().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Request would be throttled (monitor mode, not rejected): {}.", throttleDescription(plan, sharedUnavailable));
+            }
+            recordThrottleStat(plan.workloadGroup().get_id(), true);
+            task.setThrottleCounted(true);
+            return;
+        }
+        recordThrottleStat(plan.workloadGroup().get_id(), false);
+        throw new OpenSearchRejectedExecutionException("Request throttled: " + throttleDescription(plan, sharedUnavailable) + ".");
+    }
+
+    private static String throttleDescription(ThrottlePlan plan, boolean sharedUnavailable) {
+        String target = "workload group [" + plan.workloadGroup().getName() + "]";
+        if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(plan.by()) == false) {
+            target += " for " + plan.by() + " [" + plan.byValue() + "]";
+        }
+        // A breach means every configured tier is exhausted, so name each one; an unavailable shared tier was not checked.
+        if (sharedUnavailable) {
+            String sharedUnchecked = "could not check its shared limit of "
+                + plan.sharedLimit()
+                + " concurrent requests (cluster-wide throttle unavailable)";
+            return plan.nodeLimit() > 0
+                ? target + " reached its per-node limit of " + plan.nodeLimit() + " concurrent requests and " + sharedUnchecked
+                : target + " " + sharedUnchecked;
+        } else if (plan.nodeLimit() > 0 && plan.sharedLimit() > 0) {
+            return target
+                + " reached its per-node limit of "
+                + plan.nodeLimit()
+                + " and shared limit of "
+                + plan.sharedLimit()
+                + " concurrent requests";
+        } else if (plan.nodeLimit() > 0) {
+            return target + " reached its per-node limit of " + plan.nodeLimit() + " concurrent requests";
+        }
+        return target + " reached its shared limit of " + plan.sharedLimit() + " concurrent requests";
+    }
+
+    private ThrottlePlan resolveThrottlePlan(String workloadGroupId, String principal) {
         if (workloadManagementSettings.getWlmMode() != WlmMode.ENABLED) {
             return null;
         }
         if (workloadGroupId == null || workloadGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) {
             return null;
         }
-        try {
-            WorkloadGroup workloadGroup = getWorkloadGroupById(workloadGroupId);
-            if (workloadGroup == null) {
-                return null;
-            }
-            Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
-            // Cheap early-out for groups that don't throttle.
-            if (throttling == null || throttling.isEmpty()) {
-                return null;
-            }
-            int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
-            if (nodeLimit < 1) {
-                return null;
-            }
-            // Nested searches inherit a counted parent's charge. Checked after the early-outs to keep the lookup off unthrottled groups.
-            if (parentAlreadyCounted.getAsBoolean()) {
-                onCounted.accept(true);
-                return null;
-            }
-            String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
-            // No bucket (e.g. username/role with no principal): fail open.
-            String byValue = resolveThrottleByValue(by, principal);
-            if (byValue == null) {
-                return null;
-            }
-            String bucketKey = workloadGroupId + BUCKET_KEY_DELIMITER + by + BUCKET_KEY_DELIMITER + byValue;
-
-            Releasable permit = throttleTracker.tryAcquire(bucketKey, nodeLimit);
-            if (permit != null) {
-                onCounted.accept(true);
-                return permit;
-            }
-
-            // Name the group and dimension; the bucket key alone is opaque to an operator.
-            String target = "workload group [" + workloadGroup.getName() + "]";
-            if (WorkloadGroupThrottleSettings.GROUP_SCOPE.equals(by) == false) {
-                target += " for " + by + " [" + byValue + "]";
-            }
-            if (workloadGroup.getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR) {
-                // MONITOR: count in total_would_throttle and admit.
-                logger.debug(
-                    "Request would be throttled (monitor mode, not rejected): {} reached its per-node limit of {} concurrent requests.",
-                    target,
-                    nodeLimit
-                );
-                recordThrottleStat(workloadGroupId, true);
-                onCounted.accept(true);
-                return null;
-            }
-            // SOFT enforces the throttle too; resiliency_mode only governs resource limits.
-            recordThrottleStat(workloadGroupId, false);
-            throw new OpenSearchRejectedExecutionException(
-                "Request throttled: " + target + " reached its per-node limit of " + nodeLimit + " concurrent requests."
-            );
-        } catch (OpenSearchRejectedExecutionException e) {
-            throw e; // the intended 429
-        } catch (Exception e) {
-            // Fail open on a throttle bug. DEBUG, since a deterministic failure would log at full query rate.
-            logger.debug(() -> "Skipping node-level throttle for workload group [" + workloadGroupId + "] due to an error", e);
+        WorkloadGroup workloadGroup = getWorkloadGroupById(workloadGroupId);
+        if (workloadGroup == null) {
             return null;
         }
+        Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
+        if (throttling == null || throttling.isEmpty()) {
+            return null;
+        }
+        int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
+        int sharedLimit = WorkloadGroupThrottleSettings.SHARED_LIMIT.get(throttling);
+        if (nodeLimit < 1 && sharedLimit < 1) {
+            return null;
+        }
+        String by = WorkloadGroupThrottleSettings.getEffectiveBy(throttling);
+        String byValue = resolveThrottleByValue(by, principal);
+        if (byValue == null) {
+            return null;
+        }
+        String bucketKey = workloadGroupId + BUCKET_KEY_DELIMITER + by + BUCKET_KEY_DELIMITER + byValue;
+        return new ThrottlePlan(workloadGroup, bucketKey, by, byValue, nodeLimit, sharedLimit);
+    }
+
+    private record ThrottlePlan(WorkloadGroup workloadGroup, String bucketKey, String by, String byValue, int nodeLimit, int sharedLimit) {
     }
 
     /**

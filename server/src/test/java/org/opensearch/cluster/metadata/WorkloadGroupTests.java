@@ -460,7 +460,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     public void testGatewayReadAcceptsInvalidThrottleConfigLeniently() throws IOException {
         // The gateway read must not throw on config this node considers invalid, or the node can't start.
         long now = Instant.now().getMillis();
-        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
+        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":0}" }) {
             String json = String.format(
                 Locale.ROOT,
                 "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
@@ -476,7 +476,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     public void testCreatePathStillRejectsInvalidThrottleConfig() throws IOException {
         // The create/update path stays strict.
         long now = Instant.now().getMillis();
-        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":5,\"node_limit\":10}" }) {
+        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":0}" }) {
             String json = String.format(
                 Locale.ROOT,
                 "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
@@ -492,43 +492,51 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
 
     public void testNegativeThrottleLimitRejected() {
         // -1 is the internal "unset" sentinel and, like any negative value, is not user-settable.
-        for (int badLimit : new int[] { -1, -2 }) {
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MutableWorkloadGroupFragment(
-                    ResiliencyMode.ENFORCED,
-                    Map.of(ResourceType.MEMORY, 0.5),
-                    Settings.EMPTY,
-                    Settings.builder().put("node_limit", badLimit).build()
-                )
-            );
-            assertTrue(exception.getMessage().contains("node_limit must be non-negative"));
+        for (String key : new String[] { "node_limit", "shared_limit" }) {
+            for (int badLimit : new int[] { -1, -2 }) {
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new MutableWorkloadGroupFragment(
+                        ResiliencyMode.ENFORCED,
+                        Map.of(ResourceType.MEMORY, 0.5),
+                        Settings.EMPTY,
+                        Settings.builder().put(key, badLimit).build()
+                    )
+                );
+                assertTrue(exception.getMessage().contains(key + " must be non-negative"));
+            }
         }
     }
 
     public void testThrottleLimitExceedingMaxRejected() {
         // Integer.MAX_VALUE + 1 is outside the range accepted by the int-backed Setting parser.
         String tooLarge = Long.toString((long) Integer.MAX_VALUE + 1);
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new MutableWorkloadGroupFragment(
-                ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.MEMORY, 0.5),
-                Settings.EMPTY,
-                Settings.builder().put("by", "username").put("node_limit", tooLarge).build()
-            )
-        );
-        assertTrue(exception.getMessage(), exception.getMessage().contains("Invalid value '" + tooLarge + "' for throttling.node_limit"));
-        assertTrue(
-            exception.getMessage(),
-            exception.getMessage().contains("Failed to parse value [" + tooLarge + "] for setting [node_limit]")
-        );
+        for (String key : new String[] { "node_limit", "shared_limit" }) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new MutableWorkloadGroupFragment(
+                    ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.5),
+                    Settings.EMPTY,
+                    Settings.builder().put("by", "username").put(key, tooLarge).build()
+                )
+            );
+            assertTrue(exception.getMessage(), exception.getMessage().contains("Invalid value '" + tooLarge + "' for throttling." + key));
+            assertTrue(
+                exception.getMessage(),
+                exception.getMessage().contains("Failed to parse value [" + tooLarge + "] for setting [" + key + "]")
+            );
+        }
     }
 
     public void testAbsentThrottleLimitUsesInternalUnsetDefault() {
         assertEquals(
             Integer.valueOf(WorkloadGroupThrottleSettings.UNSET_LIMIT),
             WorkloadGroupThrottleSettings.NODE_LIMIT.get(Settings.EMPTY)
+        );
+        assertEquals(
+            Integer.valueOf(WorkloadGroupThrottleSettings.UNSET_LIMIT),
+            WorkloadGroupThrottleSettings.SHARED_LIMIT.get(Settings.EMPTY)
         );
     }
 
@@ -541,33 +549,36 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
                 ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.MEMORY, 0.5),
                 Settings.EMPTY,
-                Settings.builder().put("by", "username").put("node_limit", Integer.MAX_VALUE).build()
+                Settings.builder().put("by", "username").put("node_limit", Integer.MAX_VALUE).put("shared_limit", Integer.MAX_VALUE).build()
             ),
             System.currentTimeMillis()
         );
         Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
         assertEquals(Integer.valueOf(Integer.MAX_VALUE), WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling));
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), WorkloadGroupThrottleSettings.SHARED_LIMIT.get(throttling));
     }
 
     public void testNonNumericThrottleLimitRejected() {
         String invalidValue = "not_a_number";
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new MutableWorkloadGroupFragment(
-                ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.MEMORY, 0.5),
-                Settings.EMPTY,
-                Settings.builder().put("by", "username").put("node_limit", invalidValue).build()
-            )
-        );
-        assertTrue(
-            exception.getMessage(),
-            exception.getMessage().contains("Invalid value '" + invalidValue + "' for throttling.node_limit")
-        );
-        assertTrue(
-            exception.getMessage(),
-            exception.getMessage().contains("Failed to parse value [" + invalidValue + "] for setting [node_limit]")
-        );
+        for (String key : new String[] { "node_limit", "shared_limit" }) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new MutableWorkloadGroupFragment(
+                    ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.5),
+                    Settings.EMPTY,
+                    Settings.builder().put("by", "username").put(key, invalidValue).build()
+                )
+            );
+            assertTrue(
+                exception.getMessage(),
+                exception.getMessage().contains("Invalid value '" + invalidValue + "' for throttling." + key)
+            );
+            assertTrue(
+                exception.getMessage(),
+                exception.getMessage().contains("Failed to parse value [" + invalidValue + "] for setting [" + key + "]")
+            );
+        }
     }
 
     public void testInvalidThrottleByRejected() {
@@ -626,21 +637,22 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testZeroEffectiveCeilingRejected() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new WorkloadGroup(
-                "test",
-                "test_id",
-                new MutableWorkloadGroupFragment(
-                    ResiliencyMode.ENFORCED,
-                    Map.of(ResourceType.MEMORY, 0.5),
-                    Settings.EMPTY,
-                    Settings.builder().put("by", "username").put("node_limit", 0).build()
-                ),
-                System.currentTimeMillis()
-            )
-        );
-        assertTrue(exception.getMessage().contains("Effective throttle ceiling is 0"));
+        for (Settings throttling : List.of(
+            Settings.builder().put("by", "username").put("node_limit", 0).build(),
+            Settings.builder().put("by", "username").put("shared_limit", 0).build(),
+            Settings.builder().put("by", "username").put("node_limit", 0).put("shared_limit", 0).build()
+        )) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new WorkloadGroup(
+                    "test",
+                    "test_id",
+                    new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.5), Settings.EMPTY, throttling),
+                    System.currentTimeMillis()
+                )
+            );
+            assertTrue(exception.getMessage().contains("Effective throttle ceiling is 0"));
+        }
     }
 
     public void testByWithoutLimitRejected() {
@@ -659,7 +671,9 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
                 System.currentTimeMillis()
             )
         );
-        assertTrue(exception.getMessage().contains("throttling.node_limit is required when throttling.by is set"));
+        assertTrue(
+            exception.getMessage().contains("throttling.node_limit or throttling.shared_limit is required when throttling.by is set")
+        );
         assertFalse(exception.getMessage().contains("-1"));
         assertFalse(exception.getMessage().contains("ceiling"));
     }
@@ -680,6 +694,26 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         assertFalse("group scope must have one canonical representation: no by key", throttling.keySet().contains("by"));
         assertEquals(WorkloadGroupThrottleSettings.GROUP_SCOPE, WorkloadGroupThrottleSettings.getEffectiveBy(throttling));
         assertEquals(Integer.valueOf(5), WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling));
+    }
+
+    public void testSharedOnlyLimitUsesGroupScope() throws IOException {
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.EMPTY,
+                Settings.builder().put("shared_limit", 5).build()
+            ),
+            System.currentTimeMillis()
+        );
+        Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
+        assertEquals(WorkloadGroupThrottleSettings.GROUP_SCOPE, WorkloadGroupThrottleSettings.getEffectiveBy(throttling));
+        assertEquals(Integer.valueOf(5), WorkloadGroupThrottleSettings.SHARED_LIMIT.get(throttling));
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        workloadGroup.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertTrue(builder.toString().contains("\"throttling\":{\"shared_limit\":5}"));
     }
 
     public void testUpdateMergesThrottling() {
@@ -762,7 +796,9 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             IllegalArgumentException.class,
             () -> WorkloadGroup.updateExistingWorkloadGroup(throttledGroup(), clearLimit)
         );
-        assertTrue(exception.getMessage().contains("throttling.node_limit is required when throttling.by is set"));
+        assertTrue(
+            exception.getMessage().contains("throttling.node_limit or throttling.shared_limit is required when throttling.by is set")
+        );
     }
 
     public void testUpdateWithNullByReturnsToGroupScope() throws IOException {
