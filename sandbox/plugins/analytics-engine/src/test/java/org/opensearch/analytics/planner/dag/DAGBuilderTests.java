@@ -415,4 +415,22 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
             dag.rootStage().getExecutionType()
         );
     }
+
+    public void testDAGBuilderPreservesTargetPartitions() {
+        var context = buildContext("parquet", 2, intFields());
+        RelNode logical = stubScan(mockTable("test_index", "status", "size"));
+        RelNode cbo = runPlanner(logical, context);
+
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER, 8);
+        assertEquals(Integer.valueOf(8), dag.targetPartitions());
+    }
+
+    public void testDAGBuilderDefaultTargetPartitionsIsNull() {
+        var context = buildContext("parquet", 2, intFields());
+        RelNode logical = stubScan(mockTable("test_index", "status", "size"));
+        RelNode cbo = runPlanner(logical, context);
+
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        assertNull(dag.targetPartitions());
+    }
 }
