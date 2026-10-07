@@ -162,6 +162,54 @@ public class OpenSearchClusterTests extends GradleUnitTestCase {
         assertEquals(List.of("9300", "9301"), nodes.stream().map(OpenSearchNode::getTransportPort).collect(Collectors.toList()));
     }
 
+    public void testRunTaskWithPortOverridesInSingleNode() {
+        Project project = ProjectBuilder.builder().build();
+        OpenSearchCluster cluster = cluster(project);
+        RunTask run = project.getTasks().create("run", RunTask.class);
+        run.useCluster(project, cluster);
+        System.setProperty("tests.opensearch.http.port", "10000");
+        System.setProperty("tests.opensearch.transport.port", "10100");
+
+        try {
+            run.beforeStart();
+
+            OpenSearchNode node = cluster.getFirstNode();
+            assertEquals("10000", node.getHttpPort());
+            assertEquals("10100", node.getTransportPort());
+        } finally {
+            System.clearProperty("tests.opensearch.http.port");
+            System.clearProperty("tests.opensearch.transport.port");
+        }
+    }
+
+    public void testRunTaskWithPortOverridesInMultiNode() {
+        Project project = ProjectBuilder.builder().build();
+        OpenSearchCluster cluster = cluster(project);
+        cluster.setNumberOfNodes(3);
+        RunTask run = project.getTasks().create("run", RunTask.class);
+        run.useCluster(project, cluster);
+        System.setProperty("tests.opensearch.http.port", "10000");
+        System.setProperty("tests.opensearch.transport.port", "10100");
+
+        try {
+            run.beforeStart();
+
+            List<OpenSearchNode> nodes = List.copyOf(cluster.getNodes());
+            assertEquals(List.of("10000", "10001", "10002"), nodes.stream().map(OpenSearchNode::getHttpPort).collect(Collectors.toList()));
+            assertEquals(
+                List.of("10100", "10101", "10102"),
+                nodes.stream().map(OpenSearchNode::getTransportPort).collect(Collectors.toList())
+            );
+            // Seed hosts should point to first node's actual transport port
+            for (OpenSearchNode node : nodes) {
+                assertEquals("127.0.0.1:10100", node.settings.get("discovery.seed_hosts"));
+            }
+        } finally {
+            System.clearProperty("tests.opensearch.http.port");
+            System.clearProperty("tests.opensearch.transport.port");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static OpenSearchCluster cluster(Project project) {
         project.getPlugins().apply(TestClustersPlugin.class);
