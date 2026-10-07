@@ -248,7 +248,10 @@ public class IndexRequestTests extends OpenSearchTestCase {
         // When routing is required and no explicit id is provided, process() must throw
         // RoutingMissingException (HTTP 400) and not NullPointerException (HTTP 500).
         // The id is generated before the routing check so the exception can include it.
-        MappingMetadata mappingMd = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("_routing", Map.of("required", true)));
+        MappingMetadata mappingMd = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("_routing", Map.of("required", true))
+        );
         IndexRequest request = new IndexRequest("test-index");
         // no id set, no routing set — simulates POST /<index>/_doc without ?routing=
         RoutingMissingException ex = expectThrows(
