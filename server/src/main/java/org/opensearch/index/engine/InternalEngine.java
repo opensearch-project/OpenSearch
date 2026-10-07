@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -1149,9 +1150,28 @@ public class InternalEngine extends Engine {
             && settings.isSegRepEnabledOrRemoteNode();
     }
 
+    /**
+     * Appends every live bulk scope's pending chunk so that a refresh or flush publishes no document whose translog
+     * record is still deferred.
+     *
+     * <p>A scope's append failure belongs to the bulk that owns the scope: the scope has recorded it, completed its
+     * pending readers exceptionally and rethrows it at {@code finish()}, and {@code maybeFailEngine} has already been
+     * consulted for it exactly as for a per-operation {@code Translog#add} failure. The drainer therefore only stops
+     * for a failure that is the translog's tragic event (the translog is closed and the engine is failing); any other
+     * failure is the owning request's to report, and the drainer carries on with the remaining scopes. The documents of
+     * the failed scope are unacknowledged with unprocessed sequence numbers, the same state the stock engine leaves a
+     * document in between its Lucene add and its translog add.
+     */
     private void flushActiveTranslogBatches() {
         for (TranslogBatchScope batch : activeBatches) {
-            batch.flush();
+            try {
+                batch.flush();
+            } catch (Exception e) {
+                if (e instanceof AlreadyClosedException || translogManager.getTragicExceptionIfClosed() != null) {
+                    throw e;
+                }
+                logger.debug(() -> new ParameterizedMessage("[{}] batched translog append failed while draining", shardId), e);
+            }
         }
     }
 
@@ -1591,11 +1611,14 @@ public class InternalEngine extends Engine {
     final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
-        // A remote-segrep bulk may have applied Lucene documents whose translog locations are still deferred.
-        flushActiveTranslogBatches();
-        final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
+        final long localCheckpointBeforeRefresh;
         boolean refreshed;
         try {
+            // A remote-segrep bulk may have applied Lucene documents whose translog locations are still deferred. Drain
+            // them inside the try so a drain failure keeps refresh's EngineException contract and tragic-event handling,
+            // and capture the checkpoint afterwards so the drained operations count as refreshed.
+            flushActiveTranslogBatches();
+            localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
                 // increment the ref just to ensure nobody closes the store during a refresh
