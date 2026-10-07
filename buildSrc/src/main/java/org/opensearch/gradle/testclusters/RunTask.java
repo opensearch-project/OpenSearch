@@ -151,16 +151,18 @@ public class RunTask extends DefaultTestClustersTask {
                 )
             );
         boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        boolean httpPortOverridden = additionalSettings.containsKey("http.port");
+        boolean transportPortOverridden = additionalSettings.containsKey("transport.port");
         final Function<OpenSearchNode, Path> getDataPath;
         if (singleNode) {
             getDataPath = n -> dataDir;
         } else {
             getDataPath = n -> dataDir.resolve(n.getName());
             // Multi-node: extract port overrides to use as starting point, don't apply to each node
-            if (additionalSettings.containsKey("http.port")) {
+            if (httpPortOverridden) {
                 httpPort = Integer.parseInt(additionalSettings.remove("http.port"));
             }
-            if (additionalSettings.containsKey("transport.port")) {
+            if (transportPortOverridden) {
                 transportPort = Integer.parseInt(additionalSettings.remove("transport.port"));
             }
         }
@@ -168,8 +170,12 @@ public class RunTask extends DefaultTestClustersTask {
         for (OpenSearchCluster cluster : getClusters()) {
             // A cluster numbered from an offset is another build's nodes joining the one on the default ports, so its
             // ports start at the same offset: node <cluster>-N listens on 9200 + N and 9300 + N.
-            httpPort = Math.max(httpPort, DEFAULT_HTTP_PORT + cluster.getFirstNodeIndex());
-            transportPort = Math.max(transportPort, DEFAULT_TRANSPORT_PORT + cluster.getFirstNodeIndex());
+            if (!httpPortOverridden) {
+                httpPort = Math.max(httpPort, DEFAULT_HTTP_PORT + cluster.getFirstNodeIndex());
+            }
+            if (!transportPortOverridden) {
+                transportPort = Math.max(transportPort, DEFAULT_TRANSPORT_PORT + cluster.getFirstNodeIndex());
+            }
             debugPort = Math.max(debugPort, DEFAULT_DEBUG_PORT + cluster.getFirstNodeIndex());
             // Configure the first node with the default ports first
             OpenSearchNode firstNode = cluster.getFirstNode();
