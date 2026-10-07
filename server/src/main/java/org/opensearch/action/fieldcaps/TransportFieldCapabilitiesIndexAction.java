@@ -58,7 +58,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -241,7 +240,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
     /**
      * An action that executes on each shard sequentially until it finds one that can match the provided
      * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the shard is used
-     * to create the final {@link FieldCapabilitiesIndexResponse}.
+     * to create the final {@link FieldCapabilitiesIndexResponse}. The index is reported as unable to match
+     * only once every shard has answered so; a shard that could not be reached fails the index instead.
      *
      * @opensearch.internal
      */
@@ -252,6 +252,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         private final GroupShardsIterator<ShardIterator> shardsIt;
 
         private volatile int shardIndex = 0;
+        private volatile int unmatchedShards = 0;
+        private volatile Exception lastFailure;
 
         private AsyncShardsAction(FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
             this.listener = listener;
@@ -276,14 +278,15 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
 
         public void start() {
-            tryNext(null, true);
+            tryNext(null);
         }
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
                 logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, request), e);
+                lastFailure = e;
             }
-            tryNext(e, false);
+            tryNext(e);
         }
 
         private ShardRouting nextRoutingOrNull(Exception failure) {
@@ -304,24 +307,18 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             ++shardIndex;
         }
 
-        private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
-            ShardRouting shardRouting = nextRoutingOrNull(lastFailure);
+        private void tryNext(@Nullable final Exception failure) {
+            ShardRouting shardRouting = nextRoutingOrNull(failure);
             if (shardRouting == null) {
-                if (canMatchShard == false) {
+                if (shardsIt.size() > 0 && unmatchedShards == shardsIt.size()) {
                     listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                } else if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
+                    listener.onFailure(
+                        new NoShardAvailableActionException(null, "No shard available for index [" + request.index() + "]", lastFailure)
+                    );
                 } else {
-                    if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
-                        listener.onFailure(
-                            new NoShardAvailableActionException(
-                                null,
-                                LoggerMessageFormat.format("No shard available for [{}]", request),
-                                lastFailure
-                            )
-                        );
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
-                        listener.onFailure(lastFailure);
-                    }
+                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
+                    listener.onFailure(lastFailure);
                 }
                 return;
             }
@@ -354,8 +351,9 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                             if (response.canMatch()) {
                                 listener.onResponse(response);
                             } else {
+                                unmatchedShards++;
                                 moveToNextShard();
-                                tryNext(null, false);
+                                tryNext(null);
                             }
                         }
 

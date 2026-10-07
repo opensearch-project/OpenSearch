@@ -34,9 +34,13 @@ package org.opensearch.search.fieldcaps;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.fieldcaps.FieldCapabilities;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -272,6 +276,66 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
         newField = response.getField("field1");
         assertEquals(1, newField.size());
         assertTrue(newField.containsKey("keyword"));
+        assertEquals(0, response.getFailures().size());
+    }
+
+    public void testWithIndexFilterReportsAnIndexWithNoAvailableShard() {
+        createIndexWithUnassignedShards("unreadable", 1, Settings.builder().put("index.routing.allocation.require._name", "no_such_node"));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "unreadable")
+                .setFields("*")
+                .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+                .get();
+
+            assertIndices(response);
+            assertArrayEquals(new String[] { "unreadable" }, response.getFailedIndices());
+            assertEquals("No shard available for index [unreadable]", response.getFailures().get("unreadable").getMessage());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("unreadable"));
+        }
+    }
+
+    public void testWithIndexFilterReportsAnIndexWithOneUnavailableShard() {
+        // One more shard than data nodes, at most one per node, so exactly one shard stays unassigned.
+        int shards = internalCluster().numDataNodes() + 1;
+        createIndexWithUnassignedShards(
+            "partly-readable",
+            shards,
+            Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+        );
+        // The assigned shards must be started, or none is readable and the whole index fails.
+        assertFalse(client().admin().cluster().prepareHealth("partly-readable").setWaitForActiveShards(shards - 1).get().isTimedOut());
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("partly-readable")
+                .setFields("*")
+                .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+                .get();
+
+            assertIndices(response);
+            assertArrayEquals(new String[] { "partly-readable" }, response.getFailedIndices());
+            assertEquals("No shard available for index [partly-readable]", response.getFailures().get("partly-readable").getMessage());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("partly-readable"));
+        }
+    }
+
+    public void testWithoutIndexFilterReportsAnIndexWithNoAvailableShard() {
+        createIndexWithUnassignedShards("unreadable", 1, Settings.builder().put("index.routing.allocation.require._name", "no_such_node"));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "unreadable").setFields("*").get();
+
+            assertIndices(response, "old_index", "new_index");
+            assertArrayEquals(new String[] { "unreadable" }, response.getFailedIndices());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("unreadable"));
+        }
+    }
+
+    private void createIndexWithUnassignedShards(String index, int shards, Settings.Builder settings) {
+        CreateIndexResponse created = prepareCreate(index).setSettings(
+            settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        ).setMapping("timestamp", "type=date").setWaitForActiveShards(ActiveShardCount.NONE).get();
+        assertTrue(created.isAcknowledged());
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
