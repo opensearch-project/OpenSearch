@@ -5876,4 +5876,61 @@ public class IndexShardTests extends IndexShardTestCase {
             closeShards(shard);
         }
     }
+
+    /**
+     * The predicate that decides whether a shard's translog lives in the remote store drives both the recovery-time
+     * download (which may reuse local generations) and the discard of a local copy proven corrupt. The two must agree:
+     * a remote-store index always; a migrating docrep shard only once a remote source has seeded it, since an unseeded
+     * one still owns the only copy of its translog and a docrep shard has no remote copy at all.
+     */
+    public void testTranslogBackedByRemoteStoreMatchesHydrationCondition() {
+        final IndexSettings remoteStoreIndex = new IndexSettings(
+            IndexMetadata.builder("remote")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                        .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                        .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-repo")
+                        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-repo")
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        final IndexSettings docrepIndex = new IndexSettings(
+            IndexMetadata.builder("docrep")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        assertTrue(remoteStoreIndex.isRemoteTranslogStoreEnabled());
+        assertFalse(docrepIndex.isRemoteTranslogStoreEnabled());
+
+        for (IndexShard.ShardMigrationState state : IndexShard.ShardMigrationState.values()) {
+            assertTrue(
+                "a remote-store index is remote-backed in state " + state,
+                IndexShard.isTranslogBackedByRemoteStore(remoteStoreIndex, state)
+            );
+        }
+        assertTrue(
+            "a seeded migrating shard downloaded its translog from the remote store",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED)
+        );
+        assertFalse(
+            "an unseeded migrating shard still owns the only copy of its translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED)
+        );
+        assertFalse(
+            "a docrep shard has no remote translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.DOCREP_NON_MIGRATING)
+        );
+        assertFalse(IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING));
+    }
 }
