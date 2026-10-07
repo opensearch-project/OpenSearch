@@ -43,6 +43,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.View;
+import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -65,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
@@ -244,6 +247,57 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertTrue(taskResult.isSuccess());
 
         assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
+    }
+
+    public void testDropsViewMetadataOnceAllNodesAreUpgraded() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    public void testKeepsViewMetadataWhileOlderNodesRemain() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_9_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNotNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    private ClusterState joinNodeToClusterWithViewMetadata(DiscoveryNode clusterManagerNode, DiscoveryNode joiningNode) throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService
+        );
+
+        final View view = new View("logs", "all logs", 1L, 1L, Set.of(new View.Target("logs-*")));
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(ViewMetadata.TYPE, new ViewMetadata(Map.of("logs", view))))
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        return result.resultingState;
     }
 
     /**

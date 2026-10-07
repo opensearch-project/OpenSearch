@@ -45,7 +45,6 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
-import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
@@ -1205,8 +1204,6 @@ public class Node implements Closeable {
             );
             final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
-            final ViewService viewService = new ViewService(clusterService, client, null);
-
             final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
             final List<Object> pluginComponents = new ArrayList<>();
             for (Plugin p : pluginsService.filterPlugins(Plugin.class)) {
@@ -1823,7 +1820,6 @@ public class Node implements Closeable {
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
-                b.bind(ViewService.class).toInstance(viewService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);
                 if (streamSearchTransportService.isPresent()) {
