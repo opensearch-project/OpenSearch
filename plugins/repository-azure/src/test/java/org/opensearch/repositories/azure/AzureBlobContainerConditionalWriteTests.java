@@ -136,6 +136,55 @@ public class AzureBlobContainerConditionalWriteTests extends OpenSearchTestCase 
         assertTrue(e.getMessage(), e.getMessage().contains("did not return an ETag"));
     }
 
+    public void testConditionalCreateAndVersionedReadOfEmptyBlob() throws Exception {
+        final String eTag = randomAlphaOfLength(16);
+        final AtomicInteger putRequests = new AtomicInteger();
+        final AtomicInteger getRequests = new AtomicInteger();
+        final AtomicInteger headRequests = new AtomicInteger();
+        httpServer.createContext("/container/empty", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                putRequests.incrementAndGet();
+                assertEquals("*", exchange.getRequestHeaders().getFirst("If-None-Match"));
+                assertArrayEquals(new byte[0], BytesReference.toBytes(Streams.readFully(exchange.getRequestBody())));
+                sendUploadSuccess(exchange, quoted(eTag));
+            } else if ("GET".equals(exchange.getRequestMethod())) {
+                getRequests.incrementAndGet();
+                assertEquals("bytes=0-" + AzureBlobStore.MAX_CONDITIONAL_WRITE_SIZE, exchange.getRequestHeaders().getFirst("x-ms-range"));
+                sendAzureError(exchange, 416, "InvalidRange");
+            } else if ("HEAD".equals(exchange.getRequestMethod())) {
+                headRequests.incrementAndGet();
+                sendProperties(exchange, 0, quoted(eTag));
+            } else {
+                fail("unexpected method " + exchange.getRequestMethod());
+            }
+        });
+
+        final BlobContainer container = createBlobContainer(3);
+        assertEquals(eTag, container.writeBlobConditionally("empty", new ByteArrayInputStream(new byte[0]), 0, null));
+
+        final VersionedBlob blob = container.readBlobWithVersion("empty");
+        assertArrayEquals(new byte[0], blob.content());
+        assertEquals(eTag, blob.versionToken());
+        assertEquals(1, putRequests.get());
+        assertEquals(1, getRequests.get());
+        assertEquals(1, headRequests.get());
+    }
+
+    public void testInvalidRangeIsNotTreatedAsEmptyWhenPropertiesAreNonEmpty() {
+        httpServer.createContext("/container/not-empty", exchange -> {
+            if ("GET".equals(exchange.getRequestMethod())) {
+                sendAzureError(exchange, 416, "InvalidRange");
+            } else if ("HEAD".equals(exchange.getRequestMethod())) {
+                sendProperties(exchange, 1, quoted("etag"));
+            } else {
+                fail("unexpected method " + exchange.getRequestMethod());
+            }
+        });
+
+        final IOException e = expectThrows(IOException.class, () -> createBlobContainer(3).readBlobWithVersion("not-empty"));
+        assertTrue(e.getMessage(), e.getMessage().contains("is not empty"));
+    }
+
     public void testCreateIfAbsentUsesIfNoneMatchAndReturnsETag() throws Exception {
         final byte[] content = randomByteArrayOfLength(randomIntBetween(1, 512));
         final String eTag = randomAlphaOfLength(16);
@@ -339,6 +388,16 @@ public class AzureBlobContainerConditionalWriteTests extends OpenSearchTestCase 
         headers.add("x-ms-request-server-encrypted", "false");
         exchange.sendResponseHeaders(206, content.length);
         exchange.getResponseBody().write(content);
+        exchange.close();
+    }
+
+    private static void sendProperties(HttpExchange exchange, long contentLength, String eTag) throws IOException {
+        final Headers headers = exchange.getResponseHeaders();
+        headers.add("Content-Length", Long.toString(contentLength));
+        headers.add("ETag", eTag);
+        headers.add("x-ms-blob-type", "BlockBlob");
+        headers.add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(200, -1);
         exchange.close();
     }
 

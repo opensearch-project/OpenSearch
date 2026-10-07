@@ -45,6 +45,7 @@ import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 import com.azure.storage.blob.models.BlobListDetails;
+import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -472,13 +473,60 @@ public class AzureBlobStore implements BlobStore {
             }
             return new VersionedBlob(content, eTag);
         } catch (BlobStorageException e) {
+            return handleVersionedReadStorageException(blobName, blob, client, e);
+        } catch (RuntimeException e) {
+            final BlobStorageException storageException = findCause(e, BlobStorageException.class);
+            if (storageException != null) {
+                return handleVersionedReadStorageException(blobName, blob, client, storageException);
+            }
+            throw new IOException("Unable to read blob [" + blobName + "] with version", e);
+        }
+    }
+
+    private VersionedBlob handleVersionedReadStorageException(
+        String blobName,
+        BlobClient blob,
+        Tuple<BlobServiceClient, Supplier<Context>> client,
+        BlobStorageException e
+    ) throws IOException {
+        if (e.getStatusCode() == 416 && BlobErrorCode.INVALID_RANGE.equals(e.getErrorCode())) {
+            // Azure rejects every byte range for a zero-length blob. Confirm emptiness and take the ETag from the same
+            // properties response so the returned content/version pair still describes one observed blob version.
+            return readEmptyBlobWithVersion(blobName, blob, client, e);
+        }
+        throw translateVersionedReadException(blobName, e);
+    }
+
+    private VersionedBlob readEmptyBlobWithVersion(
+        String blobName,
+        BlobClient blob,
+        Tuple<BlobServiceClient, Supplier<Context>> client,
+        BlobStorageException invalidRangeException
+    ) throws IOException {
+        try {
+            final Response<BlobProperties> response = AccessController.doPrivileged(
+                () -> blob.getPropertiesWithResponse(null, timeout(), client.v2().get())
+            );
+            final BlobProperties properties = response.getValue();
+            if (properties.getBlobSize() != 0) {
+                throw new IOException(
+                    "Versioned read for blob [" + blobName + "] returned InvalidRange but the blob is not empty",
+                    invalidRangeException
+                );
+            }
+            final String eTag = properties.getETag();
+            if (eTag == null) {
+                throw new IOException("Versioned read for empty blob [" + blobName + "] did not return an ETag");
+            }
+            return new VersionedBlob(new byte[0], eTag);
+        } catch (BlobStorageException e) {
             throw translateVersionedReadException(blobName, e);
         } catch (RuntimeException e) {
             final BlobStorageException storageException = findCause(e, BlobStorageException.class);
             if (storageException != null) {
                 throw translateVersionedReadException(blobName, storageException);
             }
-            throw new IOException("Unable to read blob [" + blobName + "] with version", e);
+            throw new IOException("Unable to read empty blob [" + blobName + "] with version", e);
         }
     }
 
