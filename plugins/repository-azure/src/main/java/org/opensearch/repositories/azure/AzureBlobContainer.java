@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.BlobInputStream;
 import com.azure.storage.common.implementation.Constants;
@@ -79,14 +80,23 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | BlobStorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
+        } catch (BlobStorageException e) {
+            if (isBlobNotFound(e)) {
+                return false;
+            }
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         }
-        return false;
+    }
+
+    private static boolean isBlobNotFound(BlobStorageException e) {
+        return e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND
+            && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {

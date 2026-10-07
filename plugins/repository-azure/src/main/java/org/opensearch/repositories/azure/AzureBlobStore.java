@@ -189,8 +189,8 @@ public class AzureBlobStore implements BlobStore {
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         return AccessController.doPrivileged(() -> {
             final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            final Response<Boolean> response = azureBlob.existsWithResponse(timeout(), client.v2().get());
-            return response.getValue();
+            azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get());
+            return true;
         });
     }
 
