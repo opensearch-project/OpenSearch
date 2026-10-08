@@ -4821,6 +4821,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
+    /**
+     * Hints the engine that these document ids are about to be fetched, so one that can read them
+     * together may do so now. Exposed for the bulk update path, which knows every update's id
+     * before the first item executes; {@link #getIndexer()} itself stays package-private.
+     *
+     * <p>Pure optimization — failures are absorbed by the engine and leave every document
+     * readable the normal way.
+     */
+    public void prefetchUpdateGets(List<String> ids) {
+        Indexer indexer = getIndexerOrNull();
+        if (indexer != null) {
+            indexer.prefetchUpdateGets(ids);
+        }
+    }
+
     Indexer getIndexer() {
         Indexer engine = getIndexerOrNull();
         if (engine == null) {

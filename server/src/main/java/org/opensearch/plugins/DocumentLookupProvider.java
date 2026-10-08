@@ -17,6 +17,7 @@ import org.opensearch.index.get.DocumentLookupResult;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * SPI for pluggable get-by-id lookup. Implementations resolve a document id
@@ -53,6 +54,20 @@ public interface DocumentLookupProvider {
         DocumentMetadataResolver resolver
     ) throws IOException {
         return DocumentLookupResult.notFound(id);
+    }
+
+    /**
+     * Resolves and reads many documents in as few backend calls as possible. Best-effort: ids that
+     * cannot be served are absent from the result and the caller reads them individually. Defaults
+     * to serving nothing, so a provider need not implement it.
+     */
+    default Map<String, DocumentLookupResult> prefetchByIds(
+        List<String> ids,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        DocumentMetadataResolver resolver
+    ) throws IOException {
+        return Map.of();
     }
 
     /**
