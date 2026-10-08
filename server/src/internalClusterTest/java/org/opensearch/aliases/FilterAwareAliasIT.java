@@ -225,20 +225,14 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         }
         refresh("patients_visible_only");
 
+        // Score the sample doc for the restricted-subset term through the filtered-stats alias...
+        float aliasScore = sampleScore("fs_pre", RESTRICTED_TERM);
+        // ...vs the same query against the physically-filtered index.
+        float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
 
-            // Score the sample doc for the restricted-subset term through the filtered-stats alias...
-            float aliasScore = sampleScore("fs_pre", RESTRICTED_TERM);
-            // ...vs the same query against the physically-filtered index.
-            float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
-
-            assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
-            assertTrue("sample found via physical visible-only index", physicalScore > 0f);
-            assertEquals(
-                "filtered_stats score must equal the physically-filtered index score (same N, df)",
-                physicalScore,
-                aliasScore,
-                0.01f
-            );
+        assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
+        assertTrue("sample found via physical visible-only index", physicalScore > 0f);
+        assertEquals("filtered_stats score must equal the physically-filtered index score (same N, df)", physicalScore, aliasScore, 0.01f);
     }
 
     /**
@@ -295,15 +289,15 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         assertTrue("corpus must span several segments for this test to mean anything, got " + segments, segments > 1);
 
         addAlias("fs_multiseg", "filtered_stats");
-            float aliasScore = sampleScore("fs_multiseg", RESTRICTED_TERM);
-            float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
-            assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
-            assertEquals(
-                "filtered_stats must equal the physically-filtered index across " + segments + " segments",
-                physicalScore,
-                aliasScore,
-                0.01f
-            );
+        float aliasScore = sampleScore("fs_multiseg", RESTRICTED_TERM);
+        float physicalScore = sampleScore("patients_visible_only", RESTRICTED_TERM);
+        assertTrue("sample found via filtered-stats alias", aliasScore > 0f);
+        assertEquals(
+            "filtered_stats must equal the physically-filtered index across " + segments + " segments",
+            physicalScore,
+            aliasScore,
+            0.01f
+        );
     }
 
     /**
@@ -333,44 +327,44 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                         .enforcement("pre_filter")
                 )
         );
-            // hidden_only_term is planted exclusively in filtered-out documents, so it is present in the index and
-            // has zero visible occurrences. The corpus is spread over many segments and the view is large enough that
-            // Lucene builds a bulk scorer for the term: that is the path which asks the scorer supplier for a scorer,
-            // and a single-segment toy corpus never reaches it. size > 0 is required for the same reason.
-            for (int batch = 0; batch < 8; batch++) {
-                BulkRequestBuilder bulk = client().prepareBulk();
-                for (int i = 0; i < 200; i++) {
-                    bulk.add(client().prepareIndex(index).setSource("dept", VISIBLE_DEPT, "content", "cardio bulk " + i));
-                    bulk.add(client().prepareIndex(index).setSource("dept", RESTRICTED_DEPT, "content", "hidden_only_term " + i));
-                }
-                assertFalse(bulk.get().hasFailures());
-                refresh(index);
+        // hidden_only_term is planted exclusively in filtered-out documents, so it is present in the index and
+        // has zero visible occurrences. The corpus is spread over many segments and the view is large enough that
+        // Lucene builds a bulk scorer for the term: that is the path which asks the scorer supplier for a scorer,
+        // and a single-segment toy corpus never reaches it. size > 0 is required for the same reason.
+        for (int batch = 0; batch < 8; batch++) {
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < 200; i++) {
+                bulk.add(client().prepareIndex(index).setSource("dept", VISIBLE_DEPT, "content", "cardio bulk " + i));
+                bulk.add(client().prepareIndex(index).setSource("dept", RESTRICTED_DEPT, "content", "hidden_only_term " + i));
             }
-            SearchResponse resp = client().prepareSearch("fs_absent")
-                .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
-                .setSize(10)
-                .get();
-            assertEquals("a term with no visible occurrences must match nothing", 0, resp.getHits().getHits().length);
-            assertEquals("and must not fail the shard", 0, resp.getFailedShards());
+            assertFalse(bulk.get().hasFailures());
+            refresh(index);
+        }
+        SearchResponse resp = client().prepareSearch("fs_absent")
+            .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
+            .setSize(10)
+            .get();
+        assertEquals("a term with no visible occurrences must match nothing", 0, resp.getHits().getHits().length);
+        assertEquals("and must not fail the shard", 0, resp.getFailedShards());
 
-            // Same shape with the absent term alongside a visible one, which is the multi-clause path.
-            SearchResponse mixed = client().prepareSearch("fs_absent")
-                .setQuery(QueryBuilders.matchQuery("content", "cardio hidden_only_term"))
-                .setSize(10)
-                .get();
-            assertEquals("mixed visible and view-absent terms must not fail the shard", 0, mixed.getFailedShards());
-            assertTrue("the visible term should still match", mixed.getHits().getHits().length > 0);
+        // Same shape with the absent term alongside a visible one, which is the multi-clause path.
+        SearchResponse mixed = client().prepareSearch("fs_absent")
+            .setQuery(QueryBuilders.matchQuery("content", "cardio hidden_only_term"))
+            .setSize(10)
+            .get();
+        assertEquals("mixed visible and view-absent terms must not fail the shard", 0, mixed.getFailedShards());
+        assertTrue("the visible term should still match", mixed.getHits().getHits().length > 0);
 
-            // And under dfs, where per-shard statistics are summed on the coordinator. The floor the local path
-            // substitutes must not be what the dfs phase reports, or the aggregated docFreq would move with the
-            // number of shards holding the term in filtered-out documents.
-            SearchResponse dfs = client().prepareSearch("fs_absent")
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
-                .setSize(10)
-                .get();
-            assertEquals("dfs must not fail the shard either", 0, dfs.getFailedShards());
-            assertEquals("and must still match nothing", 0, dfs.getHits().getHits().length);
+        // And under dfs, where per-shard statistics are summed on the coordinator. The floor the local path
+        // substitutes must not be what the dfs phase reports, or the aggregated docFreq would move with the
+        // number of shards holding the term in filtered-out documents.
+        SearchResponse dfs = client().prepareSearch("fs_absent")
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setQuery(QueryBuilders.matchQuery("content", "hidden_only_term"))
+            .setSize(10)
+            .get();
+        assertEquals("dfs must not fail the shard either", 0, dfs.getFailedShards());
+        assertEquals("and must still match nothing", 0, dfs.getHits().getHits().length);
     }
 
     /**
@@ -403,16 +397,16 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
 
         // The fallback still does not expose the filtered-out documents: a term confined to them is
         // indistinguishable from a term that exists nowhere.
-        assertEquals("fallback keeps scores independent of filtered-out documents", sampleScore("fs_guard", ABSENT_TERM), guardedScore, 0.0001f);
+        assertEquals(
+            "fallback keeps scores independent of filtered-out documents",
+            sampleScore("fs_guard", ABSENT_TERM),
+            guardedScore,
+            0.0001f
+        );
 
         // And removing the ceiling restores ranking, so the setting is live rather than read once at startup.
         setMaxVisibleDocs(-1L);
-        assertNotEquals(
-            "clearing the ceiling should restore real BM25 scoring",
-            1.0f,
-            sampleScore("fs_guard", RESTRICTED_TERM),
-            0.0001f
-        );
+        assertNotEquals("clearing the ceiling should restore real BM25 scoring", 1.0f, sampleScore("fs_guard", RESTRICTED_TERM), 0.0001f);
     }
 
     private void setMaxVisibleDocs(long value) {
@@ -479,19 +473,18 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                 )
         );
 
-
-            // DFS across 3 shards: the restricted-subset term and the absent term must score identically
-            // through the filtered_stats alias -- only true if per-shard filtered stats aggregate correctly.
-            float dfsRestricted = dfsSampleScore("dfs_pre", RESTRICTED_TERM);
-            float dfsAbsent = dfsSampleScore("dfs_pre", ABSENT_TERM);
-            assertTrue("sample found for restricted term under dfs", dfsRestricted > 0f);
-            assertTrue("sample found for absent term under dfs", dfsAbsent > 0f);
-            assertEquals(
-                "dfs_query_then_fetch: aggregated filtered statistics must reflect only the visible subset",
-                dfsAbsent,
-                dfsRestricted,
-                0.0001f
-            );
+        // DFS across 3 shards: the restricted-subset term and the absent term must score identically
+        // through the filtered_stats alias -- only true if per-shard filtered stats aggregate correctly.
+        float dfsRestricted = dfsSampleScore("dfs_pre", RESTRICTED_TERM);
+        float dfsAbsent = dfsSampleScore("dfs_pre", ABSENT_TERM);
+        assertTrue("sample found for restricted term under dfs", dfsRestricted > 0f);
+        assertTrue("sample found for absent term under dfs", dfsAbsent > 0f);
+        assertEquals(
+            "dfs_query_then_fetch: aggregated filtered statistics must reflect only the visible subset",
+            dfsAbsent,
+            dfsRestricted,
+            0.0001f
+        );
 
         // Control: over the same corpus, a post_filter view aggregates whole-shard statistics, so the two terms
         // score differently. Without this the assertion above would also pass if filtered statistics were simply

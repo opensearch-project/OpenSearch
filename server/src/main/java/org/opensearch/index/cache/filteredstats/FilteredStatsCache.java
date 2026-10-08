@@ -27,8 +27,8 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SmallFloat;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -79,7 +79,6 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
     );
-
 
     /**
      * A computation that produces a value to cache on the first miss for a (segment, filter[, field|term]) key.

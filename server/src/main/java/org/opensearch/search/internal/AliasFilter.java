@@ -108,8 +108,8 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
                 }
             }
             throw new IllegalArgumentException(
-                    "unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter, filtered_stats]"
-                );
+                "unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter, filtered_stats]"
+            );
         }
 
         public static Enforcement readFrom(StreamInput in) throws IOException {

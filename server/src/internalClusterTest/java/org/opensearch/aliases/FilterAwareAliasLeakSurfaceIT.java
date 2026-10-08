@@ -91,13 +91,17 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareAliases()
                 .addAliasAction(
-                    AliasActions.add().index(INDEX).alias(ALIAS).filter(QueryBuilders.termQuery("dept", VISIBLE)).enforcement("filtered_stats")
+                    AliasActions.add()
+                        .index(INDEX)
+                        .alias(ALIAS)
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE))
+                        .enforcement("filtered_stats")
                 )
         );
     }
 
     private <T> T withGate(ThrowingSupplier<T> body) throws Exception {
-            return body.get();
+        return body.get();
     }
 
     interface ThrowingSupplier<T> {
