@@ -82,6 +82,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -613,6 +617,98 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertEquals(2, secondRequests.get());
     }
 
+    public void testRepositoriesKeepIndependentLocationModes() throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String primaryEndpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
+        final String secondaryEndpoint = "http://localhost:" + address.getPort() + "/";
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        service = createStorageService(buildClientSettings(activeClientName, 1, primaryEndpoint, secondaryEndpoint));
+        final AzureBlobStore primaryStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
+        final AzureBlobStore secondaryStore = createBlobStore(service, activeClientName, LocationMode.SECONDARY_ONLY);
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        httpServer.createContext("/container/primary-mode", exchange -> {
+            assertFalse(isSecondaryRequest(exchange));
+            primaryRequests.incrementAndGet();
+            sendBlobDownload(exchange);
+        });
+        httpServer.createContext("/container/secondary-mode", exchange -> {
+            assertTrue(isSecondaryRequest(exchange));
+            secondaryRequests.incrementAndGet();
+            sendBlobDownload(exchange);
+        });
+
+        try (InputStream input = primaryStore.getInputStream("primary-mode", 0L, 1L)) {
+            assertEquals(1, Streams.readFully(input).length());
+        }
+        try (InputStream input = secondaryStore.getInputStream("secondary-mode", 0L, 1L)) {
+            assertEquals(1, Streams.readFully(input).length());
+        }
+
+        assertEquals(1, primaryRequests.get());
+        assertEquals(1, secondaryRequests.get());
+        assertEquals(2, service.locationClientCount());
+        assertEquals(LocationMode.PRIMARY_ONLY, service.storageSettings.get(activeClientName).getLocationMode());
+    }
+
+    public void testBlobExistsDoesNotReturnStaleSuccessAfterReload() throws Exception {
+        assertBlobExistsReloadResult(true, false);
+    }
+
+    public void testBlobExistsDoesNotReturnStaleNotFoundAfterReload() throws Exception {
+        assertBlobExistsReloadResult(false, true);
+    }
+
+    private void assertBlobExistsReloadResult(boolean oldResult, boolean newResult) throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String authority = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        service = createStorageService(buildClientSettings(activeClientName, 1, authority + "/old", null));
+        final AzureBlobStore blobStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
+        final String blobName = oldResult ? "stale-success" : "stale-not-found";
+        httpServer.createContext("/old/container/" + blobName, exchange -> {
+            if (oldResult) {
+                sendBlobProperties(exchange);
+            } else {
+                sendAzureError(exchange, 404, "BlobNotFound");
+            }
+        });
+        httpServer.createContext("/new/container/" + blobName, exchange -> {
+            if (newResult) {
+                sendBlobProperties(exchange);
+            } else {
+                sendAzureError(exchange, 404, "BlobNotFound");
+            }
+        });
+
+        final CountDownLatch validationReached = new CountDownLatch(1);
+        final CountDownLatch releaseValidation = new CountDownLatch(1);
+        blobStore.setBeforeExistenceResultValidation(() -> {
+            validationReached.countDown();
+            try {
+                if (releaseValidation.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to release existence validation");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        });
+
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<Boolean> result = executor.submit(() -> blobStore.blobExists(blobName));
+            assertTrue(validationReached.await(10, TimeUnit.SECONDS));
+            final Settings reloadedSettings = buildClientSettings(activeClientName, 1, authority + "/new", null);
+            service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings));
+            releaseValidation.countDown();
+            assertEquals(newResult, result.get(10, TimeUnit.SECONDS));
+        } finally {
+            releaseValidation.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
@@ -985,6 +1081,17 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
         exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+        exchange.close();
+    }
+
+    private static void sendBlobDownload(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+        exchange.getResponseHeaders().add("Content-Length", "1");
+        exchange.getResponseHeaders().add("Content-Range", "bytes 0-0/1");
+        exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(206, 1);
+        exchange.getResponseBody().write(1);
         exchange.close();
     }
 

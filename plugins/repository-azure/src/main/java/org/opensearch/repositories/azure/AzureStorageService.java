@@ -106,6 +106,7 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final Map<LocationClientKey, LocationClientState> locationClients = new ConcurrentHashMap<>();
     private final Map<String, PrimaryClientState> primaryClients = new ConcurrentHashMap<>();
     private final Object clientLifecycleMutex = new Object();
     private final ExecutorService executor;
@@ -208,6 +209,7 @@ public class AzureStorageService implements AutoCloseable {
             if (azureStorageSettings == null) {
                 throw new SettingsException("Unable to find client with name [" + clientName + "]");
             }
+
             PrimaryClientState primaryState = primaryClients.get(clientName);
             if (primaryState == null || primaryState.sourceSettings != azureStorageSettings) {
                 if (primaryState != null) {
@@ -231,6 +233,42 @@ public class AzureStorageService implements AutoCloseable {
             }
             final PrimaryClientState selectedState = primaryState;
             return new Tuple<>(selectedState.clientState.getClient(), () -> buildOperationContext(selectedState.primarySettings));
+        }
+    }
+
+    Tuple<BlobServiceClient, Supplier<Context>> client(
+        String clientName,
+        LocationMode locationMode,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector
+    ) {
+        lifecycleObserver.accept("location_acquire");
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException("Unable to find client with name [" + clientName + "]");
+            }
+
+            final LocationClientKey key = new LocationClientKey(clientName, locationMode);
+            LocationClientState state = locationClients.get(key);
+            if (state == null || state.sourceSettings != azureStorageSettings) {
+                if (state != null) {
+                    closeInternally(state.clientState);
+                }
+                final AzureStorageSettings locationSettings = AzureStorageSettings.overrideLocationMode(
+                    Collections.singletonMap(clientName, azureStorageSettings),
+                    locationMode
+                ).get(clientName);
+                try {
+                    state = new LocationClientState(azureStorageSettings, locationSettings, buildClient(locationSettings, statsCollector));
+                    locationClients.put(key, state);
+                } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                    locationClients.remove(key);
+                    throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+                }
+            }
+            final LocationClientState selectedState = state;
+            return new Tuple<>(selectedState.clientState.getClient(), () -> buildOperationContext(selectedState.locationSettings));
         }
     }
 
@@ -511,6 +549,45 @@ public class AzureStorageService implements AutoCloseable {
         }
     }
 
+    private static final class LocationClientKey {
+        private final String clientName;
+        private final LocationMode locationMode;
+
+        private LocationClientKey(String clientName, LocationMode locationMode) {
+            this.clientName = clientName;
+            this.locationMode = locationMode;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (object instanceof LocationClientKey == false) {
+                return false;
+            }
+            final LocationClientKey other = (LocationClientKey) object;
+            return clientName.equals(other.clientName) && locationMode == other.locationMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * clientName.hashCode() + locationMode.hashCode();
+        }
+    }
+
+    private static final class LocationClientState {
+        private final AzureStorageSettings sourceSettings;
+        private final AzureStorageSettings locationSettings;
+        private final ClientState clientState;
+
+        private LocationClientState(AzureStorageSettings sourceSettings, AzureStorageSettings locationSettings, ClientState clientState) {
+            this.sourceSettings = sourceSettings;
+            this.locationSettings = locationSettings;
+            this.clientState = clientState;
+        }
+    }
+
     int primaryClientCount() {
         synchronized (clientLifecycleMutex) {
             return primaryClients.size();
@@ -520,6 +597,12 @@ public class AzureStorageService implements AutoCloseable {
     int ordinaryClientCount() {
         synchronized (clientLifecycleMutex) {
             return clients.size();
+        }
+    }
+
+    int locationClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return locationClients.size();
         }
     }
 
@@ -546,8 +629,10 @@ public class AzureStorageService implements AutoCloseable {
     private List<ClientState> detachClientStates() {
         final Set<ClientState> detached = Collections.newSetFromMap(new IdentityHashMap<>());
         detached.addAll(clients.values());
+        locationClients.values().forEach(state -> detached.add(state.clientState));
         primaryClients.values().forEach(state -> detached.add(state.clientState));
         clients.clear();
+        locationClients.clear();
         primaryClients.clear();
         return new ArrayList<>(detached);
     }

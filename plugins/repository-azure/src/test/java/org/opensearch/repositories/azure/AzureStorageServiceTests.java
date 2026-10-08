@@ -523,9 +523,14 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             assertSame(first, second);
             service.clientForPrimaryOnly("azure2");
             assertEquals(2, service.primaryClientCount());
+            service.client("azure1", LocationMode.PRIMARY_ONLY, (request, response) -> {});
+            service.client("azure1", LocationMode.PRIMARY_ONLY, (request, response) -> {});
+            service.client("azure1", LocationMode.SECONDARY_ONLY, (request, response) -> {});
+            assertEquals(2, service.locationClientCount());
 
             service.refreshAndClearCache(AzureStorageSettings.load(buildSettings()));
             assertEquals(0, service.primaryClientCount());
+            assertEquals(0, service.locationClientCount());
         }
     }
 
@@ -626,6 +631,37 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             close.get(10, TimeUnit.SECONDS);
             assertEquals(0, service.ordinaryClientCount());
             expectThrows(IllegalStateException.class, () -> service.client("azure1"));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testLocationClientAcquisitionCannotPublishOldSettingsAfterReload() throws Exception {
+        final BlockingPrimaryClientService service = new BlockingPrimaryClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(
+                () -> service.client("azure1", LocationMode.SECONDARY_ONLY, (request, response) -> {})
+            );
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
+            reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
+            final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
+            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
+            assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            reload.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.locationClientCount());
+            assertThat(
+                service.client("azure1", LocationMode.SECONDARY_ONLY, (request, response) -> {}).v1().getAccountUrl(),
+                containsString("reloadedaccount-secondary")
+            );
         } finally {
             service.releaseBuild.countDown();
             executor.shutdownNow();
