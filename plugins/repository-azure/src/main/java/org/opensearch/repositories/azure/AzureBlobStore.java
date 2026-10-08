@@ -74,6 +74,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.time.Duration;
@@ -192,6 +193,15 @@ public class AzureBlobStore implements BlobStore {
             azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get());
             return true;
         });
+    }
+
+    boolean isPrimaryEndpointResponse(BlobStorageException e) {
+        if (e.getResponse() == null || e.getResponse().getRequest() == null) {
+            return false;
+        }
+        final String primaryAuthority = URI.create(client().v1().getAccountUrl()).getAuthority();
+        final String responseAuthority = e.getResponse().getRequest().getUrl().getAuthority();
+        return primaryAuthority != null && responseAuthority != null && primaryAuthority.equalsIgnoreCase(responseAuthority);
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
