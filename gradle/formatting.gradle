@@ -59,9 +59,13 @@ allprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
       project.apply plugin: "com.diffplug.spotless"
 
-      // Only wire the Eclipse JDT step when a spotless task is actually being run, so non-spotless
-      // Gradle invocations (test, assemble) don't provision the formatter at configuration time.
-      def runningSpotlessTask = gradle.startParameter.taskNames.any { it.toLowerCase(Locale.ROOT).contains('spotless') }
+      // Only wire the Eclipse JDT step when a spotless task can actually run (directly, or through
+      // precommit/check/build which depend on spotlessJavaCheck), so other Gradle invocations (test,
+      // assemble) don't provision the formatter at configuration time.
+      def runningSpotlessTask = gradle.startParameter.taskNames.any {
+        def name = it.toLowerCase(Locale.ROOT)
+        name.contains('spotless') || ['precommit', 'check', 'build'].contains(name.substring(name.lastIndexOf(':') + 1))
+      }
 
       spotless {
         java {
