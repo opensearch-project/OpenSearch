@@ -41,6 +41,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -68,6 +69,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -81,6 +84,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -90,6 +94,7 @@ import fixture.azure.AzureHttpHandler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
@@ -103,6 +108,7 @@ import static org.opensearch.repositories.azure.AzureStorageSettings.WRITE_BLOCK
 import static org.opensearch.repositories.azure.AzureStorageSettings.WRITE_CONCURRENCY_SETTING;
 import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -152,14 +158,37 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
-        return createBlobContainer(maxRetries, (settings, clientName) -> {});
+        return createBlobContainer(maxRetries, httpServer.getAddress());
     }
 
     private BlobContainer createBlobContainer(final int maxRetries, BiConsumer<Settings.Builder, String> configureClient) {
+        return new AzureBlobContainer(
+            BlobPath.cleanPath(),
+            createBlobStore(maxRetries, httpServer.getAddress(), configureClient),
+            threadPool
+        );
+    }
+
+    private AzureBlobStore createBlobStore(final int maxRetries) {
+        return createBlobStore(maxRetries, httpServer.getAddress());
+    }
+
+    private BlobContainer createBlobContainer(final int maxRetries, InetSocketAddress address) {
+        return new AzureBlobContainer(BlobPath.cleanPath(), createBlobStore(maxRetries, address), threadPool);
+    }
+
+    private AzureBlobStore createBlobStore(final int maxRetries, InetSocketAddress address) {
+        return createBlobStore(maxRetries, address, (settings, clientName) -> {});
+    }
+
+    private AzureBlobStore createBlobStore(
+        final int maxRetries,
+        InetSocketAddress address,
+        BiConsumer<Settings.Builder, String> configureClient
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
-        final InetSocketAddress address = httpServer.getAddress();
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
             + InetAddresses.toUriString(address.getAddress())
             + ":"
@@ -197,7 +226,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
             Settings.builder().put(CONTAINER_SETTING.getKey(), "container").put(ACCOUNT_SETTING.getKey(), clientName).build()
         );
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service, threadPool), threadPool);
+        return new AzureBlobStore(repositoryMetadata, service, threadPool);
     }
 
     public void testListBlobsByPrefixInSortedOrderPushesLimitToAzure() throws Exception {
@@ -397,6 +426,57 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         }
     }
 
+    public void testReadBlobWithMetadataUsesSameGetResponse() throws Exception {
+        final byte[] bytes = randomBlobContent();
+        final Map<String, String> logicalMetadata = Map.of("ckp-data", "checkpoint-値");
+        final Map<String, String> wireMetadata = AzureBlobMetadataCodec.encode(logicalMetadata);
+        final Map<String, String> responseMetadata = new HashMap<>(wireMetadata);
+        responseMetadata.put("external-owner", "someone");
+        try (RawHttpBlobServer server = new RawHttpBlobServer(bytes, responseMetadata)) {
+            final BlobContainer blobContainer = createBlobContainer(between(1, 3), server.address());
+            try (InputStreamWithMetadata response = blobContainer.readBlobWithMetadata("read_blob_with_metadata")) {
+                assertThat(response.getMetadata(), equalTo(logicalMetadata));
+                assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(response.getInputStream())));
+            }
+            assertThat(server.requestCount(), equalTo(1));
+        }
+    }
+
+    public void testReadBlobWithMetadataWithoutMetadataReturnsEmptyMap() throws Exception {
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/container/read_blob_without_metadata", exchange -> {
+            try {
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
+                exchange.getResponseHeaders().add("Content-Range", "bytes 0-" + (bytes.length - 1) + "/" + bytes.length);
+                exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
+                exchange.getResponseBody().write(bytes);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 3));
+        try (InputStreamWithMetadata response = blobContainer.readBlobWithMetadata("read_blob_without_metadata")) {
+            assertThat(response.getMetadata().entrySet(), is(empty()));
+            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(response.getInputStream())));
+        }
+    }
+
+    public void testReadBlobWithMalformedOwnedMetadataFails() throws Exception {
+        final byte[] bytes = randomBlobContent();
+        final Map<String, String> responseMetadata = Map.of(AzureBlobMetadataCodec.KEY_PREFIX + "ff", "v1_YQ==");
+        try (RawHttpBlobServer server = new RawHttpBlobServer(bytes, responseMetadata)) {
+            final BlobContainer blobContainer = createBlobContainer(between(1, 3), server.address());
+            final IOException exception = expectThrows(
+                IOException.class,
+                () -> blobContainer.readBlobWithMetadata("read_blob_with_malformed_metadata")
+            );
+            assertThat(exception.getMessage(), containsString("valid UTF-8"));
+        }
+    }
+
     public void testReadRangeBlobWithRetries() throws Exception {
         // The request retry policy counts the first attempt as retry, so we need to
         // account for that and increase the max retry count by one.
@@ -535,6 +615,50 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertThat(countDown.isCountedDown(), is(true));
     }
 
+    public void testWriteBlobWithMetadataSingleUpload() throws Exception {
+        final byte[] bytes = randomBlobContent();
+        final Map<String, String> logicalMetadata = Map.of("ckp-data", "checkpoint-値");
+        final Map<String, String> wireMetadata = AzureBlobMetadataCodec.encode(logicalMetadata);
+        final AtomicBoolean requestReceived = new AtomicBoolean();
+        httpServer.createContext("/container/write_blob_with_metadata", exchange -> {
+            try {
+                assertThat(exchange.getRequestMethod(), equalTo("PUT"));
+                assertMetadataHeaders(exchange, wireMetadata);
+                assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(exchange.getRequestBody())));
+                requestReceived.set(true);
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 3));
+        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+            blobContainer.writeBlobWithMetadata("write_blob_with_metadata", stream, bytes.length, false, logicalMetadata);
+        }
+        assertTrue(requestReceived.get());
+    }
+
+    public void testWriteBlobWithoutMetadataDoesNotSendOwnedHeaders() throws Exception {
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/container/write_blob_without_metadata", exchange -> {
+            try {
+                assertNoOwnedMetadataHeaders(exchange);
+                assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(exchange.getRequestBody())));
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 3));
+        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+            blobContainer.writeBlob("write_blob_without_metadata", stream, bytes.length, false);
+        }
+    }
+
     public void testWriteLargeBlob() throws Exception {
         // The request retry policy counts the first attempt as retry, so we need to
         // account for that and increase the max retry count by one.
@@ -605,6 +729,68 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
+    }
+
+    public void testWriteLargeBlobMetadataIsAppliedOnlyToBlockList() throws Exception {
+        final byte[] data = randomBytes(BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE * 2);
+        final Map<String, String> logicalMetadata = Map.of("ckp-data", "checkpoint-値");
+        final Map<String, String> wireMetadata = AzureBlobMetadataCodec.encode(logicalMetadata);
+        final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
+        final AtomicInteger putBlockRequests = new AtomicInteger();
+        final AtomicInteger putBlockListRequests = new AtomicInteger();
+        httpServer.createContext("/container/write_large_blob_with_metadata", exchange -> {
+            try {
+                if ("PUT".equals(exchange.getRequestMethod()) == false) {
+                    AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
+                    return;
+                }
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                final String blockId = params.get("blockid");
+                if (Strings.hasText(blockId)) {
+                    assertNoOwnedMetadataHeaders(exchange);
+                    blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
+                    putBlockRequests.incrementAndGet();
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    return;
+                }
+                if ("blocklist".equals(params.get("comp"))) {
+                    assertMetadataHeaders(exchange, wireMetadata);
+                    final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                    final List<String> blockUids = Arrays.stream(blockList.split("<Latest>"))
+                        .filter(line -> line.contains("</Latest>"))
+                        .map(line -> line.substring(0, line.indexOf("</Latest>")))
+                        .collect(Collectors.toList());
+                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
+                    for (String blockUid : blockUids) {
+                        final BytesReference block = blocks.remove(blockUid);
+                        assertNotNull(block);
+                        block.writeTo(blob);
+                    }
+                    assertArrayEquals(data, blob.toByteArray());
+                    putBlockListRequests.incrementAndGet();
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    return;
+                }
+                AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 3));
+        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
+            blobContainer.writeBlobWithMetadata("write_large_blob_with_metadata", stream, data.length, false, logicalMetadata);
+        }
+        assertThat(putBlockRequests.get(), greaterThanOrEqualTo(1));
+        assertThat(putBlockListRequests.get(), equalTo(1));
+        assertThat(blocks.entrySet(), is(empty()));
+    }
+
+    public void testBlobMetadataCapabilityRemainsDisabled() {
+        assertFalse(createBlobStore(between(1, 3)).isBlobMetadataEnabled());
     }
 
     public void testRetryUntilFail() throws IOException {
@@ -685,6 +871,114 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), body.length);
         exchange.getResponseBody().write(body);
+    }
+
+    private static void assertMetadataHeaders(HttpExchange exchange, Map<String, String> wireMetadata) {
+        wireMetadata.forEach((key, value) -> assertThat(exchange.getRequestHeaders().getFirst("x-ms-meta-" + key), equalTo(value)));
+    }
+
+    private static void assertNoOwnedMetadataHeaders(HttpExchange exchange) {
+        assertFalse(
+            exchange.getRequestHeaders()
+                .keySet()
+                .stream()
+                .map(header -> header.toLowerCase(Locale.ROOT))
+                .anyMatch(header -> header.startsWith("x-ms-meta-" + AzureBlobMetadataCodec.KEY_PREFIX))
+        );
+    }
+
+    private static class RawHttpBlobServer implements AutoCloseable {
+        private final byte[] content;
+        private final Map<String, String> metadata;
+        private final ServerSocket serverSocket;
+        private final Thread serverThread;
+        private final AtomicInteger requestCount = new AtomicInteger();
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+        private volatile boolean closing;
+
+        RawHttpBlobServer(byte[] content, Map<String, String> metadata) throws IOException {
+            this.content = content;
+            this.metadata = metadata;
+            this.serverSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+            this.serverThread = new Thread(this::serve, "azure-blob-metadata-test-server");
+            this.serverThread.start();
+        }
+
+        InetSocketAddress address() {
+            return (InetSocketAddress) serverSocket.getLocalSocketAddress();
+        }
+
+        int requestCount() {
+            return requestCount.get();
+        }
+
+        private void serve() {
+            try (Socket socket = serverSocket.accept()) {
+                socket.setSoTimeout(10_000);
+                final String requestHeaders = readRequestHeaders(socket.getInputStream());
+                requestCount.incrementAndGet();
+                if (requestHeaders.startsWith("GET ") == false) {
+                    throw new AssertionError("Expected a GET request but received: " + requestHeaders.lines().findFirst().orElse(""));
+                }
+
+                final StringBuilder responseHeaders = new StringBuilder();
+                responseHeaders.append("HTTP/1.1 206 Partial Content\r\n");
+                responseHeaders.append("content-type: application/octet-stream\r\n");
+                responseHeaders.append("content-length: ").append(content.length).append("\r\n");
+                responseHeaders.append("content-range: bytes 0-")
+                    .append(content.length - 1)
+                    .append("/")
+                    .append(content.length)
+                    .append("\r\n");
+                responseHeaders.append("x-ms-blob-type: BlockBlob\r\n");
+                metadata.forEach(
+                    (key, value) -> responseHeaders.append("x-ms-meta-").append(key).append(": ").append(value).append("\r\n")
+                );
+                responseHeaders.append("connection: close\r\n\r\n");
+                socket.getOutputStream().write(responseHeaders.toString().getBytes(US_ASCII));
+                socket.getOutputStream().write(content);
+                socket.getOutputStream().flush();
+            } catch (Throwable t) {
+                if (closing == false || requestCount.get() > 0 || t instanceof IOException == false) {
+                    failure.compareAndSet(null, t);
+                }
+            }
+        }
+
+        private static String readRequestHeaders(InputStream inputStream) throws IOException {
+            final ByteArrayOutputStream headers = new ByteArrayOutputStream();
+            int matched = 0;
+            while (matched < 4) {
+                final int next = inputStream.read();
+                if (next == -1) {
+                    throw new IOException("Connection closed before the HTTP request headers were complete");
+                }
+                headers.write(next);
+                if (((matched == 0 || matched == 2) && next == '\r') || ((matched == 1 || matched == 3) && next == '\n')) {
+                    matched++;
+                } else {
+                    matched = next == '\r' ? 1 : 0;
+                }
+            }
+            return headers.toString(US_ASCII);
+        }
+
+        @Override
+        public void close() throws Exception {
+            closing = true;
+            serverSocket.close();
+            serverThread.join(TimeUnit.SECONDS.toMillis(10));
+            if (serverThread.isAlive()) {
+                throw new AssertionError("Raw HTTP metadata test server did not terminate");
+            }
+            final Throwable serverFailure = failure.get();
+            if (serverFailure instanceof Exception exception) {
+                throw exception;
+            }
+            if (serverFailure instanceof Error error) {
+                throw error;
+            }
+        }
     }
 
 }
