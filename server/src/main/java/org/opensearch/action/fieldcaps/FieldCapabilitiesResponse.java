@@ -145,7 +145,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     /**
      * Get the indices that could not be checked, keyed by index name, with the reason. Such an index is
      * absent from {@link #getIndices()} because its capabilities, or whether it matches the index filter,
-     * are unknown, not because it was found not to match.
+     * are unknown, not because it was found not to match. For a remote cluster that could not be reached,
+     * the key is the index expression requested from it, such as {@code remote:logs-*}.
      */
     public Map<String, Exception> getFailures() {
         return failures;

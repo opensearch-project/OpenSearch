@@ -167,7 +167,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     response.getFailures()
                         .forEach((index, e) -> failures.put(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), e));
                     onResponse.run();
-                }, failure -> onResponse.run()));
+                }, failure -> {
+                    // Its index names are unknown, so report the expressions asked of it.
+                    if (ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) == null) {
+                        for (String expression : originalIndices.indices()) {
+                            failures.put(RemoteClusterAware.buildRemoteIndexName(clusterAlias, expression), failure);
+                        }
+                    }
+                    onResponse.run();
+                }));
             }
         }
     }
