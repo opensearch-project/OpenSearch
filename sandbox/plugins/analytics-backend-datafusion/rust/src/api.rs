@@ -92,6 +92,10 @@ pub struct QueryStreamHandle {
     /// Concurrency gate permit — held for the query's entire lifetime.
     /// Released on drop, which frees partition budget for other queries.
     _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    /// Runtime-filter registry for this session, read after execution so the per-filter
+    /// elimination counts can be folded into the metrics JSON. Optional because most streams
+    /// carry no filter; `None` simply contributes nothing.
+    runtime_filters: Option<crate::runtime_filter::RuntimeFilterRegistry>,
     /// Physical plan reference for post-execution metrics extraction.
     /// Available after execution completes; read via `df_stream_get_metrics`.
     physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
@@ -120,9 +124,21 @@ impl QueryStreamHandle {
             _session_ctx: None,
             has_views,
             _concurrency_permit: permit,
+            runtime_filters: None,
             physical_plan: None,
             task_done: None,
         }
+    }
+
+    /// Attaches the session's runtime-filter registry so `get_metrics_json` can report what each
+    /// filter actually eliminated. Builder-style for the same reason as `with_task_done`: most callers
+    /// have no filter and should not have to say so.
+    pub fn with_runtime_filters(
+        mut self,
+        registry: crate::runtime_filter::RuntimeFilterRegistry,
+    ) -> Self {
+        self.runtime_filters = Some(registry);
+        self
     }
 
     /// Attaches the task-completion signal `stream_close` joins on before the allocator closes.
@@ -144,6 +160,7 @@ impl QueryStreamHandle {
             _session_ctx: None,
             has_views,
             _concurrency_permit: permit,
+            runtime_filters: None,
             physical_plan: Some(plan),
             task_done: None,
         }
@@ -162,6 +179,7 @@ impl QueryStreamHandle {
             _session_ctx: Some(ctx),
             has_views,
             _concurrency_permit: permit,
+            runtime_filters: None,
             physical_plan: None,
             task_done: None,
         }
@@ -181,6 +199,7 @@ impl QueryStreamHandle {
             _session_ctx: Some(ctx),
             has_views,
             _concurrency_permit: permit,
+            runtime_filters: None,
             physical_plan: Some(plan),
             task_done: None,
         }
@@ -200,6 +219,26 @@ impl QueryStreamHandle {
             "physical_plan".to_string(),
             serde_json::Value::String(plan_text),
         );
+        // Runtime-filter effect, per filter id. Reported here rather than through a new channel because
+        // this JSON is already logged per shard and returned under `profile`. `rows_in` against
+        // `rows_kept` is the only direct evidence that a filter did anything: an undersized filter
+        // admits nearly every row and is otherwise indistinguishable from one with nothing to remove.
+        if let Some(registry) = self.runtime_filters.as_ref() {
+            for (id, rows_in, rows_kept) in crate::runtime_filter::stats(registry) {
+                map.insert(
+                    format!("runtime_filter_{id}_rows_in"),
+                    serde_json::Value::from(rows_in),
+                );
+                map.insert(
+                    format!("runtime_filter_{id}_rows_kept"),
+                    serde_json::Value::from(rows_kept),
+                );
+                map.insert(
+                    format!("runtime_filter_{id}_rows_eliminated"),
+                    serde_json::Value::from(rows_in.saturating_sub(rows_kept)),
+                );
+            }
+        }
         serde_json::to_vec(&map).ok()
     }
 

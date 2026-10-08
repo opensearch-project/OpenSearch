@@ -119,6 +119,7 @@ public final class CanMatchFilterSerializer {
         String type = in.readString();
         CanMatchFilter filter = switch (type) {
             case LongRange.TYPE -> LongRange.readBody(in);
+            case LongSet.TYPE -> LongSet.readBody(in);
             default -> {
                 logger.debug("Unknown CanMatchFilter type '{}'; skipping (fail-open)", type);
                 yield null;

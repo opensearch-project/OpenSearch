@@ -1,0 +1,36 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:runtime_filter_functions
+# Join runtime filters. Both functions are injected by the planner and implemented by the backend, so
+# they are declared here rather than in a user-callable function YAML — the same arrangement as
+# delegation_functions.yaml. Substrait conversion needs the declaration: a Calcite operator maps to a
+# name, and the name has to resolve in the extension collection before a plan can reference it.
+scalar_functions:
+  - name: os_runtime_filter
+    description: >-
+      Probe-side application point. TRUE keeps the row; FALSE proves the key is absent from the join's
+      build side. The plan carries only filterId — the filter's bytes arrive separately as an
+      instruction, because the value is not known until the build side has run. An id the executing
+      session does not know yields TRUE for every row, so a filter that fails to arrive costs the
+      optimization and not the result.
+    impls:
+      - args:
+          - name: filterId
+            value: i32
+          - name: key
+            value: any1
+        return: boolean
+aggregate_functions:
+  - name: os_bloom_agg
+    description: >-
+      Build-side summary: one fixed-size Bloom filter over the join key, per shard, unioned by the
+      coordinator. numBytes is an argument rather than a backend setting because every shard's
+      contribution must be built to the same size for that union to be defined, and an argument in the
+      plan is what makes the agreement per-query and visible.
+    impls:
+      - args:
+          - name: key
+            value: any1
+          - name: numBytes
+            value: i32
+        return: binary

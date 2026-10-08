@@ -54,6 +54,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.RuntimeFilterFunction;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
@@ -123,6 +124,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(AggregateFunction.REDUCE_EVAL_OP, "reduce_eval"),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
+        FunctionMappings.s(RuntimeFilterFunction.PROBE, RuntimeFilterFunction.PROBE_NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
@@ -481,7 +483,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
-        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct"),
+        FunctionMappings.s(RuntimeFilterFunction.BLOOM_AGG, RuntimeFilterFunction.BLOOM_AGG_NAME)
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
@@ -489,6 +492,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
+        // No bloom-agg entry here: it is only ever a plain aggregate in the runtime-filter pre-pass,
+        // never a window function.
     );
 
     /**
