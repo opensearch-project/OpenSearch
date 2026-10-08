@@ -232,7 +232,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         return clientSettings.build();
     }
 
-    private BlobContainer createBlobContainer(AzureStorageService storageService, String clientName, LocationMode locationMode) {
+    private AzureBlobStore createBlobStore(AzureStorageService storageService, String clientName, LocationMode locationMode) {
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
             AzureRepository.TYPE,
@@ -243,7 +243,11 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 .build()
         );
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, storageService, threadPool), threadPool);
+        return new AzureBlobStore(repositoryMetadata, storageService, threadPool);
+    }
+
+    private BlobContainer createBlobContainer(AzureStorageService storageService, String clientName, LocationMode locationMode) {
+        return new AzureBlobContainer(BlobPath.cleanPath(), createBlobStore(storageService, clientName, locationMode), threadPool);
     }
 
     public void testListBlobsByPrefixInSortedOrderPushesLimitToAzure() throws Exception {
@@ -585,6 +589,28 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertEquals(1, oldRequests.get());
         assertEquals(1, newRequests.get());
         assertEquals(1, service.primaryClientCount());
+    }
+
+    public void testClosingOneRepositoryDoesNotCloseSharedService() throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String primaryEndpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final Settings settings = buildClientSettings(activeClientName, 1, primaryEndpoint, null);
+        service = createStorageService(settings);
+        final AzureBlobStore firstStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
+        final AzureBlobStore secondStore = createBlobStore(service, activeClientName, LocationMode.SECONDARY_ONLY);
+        final AtomicInteger secondRequests = new AtomicInteger();
+        httpServer.createContext("/container/second-repository", exchange -> {
+            secondRequests.incrementAndGet();
+            sendBlobProperties(exchange);
+        });
+
+        firstStore.close();
+        assertTrue(secondStore.blobContainer(BlobPath.cleanPath()).blobExists("second-repository"));
+
+        service.refreshAndClearCache(AzureStorageSettings.load(settings));
+        assertTrue(secondStore.blobContainer(BlobPath.cleanPath()).blobExists("second-repository"));
+        assertEquals(2, secondRequests.get());
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {

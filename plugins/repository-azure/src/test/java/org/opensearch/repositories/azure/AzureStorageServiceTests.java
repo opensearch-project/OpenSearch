@@ -49,7 +49,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -105,10 +104,17 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     private AzureStorageService storageServiceWithSettingsValidation(Settings settings) {
-        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
+        try {
+            new SettingsModule(settings, plugin.getSettings(), Collections.emptyList(), Collections.emptySet());
             return plugin.azureStoreService;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (RuntimeException e) {
+            try {
+                plugin.close();
+            } catch (IOException closeException) {
+                e.addSuppressed(closeException);
+            }
+            throw e;
         }
     }
 
@@ -533,13 +539,9 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
             reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
             final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
-            final CountDownLatch reloadStarted = new CountDownLatch(1);
-            final Future<?> reload = executor.submit(() -> {
-                reloadStarted.countDown();
-                service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings));
-            });
-            assertTrue(reloadStarted.await(10, TimeUnit.SECONDS));
-            assertFalse(reload.isDone());
+            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
+            assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
 
             service.releaseBuild.countDown();
             acquisition.get(10, TimeUnit.SECONDS);
@@ -560,20 +562,70 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final Future<?> acquisition = executor.submit(() -> service.clientForPrimaryOnly("azure1"));
             assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
 
-            final CountDownLatch closeStarted = new CountDownLatch(1);
+            final CountDownLatch closeQueued = observeLifecycleOperation(service, "close");
             final Future<?> close = executor.submit(() -> {
-                closeStarted.countDown();
                 service.close();
                 return null;
             });
-            assertTrue(closeStarted.await(10, TimeUnit.SECONDS));
-            assertFalse(close.isDone());
+            assertTrue(closeQueued.await(10, TimeUnit.SECONDS));
 
             service.releaseBuild.countDown();
             acquisition.get(10, TimeUnit.SECONDS);
             close.get(10, TimeUnit.SECONDS);
             assertEquals(0, service.primaryClientCount());
             expectThrows(IllegalStateException.class, () -> service.clientForPrimaryOnly("azure1"));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testOrdinaryClientAcquisitionCannotPublishOldSettingsAfterReload() throws Exception {
+        final BlockingPrimaryClientService service = new BlockingPrimaryClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.client("azure1"));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
+            reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
+            final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
+            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
+            assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            reload.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.ordinaryClientCount());
+            assertThat(service.client("azure1").v1().getAccountUrl(), containsString("reloadedaccount"));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testOrdinaryClientAcquisitionCannotPublishAfterClose() throws Exception {
+        final BlockingPrimaryClientService service = new BlockingPrimaryClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.client("azure1"));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final CountDownLatch closeQueued = observeLifecycleOperation(service, "close");
+            final Future<?> close = executor.submit(() -> {
+                service.close();
+                return null;
+            });
+            assertTrue(closeQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.ordinaryClientCount());
+            expectThrows(IllegalStateException.class, () -> service.client("azure1"));
         } finally {
             service.releaseBuild.countDown();
             executor.shutdownNow();
@@ -931,6 +983,16 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
 
         return null;
+    }
+
+    private static CountDownLatch observeLifecycleOperation(AzureStorageService service, String expectedOperation) {
+        final CountDownLatch queued = new CountDownLatch(1);
+        service.setLifecycleObserver(operation -> {
+            if (expectedOperation.equals(operation)) {
+                queued.countDown();
+            }
+        });
+        return queued;
     }
 
     private static class BlockingPrimaryClientService extends AzureStorageService {

@@ -180,7 +180,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        // The storage service is node-wide and is closed by AzureRepositoryPlugin.
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
