@@ -258,6 +258,27 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
 
+    // ========== FRACTIONAL VALUE ON EXACT-INTEGER FIELD (INTEGER) ==========
+
+    public void testIntegerTermsDecimalOnlyMatchNone() throws ConversionException {
+        // terms [30.5] on INTEGER field (price) → all values fractional → match-none
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { 30.5 }), ctx);
+        assertTrue("Expected literal false (match-none) for decimal-only terms on INTEGER", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    public void testIntegerTermsMixedDecimalAndWholeKeepsOnlyWhole() throws ConversionException {
+        // terms [30, 30.5] on INTEGER field (price) → drop 30.5, keep 30 (single value = EQUALS)
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { 30, 30.5 }), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, call.getKind());
+        RexNode lit = call.getOperands().get(1);
+        Integer val = (lit instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(30), val);
+    }
+
     public void testUnsignedLongTermsMixedDecimalAndWholeKeepsOnlyWhole() throws ConversionException {
         // terms [2.5, 100] on unsigned_long → skip 2.5, keep 100
         RexNode result = translator.convert(QueryBuilders.termsQuery("unsigned_counter", new Object[] { 2.5, 100 }), ctx);
@@ -269,5 +290,102 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
             ? l.getValueAs(Long.class)
             : ((RexLiteral) ((RexCall) lit).getOperands().get(0)).getValueAs(Long.class);
         assertEquals(Long.valueOf(100L), val);
+    }
+
+    // ========== OUT-OF-RANGE WHOLE VALUE IN TERMS ON EXACT-INTEGER FIELD ==========
+
+    public void testIntegerTermsWithOutOfRangeValueThrows() {
+        // terms [30, 2147483648] on INTEGER field (price): the out-of-INTEGER-range value throws, matching
+        // legacy NumberFieldMapper INTEGER.termsQuery which range-checks each value with no per-value catch.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("price", new Object[] { 30, 2147483648L }), ctx)
+        );
+        assertTrue(ex.getMessage().contains("out of range"));
+        assertTrue(ex.getMessage().contains("2147483648"));
+    }
+
+    public void testIntegerTermsWholeDoublesProduceIn() throws ConversionException {
+        // terms [30.0d, 31.0d] (whole Doubles) on INTEGER field (price) → IN containing exactly 30 and 31.
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { 30.0d, 31.0d }), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+
+        RexCall eq0 = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, eq0.getKind());
+        RexNode lit0 = eq0.getOperands().get(1);
+        Integer val0 = (lit0 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit0).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(30), val0);
+
+        RexCall eq1 = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, eq1.getKind());
+        RexNode lit1 = eq1.getOperands().get(1);
+        Integer val1 = (lit1 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit1).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(31), val1);
+    }
+
+    // ========== STRING-TYPED TERMS VALUES ON EXACT-INTEGER FIELD ==========
+
+    public void testIntegerTermsStringValuesProduceIn() throws ConversionException {
+        // terms ["30", "31"] (Strings) on INTEGER field (price) → IN containing exactly 30 and 31.
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { "30", "31" }), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+
+        RexCall eq0 = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, eq0.getKind());
+        RexNode lit0 = eq0.getOperands().get(1);
+        Integer val0 = (lit0 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit0).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(30), val0);
+
+        RexCall eq1 = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, eq1.getKind());
+        RexNode lit1 = eq1.getOperands().get(1);
+        Integer val1 = (lit1 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit1).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(31), val1);
+    }
+
+    public void testIntegerTermsStringMixedDecimalKeepsOnlyWhole() throws ConversionException {
+        // terms ["30", "30.5"] (Strings) on INTEGER field (price) → drop "30.5", keep 30 (single value = EQUALS).
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { "30", "30.5" }), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, call.getKind());
+        RexNode lit = call.getOperands().get(1);
+        Integer val = (lit instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(30), val);
+    }
+
+    public void testIntegerTermsStringWhitespaceValuesProduceIn() throws ConversionException {
+        // terms ["30", " 31 "] (Strings) on INTEGER field (price) → IN containing exactly 30 and 31; the padded value is
+        // trimmed and parsed, matching vanilla Double.parseDouble leniency.
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { "30", "  31  " }), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+
+        RexCall eq0 = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, eq0.getKind());
+        RexNode lit0 = eq0.getOperands().get(1);
+        Integer val0 = (lit0 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit0).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(30), val0);
+
+        RexCall eq1 = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, eq1.getKind());
+        RexNode lit1 = eq1.getOperands().get(1);
+        Integer val1 = (lit1 instanceof RexLiteral l)
+            ? l.getValueAs(Integer.class)
+            : ((RexLiteral) ((RexCall) lit1).getOperands().get(0)).getValueAs(Integer.class);
+        assertEquals(Integer.valueOf(31), val1);
     }
 }
