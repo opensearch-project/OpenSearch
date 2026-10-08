@@ -93,8 +93,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-
 public class AzureBlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -117,9 +115,6 @@ public class AzureBlobStore implements BlobStore {
         this.threadPool = threadPool;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
-        final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
-        this.service.refreshAndClearCache(newSettings);
 
         this.metricsCollector = (request, response) -> {
             if (response.getStatusCode() >= 300) {
@@ -185,23 +180,67 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
-        // Container name must be lower case.
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
-        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        return AccessController.doPrivileged(() -> {
-            final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get());
-            return true;
-        });
+        final int maxOperations = locationMode == LocationMode.PRIMARY_THEN_SECONDARY ? 2 : 1;
+        BlobStorageException firstSecondaryNotFound = null;
+        for (int operation = 0; operation < maxOperations; operation++) {
+            final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+            final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+            try {
+                final BlobClient azureBlob = blobContainer.getBlobClient(blob);
+                AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
+                return true;
+            } catch (BlobStorageException e) {
+                if (isBlobNotFound(e) == false) {
+                    throw e;
+                }
+                if (locationMode == LocationMode.PRIMARY_ONLY || locationMode == LocationMode.SECONDARY_ONLY) {
+                    return false;
+                }
+
+                final EndpointRole endpointRole = endpointRole(e, client.v1());
+                if (endpointRole == EndpointRole.PRIMARY) {
+                    return false;
+                }
+                if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && endpointRole == EndpointRole.SECONDARY && operation == 0) {
+                    firstSecondaryNotFound = e;
+                    continue;
+                }
+                if (firstSecondaryNotFound != null) {
+                    e.addSuppressed(firstSecondaryNotFound);
+                }
+                throw e;
+            }
+        }
+        throw new AssertionError("blob existence operation did not complete");
     }
 
-    boolean isPrimaryEndpointResponse(BlobStorageException e) {
+    private boolean isBlobNotFound(BlobStorageException e) {
+        return e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
+    }
+
+    private EndpointRole endpointRole(BlobStorageException e, BlobServiceClient operationClient) {
         if (e.getResponse() == null || e.getResponse().getRequest() == null) {
-            return false;
+            return EndpointRole.UNKNOWN;
         }
-        final String primaryAuthority = URI.create(client().v1().getAccountUrl()).getAuthority();
+        final String baseAuthority = URI.create(operationClient.getAccountUrl()).getAuthority();
         final String responseAuthority = e.getResponse().getRequest().getUrl().getAuthority();
-        return primaryAuthority != null && responseAuthority != null && primaryAuthority.equalsIgnoreCase(responseAuthority);
+        if (baseAuthority == null || responseAuthority == null) {
+            return EndpointRole.UNKNOWN;
+        }
+        final boolean usedBaseEndpoint = baseAuthority.equalsIgnoreCase(responseAuthority);
+        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
+            return usedBaseEndpoint ? EndpointRole.PRIMARY : EndpointRole.SECONDARY;
+        }
+        if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
+            return usedBaseEndpoint ? EndpointRole.SECONDARY : EndpointRole.PRIMARY;
+        }
+        return EndpointRole.UNKNOWN;
+    }
+
+    private enum EndpointRole {
+        PRIMARY,
+        SECONDARY,
+        UNKNOWN
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
@@ -448,7 +487,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client() {
-        return service.client(clientName, metricsCollector);
+        return service.client(clientName, locationMode, metricsCollector);
     }
 
     private Duration timeout() {

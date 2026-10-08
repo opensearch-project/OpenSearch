@@ -101,6 +101,7 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final Map<RepositoryClientKey, ClientState> repositoryClients = new ConcurrentHashMap<>();
     private final ExecutorService executor;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
@@ -187,6 +188,29 @@ public class AzureStorageService implements AutoCloseable {
             });
         }
 
+        return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
+    }
+
+    Tuple<BlobServiceClient, Supplier<Context>> client(
+        String clientName,
+        LocationMode locationMode,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector
+    ) {
+        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+        if (azureStorageSettings == null) {
+            throw new SettingsException("Unable to find client with name [" + clientName + "]");
+        }
+
+        // Location mode belongs to a repository, not the shared named client. Cache a dedicated client per repository
+        // metrics collector so creating or using another repository cannot change this client's endpoint ordering.
+        final RepositoryClientKey key = new RepositoryClientKey(azureStorageSettings, locationMode, statsCollector);
+        final ClientState state = repositoryClients.computeIfAbsent(key, repositoryClientKey -> {
+            try {
+                return buildClient(repositoryClientKey.settings.withLocationMode(locationMode), statsCollector);
+            } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+            }
+        });
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
@@ -309,10 +333,12 @@ public class AzureStorageService implements AutoCloseable {
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
         prevClients.values().forEach(this::closeInternally);
+        this.repositoryClients.values().forEach(this::closeInternally);
         prevClients.clear();
 
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         this.clients.clear();
+        this.repositoryClients.clear();
 
         // clients are built lazily by {@link client(String)}
         return prevSettings;
@@ -321,7 +347,9 @@ public class AzureStorageService implements AutoCloseable {
     @Override
     public void close() throws IOException {
         this.clients.values().forEach(this::closeInternally);
+        this.repositoryClients.values().forEach(this::closeInternally);
         this.clients.clear();
+        this.repositoryClients.clear();
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
@@ -442,6 +470,42 @@ public class AzureStorageService implements AutoCloseable {
 
         public EventLoopGroup getEventLoopGroup() {
             return eventLoopGroup;
+        }
+    }
+
+    private static final class RepositoryClientKey {
+        private final AzureStorageSettings settings;
+        private final LocationMode locationMode;
+        private final BiConsumer<HttpRequest, HttpResponse> statsCollector;
+
+        private RepositoryClientKey(
+            AzureStorageSettings settings,
+            LocationMode locationMode,
+            BiConsumer<HttpRequest, HttpResponse> statsCollector
+        ) {
+            this.settings = settings;
+            this.locationMode = locationMode;
+            this.statsCollector = statsCollector;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (object instanceof RepositoryClientKey == false) {
+                return false;
+            }
+            final RepositoryClientKey other = (RepositoryClientKey) object;
+            return settings == other.settings && locationMode == other.locationMode && statsCollector == other.statsCollector;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = System.identityHashCode(settings);
+            result = 31 * result + locationMode.hashCode();
+            result = 31 * result + System.identityHashCode(statsCollector);
+            return result;
         }
     }
 

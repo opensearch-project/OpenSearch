@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.BlobInputStream;
 import com.azure.storage.common.implementation.Constants;
@@ -85,45 +84,10 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.blobExists(buildKey(blobName));
         } catch (BlobStorageException e) {
-            if (isBlobNotFound(e)) {
-                final LocationMode locationMode = blobStore.getLocationMode();
-                if (locationMode == LocationMode.PRIMARY_ONLY || locationMode == LocationMode.SECONDARY_ONLY) {
-                    return false;
-                }
-                if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
-                    if (blobStore.isPrimaryEndpointResponse(e)) {
-                        return false;
-                    }
-                    // The SDK alternates read retries between primary and secondary. If retries end on a lagging
-                    // secondary's 404, start one new operation so its first request confirms the result on primary.
-                    return confirmBlobExistsAgainstPrimary(blobName, e);
-                }
-            }
             throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         } catch (URISyntaxException e) {
             throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         }
-    }
-
-    private boolean confirmBlobExistsAgainstPrimary(String blobName, BlobStorageException secondaryNotFound) throws IOException {
-        try {
-            return blobStore.blobExists(buildKey(blobName));
-        } catch (BlobStorageException e) {
-            if (isBlobNotFound(e) && blobStore.isPrimaryEndpointResponse(e)) {
-                return false;
-            }
-            final IOException failure = new IOException("Can not confirm if blob [" + blobName + "] exists against primary", e);
-            failure.addSuppressed(secondaryNotFound);
-            throw failure;
-        } catch (URISyntaxException e) {
-            final IOException failure = new IOException("Can not confirm if blob [" + blobName + "] exists against primary", e);
-            failure.addSuppressed(secondaryNotFound);
-            throw failure;
-        }
-    }
-
-    private static boolean isBlobNotFound(BlobStorageException e) {
-        return e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
