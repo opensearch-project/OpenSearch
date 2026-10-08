@@ -224,6 +224,47 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    /**
+     * When enabled on a remote-backed index using segment replication and a remote translog, the primary bulk path
+     * appends successful primary index operations in bounded batches instead of one write per operation. Local-store
+     * and document-replication engines retain the normal per-operation path regardless of this setting. Default false:
+     * an eligible index keeps the per-operation path until an operator opts in; dynamic for controlled rollout.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
+        "index.translog.batch_append.enabled",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Maximum number of operations one batched translog append may carry. A shard bulk request larger than this is
+     * appended in several chunks; a smaller one is always a single append, so the cap only bounds the per-append
+     * latency and memory of large bulks. Raise it for append-heavy indices fed by large bulk requests.
+     */
+    public static final Setting<Integer> INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING = Setting.intSetting(
+        "index.translog.batch_append.max_operations",
+        1_000,
+        1,
+        100_000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Maximum serialized size one batched translog append may carry. Bounds the heap one write thread holds for its
+     * pending chunk; whichever of this and {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING} is reached
+     * first closes the chunk.
+     */
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "index.translog.batch_append.max_size",
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(4, ByteSizeUnit.KB),
+        new ByteSizeValue(64, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch (s) {
             case "false":
@@ -1048,6 +1089,9 @@ public final class IndexSettings {
     }
 
     private volatile boolean warmerEnabled;
+    private volatile boolean translogBatchAppendEnabled;
+    private volatile int translogBatchAppendMaxOperations;
+    private volatile ByteSizeValue translogBatchAppendMaxSize;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
@@ -1250,6 +1294,9 @@ public final class IndexSettings {
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
+        translogBatchAppendEnabled = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING);
+        translogBatchAppendMaxOperations = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING);
+        translogBatchAppendMaxSize = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
@@ -1386,6 +1433,12 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING, this::setTranslogBatchAppendEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING,
+            this::setTranslogBatchAppendMaxOperations
+        );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING, this::setTranslogBatchAppendMaxSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
@@ -1795,6 +1848,36 @@ public final class IndexSettings {
 
     private void setEnableWarmer(boolean enableWarmer) {
         this.warmerEnabled = enableWarmer;
+    }
+
+    /**
+     * Whether an eligible remote-backed segment-replication engine should batch successful primary index operations.
+     * Local-store and document-replication engines ignore this setting and retain per-operation appends.
+     */
+    public boolean isTranslogBatchAppendEnabled() {
+        return translogBatchAppendEnabled;
+    }
+
+    private void setTranslogBatchAppendEnabled(boolean enabled) {
+        this.translogBatchAppendEnabled = enabled;
+    }
+
+    /** Maximum operations per batched translog append; see {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING}. */
+    public int getTranslogBatchAppendMaxOperations() {
+        return translogBatchAppendMaxOperations;
+    }
+
+    private void setTranslogBatchAppendMaxOperations(int maxOperations) {
+        this.translogBatchAppendMaxOperations = maxOperations;
+    }
+
+    /** Maximum serialized bytes per batched translog append; see {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING}. */
+    public ByteSizeValue getTranslogBatchAppendMaxSize() {
+        return translogBatchAppendMaxSize;
+    }
+
+    private void setTranslogBatchAppendMaxSize(ByteSizeValue maxSize) {
+        this.translogBatchAppendMaxSize = maxSize;
     }
 
     /**
