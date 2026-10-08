@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -1316,7 +1317,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     public void testSynchronousUploadMetadataRecoversCheckpointWithoutCheckpointBlob() throws IOException {
         BlobContainer blobContainer = mock(BlobContainer.class);
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(true);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         AtomicReference<byte[]> uploadedTranslog = new AtomicReference<>();

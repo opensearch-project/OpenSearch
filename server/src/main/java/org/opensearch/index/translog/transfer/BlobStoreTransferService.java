@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -191,7 +192,7 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     private void ensureBlobMetadataEnabled() {
-        if (blobStore.isBlobMetadataEnabled() == false) {
+        if (blobStore.isBlobMetadataEnabled(Version.CURRENT) == false) {
             throw new IllegalStateException("Blob metadata is not enabled for the configured blob store");
         }
     }

@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -119,7 +120,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(true);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         new BlobStoreTransferService(blobStore, threadPool).uploadBlob(
@@ -168,7 +169,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
             Mockito.isNull(),
             Mockito.isNull()
         );
-        verify(blobStore, Mockito.never()).isBlobMetadataEnabled();
+        verify(blobStore, Mockito.never()).isBlobMetadataEnabled(Version.CURRENT);
     }
 
     public void testSynchronousUploadWithMetadataRequiresCapability() throws IOException {
@@ -182,7 +183,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         transferFileSnapshot.setMetadataFileInputStream(metadataInputStream);
 
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -208,7 +209,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         transferFileSnapshot.setMetadataFileInputStream(new ByteArrayInputStream(new byte[1025]));
 
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(true);
 
         IOException exception = expectThrows(
             IOException.class,
@@ -278,7 +279,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
 
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(true);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -313,7 +314,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
         AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(false);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -338,7 +339,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
     public void testDownloadBlobWithMetadataRequiresCapability() {
         BlobStore blobStore = mock(BlobStore.class);
-        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -346,6 +347,53 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         );
         assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
         verify(blobStore, Mockito.never()).blobContainer(any(BlobPath.class));
+    }
+
+    public void testDownloadBlobWithMetadataRequiresDeclaredSupportVersion() {
+        BlobStore blobStore = new BlobStore() {
+            @Override
+            public BlobContainer blobContainer(BlobPath path) {
+                fail("blob container must not be accessed");
+                return null;
+            }
+
+            @Override
+            public boolean isBlobMetadataEnabled() {
+                return true;
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new BlobStoreTransferService(blobStore, threadPool).downloadBlobWithMetadata(
+                BlobPath.cleanPath(),
+                "translog-1.tlog"
+            )
+        );
+        assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
+    }
+
+    public void testDownloadBlobWithMetadataRechecksCapabilityAfterDowngrade() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobContainer.readBlobWithMetadata("translog-1.tlog")).thenReturn(
+            new InputStreamWithMetadata(new ByteArrayInputStream(new byte[0]), Map.of())
+        );
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled(Version.CURRENT)).thenReturn(true, false);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+        BlobStoreTransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
+
+        transferService.downloadBlobWithMetadata(BlobPath.cleanPath(), "translog-1.tlog").close();
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> transferService.downloadBlobWithMetadata(BlobPath.cleanPath(), "translog-1.tlog")
+        );
+
+        assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
+        verify(blobContainer, Mockito.times(1)).readBlobWithMetadata("translog-1.tlog");
     }
 
     public void testUploadBlobAsyncUsesSnapshotSuppliedPartStreams() throws IOException, InterruptedException {

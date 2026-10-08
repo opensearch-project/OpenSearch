@@ -31,11 +31,13 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * An interface for storing blobs.
@@ -76,6 +78,20 @@ public interface BlobStore extends Closeable {
      */
     default boolean isBlobMetadataEnabled() {
         return false;
+    }
+
+    /**
+     * Returns the first OpenSearch version that fully supports this blob store's object metadata implementation.
+     */
+    default Optional<Version> getBlobMetadataSupportVersion() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns whether object metadata is enabled and supported by the supplied OpenSearch version.
+     */
+    default boolean isBlobMetadataEnabled(Version version) {
+        return isBlobMetadataEnabled() && getBlobMetadataSupportVersion().filter(version::onOrAfter).isPresent();
     }
 
     /**

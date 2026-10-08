@@ -37,6 +37,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -1355,8 +1356,13 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertThat(blocks.entrySet(), is(empty()));
     }
 
-    public void testBlobMetadataCapabilityRemainsDisabled() {
-        assertFalse(createBlobStore(between(1, 3)).isBlobMetadataEnabled());
+    public void testBlobMetadataCapabilityVersion() {
+        AzureBlobStore blobStore = createBlobStore(between(1, 3));
+
+        assertTrue(blobStore.isBlobMetadataEnabled());
+        assertEquals(Version.V_3_10_0, blobStore.getBlobMetadataSupportVersion().orElseThrow());
+        assertFalse(blobStore.isBlobMetadataEnabled(Version.V_3_9_1));
+        assertTrue(blobStore.isBlobMetadataEnabled(Version.V_3_10_0));
     }
 
     public void testRetryUntilFail() throws IOException {
