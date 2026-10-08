@@ -99,6 +99,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +118,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -270,6 +275,29 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DocumentLookupProvider documentLookupProvider,
         Boolean appendOnly
     ) {
+        return buildDFAEngineConfig(
+            store,
+            translogPath,
+            externalListeners,
+            internalListeners,
+            tieringState,
+            documentLookupProvider,
+            appendOnly,
+            Settings.EMPTY
+        );
+    }
+
+    /** As above, with {@code extraIndexSettings} merged over the defaults. */
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState,
+        DocumentLookupProvider documentLookupProvider,
+        Boolean appendOnly,
+        Settings extraIndexSettings
+    ) {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -279,6 +307,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         if (appendOnly != null) {
             settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly);
         }
+        settings.put(extraIndexSettings);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
 
         TranslogConfig translogConfig = new TranslogConfig(
@@ -5649,6 +5678,182 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             Engine.IndexResult indexedAfter = engine.index(indexOp(createParsedDocWithInput("2", null)));
             assertThat(indexedAfter.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             engine.refresh("after-rejected-delete");
+        }
+    }
+
+    // ----- Batched update-get prefetch (index.pluggable.dataformat.batched_update_get.*) -----
+
+    /** Engine whose index opts into the read-ahead, with the given cache bound. */
+    private DataFormatAwareEngine createPrefetchEngine(Store store, Path translogPath, DocumentLookupProvider provider, int cacheSize)
+        throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        Settings extra = Settings.builder()
+            .put(IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.BATCHED_UPDATE_GET_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .build();
+        return new DataFormatAwareEngine(
+            buildDFAEngineConfig(store, translogPath, List.of(), List.of(), IndexModule.TieringState.HOT.name(), provider, null, extra)
+        );
+    }
+
+    private static DocumentLookupResult row(String id) {
+        return new DocumentLookupResult(id, 1L, true, null, 0L, 1L, Map.of(), Map.of());
+    }
+
+    /** The cache bound defaults to 1000 and the feature is off until an index opts in. */
+    public void testBatchedUpdateGetSettingDefaults() {
+        assertFalse("must be opt-in", IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING.getDefault(Settings.EMPTY));
+        assertThat(IndexSettings.BATCHED_UPDATE_GET_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY), equalTo(1000));
+    }
+
+    /** A row read ahead for an id serves that id's later get, without a second provider lookup. */
+    public void testPrefetchedRowServesTheSubsequentGet() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of("a", row("a")));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            // Refresh moves the doc out of the version map, so the get must resolve from the store.
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a", "b"));
+            assertThat("one row came back from the provider", engine.prefetchedDocCount(), equalTo(1L));
+            assertThat("nothing consumed yet", engine.prefetchHitCount(), equalTo(0L));
+
+            assertTrue("prefetched row must satisfy the get", getByIdLookup(engine, realtimeGet("a")).exists());
+            assertThat("the get was served from the prefetch cache", engine.prefetchHitCount(), equalTo(1L));
+            verify(provider, never()).getById(any(), any(), any(), any());
+        }
+    }
+
+    /** An entry is consumed at most once: a second get for the same id falls through. */
+    public void testPrefetchedRowIsConsumedAtMostOnce() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of("a", row("a")));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+            engine.prefetchUpdateGets(List.of("a", "b"));
+
+            getByIdLookup(engine, realtimeGet("a"));
+            getByIdLookup(engine, realtimeGet("a"));
+            assertThat("only the first get may be a cache hit", engine.prefetchHitCount(), equalTo(1L));
+            // The second one had to take the normal per-document path.
+            verify(provider, times(1)).getById(any(), any(), any(), any());
+        }
+    }
+
+    /** A refresh between read-ahead and consumption invalidates the row; the get re-reads it. */
+    public void testRefreshInvalidatesPrefetchedRows() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of("a", row("a")));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+            engine.prefetchUpdateGets(List.of("a", "b"));
+            assertThat(engine.prefetchedDocCount(), equalTo(1L));
+
+            engine.refresh("invalidate");
+
+            getByIdLookup(engine, realtimeGet("a"));
+            assertThat("a refreshed-away row must not be served from cache", engine.prefetchHitCount(), equalTo(0L));
+            verify(provider, times(1)).getById(any(), any(), any(), any());
+        }
+    }
+
+    /** A cache bound of zero disables the read-ahead, and an empty id list never reaches the provider. */
+    public void testPrefetchIsSkippedForZeroCacheSizeOrNoIds() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 0)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a", "b"));
+            engine.prefetchUpdateGets(List.of());
+
+            assertThat("nothing may be read ahead", engine.prefetchedDocCount(), equalTo(0L));
+            verify(provider, never()).prefetchByIds(any(), any(), any(), any());
+        }
+    }
+
+    /** The cache bound limits the read itself, not just what is retained afterwards. */
+    public void testPrefetchOffersAtMostTheCacheSizeNumberOfIds() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of());
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 2)) {
+            engine.index(indexOp(createParsedDocWithInput("seed", null)));
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a", "b", "c", "d", "e"));
+
+            ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+            verify(provider).prefetchByIds(captor.capture(), any(), any(), any());
+            assertThat("the read must stop at the cache bound", captor.getValue().size(), equalTo(2));
+        }
+    }
+
+    /** Ids still live in the version map are served by the realtime path, so reading their rows is skipped. */
+    public void testPrefetchSkipsIdsLiveInTheVersionMap() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of());
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("fresh", null)));
+            engine.refresh("test");
+            // Indexed and NOT refreshed away, so "live" is still in the version map.
+            engine.index(indexOp(createParsedDocWithInput("live", null)));
+
+            engine.prefetchUpdateGets(List.of("live", "stored"));
+
+            ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+            verify(provider).prefetchByIds(captor.capture(), any(), any(), any());
+            assertThat("only the stored id needs a row read", captor.getValue(), equalTo(List.of("stored")));
+        }
+    }
+
+    /** A provider that throws must leave the normal read path untouched rather than fail the request. */
+    public void testPrefetchSwallowsProviderFailures() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenThrow(new RuntimeException("boom"));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a", "b"));
+
+            assertThat("a failed read-ahead caches nothing", engine.prefetchedDocCount(), equalTo(0L));
+            // And the document is still readable the normal way.
+            getByIdLookup(engine, realtimeGet("a"));
+            verify(provider, times(1)).getById(any(), any(), any(), any());
+        }
+    }
+
+    /** The cache bound is resolved per call, so a dynamic update to the setting takes effect at once. */
+    public void testCacheSizeSettingIsDynamic() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of());
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 2)) {
+            engine.index(indexOp(createParsedDocWithInput("seed", null)));
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a", "b", "c", "d"));
+
+            IndexSettings live = engine.config().getIndexSettings();
+            live.updateIndexMetadata(
+                IndexMetadata.builder(live.getIndexMetadata())
+                    .settings(
+                        Settings.builder()
+                            .put(live.getSettings())
+                            .put(IndexSettings.BATCHED_UPDATE_GET_CACHE_SIZE_SETTING.getKey(), 4)
+                            .build()
+                    )
+                    .build()
+            );
+            engine.prefetchUpdateGets(List.of("e", "f", "g", "h"));
+
+            ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+            verify(provider, times(2)).prefetchByIds(captor.capture(), any(), any(), any());
+            assertThat("bound before the update", captor.getAllValues().get(0).size(), equalTo(2));
+            assertThat("raised bound must apply without a restart", captor.getAllValues().get(1).size(), equalTo(4));
         }
     }
 }

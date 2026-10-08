@@ -86,6 +86,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
@@ -114,9 +115,13 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -493,6 +498,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 long startTime = System.nanoTime();
+                prefetchUpdateGets(context);
                 // Batch successful primary index operations for eligible remote-backed segment-replication engines. A
                 // realtime GET or the size cap may flush a chunk from another thread while this scope remains open;
                 // updates/deletes flush the current chunk for ordering, and finally always appends and closes it.
@@ -660,6 +666,56 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
      *                      a mapping update that will finish and invoke the listener on a different thread
      */
+    /**
+     * Hints the engine with every update id in this bulk request before any item executes.
+     *
+     * <p>Each update's first leg is a get of the current document, and this is the only point
+     * where all of those ids are known at once — the execution loop hands them to the engine one
+     * at a time. Declaring them up front lets an engine that can read documents together do so in
+     * one pass per underlying file instead of one read per item.
+     *
+     * <p>Only the first occurrence of an id is offered. A later update to the same id in the same
+     * request must observe the earlier one's write, which it does: by then the id is in the live
+     * version map, which takes precedence over anything read ahead here.
+     *
+     * <p>Pure optimization. Failures are swallowed — every document remains readable the normal
+     * way, so a bulk request must never fail because this did. Off unless the index opts in with
+     * {@link IndexSettings#BATCHED_UPDATE_GET_ENABLED_SETTING}.
+     */
+    private static void prefetchUpdateGets(BulkPrimaryExecutionContext context) {
+        try {
+            BulkShardRequest request = context.getBulkShardRequest();
+            if (request == null) {
+                return;
+            }
+            IndexShard primary = context.getPrimary();
+            // Checked before the scan below, so an index that has not opted in pays nothing here.
+            if (primary.indexSettings().getValue(IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING) == false) {
+                return;
+            }
+            Set<String> seen = new HashSet<>();
+            List<String> ids = new ArrayList<>();
+            for (BulkItemRequest item : request.items()) {
+                if (item == null) {
+                    continue;
+                }
+                DocWriteRequest<?> docWriteRequest = item.request();
+                if (docWriteRequest == null || docWriteRequest.opType() != DocWriteRequest.OpType.UPDATE) {
+                    continue;
+                }
+                String id = docWriteRequest.id();
+                if (id != null && seen.add(id)) {
+                    ids.add(id);
+                }
+            }
+            if (ids.size() > 1) {
+                primary.prefetchUpdateGets(ids);
+            }
+        } catch (Exception e) {
+            logger.debug("bulk update prefetch skipped", e);
+        }
+    }
+
     static boolean executeBulkItemRequest(
         BulkPrimaryExecutionContext context,
         UpdateHelper updateHelper,
