@@ -456,24 +456,60 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertEquals(1, secondaryRequests.get());
     }
 
-    public void testBlobExistsDoesNotAcceptSecondaryFirstNotFoundWithoutPrimaryConfirmation() {
+    public void testBlobExistsConfirmsInitialSecondaryNotFoundWithPrimaryNotFound() throws Exception {
         final AtomicInteger primaryRequests = new AtomicInteger();
         final AtomicInteger secondaryRequests = new AtomicInteger();
-        httpServer.createContext("/container/secondary-first-missing", exchange -> {
+        httpServer.createContext("/container/secondary-first-primary-missing", exchange -> {
             if (isSecondaryRequest(exchange)) {
                 secondaryRequests.incrementAndGet();
                 sendAzureError(exchange, 404, "BlobNotFound");
             } else {
                 primaryRequests.incrementAndGet();
-                sendAzureError(exchange, 200, "unused");
+                sendAzureError(exchange, 404, "BlobNotFound");
+            }
+        });
+
+        assertFalse(createBlobContainer(1, LocationMode.SECONDARY_THEN_PRIMARY, true).blobExists("secondary-first-primary-missing"));
+        assertEquals(1, primaryRequests.get());
+        assertEquals(1, secondaryRequests.get());
+    }
+
+    public void testBlobExistsConfirmsInitialSecondaryNotFoundWithPrimarySuccess() throws Exception {
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        httpServer.createContext("/container/secondary-first-primary-exists", exchange -> {
+            if (isSecondaryRequest(exchange)) {
+                secondaryRequests.incrementAndGet();
+                sendAzureError(exchange, 404, "BlobNotFound");
+            } else {
+                primaryRequests.incrementAndGet();
+                sendBlobProperties(exchange);
+            }
+        });
+
+        assertTrue(createBlobContainer(1, LocationMode.SECONDARY_THEN_PRIMARY, true).blobExists("secondary-first-primary-exists"));
+        assertEquals(1, primaryRequests.get());
+        assertEquals(1, secondaryRequests.get());
+    }
+
+    public void testBlobExistsPropagatesPrimaryFailureConfirmingInitialSecondaryNotFound() {
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        httpServer.createContext("/container/secondary-first-primary-failure", exchange -> {
+            if (isSecondaryRequest(exchange)) {
+                secondaryRequests.incrementAndGet();
+                sendAzureError(exchange, 404, "BlobNotFound");
+            } else {
+                primaryRequests.incrementAndGet();
+                sendAzureError(exchange, 503, "ServerBusy");
             }
         });
 
         expectThrows(
             IOException.class,
-            () -> createBlobContainer(2, LocationMode.SECONDARY_THEN_PRIMARY, true).blobExists("secondary-first-missing")
+            () -> createBlobContainer(1, LocationMode.SECONDARY_THEN_PRIMARY, true).blobExists("secondary-first-primary-failure")
         );
-        assertEquals(0, primaryRequests.get());
+        assertEquals(1, primaryRequests.get());
         assertEquals(1, secondaryRequests.get());
     }
 
@@ -952,6 +988,14 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         exchange.getResponseHeaders().add("Content-Type", "application/xml");
         exchange.getResponseHeaders().add("x-ms-error-code", errorCode);
         exchange.sendResponseHeaders(status, -1);
+        exchange.close();
+    }
+
+    private static void sendBlobProperties(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().add("Content-Length", "1");
+        exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
         exchange.close();
     }
 

@@ -193,17 +193,17 @@ public class AzureBlobStore implements BlobStore {
                 if (isBlobNotFound(e) == false) {
                     throw e;
                 }
-                if (locationMode == LocationMode.PRIMARY_ONLY || locationMode == LocationMode.SECONDARY_ONLY) {
-                    return false;
-                }
-
-                final EndpointRole endpointRole = endpointRole(e, client.v1());
-                if (endpointRole == EndpointRole.PRIMARY) {
+                final EndpointRole endpointRole = endpointRole(e, client.v1(), locationMode);
+                if (endpointRole == EndpointRole.PRIMARY
+                    || (locationMode == LocationMode.SECONDARY_ONLY && endpointRole == EndpointRole.SECONDARY)) {
                     return false;
                 }
                 if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && endpointRole == EndpointRole.SECONDARY && operation == 0) {
                     firstSecondaryNotFound = e;
                     continue;
+                }
+                if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY && endpointRole == EndpointRole.SECONDARY) {
+                    return confirmBlobExistsOnPrimary(blob, e);
                 }
                 if (firstSecondaryNotFound != null) {
                     e.addSuppressed(firstSecondaryNotFound);
@@ -214,11 +214,27 @@ public class AzureBlobStore implements BlobStore {
         throw new AssertionError("blob existence operation did not complete");
     }
 
+    private boolean confirmBlobExistsOnPrimary(String blob, BlobStorageException secondaryNotFound) throws URISyntaxException,
+        BlobStorageException {
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client(LocationMode.PRIMARY_ONLY);
+        final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
+        try {
+            AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
+            return true;
+        } catch (BlobStorageException e) {
+            if (isBlobNotFound(e) && endpointRole(e, client.v1(), LocationMode.PRIMARY_ONLY) == EndpointRole.PRIMARY) {
+                return false;
+            }
+            e.addSuppressed(secondaryNotFound);
+            throw e;
+        }
+    }
+
     private boolean isBlobNotFound(BlobStorageException e) {
         return e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
     }
 
-    private EndpointRole endpointRole(BlobStorageException e, BlobServiceClient operationClient) {
+    private EndpointRole endpointRole(BlobStorageException e, BlobServiceClient operationClient, LocationMode operationLocationMode) {
         if (e.getResponse() == null || e.getResponse().getRequest() == null) {
             return EndpointRole.UNKNOWN;
         }
@@ -228,10 +244,16 @@ public class AzureBlobStore implements BlobStore {
             return EndpointRole.UNKNOWN;
         }
         final boolean usedBaseEndpoint = baseAuthority.equalsIgnoreCase(responseAuthority);
-        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
+        if (operationLocationMode == LocationMode.PRIMARY_ONLY) {
+            return usedBaseEndpoint ? EndpointRole.PRIMARY : EndpointRole.UNKNOWN;
+        }
+        if (operationLocationMode == LocationMode.SECONDARY_ONLY) {
+            return usedBaseEndpoint ? EndpointRole.SECONDARY : EndpointRole.UNKNOWN;
+        }
+        if (operationLocationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
             return usedBaseEndpoint ? EndpointRole.PRIMARY : EndpointRole.SECONDARY;
         }
-        if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
+        if (operationLocationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
             return usedBaseEndpoint ? EndpointRole.SECONDARY : EndpointRole.PRIMARY;
         }
         return EndpointRole.UNKNOWN;
@@ -487,7 +509,11 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client() {
-        return service.client(clientName, locationMode, metricsCollector);
+        return client(locationMode);
+    }
+
+    private Tuple<BlobServiceClient, Supplier<Context>> client(LocationMode operationLocationMode) {
+        return service.client(clientName, operationLocationMode, metricsCollector);
     }
 
     private Duration timeout() {
