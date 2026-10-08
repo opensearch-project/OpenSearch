@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.BlobInputStream;
 import com.azure.storage.common.implementation.Constants;
@@ -85,9 +84,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.blobExists(buildKey(blobName));
         } catch (BlobStorageException e) {
-            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
-                return false;
-            }
             throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         } catch (URISyntaxException e) {
             throw new IOException("Can not check if blob [" + blobName + "] exists", e);

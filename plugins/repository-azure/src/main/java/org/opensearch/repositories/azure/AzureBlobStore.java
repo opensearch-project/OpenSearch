@@ -188,12 +188,21 @@ public class AzureBlobStore implements BlobStore {
         // This sacrifices availability during a primary outage rather than reporting a replication-lagged false negative.
         final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForPrimaryOnly(clientName);
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        AccessController.doPrivileged(() -> {
-            final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            return azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get());
-        });
-        stats.headOperations.incrementAndGet();
-        return true;
+        try {
+            AccessController.doPrivileged(() -> {
+                final BlobClient azureBlob = blobContainer.getBlobClient(blob);
+                return azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get());
+            });
+            stats.headOperations.incrementAndGet();
+            return true;
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND
+                && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())
+                && service.isPrimaryClientCurrent(clientName, client.v1())) {
+                return false;
+            }
+            throw e;
+        }
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {

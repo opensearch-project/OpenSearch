@@ -35,6 +35,7 @@ package org.opensearch.repositories.azure;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.ParallelTransferOptions;
+import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RequestRetryPolicy;
 import com.microsoft.aad.msal4j.MsalServiceException;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -58,6 +59,12 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
@@ -503,6 +510,77 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPrimaryClientCacheIsBoundedPerClientName() throws IOException {
+        try (AzureStorageService service = storageServiceWithSettingsValidation(buildSettings())) {
+            final BlobServiceClient first = service.clientForPrimaryOnly("azure1").v1();
+            final BlobServiceClient second = service.clientForPrimaryOnly("azure1").v1();
+            assertSame(first, second);
+            service.clientForPrimaryOnly("azure2");
+            assertEquals(2, service.primaryClientCount());
+
+            service.refreshAndClearCache(AzureStorageSettings.load(buildSettings()));
+            assertEquals(0, service.primaryClientCount());
+        }
+    }
+
+    public void testPrimaryClientAcquisitionCannotPublishOldSettingsAfterReload() throws Exception {
+        final BlockingPrimaryClientService service = new BlockingPrimaryClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForPrimaryOnly("azure1"));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
+            reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
+            final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
+            final CountDownLatch reloadStarted = new CountDownLatch(1);
+            final Future<?> reload = executor.submit(() -> {
+                reloadStarted.countDown();
+                service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings));
+            });
+            assertTrue(reloadStarted.await(10, TimeUnit.SECONDS));
+            assertFalse(reload.isDone());
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            reload.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.primaryClientCount());
+            assertThat(service.clientForPrimaryOnly("azure1").v1().getAccountUrl(), containsString("reloadedaccount"));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testPrimaryClientAcquisitionCannotPublishAfterClose() throws Exception {
+        final BlockingPrimaryClientService service = new BlockingPrimaryClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForPrimaryOnly("azure1"));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final CountDownLatch closeStarted = new CountDownLatch(1);
+            final Future<?> close = executor.submit(() -> {
+                closeStarted.countDown();
+                service.close();
+                return null;
+            });
+            assertTrue(closeStarted.await(10, TimeUnit.SECONDS));
+            assertFalse(close.isDone());
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.primaryClientCount());
+            expectThrows(IllegalStateException.class, () -> service.clientForPrimaryOnly("azure1"));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
     public void testNoProxy() throws IOException {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
         try (final AzureStorageService mock = storageServiceWithSettingsValidation(settings)) {
@@ -853,6 +931,32 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
 
         return null;
+    }
+
+    private static class BlockingPrimaryClientService extends AzureStorageService {
+        private final CountDownLatch buildStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseBuild = new CountDownLatch(1);
+        private final AtomicBoolean blockNextBuild = new AtomicBoolean(true);
+
+        BlockingPrimaryClientService(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        RequestRetryOptions createRetryPolicy(AzureStorageSettings azureStorageSettings, String secondaryHost) {
+            if (blockNextBuild.compareAndSet(true, false)) {
+                buildStarted.countDown();
+                try {
+                    if (releaseBuild.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release primary client build");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            return super.createRetryPolicy(azureStorageSettings, secondaryHost);
+        }
     }
 
     /**

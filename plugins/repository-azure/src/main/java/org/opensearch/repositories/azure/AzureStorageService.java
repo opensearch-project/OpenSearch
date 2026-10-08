@@ -103,7 +103,9 @@ public class AzureStorageService implements AutoCloseable {
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
     private final Map<String, PrimaryClientState> primaryClients = new ConcurrentHashMap<>();
+    private final Object clientLifecycleMutex = new Object();
     private final ExecutorService executor;
+    private boolean closed;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
         final ThreadGroup group;
@@ -193,33 +195,38 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     Tuple<BlobServiceClient, Supplier<Context>> clientForPrimaryOnly(String clientName) {
-        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-        if (azureStorageSettings == null) {
-            throw new SettingsException("Unable to find client with name [" + clientName + "]");
+        synchronized (clientLifecycleMutex) {
+            if (closed) {
+                throw new IllegalStateException("Azure storage service is closed");
+            }
+            final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException("Unable to find client with name [" + clientName + "]");
+            }
+            PrimaryClientState primaryState = primaryClients.get(clientName);
+            if (primaryState == null || primaryState.sourceSettings != azureStorageSettings) {
+                if (primaryState != null) {
+                    closeInternally(primaryState.clientState);
+                }
+                final AzureStorageSettings primarySettings = AzureStorageSettings.overrideLocationMode(
+                    Collections.singletonMap(clientName, azureStorageSettings),
+                    LocationMode.PRIMARY_ONLY
+                ).get(clientName);
+                try {
+                    primaryState = new PrimaryClientState(
+                        azureStorageSettings,
+                        primarySettings,
+                        buildClient(primarySettings, (request, response) -> {})
+                    );
+                    primaryClients.put(clientName, primaryState);
+                } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                    primaryClients.remove(clientName);
+                    throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+                }
+            }
+            final PrimaryClientState selectedState = primaryState;
+            return new Tuple<>(selectedState.clientState.getClient(), () -> buildOperationContext(selectedState.primarySettings));
         }
-
-        final PrimaryClientState primaryState = primaryClients.compute(clientName, (name, existing) -> {
-            if (existing != null && existing.sourceSettings == azureStorageSettings) {
-                return existing;
-            }
-            if (existing != null) {
-                closeInternally(existing.clientState);
-            }
-            final AzureStorageSettings primarySettings = AzureStorageSettings.overrideLocationMode(
-                Collections.singletonMap(clientName, azureStorageSettings),
-                LocationMode.PRIMARY_ONLY
-            ).get(clientName);
-            try {
-                return new PrimaryClientState(
-                    azureStorageSettings,
-                    primarySettings,
-                    buildClient(primarySettings, (request, response) -> {})
-                );
-            } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
-                throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
-            }
-        });
-        return new Tuple<>(primaryState.clientState.getClient(), () -> buildOperationContext(primaryState.primarySettings));
     }
 
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
@@ -338,28 +345,39 @@ public class AzureStorageService implements AutoCloseable {
      * @return the old settings
      */
     public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
-        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
-        final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
-        final Map<String, PrimaryClientState> prevPrimaryClients = new HashMap<>(this.primaryClients);
-        prevClients.values().forEach(this::closeInternally);
-        prevPrimaryClients.values().forEach(state -> closeInternally(state.clientState));
-        prevClients.clear();
-        prevPrimaryClients.clear();
+        synchronized (clientLifecycleMutex) {
+            if (closed) {
+                throw new IllegalStateException("Azure storage service is closed");
+            }
+            final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
+            final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
+            final Map<String, PrimaryClientState> prevPrimaryClients = new HashMap<>(this.primaryClients);
+            prevClients.values().forEach(this::closeInternally);
+            prevPrimaryClients.values().forEach(state -> closeInternally(state.clientState));
+            prevClients.clear();
+            prevPrimaryClients.clear();
 
-        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
-        this.clients.clear();
-        this.primaryClients.clear();
+            this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+            this.clients.clear();
+            this.primaryClients.clear();
 
-        // clients are built lazily by {@link client(String)}
-        return prevSettings;
+            // clients are built lazily by {@link client(String)}
+            return prevSettings;
+        }
     }
 
     @Override
     public void close() throws IOException {
-        this.clients.values().forEach(this::closeInternally);
-        this.primaryClients.values().forEach(state -> closeInternally(state.clientState));
-        this.clients.clear();
-        this.primaryClients.clear();
+        synchronized (clientLifecycleMutex) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            this.clients.values().forEach(this::closeInternally);
+            this.primaryClients.values().forEach(state -> closeInternally(state.clientState));
+            this.clients.clear();
+            this.primaryClients.clear();
+        }
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
@@ -496,7 +514,19 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     int primaryClientCount() {
-        return primaryClients.size();
+        synchronized (clientLifecycleMutex) {
+            return primaryClients.size();
+        }
+    }
+
+    boolean isPrimaryClientCurrent(String clientName, BlobServiceClient client) {
+        synchronized (clientLifecycleMutex) {
+            final PrimaryClientState state = primaryClients.get(clientName);
+            return closed == false
+                && state != null
+                && state.sourceSettings == storageSettings.get(clientName)
+                && state.clientState.getClient() == client;
+        }
     }
 
     /**
