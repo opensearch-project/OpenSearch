@@ -36,10 +36,8 @@ import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
 import com.azure.core.http.rest.Response;
-import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
@@ -65,7 +63,6 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.repositories.azure.AzureRepository.Repository;
 import org.opensearch.secure_sm.AccessController;
@@ -74,7 +71,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.time.Duration;
@@ -90,7 +86,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class AzureBlobStore implements BlobStore {
@@ -104,6 +99,7 @@ public class AzureBlobStore implements BlobStore {
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
+    private final AzureStorageService.RepositoryClient repositoryClient;
 
     private final Stats stats = new Stats();
     private final BiConsumer<HttpRequest, HttpResponse> metricsCollector;
@@ -151,6 +147,7 @@ public class AzureBlobStore implements BlobStore {
                 }
             }
         };
+        this.repositoryClient = service.createRepositoryClient(clientName, metricsCollector);
     }
 
     @Override
@@ -176,14 +173,14 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        repositoryClient.close();
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
         final int maxOperations = locationMode == LocationMode.PRIMARY_THEN_SECONDARY ? 2 : 1;
         BlobStorageException firstSecondaryNotFound = null;
         for (int operation = 0; operation < maxOperations; operation++) {
-            final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+            final AzureStorageService.RepositoryOperationClient client = client();
             final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
             try {
                 final BlobClient azureBlob = blobContainer.getBlobClient(blob);
@@ -193,7 +190,7 @@ public class AzureBlobStore implements BlobStore {
                 if (isBlobNotFound(e) == false) {
                     throw e;
                 }
-                final EndpointRole endpointRole = endpointRole(e, client.v1(), locationMode);
+                final EndpointRole endpointRole = endpointRole(e, client, locationMode);
                 if (endpointRole == EndpointRole.PRIMARY
                     || (locationMode == LocationMode.SECONDARY_ONLY && endpointRole == EndpointRole.SECONDARY)) {
                     return false;
@@ -216,13 +213,13 @@ public class AzureBlobStore implements BlobStore {
 
     private boolean confirmBlobExistsOnPrimary(String blob, BlobStorageException secondaryNotFound) throws URISyntaxException,
         BlobStorageException {
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client(LocationMode.PRIMARY_ONLY);
+        final AzureStorageService.RepositoryOperationClient client = client(LocationMode.PRIMARY_ONLY);
         final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
         try {
             AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
             return true;
         } catch (BlobStorageException e) {
-            if (isBlobNotFound(e) && endpointRole(e, client.v1(), LocationMode.PRIMARY_ONLY) == EndpointRole.PRIMARY) {
+            if (isBlobNotFound(e) && endpointRole(e, client, LocationMode.PRIMARY_ONLY) == EndpointRole.PRIMARY) {
                 return false;
             }
             e.addSuppressed(secondaryNotFound);
@@ -234,27 +231,30 @@ public class AzureBlobStore implements BlobStore {
         return e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
     }
 
-    private EndpointRole endpointRole(BlobStorageException e, BlobServiceClient operationClient, LocationMode operationLocationMode) {
+    private EndpointRole endpointRole(
+        BlobStorageException e,
+        AzureStorageService.RepositoryOperationClient operationClient,
+        LocationMode operationLocationMode
+    ) {
         if (e.getResponse() == null || e.getResponse().getRequest() == null) {
             return EndpointRole.UNKNOWN;
         }
-        final String baseAuthority = URI.create(operationClient.getAccountUrl()).getAuthority();
-        final String responseAuthority = e.getResponse().getRequest().getUrl().getAuthority();
-        if (baseAuthority == null || responseAuthority == null) {
+        final boolean matchesPrimary = operationClient.matchesPrimary(e.getResponse().getRequest().getUrl());
+        final boolean matchesSecondary = operationClient.matchesSecondary(e.getResponse().getRequest().getUrl());
+        if (matchesPrimary == matchesSecondary) {
             return EndpointRole.UNKNOWN;
         }
-        final boolean usedBaseEndpoint = baseAuthority.equalsIgnoreCase(responseAuthority);
         if (operationLocationMode == LocationMode.PRIMARY_ONLY) {
-            return usedBaseEndpoint ? EndpointRole.PRIMARY : EndpointRole.UNKNOWN;
+            return matchesPrimary ? EndpointRole.PRIMARY : EndpointRole.UNKNOWN;
         }
         if (operationLocationMode == LocationMode.SECONDARY_ONLY) {
-            return usedBaseEndpoint ? EndpointRole.SECONDARY : EndpointRole.UNKNOWN;
+            return matchesSecondary ? EndpointRole.SECONDARY : EndpointRole.UNKNOWN;
         }
         if (operationLocationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
-            return usedBaseEndpoint ? EndpointRole.PRIMARY : EndpointRole.SECONDARY;
+            return matchesPrimary ? EndpointRole.PRIMARY : EndpointRole.SECONDARY;
         }
         if (operationLocationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
-            return usedBaseEndpoint ? EndpointRole.SECONDARY : EndpointRole.PRIMARY;
+            return matchesSecondary ? EndpointRole.SECONDARY : EndpointRole.PRIMARY;
         }
         return EndpointRole.UNKNOWN;
     }
@@ -266,7 +266,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         // Container name must be lower case.
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         logger.trace(() -> new ParameterizedMessage("delete blob for container [{}], blob [{}]", container, blob));
@@ -281,7 +281,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public DeleteResult deleteBlobDirectory(String path, Executor executor) throws URISyntaxException, BlobStorageException, IOException {
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         final AtomicLong outstanding = new AtomicLong(1L);
@@ -348,7 +348,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, BlobStorageException {
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final BlobClient azureBlob = blobContainer.getBlobClient(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
@@ -374,7 +374,7 @@ public class AzureBlobStore implements BlobStore {
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
         final Map<String, BlobMetadata> blobsBuilder = new HashMap<String, BlobMetadata>();
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
 
@@ -436,7 +436,7 @@ public class AzureBlobStore implements BlobStore {
 
     public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, BlobStorageException {
         final Set<String> blobsBuilder = new HashSet<String>();
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final String keyPath = path.buildAsString();
 
@@ -468,7 +468,7 @@ public class AzureBlobStore implements BlobStore {
         assert inputStream.markSupported()
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final AzureStorageService.RepositoryOperationClient client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final BlobClient blob = blobContainer.getBlobClient(blobName);
         try {
@@ -508,12 +508,12 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
-    private Tuple<BlobServiceClient, Supplier<Context>> client() {
+    private AzureStorageService.RepositoryOperationClient client() {
         return client(locationMode);
     }
 
-    private Tuple<BlobServiceClient, Supplier<Context>> client(LocationMode operationLocationMode) {
-        return service.client(clientName, operationLocationMode, metricsCollector);
+    private AzureStorageService.RepositoryOperationClient client(LocationMode operationLocationMode) {
+        return repositoryClient.client(operationLocationMode);
     }
 
     private Duration timeout() {
