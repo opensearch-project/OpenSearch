@@ -264,6 +264,9 @@ public class GoogleCloudStorageService {
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
+        if (Strings.hasLength(clientSettings.getUniverseDomain())) {
+            storageOptionsBuilder.setUniverseDomain(clientSettings.getUniverseDomain());
+        }
         if (clientSettings.getCredential() == null) {
             logger.info("\"Application Default Credentials\" will be in use");
             final GoogleCredentials credentials = googleApplicationDefaultCredentials.get();

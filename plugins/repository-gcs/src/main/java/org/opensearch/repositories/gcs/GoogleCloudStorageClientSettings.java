@@ -86,6 +86,16 @@ public class GoogleCloudStorageClientSettings {
         key -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
+    /**
+     * An override for the Google universe domain to connect to. Required for GCP "Trusted Partner Cloud"
+     * deployments (e.g. S3NS) which operate under a universe domain other than the default {@code googleapis.com}.
+     */
+    static final Setting.AffixSetting<String> UNIVERSE_DOMAIN_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "universe_domain",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
+
     /** An override for the Token Server URI in the oauth flow. */
     static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -198,6 +208,9 @@ public class GoogleCloudStorageClientSettings {
     /** The Google project ID overriding the default way to infer it. Null value sets the default. */
     private final String projectId;
 
+    /** The Google universe domain overriding the default {@code googleapis.com}. Null value sets the default. */
+    private final String universeDomain;
+
     /** The timeout to establish a connection */
     private final TimeValue connectTimeout;
 
@@ -220,6 +233,7 @@ public class GoogleCloudStorageClientSettings {
         final ServiceAccountCredentials credential,
         final String endpoint,
         final String projectId,
+        final String universeDomain,
         final TimeValue connectTimeout,
         final TimeValue readTimeout,
         final String applicationName,
@@ -230,6 +244,7 @@ public class GoogleCloudStorageClientSettings {
         this.credential = credential;
         this.endpoint = endpoint;
         this.projectId = projectId;
+        this.universeDomain = universeDomain;
         this.connectTimeout = connectTimeout;
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
@@ -248,6 +263,10 @@ public class GoogleCloudStorageClientSettings {
 
     public String getProjectId() {
         return Strings.hasLength(projectId) ? projectId : (credential != null ? credential.getProjectId() : null);
+    }
+
+    public String getUniverseDomain() {
+        return universeDomain;
     }
 
     public TimeValue getConnectTimeout() {
@@ -292,6 +311,7 @@ public class GoogleCloudStorageClientSettings {
             loadCredential(settings, clientName),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
+            getConfigValue(settings, clientName, UNIVERSE_DOMAIN_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
