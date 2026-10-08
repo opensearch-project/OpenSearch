@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
@@ -145,7 +146,10 @@ public class AutoTaggingActionFilter implements ActionFilter {
         }
 
         Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
-        label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        ThreadContext threadContext = threadPool.getThreadContext();
+        if (threadContext.getRequestHeadersOnly().containsKey(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == false) {
+            label.ifPresent(s -> threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        }
         // Carried on the task, not the thread context; see WorkloadGroupTask#setThrottlePrincipal.
         if (principalValues != null && task instanceof WorkloadGroupTask) {
             String principal = String.join(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER, principalValues);
