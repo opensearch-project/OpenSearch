@@ -131,8 +131,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                         @Override
                         public void onFailure(Exception e) {
-                            // An index deleted since it was resolved has nothing left to check.
-                            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) == null) {
+                            // Only an index deleted since it was resolved has nothing left to check.
+                            if (clusterService.state().metadata().hasIndex(index)) {
                                 failures.put(index, e);
                             }
                             onResponse.run();

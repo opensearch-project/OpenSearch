@@ -251,6 +251,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         private final ActionListener<FieldCapabilitiesIndexResponse> listener;
         private final GroupShardsIterator<ShardIterator> shardsIt;
 
+        // One shard request is in flight at a time, so these are never written concurrently.
         private volatile int shardIndex = 0;
         private volatile int unmatchedShards = 0;
         private volatile Exception shardFailure;
@@ -295,7 +296,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                 return null;
             }
             ShardRouting next = FailAwareWeightedRouting.getInstance()
-                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, this::moveToNextShard);
+                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, () -> {});
 
             if (next != null) {
                 return next;

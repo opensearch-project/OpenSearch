@@ -80,15 +80,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        return new FieldCapabilitiesResponse(indices, responses, randomFailures());
-    }
-
-    private static Map<String, Exception> randomFailures() {
-        Map<String, Exception> failures = new HashMap<>();
-        for (int i = randomIntBetween(0, 3); i > 0; i--) {
-            failures.put(randomAlphaOfLengthBetween(5, 10), new NoShardAvailableActionException(null, randomAlphaOfLength(10)));
-        }
-        return failures;
+        return new FieldCapabilitiesResponse(indices, responses);
     }
 
     @Override
@@ -130,17 +122,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
     }
 
     @Override
-    protected boolean assertToXContentEquivalence() {
-        // A parsed failure renders its reason differently; equals() still compares the rest.
-        return false;
-    }
-
-    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // Disallow random fields from being inserted under the 'fields' key, as this
         // map only contains field names, and also under 'fields.FIELD_NAME', as these
         // maps only contain type names.
-        return field -> field.matches("fields(\\.\\w+)?") || field.startsWith("failures");
+        return field -> field.matches("fields(\\.\\w+)?");
     }
 
     public void testToXContent() throws IOException {

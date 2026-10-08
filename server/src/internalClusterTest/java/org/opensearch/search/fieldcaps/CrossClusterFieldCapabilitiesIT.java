@@ -8,7 +8,12 @@
 
 package org.opensearch.search.fieldcaps;
 
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.AbstractMultiClustersTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -63,6 +68,29 @@ public class CrossClusterFieldCapabilitiesIT extends AbstractMultiClustersTestCa
                 ((MockTransportService) local).clearAllRules();
             }
         }
+    }
+
+    public void testFailureTheRemoteReportsIsCarriedOver() {
+        createIndices();
+        CreateIndexResponse created = client(REMOTE).admin()
+            .indices()
+            .prepareCreate("logs_down")
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.require._name", "no_such_node")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .setMapping("timestamp", "type=date")
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .get();
+        assertTrue(created.isAcknowledged());
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("local_logs", REMOTE + ":logs*").setFields("*").get();
+
+        assertEquals(Set.of("local_logs", REMOTE + ":logs"), Set.of(response.getIndices()));
+        assertEquals(Set.of(REMOTE + ":logs_down"), response.getFailures().keySet());
+        assertTrue(response.getFailures().get(REMOTE + ":logs_down") instanceof NoShardAvailableActionException);
     }
 
     public void testMissingRemoteIndexIsNotReported() {

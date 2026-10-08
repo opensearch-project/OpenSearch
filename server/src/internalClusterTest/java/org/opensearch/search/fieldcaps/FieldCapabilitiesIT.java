@@ -41,10 +41,13 @@ import org.opensearch.action.fieldcaps.FieldCapabilitiesIndexRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
@@ -52,9 +55,12 @@ import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -337,30 +343,81 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
         }
     }
 
+    public void testIndexMissingOnADataNodeIsReported() {
+        // A data node that no longer hosts the index, e.g. right after a relocation, while it still exists.
+        assertAcked(prepareCreate("relocated").setMapping("timestamp", "type=date"));
+        ensureGreen("relocated");
+        onShardRequestFor("relocated", (request, channel) -> channel.sendResponse(new IndexNotFoundException("relocated")));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "relocated").setFields("*").get();
+
+            assertIndices(response, "old_index");
+            assertEquals(Set.of("relocated"), response.getFailures().keySet());
+        } finally {
+            clearTransportRules();
+        }
+    }
+
     public void testIndexDeletedDuringTheRequestIsNotReported() {
         assertAcked(prepareCreate("deleted").setMapping("timestamp", "type=date"));
         ensureGreen("deleted");
-        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            ((MockTransportService) transportService).addRequestHandlingBehavior(
-                FieldCapabilitiesAction.NAME + "[index][s]",
-                (handler, request, channel, task) -> {
-                    if ("deleted".equals(((FieldCapabilitiesIndexRequest) request).index())) {
-                        channel.sendResponse(new IndexNotFoundException("deleted"));
-                    } else {
-                        handler.messageReceived(request, channel, task);
+        onShardRequestFor(
+            "deleted",
+            (request, channel) -> client().admin()
+                .indices()
+                .prepareDelete("deleted")
+                .execute(ActionListener.wrap(r -> channel.sendResponse(new IndexNotFoundException("deleted")), e -> {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException io) {
+                        throw new UncheckedIOException(io);
                     }
-                }
-            );
-        }
+                }))
+        );
         try {
             FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "deleted").setFields("*").get();
 
             assertIndices(response, "old_index", "new_index");
             assertEquals(0, response.getFailures().size());
         } finally {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                ((MockTransportService) transportService).clearAllRules();
-            }
+            clearTransportRules();
+        }
+    }
+
+    public void testReadBlockedIndexIsReported() {
+        assertAcked(prepareCreate("blocked").setMapping("timestamp", "type=date"));
+        ensureGreen("blocked");
+        enableIndexBlock("blocked", IndexMetadata.SETTING_BLOCKS_READ);
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "blocked").setFields("*").get();
+
+            assertIndices(response, "old_index");
+            assertEquals(Set.of("blocked"), response.getFailures().keySet());
+            assertTrue(response.getFailures().get("blocked") instanceof ClusterBlockException);
+        } finally {
+            disableIndexBlock("blocked", IndexMetadata.SETTING_BLOCKS_READ);
+        }
+    }
+
+    private void onShardRequestFor(String index, CheckedBiConsumer<FieldCapabilitiesIndexRequest, TransportChannel, Exception> behavior) {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).addRequestHandlingBehavior(
+                FieldCapabilitiesAction.NAME + "[index][s]",
+                (handler, request, channel, task) -> {
+                    FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                    if (index.equals(indexRequest.index())) {
+                        behavior.accept(indexRequest, channel);
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
+                }
+            );
+        }
+    }
+
+    private void clearTransportRules() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).clearAllRules();
         }
     }
 

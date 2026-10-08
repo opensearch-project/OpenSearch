@@ -15,11 +15,16 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -41,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntPredicate;
@@ -171,6 +177,24 @@ public class TransportFieldCapabilitiesIndexActionShardsTests extends OpenSearch
         expectThrows(CircuitBreakingException.class, future::actionGet);
     }
 
+    public void testSkippingAWeighedAwayCopyDoesNotSkipItsShard() {
+        setState(clusterService, weighAwayNode1(ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica(INDEX, 2)));
+        PlainActionFuture<FieldCapabilitiesIndexResponse> future = execute();
+
+        // Shard 0's preferred copy fails with a 429, and its other copy is weighed away, so it is skipped.
+        CapturingTransport.CapturedRequest[] requests = transport.getCapturedRequestsAndClear();
+        assertEquals(1, requests.length);
+        assertEquals(0, ((FieldCapabilitiesIndexRequest) requests[0].request).shardId().id());
+        transport.handleRemoteError(requests[0].requestId, new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT));
+
+        requests = transport.getCapturedRequestsAndClear();
+        assertEquals("shard 1 must still be asked", 1, requests.length);
+        assertEquals(1, ((FieldCapabilitiesIndexRequest) requests[0].request).shardId().id());
+        transport.handleResponse(requests[0].requestId, new FieldCapabilitiesIndexResponse(INDEX, Collections.emptyMap(), true));
+
+        assertTrue(future.actionGet().canMatch());
+    }
+
     private PlainActionFuture<FieldCapabilitiesIndexResponse> execute() {
         PlainActionFuture<FieldCapabilitiesIndexResponse> future = new PlainActionFuture<>();
         action.execute(
@@ -199,6 +223,23 @@ public class TransportFieldCapabilitiesIndexActionShardsTests extends OpenSearch
                 new FieldCapabilitiesIndexResponse(INDEX, Collections.emptyMap(), canMatch.test(shard))
             );
         }
+    }
+
+    /** node_1, which holds every replica, is in a zone weighted to zero. */
+    private static ClusterState weighAwayNode1(ClusterState state) {
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(state.nodes());
+        for (DiscoveryNode node : state.nodes()) {
+            String zone = node.getId().equals("node_1") ? "b" : "a";
+            nodes.remove(node.getId());
+            nodes.add(
+                new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), Map.of("zone", zone), node.getRoles(), node.getVersion())
+            );
+        }
+        WeightedRouting weights = new WeightedRouting("zone", Map.of("a", 1.0, "b", 0.0));
+        return ClusterState.builder(state)
+            .nodes(nodes)
+            .metadata(Metadata.builder(state.metadata()).putCustom(WeightedRoutingMetadata.TYPE, new WeightedRoutingMetadata(weights, 0)))
+            .build();
     }
 
     /** Every shard has a started copy on two nodes, except {@code unassigned}, which has none. */
