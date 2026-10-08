@@ -14,7 +14,6 @@ import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_10_0;
-import static org.opensearch.Version.V_2_13_0;
 import static org.opensearch.Version.V_2_17_0;
 import static org.opensearch.Version.V_2_18_0;
 import static org.opensearch.Version.V_2_1_0;
@@ -1185,22 +1184,6 @@ public final class OpenSearchServerException {
                 org.opensearch.crypto.CryptoRegistryException::new,
                 171,
                 V_2_10_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.action.admin.indices.view.ViewNotFoundException.class,
-                org.opensearch.action.admin.indices.view.ViewNotFoundException::new,
-                172,
-                V_2_13_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException.class,
-                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException::new,
-                173,
-                V_2_13_0
             )
         );
         registerExceptionHandle(
