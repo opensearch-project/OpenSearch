@@ -27,22 +27,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class AzureRepositoryPluginTests extends OpenSearchTestCase {
-
-    public void testCloseClosesSharedStorageService() throws Exception {
-        final AzureStorageService storageService = mock(AzureStorageService.class);
-        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(Settings.EMPTY) {
-            @Override
-            AzureStorageService createAzureStoreService(Settings settings) {
-                return storageService;
-            }
-        };
-
-        plugin.close();
-        verify(storageService).close();
-    }
 
     public void testLoadExtensionsMultipleProvidersUsesFirst() throws Exception {
         Settings settings = Settings.builder().put("node.name", "test").build();

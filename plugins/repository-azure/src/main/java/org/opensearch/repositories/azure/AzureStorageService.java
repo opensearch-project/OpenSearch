@@ -61,14 +61,12 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.security.InvalidKeyException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -104,7 +102,7 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
-    private final Set<RepositoryClient> repositoryClients = ConcurrentHashMap.newKeySet();
+    private final Map<String, PrimaryClientState> primaryClients = new ConcurrentHashMap<>();
     private final ExecutorService executor;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
@@ -194,13 +192,34 @@ public class AzureStorageService implements AutoCloseable {
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
-    RepositoryClient createRepositoryClient(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-        if (storageSettings.containsKey(clientName) == false) {
+    Tuple<BlobServiceClient, Supplier<Context>> clientForPrimaryOnly(String clientName) {
+        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+        if (azureStorageSettings == null) {
             throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
-        final RepositoryClient repositoryClient = new RepositoryClient(clientName, statsCollector);
-        repositoryClients.add(repositoryClient);
-        return repositoryClient;
+
+        final PrimaryClientState primaryState = primaryClients.compute(clientName, (name, existing) -> {
+            if (existing != null && existing.sourceSettings == azureStorageSettings) {
+                return existing;
+            }
+            if (existing != null) {
+                closeInternally(existing.clientState);
+            }
+            final AzureStorageSettings primarySettings = AzureStorageSettings.overrideLocationMode(
+                Collections.singletonMap(clientName, azureStorageSettings),
+                LocationMode.PRIMARY_ONLY
+            ).get(clientName);
+            try {
+                return new PrimaryClientState(
+                    azureStorageSettings,
+                    primarySettings,
+                    buildClient(primarySettings, (request, response) -> {})
+                );
+            } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+            }
+        });
+        return new Tuple<>(primaryState.clientState.getClient(), () -> buildOperationContext(primaryState.primarySettings));
     }
 
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
@@ -321,12 +340,15 @@ public class AzureStorageService implements AutoCloseable {
     public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
-        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        final Map<String, PrimaryClientState> prevPrimaryClients = new HashMap<>(this.primaryClients);
         prevClients.values().forEach(this::closeInternally);
-        this.repositoryClients.forEach(RepositoryClient::refresh);
+        prevPrimaryClients.values().forEach(state -> closeInternally(state.clientState));
         prevClients.clear();
+        prevPrimaryClients.clear();
 
+        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         this.clients.clear();
+        this.primaryClients.clear();
 
         // clients are built lazily by {@link client(String)}
         return prevSettings;
@@ -335,11 +357,9 @@ public class AzureStorageService implements AutoCloseable {
     @Override
     public void close() throws IOException {
         this.clients.values().forEach(this::closeInternally);
+        this.primaryClients.values().forEach(state -> closeInternally(state.clientState));
         this.clients.clear();
-        for (RepositoryClient repositoryClient : this.repositoryClients.toArray(RepositoryClient[]::new)) {
-            repositoryClient.close();
-        }
-        this.repositoryClients.clear();
+        this.primaryClients.clear();
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
@@ -463,135 +483,20 @@ public class AzureStorageService implements AutoCloseable {
         }
     }
 
-    final class RepositoryClient implements AutoCloseable {
-        private final String clientName;
-        private final BiConsumer<HttpRequest, HttpResponse> statsCollector;
-        private final Map<LocationMode, RepositoryOperationClient> clientsByLocation = new HashMap<>();
-        private boolean closed;
-
-        private RepositoryClient(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-            this.clientName = clientName;
-            this.statsCollector = statsCollector;
-        }
-
-        synchronized RepositoryOperationClient client(LocationMode locationMode) {
-            if (closed) {
-                throw new IllegalStateException("Azure repository client is closed");
-            }
-            final AzureStorageSettings currentSettings = storageSettings.get(clientName);
-            if (currentSettings == null) {
-                throw new SettingsException("Unable to find client with name [" + clientName + "]");
-            }
-            final RepositoryOperationClient existing = clientsByLocation.get(locationMode);
-            if (existing != null && existing.sourceSettings == currentSettings) {
-                return existing;
-            }
-            if (existing != null) {
-                closeInternally(existing.state);
-            }
-
-            final AzureStorageSettings repositorySettings = currentSettings.withLocationMode(locationMode);
-            try {
-                final ClientState state = buildClient(repositorySettings, statsCollector);
-                final StorageEndpoint endpoint = repositorySettings.getStorageEndpoint(logger);
-                final RepositoryOperationClient client = new RepositoryOperationClient(
-                    currentSettings,
-                    state,
-                    () -> buildOperationContext(repositorySettings),
-                    endpoint
-                );
-                clientsByLocation.put(locationMode, client);
-                return client;
-            } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
-                throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
-            }
-        }
-
-        private synchronized void refresh() {
-            clientsByLocation.values().forEach(client -> closeInternally(client.state));
-            clientsByLocation.clear();
-        }
-
-        @Override
-        public synchronized void close() {
-            if (closed == false) {
-                refresh();
-                closed = true;
-                repositoryClients.remove(this);
-            }
-        }
-    }
-
-    static final class RepositoryOperationClient {
+    private static final class PrimaryClientState {
         private final AzureStorageSettings sourceSettings;
-        private final ClientState state;
-        private final Supplier<Context> contextSupplier;
-        private final URI primaryEndpoint;
-        private final URI secondaryEndpoint;
+        private final AzureStorageSettings primarySettings;
+        private final ClientState clientState;
 
-        private RepositoryOperationClient(
-            AzureStorageSettings sourceSettings,
-            ClientState state,
-            Supplier<Context> contextSupplier,
-            StorageEndpoint endpoint
-        ) {
+        private PrimaryClientState(AzureStorageSettings sourceSettings, AzureStorageSettings primarySettings, ClientState clientState) {
             this.sourceSettings = sourceSettings;
-            this.state = state;
-            this.contextSupplier = contextSupplier;
-            this.primaryEndpoint = URI.create(endpoint.getPrimaryUri()).normalize();
-            this.secondaryEndpoint = endpoint.getSecondaryUri() == null ? null : URI.create(endpoint.getSecondaryUri()).normalize();
-        }
-
-        BlobServiceClient v1() {
-            return state.getClient();
-        }
-
-        Supplier<Context> v2() {
-            return contextSupplier;
-        }
-
-        boolean matchesPrimary(URL requestUrl) {
-            return matchesEndpoint(primaryEndpoint, requestUrl);
-        }
-
-        boolean matchesSecondary(URL requestUrl) {
-            return secondaryEndpoint != null && matchesEndpoint(secondaryEndpoint, requestUrl);
-        }
-
-        private static boolean matchesEndpoint(URI endpoint, URL requestUrl) {
-            final URI request = URI.create(requestUrl.toString()).normalize();
-            if (equalsIgnoreCase(endpoint.getScheme(), request.getScheme()) == false
-                || equalsIgnoreCase(endpoint.getAuthority(), request.getAuthority()) == false) {
-                return false;
-            }
-            final String endpointPath = normalizePath(endpoint.getRawPath());
-            final String requestPath = normalizePath(request.getRawPath());
-            return requestPath.equals(endpointPath)
-                || requestPath.startsWith(endpointPath.endsWith("/") ? endpointPath : endpointPath + "/");
-        }
-
-        private static String normalizePath(String path) {
-            if (path == null || path.isEmpty()) {
-                return "/";
-            }
-            return path.startsWith("/") ? path : "/" + path;
-        }
-
-        private static boolean equalsIgnoreCase(String left, String right) {
-            return left == null ? right == null : right != null && left.equalsIgnoreCase(right);
+            this.primarySettings = primarySettings;
+            this.clientState = clientState;
         }
     }
 
-    int repositoryClientCount() {
-        return repositoryClients.size();
-    }
-
-    int repositoryClientStateCount() {
-        return repositoryClients.stream().mapToInt(client -> client.clientsByLocation.size()).sum();
-    }
-
-    boolean isExecutorShutdown() {
-        return executor.isShutdown();
+    int primaryClientCount() {
+        return primaryClients.size();
     }
 
     /**

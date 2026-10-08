@@ -51,7 +51,6 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -174,10 +173,5 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
         }
         azureStoreService.refreshAndClearCache(clientsSettings);
-    }
-
-    @Override
-    public void close() throws IOException {
-        azureStoreService.close();
     }
 }
