@@ -10,7 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -33,10 +33,10 @@ import java.util.TreeSet;
  * The Views APIs were removed in 3.10.0. This class only exists so that a {@code view} metadata custom written by an
  * earlier 3.x node can still be read during a rolling upgrade; see {@link ViewMetadata}. It will be deleted in 4.0.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-@InternalApi
-@Deprecated
+@DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+@Deprecated(forRemoval = true)
 public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     private final String name;
@@ -79,8 +79,8 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     }
 
     /** The source of data used to project the view */
-    @InternalApi
-    @Deprecated
+    @DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+    @Deprecated(forRemoval = true)
     public static class Target implements Writeable, ToXContentObject, Comparable<Target> {
 
         private final String indexPattern;

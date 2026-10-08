@@ -343,6 +343,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * carried along untouched while older nodes are still in the cluster, because they read it from every published
      * state. Once every node is on 3.10.0 or later nothing can read or write it, so it is dropped here.
      */
+    @SuppressWarnings("removal")
     static Metadata dropViewMetadata(Metadata metadata, Version minClusterNodeVersion) {
         if (metadata.custom(ViewMetadata.TYPE) == null || minClusterNodeVersion.before(Version.V_3_10_0)) {
             return metadata;

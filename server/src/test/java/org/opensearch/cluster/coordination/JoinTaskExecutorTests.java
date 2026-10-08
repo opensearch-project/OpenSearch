@@ -249,6 +249,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
     }
 
+    @SuppressWarnings("removal")
     public void testDropsViewMetadataOnceAllNodesAreUpgraded() throws Exception {
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
         final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
@@ -258,6 +259,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertNull(result.metadata().custom(ViewMetadata.TYPE));
     }
 
+    @SuppressWarnings("removal")
     public void testKeepsViewMetadataWhileOlderNodesRemain() throws Exception {
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
         final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_9_0);
@@ -267,6 +269,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertNotNull(result.metadata().custom(ViewMetadata.TYPE));
     }
 
+    @SuppressWarnings("removal")
     private ClusterState joinNodeToClusterWithViewMetadata(DiscoveryNode clusterManagerNode, DiscoveryNode joiningNode) throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);

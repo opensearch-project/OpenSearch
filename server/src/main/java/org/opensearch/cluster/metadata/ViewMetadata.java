@@ -11,7 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -35,10 +35,11 @@ import java.util.Objects;
  * progress. Once every node in the cluster is on 3.10.0 or later, {@code JoinTaskExecutor} drops the custom. This class
  * will be deleted in 4.0.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-@InternalApi
-@Deprecated
+@DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+@SuppressWarnings("removal")
+@Deprecated(forRemoval = true)
 public class ViewMetadata implements Metadata.Custom {
 
     public static final String TYPE = "view";

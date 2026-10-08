@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * The Views feature is removed, but a {@code view} custom written by an earlier 3.x node must still deserialize during a
  * rolling upgrade. These tests pin the surviving reader to the persisted wire and XContent formats.
  */
+@SuppressWarnings("removal")
 public class ViewMetadataTests extends OpenSearchTestCase {
 
     private static final NamedWriteableRegistry WRITEABLES = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
