@@ -184,6 +184,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
@@ -2329,7 +2330,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     shardLimitValidator,
                     indicesService,
                     clusterInfoService::getClusterInfo,
-                    () -> 5.0
+                    () -> 5.0,
+                    threadPool,
+                    Collections.emptyList(),
+                    new IdentityService(settings, threadPool, Collections.emptyList())
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,

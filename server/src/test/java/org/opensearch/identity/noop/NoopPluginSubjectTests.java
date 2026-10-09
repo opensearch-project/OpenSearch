@@ -52,4 +52,16 @@ public class NoopPluginSubjectTests extends OpenSearchTestCase {
         assertThat(threadPool.getThreadContext().getHeader("test_header"), equalTo("foo"));
         terminate(threadPool);
     }
+
+    public void testGetPluginSubjectReturnsTheAssignedSubject() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
+
+        TestPlugin testPlugin = new TestPlugin();
+        identityService.initializeIdentityAwarePlugins(List.of(testPlugin));
+
+        assertSame(testPlugin.getSubject(), identityService.getPluginSubject(testPlugin));
+        assertNull(identityService.getPluginSubject(new TestPlugin()));
+        terminate(threadPool);
+    }
 }
