@@ -1642,7 +1642,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     ) throws IOException {
         assertThat(context.getProfilers(), not(nullValue()));
 
-        final ProfileShardResult result = SearchProfileShardResults.buildShardResults(context.getProfilers(), null);
+        final ProfileShardResult result = SearchProfileShardResults.buildShardResults(context.getProfilers(), null, -1L);
         if (debug) {
             final SearchProfileShardResults results = new SearchProfileShardResults(
                 Collections.singletonMap(indexShard.shardId().toString(), result)
