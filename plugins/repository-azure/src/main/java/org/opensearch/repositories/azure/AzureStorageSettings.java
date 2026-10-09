@@ -596,30 +596,31 @@ final class AzureStorageSettings {
     ) {
         final MapBuilder<String, AzureStorageSettings> mapBuilder = new MapBuilder<>();
         for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
-            mapBuilder.put(
-                entry.getKey(),
-                new AzureStorageSettings(
-                    entry.getValue().account,
-                    entry.getValue().tokenCredentialType,
-                    entry.getValue().clientBuilder,
-                    entry.getValue().endpointBuilder,
-                    entry.getValue().endpointSuffix,
-                    entry.getValue().timeout,
-                    entry.getValue().maxRetries,
-                    locationMode,
-                    entry.getValue().connectTimeout,
-                    entry.getValue().writeTimeout,
-                    entry.getValue().readTimeout,
-                    entry.getValue().responseTimeout,
-                    entry.getValue().readBlockSize,
-                    entry.getValue().writeBlockSize,
-                    entry.getValue().maxSingleUploadSize,
-                    entry.getValue().writeConcurrency,
-                    entry.getValue().getProxySettings()
-                )
-            );
+            mapBuilder.put(entry.getKey(), entry.getValue().withLocationMode(locationMode));
         }
         return mapBuilder.immutableMap();
+    }
+
+    AzureStorageSettings withLocationMode(LocationMode locationMode) {
+        return new AzureStorageSettings(
+            account,
+            tokenCredentialType,
+            clientBuilder,
+            endpointBuilder,
+            endpointSuffix,
+            timeout,
+            maxRetries,
+            locationMode,
+            connectTimeout,
+            writeTimeout,
+            readTimeout,
+            responseTimeout,
+            readBlockSize,
+            writeBlockSize,
+            maxSingleUploadSize,
+            writeConcurrency,
+            proxySettings
+        );
     }
 
     public BlobServiceClientBuilder configure(BlobServiceClientBuilder builder, ExecutorService executor, ClientLogger logger) {

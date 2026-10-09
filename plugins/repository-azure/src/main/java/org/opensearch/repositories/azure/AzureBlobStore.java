@@ -92,8 +92,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-
 public class AzureBlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -116,9 +114,6 @@ public class AzureBlobStore implements BlobStore {
         this.threadPool = threadPool;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
-        final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
-        this.service.refreshAndClearCache(newSettings);
 
         this.metricsCollector = (request, response) -> {
             if (response.getStatusCode() >= 300) {
@@ -180,18 +175,37 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        // The storage service is node-wide and is closed by AzureRepositoryPlugin.
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
-        // Container name must be lower case.
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
-        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        return AccessController.doPrivileged(() -> {
-            final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            final Response<Boolean> response = azureBlob.existsWithResponse(timeout(), client.v2().get());
-            return response.getValue();
-        });
+    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException, IOException {
+        // Existence is deliberately authoritative: always consult primary, even for secondary-only repositories.
+        // This sacrifices availability during a primary outage rather than reporting a replication-lagged false negative.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForPrimaryOnly(clientName);
+            final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
+            try {
+                AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
+                stats.headOperations.incrementAndGet();
+                beforeExistenceResultValidation();
+                if (service.isPrimaryClientCurrent(clientName, client.v1())) {
+                    return true;
+                }
+            } catch (BlobStorageException e) {
+                if (e.getStatusCode() != HttpURLConnection.HTTP_NOT_FOUND
+                    || BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode()) == false) {
+                    throw e;
+                }
+                beforeExistenceResultValidation();
+                if (service.isPrimaryClientCurrent(clientName, client.v1())) {
+                    return false;
+                }
+            }
+            if (attempt == 1) {
+                throw new IOException("Azure client settings changed while checking if blob [" + blob + "] exists");
+            }
+        }
+        throw new AssertionError("blob existence operation did not complete");
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
@@ -438,8 +452,11 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client() {
-        return service.client(clientName, metricsCollector);
+        return service.client(clientName, locationMode, metricsCollector);
     }
+
+    // Package-private no-op hook for deterministic reload tests.
+    void beforeExistenceResultValidation() {}
 
     private Duration timeout() {
         return service.getBlobRequestTimeout(clientName);

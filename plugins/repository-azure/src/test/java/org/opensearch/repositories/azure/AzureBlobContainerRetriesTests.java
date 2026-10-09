@@ -34,6 +34,7 @@ package org.opensearch.repositories.azure;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -68,6 +69,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -78,6 +80,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +98,7 @@ import reactor.netty.http.HttpResources;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
+import static org.opensearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -105,9 +112,12 @@ import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositor
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
@@ -120,6 +130,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     private HttpServer httpServer;
     private ThreadPool threadPool;
     private AzureStorageService service;
+    private String activeClientName;
 
     @Before
     public void setUp() throws Exception {
@@ -152,31 +163,34 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
-        return createBlobContainer(maxRetries, (settings, clientName) -> {});
+        return createBlobContainer(maxRetries, LocationMode.PRIMARY_ONLY, (settings, clientName) -> {});
     }
 
     private BlobContainer createBlobContainer(final int maxRetries, BiConsumer<Settings.Builder, String> configureClient) {
-        final Settings.Builder clientSettings = Settings.builder();
-        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        return createBlobContainer(maxRetries, LocationMode.PRIMARY_ONLY, configureClient);
+    }
 
+    private BlobContainer createBlobContainer(final int maxRetries, LocationMode locationMode) {
+        return createBlobContainer(maxRetries, locationMode, (settings, clientName) -> {});
+    }
+
+    private BlobContainer createBlobContainer(
+        final int maxRetries,
+        LocationMode locationMode,
+        BiConsumer<Settings.Builder, String> configureClient
+    ) {
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress())
-            + ":"
-            + address.getPort()
-            + "/";
-        clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
-        clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(5000));
-        configureClient.accept(clientSettings, clientName);
+        final String primaryEndpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
+        final String secondaryEndpoint = "http://localhost:" + address.getPort() + "/";
+        service = createStorageService(
+            buildClientSettings(activeClientName, maxRetries, primaryEndpoint, secondaryEndpoint, configureClient)
+        );
+        return createBlobContainer(service, activeClientName, locationMode);
+    }
 
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(UTF_8));
-        secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
-        clientSettings.setSecureSettings(secureSettings);
-
-        service = new AzureStorageService(clientSettings.build()) {
+    private AzureStorageService createStorageService(Settings settings) {
+        return new AzureStorageService(settings) {
             @Override
             RequestRetryOptions createRetryPolicy(final AzureStorageSettings azureStorageSettings, String secondaryHost) {
                 return new RequestRetryOptions(
@@ -190,14 +204,70 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
             }
 
         };
+    }
 
+    private Settings buildClientSettings(String clientName, int maxRetries, String primaryEndpoint, String secondaryEndpoint) {
+        return buildClientSettings(clientName, maxRetries, primaryEndpoint, secondaryEndpoint, (settings, name) -> {});
+    }
+
+    private Settings buildClientSettings(
+        String clientName,
+        int maxRetries,
+        String primaryEndpoint,
+        String secondaryEndpoint,
+        BiConsumer<Settings.Builder, String> configureClient
+    ) {
+        final Settings.Builder clientSettings = Settings.builder();
+        String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + primaryEndpoint;
+        if (secondaryEndpoint != null) {
+            endpoint += ";BlobSecondaryEndpoint=" + secondaryEndpoint;
+        }
+        clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
+        clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
+        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(5000));
+        configureClient.accept(clientSettings, clientName);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(UTF_8));
+        secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+        clientSettings.setSecureSettings(secureSettings);
+        return clientSettings.build();
+    }
+
+    private AzureBlobStore createBlobStore(AzureStorageService storageService, String clientName, LocationMode locationMode) {
+        return new AzureBlobStore(createRepositoryMetadata(clientName, locationMode), storageService, threadPool);
+    }
+
+    private AzureBlobStore createBlobStore(
+        AzureStorageService storageService,
+        String clientName,
+        LocationMode locationMode,
+        Runnable beforeValidation
+    ) {
+        return new AzureBlobStore(createRepositoryMetadata(clientName, locationMode), storageService, threadPool) {
+            @Override
+            void beforeExistenceResultValidation() {
+                beforeValidation.run();
+            }
+        };
+    }
+
+    private RepositoryMetadata createRepositoryMetadata(String clientName, LocationMode locationMode) {
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
             AzureRepository.TYPE,
-            Settings.builder().put(CONTAINER_SETTING.getKey(), "container").put(ACCOUNT_SETTING.getKey(), clientName).build()
+            Settings.builder()
+                .put(CONTAINER_SETTING.getKey(), "container")
+                .put(ACCOUNT_SETTING.getKey(), clientName)
+                .put(LOCATION_MODE_SETTING.getKey(), locationMode)
+                .build()
         );
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service, threadPool), threadPool);
+        return repositoryMetadata;
+    }
+
+    private BlobContainer createBlobContainer(AzureStorageService storageService, String clientName, LocationMode locationMode) {
+        return new AzureBlobContainer(BlobPath.cleanPath(), createBlobStore(storageService, clientName, locationMode), threadPool);
     }
 
     public void testListBlobsByPrefixInSortedOrderPushesLimitToAzure() throws Exception {
@@ -332,6 +402,326 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertTrue(
             blobContainer.listBlobsByPrefixInSortedOrder("metadata-", 5001, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC).isEmpty()
         );
+    }
+
+    public void testBlobExistsReturnsTrue() throws Exception {
+        httpServer.createContext("/container/exists", exchange -> {
+            assertEquals("HEAD", exchange.getRequestMethod());
+            exchange.getResponseHeaders().add("Content-Length", "1");
+            exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+            exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            exchange.close();
+        });
+
+        assertTrue(createBlobContainer(1).blobExists("exists"));
+    }
+
+    public void testBlobExistsReturnsFalseOnlyForBlobNotFound() throws Exception {
+        httpServer.createContext("/container/missing-blob", exchange -> {
+            AzureHttpHandler.sendError(exchange, RestStatus.NOT_FOUND);
+            exchange.close();
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(1);
+        assertFalse(blobContainer.blobExists("missing-blob"));
+    }
+
+    public void testBlobExistsDoesNotTreatOtherNotFoundCodesAsMissingBlob() {
+        httpServer.createContext("/container/missing-container", exchange -> sendAzureError(exchange, 404, "ContainerNotFound"));
+        httpServer.createContext("/container/missing-resource", exchange -> sendAzureError(exchange, 404, "ResourceNotFound"));
+
+        final BlobContainer blobContainer = createBlobContainer(1);
+        for (String blobName : List.of("missing-container", "missing-resource")) {
+            final IOException e = expectThrows(IOException.class, () -> blobContainer.blobExists(blobName));
+            assertThat(e.getCause(), instanceOf(BlobStorageException.class));
+            assertEquals(404, ((BlobStorageException) e.getCause()).getStatusCode());
+        }
+    }
+
+    public void testBlobExistsDoesNotTreatUnverifiedNotFoundAsMissingBlob() {
+        httpServer.createContext("/container/unverified-not-found", exchange -> {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+
+        final IOException e = expectThrows(IOException.class, () -> createBlobContainer(1).blobExists("unverified-not-found"));
+        assertThat(e.getCause(), instanceOf(BlobStorageException.class));
+        assertEquals(404, ((BlobStorageException) e.getCause()).getStatusCode());
+    }
+
+    public void testBlobExistsUsesOnlyPrimaryForAllLocationModes() throws Exception {
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        for (LocationMode locationMode : LocationMode.values()) {
+            closeCurrentService();
+            final String blobName = "present-" + locationMode;
+            httpServer.createContext("/container/" + blobName, exchange -> {
+                if (isSecondaryRequest(exchange)) {
+                    secondaryRequests.incrementAndGet();
+                } else {
+                    primaryRequests.incrementAndGet();
+                }
+                sendBlobProperties(exchange);
+            });
+
+            assertTrue(createBlobContainer(1, locationMode).blobExists(blobName));
+        }
+        assertEquals(LocationMode.values().length, primaryRequests.get());
+        assertEquals(0, secondaryRequests.get());
+    }
+
+    public void testBlobExistsReturnsFalseOnlyForPrimaryBlobNotFoundForAllLocationModes() throws Exception {
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        for (LocationMode locationMode : LocationMode.values()) {
+            closeCurrentService();
+            final String blobName = "missing-" + locationMode;
+            httpServer.createContext("/container/" + blobName, exchange -> {
+                if (isSecondaryRequest(exchange)) {
+                    secondaryRequests.incrementAndGet();
+                } else {
+                    primaryRequests.incrementAndGet();
+                }
+                sendAzureError(exchange, 404, "BlobNotFound");
+            });
+
+            assertFalse(createBlobContainer(1, locationMode).blobExists(blobName));
+        }
+        assertEquals(LocationMode.values().length, primaryRequests.get());
+        assertEquals(0, secondaryRequests.get());
+    }
+
+    public void testBlobExistsPropagatesPrimaryFailuresWithoutQueryingSecondary() {
+        final int[] statuses = new int[] { 401, 403, 408, 429, 500, 503 };
+        final String[] errorCodes = new String[] {
+            "AuthenticationFailed",
+            "AuthorizationFailure",
+            "OperationTimedOut",
+            "ServerBusy",
+            "InternalError",
+            "ServerBusy" };
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        for (int i = 0; i < statuses.length; i++) {
+            try {
+                closeCurrentService();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            final String blobName = "failure-" + statuses[i];
+            final int status = statuses[i];
+            final String errorCode = errorCodes[i];
+            httpServer.createContext("/container/" + blobName, exchange -> {
+                if (isSecondaryRequest(exchange)) {
+                    secondaryRequests.incrementAndGet();
+                }
+                sendAzureError(exchange, status, errorCode);
+            });
+
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> createBlobContainer(1, randomFrom(LocationMode.values())).blobExists(blobName)
+            );
+            assertThat(e.getCause(), instanceOf(BlobStorageException.class));
+            assertEquals(status, ((BlobStorageException) e.getCause()).getStatusCode());
+        }
+        assertEquals(0, secondaryRequests.get());
+    }
+
+    public void testBlobExistsPropagatesOtherPrimaryNotFoundResponses() throws Exception {
+        final String[] errorCodes = new String[] { "ContainerNotFound", "ResourceNotFound", null };
+        for (int i = 0; i < errorCodes.length; i++) {
+            closeCurrentService();
+            final String blobName = "other-not-found-" + i;
+            final String errorCode = errorCodes[i];
+            httpServer.createContext("/container/" + blobName, exchange -> {
+                if (errorCode == null) {
+                    exchange.sendResponseHeaders(404, -1);
+                    exchange.close();
+                } else {
+                    sendAzureError(exchange, 404, errorCode);
+                }
+            });
+
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> createBlobContainer(1, randomFrom(LocationMode.values())).blobExists(blobName)
+            );
+            assertThat(e.getCause(), instanceOf(BlobStorageException.class));
+            assertEquals(404, ((BlobStorageException) e.getCause()).getStatusCode());
+        }
+    }
+
+    public void testBlobExistsPropagatesTransportFailure() {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container/transport-failure", exchange -> {
+            requests.incrementAndGet();
+            exchange.close();
+        });
+
+        expectThrows(RuntimeException.class, () -> createBlobContainer(1, LocationMode.SECONDARY_ONLY).blobExists("transport-failure"));
+        assertEquals(1, requests.get());
+    }
+
+    public void testBlobExistsMapsMalformedUriToIOException() throws Exception {
+        final AzureBlobStore blobStore = mock(AzureBlobStore.class);
+        when(blobStore.blobExists("malformed")).thenThrow(new URISyntaxException("malformed", "invalid URI"));
+        final AzureBlobContainer blobContainer = new AzureBlobContainer(BlobPath.cleanPath(), blobStore, mock(ThreadPool.class));
+
+        final IOException e = expectThrows(IOException.class, () -> blobContainer.blobExists("malformed"));
+        assertThat(e.getCause(), instanceOf(URISyntaxException.class));
+    }
+
+    public void testBlobExistsDoesNotSwallowUnexpectedException() throws Exception {
+        final AzureBlobStore blobStore = mock(AzureBlobStore.class);
+        final IllegalStateException failure = new IllegalStateException("unexpected");
+        when(blobStore.blobExists("unexpected")).thenThrow(failure);
+        final AzureBlobContainer blobContainer = new AzureBlobContainer(BlobPath.cleanPath(), blobStore, mock(ThreadPool.class));
+
+        assertSame(failure, expectThrows(IllegalStateException.class, () -> blobContainer.blobExists("unexpected")));
+    }
+
+    public void testPrimaryClientCacheClearedOnReload() throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String authority = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        service = createStorageService(buildClientSettings(activeClientName, 1, authority + "/old", null));
+        final BlobContainer blobContainer = createBlobContainer(service, activeClientName, LocationMode.SECONDARY_ONLY);
+        final AtomicInteger oldRequests = new AtomicInteger();
+        final AtomicInteger newRequests = new AtomicInteger();
+        httpServer.createContext("/old/container/reloaded", exchange -> {
+            oldRequests.incrementAndGet();
+            sendBlobProperties(exchange);
+        });
+        httpServer.createContext("/new/container/reloaded", exchange -> {
+            newRequests.incrementAndGet();
+            sendBlobProperties(exchange);
+        });
+
+        assertTrue(blobContainer.blobExists("reloaded"));
+        assertEquals(1, service.primaryClientCount());
+
+        final Settings reloadedSettings = buildClientSettings(activeClientName, 1, authority + "/new", null);
+        service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings));
+        assertEquals(0, service.primaryClientCount());
+
+        assertTrue(blobContainer.blobExists("reloaded"));
+        assertEquals(1, oldRequests.get());
+        assertEquals(1, newRequests.get());
+        assertEquals(1, service.primaryClientCount());
+    }
+
+    public void testClosingOneRepositoryDoesNotCloseSharedService() throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String primaryEndpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final Settings settings = buildClientSettings(activeClientName, 1, primaryEndpoint, null);
+        service = createStorageService(settings);
+        final AzureBlobStore firstStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
+        final AzureBlobStore secondStore = createBlobStore(service, activeClientName, LocationMode.SECONDARY_ONLY);
+        final AtomicInteger secondRequests = new AtomicInteger();
+        httpServer.createContext("/container/second-repository", exchange -> {
+            secondRequests.incrementAndGet();
+            sendBlobProperties(exchange);
+        });
+
+        firstStore.close();
+        assertTrue(secondStore.blobContainer(BlobPath.cleanPath()).blobExists("second-repository"));
+
+        service.refreshAndClearCache(AzureStorageSettings.load(settings));
+        assertTrue(secondStore.blobContainer(BlobPath.cleanPath()).blobExists("second-repository"));
+        assertEquals(2, secondRequests.get());
+    }
+
+    public void testRepositoriesKeepIndependentLocationModes() throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String primaryEndpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
+        final String secondaryEndpoint = "http://localhost:" + address.getPort() + "/";
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        service = createStorageService(buildClientSettings(activeClientName, 1, primaryEndpoint, secondaryEndpoint));
+        final AzureBlobStore primaryStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
+        final AzureBlobStore secondaryStore = createBlobStore(service, activeClientName, LocationMode.SECONDARY_ONLY);
+        final AtomicInteger primaryRequests = new AtomicInteger();
+        final AtomicInteger secondaryRequests = new AtomicInteger();
+        httpServer.createContext("/container/primary-mode", exchange -> {
+            assertFalse(isSecondaryRequest(exchange));
+            primaryRequests.incrementAndGet();
+            sendBlobDownload(exchange);
+        });
+        httpServer.createContext("/container/secondary-mode", exchange -> {
+            assertTrue(isSecondaryRequest(exchange));
+            secondaryRequests.incrementAndGet();
+            sendBlobDownload(exchange);
+        });
+
+        try (InputStream input = primaryStore.getInputStream("primary-mode", 0L, 1L)) {
+            assertEquals(1, Streams.readFully(input).length());
+        }
+        try (InputStream input = secondaryStore.getInputStream("secondary-mode", 0L, 1L)) {
+            assertEquals(1, Streams.readFully(input).length());
+        }
+
+        assertEquals(1, primaryRequests.get());
+        assertEquals(1, secondaryRequests.get());
+        assertEquals(2, service.locationClientCount());
+        assertEquals(LocationMode.PRIMARY_ONLY, service.storageSettings.get(activeClientName).getLocationMode());
+    }
+
+    public void testBlobExistsDoesNotReturnStaleSuccessAfterReload() throws Exception {
+        assertBlobExistsReloadResult(true, false);
+    }
+
+    public void testBlobExistsDoesNotReturnStaleNotFoundAfterReload() throws Exception {
+        assertBlobExistsReloadResult(false, true);
+    }
+
+    private void assertBlobExistsReloadResult(boolean oldResult, boolean newResult) throws Exception {
+        final InetSocketAddress address = httpServer.getAddress();
+        final String authority = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        service = createStorageService(buildClientSettings(activeClientName, 1, authority + "/old", null));
+        final String blobName = oldResult ? "stale-success" : "stale-not-found";
+        httpServer.createContext("/old/container/" + blobName, exchange -> {
+            if (oldResult) {
+                sendBlobProperties(exchange);
+            } else {
+                sendAzureError(exchange, 404, "BlobNotFound");
+            }
+        });
+        httpServer.createContext("/new/container/" + blobName, exchange -> {
+            if (newResult) {
+                sendBlobProperties(exchange);
+            } else {
+                sendAzureError(exchange, 404, "BlobNotFound");
+            }
+        });
+
+        final CountDownLatch validationReached = new CountDownLatch(1);
+        final CountDownLatch releaseValidation = new CountDownLatch(1);
+        final AzureBlobStore blobStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY, () -> {
+            validationReached.countDown();
+            try {
+                if (releaseValidation.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to release existence validation");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        });
+
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<Boolean> result = executor.submit(() -> blobStore.blobExists(blobName));
+            assertTrue(validationReached.await(10, TimeUnit.SECONDS));
+            final Settings reloadedSettings = buildClientSettings(activeClientName, 1, authority + "/new", null);
+            service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings));
+            releaseValidation.countDown();
+            assertEquals(newResult, result.get(10, TimeUnit.SECONDS));
+        } finally {
+            releaseValidation.countDown();
+            executor.shutdownNow();
+        }
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
@@ -685,6 +1075,43 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), body.length);
         exchange.getResponseBody().write(body);
+    }
+
+    private void closeCurrentService() throws IOException {
+        if (service != null) {
+            service.close();
+            service = null;
+        }
+    }
+
+    private static void sendAzureError(HttpExchange exchange, int status, String errorCode) throws IOException {
+        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+        exchange.getResponseHeaders().add("x-ms-error-code", errorCode);
+        exchange.sendResponseHeaders(status, -1);
+        exchange.close();
+    }
+
+    private static void sendBlobProperties(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().add("Content-Length", "1");
+        exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+        exchange.close();
+    }
+
+    private static void sendBlobDownload(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+        exchange.getResponseHeaders().add("Content-Length", "1");
+        exchange.getResponseHeaders().add("Content-Range", "bytes 0-0/1");
+        exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(206, 1);
+        exchange.getResponseBody().write(1);
+        exchange.close();
+    }
+
+    private static boolean isSecondaryRequest(HttpExchange exchange) {
+        return exchange.getRequestHeaders().getFirst("Host").startsWith("localhost");
     }
 
 }

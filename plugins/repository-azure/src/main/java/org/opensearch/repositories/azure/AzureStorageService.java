@@ -64,8 +64,12 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -101,7 +105,11 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final Map<LocationClientKey, LocationClientState> locationClients = new ConcurrentHashMap<>();
+    private final Map<String, PrimaryClientState> primaryClients = new ConcurrentHashMap<>();
+    private final Object clientLifecycleMutex = new Object();
     private final ExecutorService executor;
+    private boolean closed;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
         final ThreadGroup group;
@@ -171,23 +179,92 @@ public class AzureStorageService implements AutoCloseable {
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-        final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
 
-        // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
-        // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
-        ClientState state = clients.get(azureStorageSettings);
-
-        if (state == null) {
-            state = clients.computeIfAbsent(azureStorageSettings, key -> {
+            // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
+            // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
+            ClientState state = clients.get(azureStorageSettings);
+            if (state == null) {
                 try {
-                    return buildClient(azureStorageSettings, statsCollector);
+                    state = buildClient(azureStorageSettings, statsCollector);
+                    clients.put(azureStorageSettings, state);
                 } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
                     throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
                 }
-            });
+            }
+            return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
         }
+    }
 
-        return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
+    Tuple<BlobServiceClient, Supplier<Context>> clientForPrimaryOnly(String clientName) {
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException("Unable to find client with name [" + clientName + "]");
+            }
+
+            PrimaryClientState primaryState = primaryClients.get(clientName);
+            if (primaryState == null || primaryState.sourceSettings != azureStorageSettings) {
+                if (primaryState != null) {
+                    closeInternally(primaryState.clientState);
+                }
+                final AzureStorageSettings primarySettings = AzureStorageSettings.overrideLocationMode(
+                    Collections.singletonMap(clientName, azureStorageSettings),
+                    LocationMode.PRIMARY_ONLY
+                ).get(clientName);
+                try {
+                    primaryState = new PrimaryClientState(
+                        azureStorageSettings,
+                        primarySettings,
+                        buildClient(primarySettings, (request, response) -> {})
+                    );
+                    primaryClients.put(clientName, primaryState);
+                } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                    primaryClients.remove(clientName);
+                    throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+                }
+            }
+            final PrimaryClientState selectedState = primaryState;
+            return new Tuple<>(selectedState.clientState.getClient(), () -> buildOperationContext(selectedState.primarySettings));
+        }
+    }
+
+    Tuple<BlobServiceClient, Supplier<Context>> client(
+        String clientName,
+        LocationMode locationMode,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector
+    ) {
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException("Unable to find client with name [" + clientName + "]");
+            }
+
+            final LocationClientKey key = new LocationClientKey(clientName, locationMode);
+            LocationClientState state = locationClients.get(key);
+            if (state == null || state.sourceSettings != azureStorageSettings) {
+                if (state != null) {
+                    closeInternally(state.clientState);
+                }
+                final AzureStorageSettings locationSettings = AzureStorageSettings.overrideLocationMode(
+                    Collections.singletonMap(clientName, azureStorageSettings),
+                    locationMode
+                ).get(clientName);
+                try {
+                    state = new LocationClientState(azureStorageSettings, locationSettings, buildClient(locationSettings, statsCollector));
+                    locationClients.put(key, state);
+                } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+                    locationClients.remove(key);
+                    throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
+                }
+            }
+            final LocationClientState selectedState = state;
+            return new Tuple<>(selectedState.clientState.getClient(), () -> buildOperationContext(selectedState.locationSettings));
+        }
     }
 
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
@@ -306,22 +383,32 @@ public class AzureStorageService implements AutoCloseable {
      * @return the old settings
      */
     public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
-        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
-        final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
-        prevClients.values().forEach(this::closeInternally);
-        prevClients.clear();
-
-        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
-        this.clients.clear();
-
-        // clients are built lazily by {@link client(String)}
+        beforeRefresh();
+        final Map<String, AzureStorageSettings> prevSettings;
+        final List<ClientState> detachedClients;
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            prevSettings = this.storageSettings;
+            this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+            detachedClients = detachClientStates();
+        }
+        detachedClients.forEach(this::closeInternally);
         return prevSettings;
     }
 
     @Override
     public void close() throws IOException {
-        this.clients.values().forEach(this::closeInternally);
-        this.clients.clear();
+        beforeClose();
+        final List<ClientState> detachedClients;
+        synchronized (clientLifecycleMutex) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            this.storageSettings = emptyMap();
+            detachedClients = detachClientStates();
+        }
+        detachedClients.forEach(this::closeInternally);
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
@@ -443,6 +530,107 @@ public class AzureStorageService implements AutoCloseable {
         public EventLoopGroup getEventLoopGroup() {
             return eventLoopGroup;
         }
+    }
+
+    private static final class PrimaryClientState {
+        private final AzureStorageSettings sourceSettings;
+        private final AzureStorageSettings primarySettings;
+        private final ClientState clientState;
+
+        private PrimaryClientState(AzureStorageSettings sourceSettings, AzureStorageSettings primarySettings, ClientState clientState) {
+            this.sourceSettings = sourceSettings;
+            this.primarySettings = primarySettings;
+            this.clientState = clientState;
+        }
+    }
+
+    private static final class LocationClientKey {
+        private final String clientName;
+        private final LocationMode locationMode;
+
+        private LocationClientKey(String clientName, LocationMode locationMode) {
+            this.clientName = clientName;
+            this.locationMode = locationMode;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (object instanceof LocationClientKey == false) {
+                return false;
+            }
+            final LocationClientKey other = (LocationClientKey) object;
+            return clientName.equals(other.clientName) && locationMode == other.locationMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * clientName.hashCode() + locationMode.hashCode();
+        }
+    }
+
+    private static final class LocationClientState {
+        private final AzureStorageSettings sourceSettings;
+        private final AzureStorageSettings locationSettings;
+        private final ClientState clientState;
+
+        private LocationClientState(AzureStorageSettings sourceSettings, AzureStorageSettings locationSettings, ClientState clientState) {
+            this.sourceSettings = sourceSettings;
+            this.locationSettings = locationSettings;
+            this.clientState = clientState;
+        }
+    }
+
+    int primaryClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return primaryClients.size();
+        }
+    }
+
+    int ordinaryClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return clients.size();
+        }
+    }
+
+    int locationClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return locationClients.size();
+        }
+    }
+
+    boolean isPrimaryClientCurrent(String clientName, BlobServiceClient client) {
+        synchronized (clientLifecycleMutex) {
+            final PrimaryClientState state = primaryClients.get(clientName);
+            return closed == false
+                && state != null
+                && state.sourceSettings == storageSettings.get(clientName)
+                && state.clientState.getClient() == client;
+        }
+    }
+
+    // Package-private no-op hooks for deterministic lifecycle tests.
+    void beforeRefresh() {}
+
+    void beforeClose() {}
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Azure storage service is closed");
+        }
+    }
+
+    private List<ClientState> detachClientStates() {
+        final Set<ClientState> detached = Collections.newSetFromMap(new IdentityHashMap<>());
+        detached.addAll(clients.values());
+        locationClients.values().forEach(state -> detached.add(state.clientState));
+        primaryClients.values().forEach(state -> detached.add(state.clientState));
+        clients.clear();
+        locationClients.clear();
+        primaryClients.clear();
+        return new ArrayList<>(detached);
     }
 
     /**
