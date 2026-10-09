@@ -815,6 +815,30 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             super(name);
         }
 
+        /**
+         * Shared multi-value parameter for scalar leaf mappers. Concrete builders opt in via
+         * {@link #withMultiValueParameter(List)} only when a pluggable data format is active.
+         */
+        protected final Parameter<MappedFieldType.MultiValueState> multiValue = multiValueParameter();
+
+        /** Adds {@code multi_value} only for pluggable data-format mappings. */
+        protected final List<Parameter<?>> withMultiValueParameter(List<Parameter<?>> parameters) {
+            if (pluggableDataFormat == false) {
+                return List.copyOf(parameters);
+            }
+            List<Parameter<?>> result = new ArrayList<>(parameters);
+            result.add(multiValue);
+            return List.copyOf(result);
+        }
+
+        /** Applies the opted-in mapping state and capability to the built field type. */
+        protected final void applyMultiValueParameter(MappedFieldType fieldType) {
+            if (pluggableDataFormat) {
+                fieldType.setMultiValueState(multiValue.getValue());
+                fieldType.setMultiValueSupported(true);
+            }
+        }
+
         /** Plugin-contributed parameters supplied at construction; appended to {@link #getParameters()} by subclasses. */
         private List<Parameter<?>> pluginMappingParameters = List.of();
 
@@ -906,16 +930,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Initialises all parameters from an existing mapper
          */
         public Builder init(FieldMapper initializer) {
+            // Carry this before resolving getParameters(): Parquet-only parameters such as
+            // multi_value must exist while their values are initialized from the current mapper.
+            if (initializer instanceof ParametrizedFieldMapper) {
+                this.pluggableDataFormat = ((ParametrizedFieldMapper) initializer).pluggableDataFormat;
+            }
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
-            }
-            // Carry the pluggable-data-format flag over from the mapper being merged/serialized so a
-            // settings-less merge builder keeps the correct parameter defaults (e.g. `index` -> false).
-            if (initializer instanceof ParametrizedFieldMapper) {
-                this.pluggableDataFormat = ((ParametrizedFieldMapper) initializer).pluggableDataFormat;
             }
             return this;
         }
