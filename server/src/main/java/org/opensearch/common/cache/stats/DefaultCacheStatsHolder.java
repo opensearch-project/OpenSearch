@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
 /**
@@ -38,9 +38,8 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     // We use a tree structure, rather than a map with concatenated keys, to save on memory usage. If there are many leaf
     // nodes that share a parent, that parent's dimension value will only be stored once, not many times.
     protected final Node statsRoot;
-    // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
-    // No lock is needed to edit stats on existing nodes.
-    protected final Lock lock = new ReentrantLock();
+    // Read locks protect counter updates from tree changes; the write lock protects node creation, removal, and reset.
+    protected final ReadWriteLock lock = new ReentrantReadWriteLock();
     // The name of the cache type using these stats
     private final String storeName;
 
@@ -99,7 +98,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
      */
     @Override
     public void reset() {
-        resetHelper(statsRoot);
+        lock.writeLock().lock();
+        try {
+            resetHelper(statsRoot);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private void resetHelper(Node current) {
@@ -117,15 +121,23 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
     protected void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
-        // First try to increment without creating nodes
-        boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
-        // If we failed to increment, because nodes had to be created, obtain the lock and run again while creating nodes if needed
-        if (!didIncrement && createNodesIfAbsent) {
+        lock.readLock().lock();
+        try {
+            // First try to increment without creating nodes.
+            if (internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false)) {
+                return;
+            }
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        // If we failed to increment because nodes had to be created, obtain the write lock and run again.
+        if (createNodesIfAbsent) {
             try {
-                lock.lock();
+                lock.writeLock().lock();
                 internalIncrementHelper(dimensionValues, statsRoot, 0, adder, true);
             } finally {
-                lock.unlock();
+                lock.writeLock().unlock();
             }
         }
     }
@@ -178,12 +190,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     @Override
     public void removeDimensions(List<String> dimensionValues) {
         assert dimensionValues.size() == dimensionNames.size() : "Must specify a value for every dimension when removing from StatsHolder";
-        // As we are removing nodes from the tree, obtain the lock
-        lock.lock();
+        // As we are removing nodes from the tree, obtain the write lock.
+        lock.writeLock().lock();
         try {
             removeDimensionsHelper(dimensionValues, statsRoot, 0);
         } finally {
-            lock.unlock();
+            lock.writeLock().unlock();
         }
     }
 
