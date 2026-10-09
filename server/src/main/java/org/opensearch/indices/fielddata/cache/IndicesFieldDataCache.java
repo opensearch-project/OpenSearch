@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -53,17 +54,21 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
+import org.opensearch.index.fielddata.ordinals.ScopedGlobalOrdinalsCache;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,8 +99,24 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         Property.NodeScope,
         Property.Dynamic
     );
+    /**
+     * Size after which the dedicated <em>scoped</em> global-ordinals cache (for the {@code scope_prefix}
+     * has_child/has_parent optimisation) begins evicting. Kept separate from the main fielddata cache so a burst of
+     * many per-group scoped maps can never evict the shared fielddata that all other queries depend on.
+     */
+    public static final Setting<ByteSizeValue> INDICES_SCOPED_GLOBAL_ORDINALS_CACHE_SIZE_KEY = Setting.memorySizeSetting(
+        "indices.fielddata.scoped_global_ordinals.cache.size",
+        new RatioValue(5).toString(),
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> INDICES_SCOPED_GLOBAL_ORDINALS_CACHE_EXPIRE_KEY = Setting.positiveTimeSetting(
+        "indices.fielddata.scoped_global_ordinals.cache.expire_after_access",
+        TimeValue.timeValueMinutes(1),
+        Property.NodeScope
+    );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
+    private final ScopedGlobalOrdinalsCache scopedGlobalOrdinalsCache;
     private final ThreadPool threadPool;
     private Set<Index> indicesToClear;
     private Map<Index, Set<String>> fieldsToClear;
@@ -115,6 +136,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         ThreadPool threadPool
     ) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
+        this.scopedGlobalOrdinalsCache = new ScopedGlobalOrdinalsCache(
+            INDICES_SCOPED_GLOBAL_ORDINALS_CACHE_SIZE_KEY.get(settings),
+            INDICES_SCOPED_GLOBAL_ORDINALS_CACHE_EXPIRE_KEY.get(settings)
+        );
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
         if (sizeInBytes > 0) {
@@ -139,6 +164,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     @Override
     public void close() {
         cache.invalidateAll();
+        scopedGlobalOrdinalsCache.close();
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
@@ -289,7 +315,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      *
      * @opensearch.internal
      */
-    static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
+    public static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
         private final Logger logger;
         final Index index;
         final String fieldName;
@@ -387,6 +413,35 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                     logger.error("Failed to call listener on field data loading", e);
                 }
             }
+        }
+
+        public IndexOrdinalsFieldData loadGlobalScoped(
+            DirectoryReader indexReader,
+            BytesRef prefix,
+            ScopedGlobalOrdinalsCache.ScopedOrdinalsLoader loader
+        ) throws Exception {
+            final ShardId shardId = ShardUtils.extractShardId(indexReader);
+            final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
+            if (cacheHelper == null) {
+                throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
+            }
+            // Evict the scoped entries for this reader-generation when the reader closes, so a refresh
+            // (new segment generation) drops the now-stale scoped maps just like the main ordinals cache.
+            // Registered at most once per reader generation, regardless of how many prefixes are cached against it.
+            nodeLevelCache.scopedGlobalOrdinalsCache.registerReaderCloseListener(
+                cacheHelper.getKey(),
+                readerKey -> OpenSearchDirectoryReader.addReaderCloseListener(
+                    indexReader,
+                    k -> nodeLevelCache.scopedGlobalOrdinalsCache.invalidateReader(readerKey)
+                )
+            );
+            return nodeLevelCache.scopedGlobalOrdinalsCache.computeIfAbsent(index, fieldName, shardId, cacheHelper.getKey(), prefix, () -> {
+                try {
+                    return loader.load(indexReader, prefix);
+                } catch (Exception e) {
+                    throw new UncheckedIOException(new IOException(e));
+                }
+            });
         }
 
         @Override

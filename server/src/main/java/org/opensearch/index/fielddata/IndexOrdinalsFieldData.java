@@ -35,6 +35,7 @@ package org.opensearch.index.fielddata;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * Specialization of {@link IndexFieldData} for data that is indexed with ordinals.
@@ -55,6 +56,34 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
      */
     @Override
     IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception;
+
+    /**
+     * Load a <b>group-scoped</b> global view of the ordinals for the given {@link IndexReader}, restricted to terms
+     * that start with {@code termPrefix}. The returned {@link OrdinalMap} is addressable by native segment ordinals
+     * for in-range terms, so it can be used directly by the join collectors. This is never cached and is intended for
+     * {@code has_child}/{@code has_parent} queries that are already filtered to the same prefix (group).
+     * <p>
+     * The default implementation ignores the prefix and delegates to {@link #loadGlobalDirect(DirectoryReader)}.
+     */
+    default IndexOrdinalsFieldData loadGlobalScopedDirect(DirectoryReader indexReader, BytesRef termPrefix) throws Exception {
+        return loadGlobalDirect(indexReader);
+    }
+
+    /**
+     * Load a <b>group-scoped</b> global view of the ordinals for {@code termPrefix}, <b>potentially from a dedicated
+     * scoped cache</b> (node-level, separate from the main fielddata cache). This is the cached counterpart of
+     * {@link #loadGlobalScopedDirect(DirectoryReader, BytesRef)} and is what {@code has_child}/{@code has_parent}
+     * queries should call, so a burst of legs/queries for the same group reuses one build until the next refresh.
+     * <p>
+     * The default implementation is uncached and delegates to {@link #loadGlobalScopedDirect(DirectoryReader, BytesRef)}.
+     */
+    default IndexOrdinalsFieldData loadGlobalScoped(DirectoryReader indexReader, BytesRef termPrefix) {
+        try {
+            return loadGlobalScopedDirect(indexReader, termPrefix);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build scoped global ordinals", e);
+        }
+    }
 
     /**
      * Returns the underlying {@link OrdinalMap} for this fielddata

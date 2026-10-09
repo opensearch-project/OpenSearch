@@ -167,6 +167,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         hqb.minMaxChildren(min, max);
         hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
+            hqb.scopePrefix(randomAlphaOfLengthBetween(1, 12) + ":");
+        }
+        if (randomBoolean()) {
             hqb.innerHit(
                 new InnerHitBuilder().setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
@@ -208,6 +211,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             HasChildQueryBuilder testQuery = createTestQueryBuilder();
+            if (version.before(Version.V_3_10_0)) {
+                testQuery.scopePrefix(null);
+            }
             assertSerialization(testQuery, version);
         }
     }
@@ -395,6 +401,28 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
     }
 
+    public void testScopePrefixParsingAndDefault() throws IOException {
+        // Defaults to null when not provided.
+        HasChildQueryBuilder defaulted = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        assertNull(defaulted.scopePrefix());
+
+        // Round-trips through XContent under the "scope_prefix" wire name.
+        HasChildQueryBuilder withPrefix = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        withPrefix.scopePrefix("group-123:");
+        String json = withPrefix.toString();
+        assertThat(json, containsString("\"scope_prefix\" : \"group-123:\""));
+
+        HasChildQueryBuilder parsed = (HasChildQueryBuilder) parseQuery(json);
+        assertEquals("group-123:", parsed.scopePrefix());
+        assertEquals(withPrefix, parsed);
+        assertEquals(withPrefix.hashCode(), parsed.hashCode());
+
+        // A differing scope_prefix breaks equality.
+        HasChildQueryBuilder other = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        other.scopePrefix("group-999:");
+        assertNotEquals(withPrefix, other);
+    }
+
     public void testVisit() {
         HasChildQueryBuilder builder = doCreateTestQueryBuilder();
 
@@ -402,5 +430,28 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         builder.visit(createTestVisitor(visitedQueries));
 
         assertEquals(2, visitedQueries.size());
+    }
+
+    public void testScopePrefixSerializationBWC() throws IOException {
+        HasChildQueryBuilder original = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        original.scopePrefix("group-id:");
+        assertEquals(original, copyWriteable(original, namedWriteableRegistry(), HasChildQueryBuilder::new, Version.CURRENT));
+    }
+
+    public void testScopePrefixRejectionForOldVersion() throws IOException {
+        HasChildQueryBuilder original = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        original.scopePrefix("group-id:");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(original, namedWriteableRegistry(), HasChildQueryBuilder::new, Version.V_3_9_1)
+        );
+        assertThat(e.getMessage(), containsString("scope_prefix is not supported"));
+    }
+
+    public void testScopePrefixAbsentForOldVersion() throws IOException {
+        HasChildQueryBuilder original = new HasChildQueryBuilder(CHILD_DOC, new MatchAllQueryBuilder(), ScoreMode.None);
+        HasChildQueryBuilder copy = copyWriteable(original, namedWriteableRegistry(), HasChildQueryBuilder::new, Version.V_3_9_1);
+        assertEquals(original, copy);
+        assertNull(copy.scopePrefix());
     }
 }

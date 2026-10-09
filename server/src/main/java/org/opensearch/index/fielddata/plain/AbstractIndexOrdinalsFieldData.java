@@ -49,6 +49,7 @@ import org.opensearch.index.fielddata.RamAccountingTermsEnum;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -167,6 +168,49 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
+    }
+
+    @Override
+    public IndexOrdinalsFieldData loadGlobalScopedDirect(DirectoryReader indexReader, BytesRef termPrefix) throws Exception {
+        if (termPrefix == null || indexReader.leaves().size() <= 1) {
+            // No prefix, or ordinals already global (single segment): nothing to scope.
+            return loadGlobalDirect(indexReader);
+        }
+        return GlobalOrdinalsBuilder.buildScoped(indexReader, this, breakerService, logger, scriptFunction, termPrefix, () -> {});
+    }
+
+    @Override
+    public IndexOrdinalsFieldData loadGlobalScoped(DirectoryReader indexReader, BytesRef termPrefix) {
+        if (termPrefix == null || indexReader.leaves().size() <= 1) {
+            // No prefix, or ordinals already global (single segment): nothing to scope, use the shared path.
+            return loadGlobal(indexReader);
+        }
+        final IndexOrdinalsFieldData fieldData;
+        try {
+            if (cache instanceof IndicesFieldDataCache.IndexFieldCache) {
+                // Cache the scoped map per (field, reader-generation, prefix) in the dedicated node-level scoped cache so
+                // a burst of many has_child legs / queries for the same tenant reuses one build until the next refresh,
+                // instead of rebuilding the OrdinalMap on the search thread for every clause (the periodic-spike cause).
+                fieldData = ((IndicesFieldDataCache.IndexFieldCache) cache).loadGlobalScoped(
+                    indexReader,
+                    termPrefix,
+                    this::loadGlobalScopedDirect
+                );
+            } else {
+                // No node-level cache available (e.g. IndexFieldDataCache.None in tests): build directly.
+                fieldData = loadGlobalScopedDirect(indexReader, termPrefix);
+            }
+        } catch (Exception e) {
+            if (e instanceof OpenSearchException) {
+                throw (OpenSearchException) e;
+            }
+            throw new OpenSearchException(e);
+        }
+        if (fieldData instanceof GlobalOrdinalsIndexFieldData) {
+            // Per-consumer view so per-segment TermsEnums are not shared across concurrent legs/queries.
+            return ((GlobalOrdinalsIndexFieldData) fieldData).newConsumer(indexReader);
+        }
+        return fieldData;
     }
 
     @Override
