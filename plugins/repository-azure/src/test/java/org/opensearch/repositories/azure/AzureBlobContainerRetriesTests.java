@@ -34,9 +34,7 @@ package org.opensearch.repositories.azure;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.BlobStorageException;
-import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -207,7 +205,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
         };
     }
-    private Settings buildClientSettings(String clientName, int maxRetries, String primaryEndpoint, String secondaryEndpoint) {
+
     private Settings buildClientSettings(String clientName, int maxRetries, String primaryEndpoint, String secondaryEndpoint) {
         return buildClientSettings(clientName, maxRetries, primaryEndpoint, secondaryEndpoint, (settings, name) -> {});
     }
