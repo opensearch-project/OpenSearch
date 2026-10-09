@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "created_date"
+    "created_date",
+    "_id"
   ],
   "mockResultRows": [
     [
       "event1",
-      "2024-06-15"
+      "2024-06-15",
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "event1",
             "created_date": "2024-06-15"
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }

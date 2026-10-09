@@ -27,14 +27,16 @@
     "name",
     "price",
     "brand",
-    "rating"
+    "rating",
+    "_id"
   ],
   "mockResultRows": [
     [
       "laptop",
       999,
       "BrandA",
-      4.5
+      4.5,
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -53,7 +55,8 @@
             "price": 999,
             "brand": "BrandA",
             "rating": 4.5
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
