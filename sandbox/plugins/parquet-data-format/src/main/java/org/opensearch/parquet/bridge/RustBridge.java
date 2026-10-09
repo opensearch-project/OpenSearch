@@ -125,7 +125,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS   // num_row_groups_out
+                ValueLayout.ADDRESS,  // num_row_groups_out
+                ValueLayout.ADDRESS   // format_version_out
             )
         );
         GET_FILTERED_BYTES = linker.downcallHandle(
@@ -391,7 +392,8 @@ public class RustBridge {
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
                 crc32Out.get(ValueLayout.JAVA_LONG, 0),
-                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0),
+                ParquetFileMetadata.FORMAT_VERSION_UNKNOWN // write path never gates on the stamp
             );
 
             // Read sort permutation if present
@@ -419,6 +421,7 @@ public class RustBridge {
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var numRowGroupsOut = call.longOut();
+            var formatVersionOut = call.longOut();
             var out = call.outBuffer(1024);
             call.invokeIO(
                 GET_FILE_METADATA,
@@ -429,7 +432,8 @@ public class RustBridge {
                 out.data(),
                 (long) out.capacity(),
                 out.lenOut(),
-                numRowGroupsOut
+                numRowGroupsOut,
+                formatVersionOut
             );
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
@@ -439,7 +443,8 @@ public class RustBridge {
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
                 0L,
-                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0),
+                formatVersionOut.get(ValueLayout.JAVA_LONG, 0)
             );
         }
     }
@@ -687,7 +692,8 @@ public class RustBridge {
                     ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
                 crc32Out.get(ValueLayout.JAVA_LONG, 0),
-                0
+                0,
+                ParquetFileMetadata.FORMAT_VERSION_UNKNOWN // merge path never gates on the stamp
             );
 
             RowIdMapping rowIdMapping = readAndFreeMergeResult(

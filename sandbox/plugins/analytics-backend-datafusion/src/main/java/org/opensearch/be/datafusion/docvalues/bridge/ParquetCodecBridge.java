@@ -31,6 +31,20 @@ public final class ParquetCodecBridge {
     private static final MethodHandle CLOSE_CURSOR;
     private static final MethodHandle RESET_CURSOR;
     private static final MethodHandle NEXT_BATCH;
+    private static final MethodHandle FILE_METADATA;
+
+    /**
+     * Value of {@link FileMetadata#opensearchFormatVersion} when the footer carries no parseable
+     * stamp. Mirrors {@code ParquetFileMetadata.FORMAT_VERSION_UNKNOWN} in the parquet-data-format
+     * plugin, whose writer stamps the version this reader gates on.
+     */
+    public static final long FORMAT_VERSION_UNKNOWN = 0L;
+
+    /**
+     * Value of {@link FileMetadata#writerGeneration} when the footer carries no parseable
+     * {@code opensearch.writer_generation} stamp.
+     */
+    public static final long WRITER_GENERATION_UNKNOWN = -1L;
 
     /** Status returned by {@link #nextBatch} when a batch was produced. */
     public static final long RC_OK = 0L;
@@ -72,9 +86,62 @@ public final class ParquetCodecBridge {
                 ValueLayout.ADDRESS,    // out_values_addr
                 ValueLayout.ADDRESS,    // out_validity_addr
                 ValueLayout.ADDRESS,    // out_validity_bit_offset
-                ValueLayout.ADDRESS     // out_value_kind
+                ValueLayout.ADDRESS,    // out_value_kind
+                ValueLayout.ADDRESS     // out_value_bit_offset
             )
         );
+        FILE_METADATA = linker.downcallHandle(
+            lib.find("parquet_df_file_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,    // file_ptr
+                ValueLayout.JAVA_LONG,  // file_len
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // out_num_rows
+                ValueLayout.ADDRESS,    // out_format_version
+                ValueLayout.ADDRESS     // out_writer_generation
+            )
+        );
+    }
+
+    /**
+     * A Parquet file's row count, stamped OpenSearch format version, and stamped writer generation.
+     *
+     * @param numRows                 rows in the file, captured at construction so {@code checkIntegrity}
+     *                                can detect the backing file's row count changing under the reader
+     * @param opensearchFormatVersion the {@code opensearch.format_version} footer stamp, long-encoded as
+     *                                {@code major*1_000_000 + minor*1_000 + patch}, or
+     *                                {@link #FORMAT_VERSION_UNKNOWN}
+     *                                if the file carries no parseable stamp
+     * @param writerGeneration        the {@code opensearch.writer_generation} footer stamp, or
+     *                                {@link #WRITER_GENERATION_UNKNOWN} if the file carries no parseable stamp
+     */
+    public record FileMetadata(long numRows, long opensearchFormatVersion, long writerGeneration) {
+    }
+
+    /**
+     * Reads {@code file}'s row count and format-version stamp through the same store and footer cache a
+     * cursor over that file would use.
+     *
+     * <p>Distinct from {@code RustBridge.getFileMetadata}, which opens the path as a local file: a warm
+     * shard's Parquet files exist only in its object store, so they are reachable only through
+     * {@code storePtr}.
+     *
+     * @param storePtr native object store to read through, or {@code 0} for a local file
+     */
+    public static FileMetadata fileMetadata(String file, long storePtr) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var numRowsOut = call.longOut();
+            var formatVersionOut = call.longOut();
+            var writerGenerationOut = call.longOut();
+            call.invokeIO(FILE_METADATA, f.segment(), f.len(), storePtr, numRowsOut, formatVersionOut, writerGenerationOut);
+            return new FileMetadata(
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                formatVersionOut.get(ValueLayout.JAVA_LONG, 0),
+                writerGenerationOut.get(ValueLayout.JAVA_LONG, 0)
+            );
+        }
     }
 
     /**
@@ -83,7 +150,10 @@ public final class ParquetCodecBridge {
      * @param initialBatchSize rows in the first decode window; must be in {@code 1..=maxBatchSize}
      * @param maxBatchSize     ceiling the adaptive window grows to, for this cursor's lifetime
      * @param storePtr         native object-store pointer the cursor reads {@code file} through, or
-     *                         {@code 0} to read from the local filesystem
+     *                         {@code 0} to read from the local filesystem. A warm shard's Parquet
+     *                         files live in the remote object store, so it passes the pointer from
+     *                         {@code ParquetDataFormatStoreHandler.getFormatStoreHandle()}; a hot
+     *                         shard's files are local and pass {@code 0}.
      */
     public static long openColumnCursor(String file, String column, long initialBatchSize, long maxBatchSize, long storePtr)
         throws IOException {
@@ -110,9 +180,12 @@ public final class ParquetCodecBridge {
 
     /**
      * Advances the cursor to the batch containing {@code targetRow}, writing the batch row range,
-     * the borrowed Arrow value and validity buffer addresses, the validity bit offset, and the
-     * value KIND into the caller-owned out-parameters. Returns {@link #RC_OK} or {@link #RC_EOF};
-     * a {@code < 0} return is decoded into an {@link IOException}.
+     * the borrowed Arrow value and validity buffer addresses, the validity bit offset, the value
+     * KIND, and the value bit offset into the caller-owned out-parameters. Returns {@link #RC_OK}
+     * or {@link #RC_EOF}; a {@code < 0} return is decoded into an {@link IOException}.
+     *
+     * <p>{@code outValueBitOffset} is meaningful only for the bit-packed boolean KIND; the
+     * byte-addressed kinds fold their offset into {@code outValuesAddr} and report zero.
      */
     public static long nextBatch(
         long handle,
@@ -122,7 +195,8 @@ public final class ParquetCodecBridge {
         MemorySegment outValuesAddr,
         MemorySegment outValidityAddr,
         MemorySegment outValidityBitOffset,
-        MemorySegment outValueKind
+        MemorySegment outValueKind,
+        MemorySegment outValueBitOffset
     ) throws IOException {
         try (var call = new NativeCall()) {
             return call.invokeIO(
@@ -134,7 +208,8 @@ public final class ParquetCodecBridge {
                 outValuesAddr,
                 outValidityAddr,
                 outValidityBitOffset,
-                outValueKind
+                outValueKind,
+                outValueBitOffset
             );
         }
     }
