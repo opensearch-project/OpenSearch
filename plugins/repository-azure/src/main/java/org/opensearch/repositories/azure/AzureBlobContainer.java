@@ -124,7 +124,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public long readBlobPreferredLength() {
-        return DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
+        return blobStore.getReadBlobPreferredLength();
     }
 
     @Override
