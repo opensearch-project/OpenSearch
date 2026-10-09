@@ -34,8 +34,6 @@ package org.opensearch.transport.client;
 
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
-import org.opensearch.action.admin.indices.view.ListViewNamesAction;
-import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
@@ -475,18 +473,6 @@ public interface Client extends OpenSearchClient, Releasable {
      */
     void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
 
-    /** Search a view */
-    void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener);
-
-    /** Search a view */
-    ActionFuture<SearchResponse> searchView(final SearchViewAction.Request request);
-
-    /** List all view names */
-    void listViewNames(final ListViewNamesAction.Request request, ActionListener<ListViewNamesAction.Response> listener);
-
-    /** List all view names */
-    ActionFuture<ListViewNamesAction.Response> listViewNames(final ListViewNamesAction.Request request);
-
     /**
      * Returns this clients settings
      */
@@ -634,21 +620,4 @@ public interface Client extends OpenSearchClient, Releasable {
         return future;
     }
 
-    /**
-     * Search view - CompletionStage version
-     */
-    default CompletionStage<SearchResponse> searchViewAsync(SearchViewAction.Request request) {
-        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
-        searchView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
-
-    /**
-     * List view names - CompletionStage version
-     */
-    default CompletionStage<ListViewNamesAction.Response> listViewNamesAsync(ListViewNamesAction.Request request) {
-        CompletableFuture<ListViewNamesAction.Response> future = new CompletableFuture<>();
-        listViewNames(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
 }

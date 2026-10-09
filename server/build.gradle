@@ -647,6 +647,33 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
         logger.lifecycle("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
         // See please https://github.com/siom79/japicmp/issues/201
         compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
+        // The experimental Views feature was removed in 3.10.0 (see #23263). These methods lived on @PublicApi classes but
+        // every parameter and return type was @ExperimentalApi. Remove these exclusions once 3.10.0 is the comparison baseline.
+        methodExcludes = [
+            "org.opensearch.cluster.metadata.Metadata#views()",
+            "org.opensearch.cluster.metadata.Metadata\$Builder#view(*)",
+            "org.opensearch.cluster.metadata.Metadata\$Builder#views(*)",
+            "org.opensearch.cluster.metadata.Metadata\$Builder#put(org.opensearch.cluster.metadata.View)",
+            "org.opensearch.cluster.metadata.Metadata\$Builder#removeView(*)",
+            "org.opensearch.transport.client.Client#searchView(*)",
+            "org.opensearch.transport.client.Client#searchView(*,*)",
+            "org.opensearch.transport.client.Client#searchViewAsync(*)",
+            "org.opensearch.transport.client.Client#listViewNames(*)",
+            "org.opensearch.transport.client.Client#listViewNames(*,*)",
+            "org.opensearch.transport.client.Client#listViewNamesAsync(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#createView(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#createView(*,*)",
+            "org.opensearch.transport.client.IndicesAdminClient#createViewAsync(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#getView(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#getView(*,*)",
+            "org.opensearch.transport.client.IndicesAdminClient#getViewAsync(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#deleteView(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#deleteView(*,*)",
+            "org.opensearch.transport.client.IndicesAdminClient#deleteViewAsync(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#updateView(*)",
+            "org.opensearch.transport.client.IndicesAdminClient#updateView(*,*)",
+            "org.opensearch.transport.client.IndicesAdminClient#updateViewAsync(*)"
+        ]
         oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
         newClasspath.from(tasks.named('jar'))
         onlyModified = true
