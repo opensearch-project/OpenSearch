@@ -27,13 +27,58 @@ import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 
 public class DynamicActionRegistryTests extends OpenSearchTestCase {
+
+    public void testRegisteredActionNamesSnapshot() {
+        DynamicActionRegistry registry = new DynamicActionRegistry();
+        Set<String> emptySnapshot = registry.getRegisteredActionNames();
+        assertTrue(emptySnapshot.isEmpty());
+
+        ActionFilters filters = new ActionFilters(Collections.emptySet());
+        registry.registerUnmodifiableActionMap(Map.of(TestAction.INSTANCE, new TestTransportAction("test-action", filters, null)));
+        Set<String> staticSnapshot = registry.getRegisteredActionNames();
+        assertEquals(Set.of(TestAction.INSTANCE.name()), staticSnapshot);
+        assertTrue(emptySnapshot.isEmpty());
+
+        ExtensionAction action = new ExtensionAction("extensionId", "actionName");
+        registry.registerDynamicAction(action, new ExtensionTransportAction("actionName", filters, null, null));
+        Set<String> dynamicSnapshot = registry.getRegisteredActionNames();
+        assertEquals(Set.of(TestAction.INSTANCE.name(), action.name()), dynamicSnapshot);
+        assertEquals(Set.of(TestAction.INSTANCE.name()), staticSnapshot);
+        assertThrows(UnsupportedOperationException.class, () -> dynamicSnapshot.add("other-action"));
+        assertThrows(UnsupportedOperationException.class, () -> dynamicSnapshot.remove(action.name()));
+        assertFalse(registry.isActionRegistered("other-action"));
+        assertTrue(registry.isActionRegistered(action.name()));
+
+        registry.unregisterDynamicAction(action);
+        assertEquals(Set.of(TestAction.INSTANCE.name()), registry.getRegisteredActionNames());
+        assertEquals(Set.of(TestAction.INSTANCE.name(), action.name()), dynamicSnapshot);
+    }
+
+    public void testRegisteredActionNamesIncludesNamedRoutes() {
+        DynamicActionRegistry registry = new DynamicActionRegistry();
+        NamedRoute route = new NamedRoute.Builder().method(RestRequest.Method.GET)
+            .path("/foo")
+            .uniqueName("foo")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/foo", "cluster:admin/opendistro/foo"))
+            .build();
+        registry.registerDynamicRoute(route, mock(RestSendToExtensionAction.class));
+
+        Set<String> snapshot = registry.getRegisteredActionNames();
+        assertEquals(Set.of("foo", "cluster:admin/opensearch/foo", "cluster:admin/opendistro/foo"), snapshot);
+        assertEquals(List.of("cluster:admin/opendistro/foo", "cluster:admin/opensearch/foo", "foo"), new ArrayList<>(snapshot));
+        registry.unregisterDynamicRoute(route);
+        assertTrue(registry.getRegisteredActionNames().isEmpty());
+        assertEquals(3, snapshot.size());
+    }
 
     public void testDynamicActionRegistry() {
         ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
