@@ -20,6 +20,9 @@ import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.IndexResolution;
+import org.opensearch.analytics.planner.IndexSort;
+import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.RelNodeUtils.IndexRemapShuttle;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -41,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * QTF (Query-Then-Fetch / late materialization) post-CBO rewrite. Two phases:
@@ -56,10 +60,23 @@ import java.util.Set;
  *       above chain.</li>
  * </ol>
  *
+ * <h2>{@code ___ugsi}</h2>
+ * The source-shard ordinal is appended to each batch at runtime by the DAG's {@code OrdinalAppendingSink}
+ * (see {@code DAGBuilder.cutAtLateMaterialization}). It is declared in the plan only on the
+ * ExchangeReducer, because the backend's reduce plan consumes those batches and must see the column.
+ * With no reducer (single shard) the batches go straight to the LM stage, which reads {@code ___ugsi}
+ * by name from the Arrow schema, so the plan's rowType stops at {@code [reduce-set, ___row_id]}.
+ *
  * <h2>Skip predicate</h2>
  * Fire QTF iff {@code aboveAnchorPhysicalFields - belowAnchorPhysicalFields} is non-empty.
  * If every above-anchor reference is already in the reduce-set, the non-QTF path reads
  * the same physical fields and skips the fetch round-trip — strictly cheaper.
+ *
+ * <h2>Single-shard gate</h2>
+ * With no {@link OpenSearchExchangeReducer} below the anchor the query phase runs on one shard.
+ * QTF still fires there, unless the index sort serves the anchor's collation and no below-anchor
+ * filter reads a column beyond the sort keys: then the baseline scan stops after K rows and a fetch
+ * round-trip would only add a stage. See {@code servedByIndexSort}.
  *
  * <h2>Allow-lists</h2>
  * Above-anchor: {@link OpenSearchProject} (no {@code RexOver}), {@link OpenSearchFilter},
@@ -108,8 +125,8 @@ public final class OpenSearchLateMaterializationRewriter {
     private OpenSearchLateMaterializationRewriter() {}
 
     /** Returns the rewritten root iff QTF matched and fired; {@link Optional#empty()} otherwise. */
-    public static Optional<RelNode> rewrite(RelNode root) {
-        Detection detection = detect(root);
+    public static Optional<RelNode> rewrite(RelNode root, PlannerContext context) {
+        Detection detection = detect(root, context);
         if (detection == null) return Optional.empty();
         LOGGER.debug(
             "[QTF] fired: aboveAnchorPhysicalFields={}, belowAnchorPhysicalFields={}",
@@ -125,7 +142,7 @@ public final class OpenSearchLateMaterializationRewriter {
      * Walks the plan, validates allow-lists, computes the data structures rewrite needs,
      * and applies the skip predicate. {@code null} return means "decline QTF."
      */
-    private static Detection detect(RelNode root) {
+    private static Detection detect(RelNode root, PlannerContext context) {
         AnchorContext anchorCtx = findAnchor(root);
         if (anchorCtx == null) return null;
         if (!isAboveAllowed(anchorCtx.aboveAnchorOperators)) {
@@ -139,13 +156,10 @@ public final class OpenSearchLateMaterializationRewriter {
             return null;
         }
 
-        // Single-shard plans don't trigger late materialization.
-        if (!belowChain.hasExchangeReducer()) {
-            LOGGER.debug("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
-            return null;
-        }
-
-        Set<String> belowAnchorPhysicalFields = computeBelowAnchorPhysicalFields(anchorCtx.anchor, belowChain);
+        List<IndexSort.Key> sortKeys = physicalSortKeys(anchorCtx.anchor, belowChain);
+        Set<String> belowFilterFields = belowFilterPhysicalFields(belowChain);
+        Set<String> belowAnchorPhysicalFields = new HashSet<>(belowFilterFields);
+        sortKeys.forEach(key -> belowAnchorPhysicalFields.add(key.field()));
         LinkedHashSet<String> aboveAnchorPhysicalFields = computeAboveAnchorPhysicalFields(
             anchorCtx.aboveAnchorOperators,
             anchorCtx.anchor
@@ -155,6 +169,15 @@ public final class OpenSearchLateMaterializationRewriter {
         boolean hasFetchOnly = aboveAnchorPhysicalFields.stream().anyMatch(name -> !belowAnchorPhysicalFields.contains(name));
         if (!hasFetchOnly) {
             LOGGER.debug("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
+            return null;
+        }
+
+        // Single shard, read in index order, no filter column beyond the sort keys: the baseline
+        // scan stops after K rows, so the fetch round-trip could only add cost.
+        if (belowChain.hasExchangeReducer() == false
+            && sortKeysCover(sortKeys, belowFilterFields)
+            && servedByIndexSort(belowChain.scan, sortKeys, context)) {
+            LOGGER.debug("[QTF] single shard served by index sort; skipping rewrite");
             return null;
         }
 
@@ -279,20 +302,21 @@ public final class OpenSearchLateMaterializationRewriter {
         return false;
     }
 
-    /**
-     * {@code BelowAnchorPhysicalFields} = anchor sort cols ∪ below-filter cols, expressed
-     * as physical (Scan-level) field names. The narrowed Scan's rowType is built from this
-     * set in scan-original order.
-     */
-    private static Set<String> computeBelowAnchorPhysicalFields(OpenSearchSort anchor, BelowChain belowChain) {
-        Set<String> fields = new HashSet<>();
+    /** The anchor's sort keys as physical (Scan-level) names and directions, resolved through a below-Project. */
+    private static List<IndexSort.Key> physicalSortKeys(OpenSearchSort anchor, BelowChain belowChain) {
         List<RelDataTypeField> scanFields = belowChain.scan.getRowType().getFieldList();
-        // Anchor sort cols (anchor space → scan space → physical name)
+        List<IndexSort.Key> keys = new ArrayList<>();
         for (RelFieldCollation fc : anchor.getCollation().getFieldCollations()) {
             int scanIdx = (belowChain.belowProjOutToScan == null) ? fc.getFieldIndex() : belowChain.belowProjOutToScan[fc.getFieldIndex()];
-            fields.add(scanFields.get(scanIdx).getName());
+            keys.add(new IndexSort.Key(scanFields.get(scanIdx).getName(), fc.getDirection().isDescending()));
         }
-        // Below-filter cols (already in scan space)
+        return keys;
+    }
+
+    /** Physical field names referenced by filters below the anchor (already in scan space). */
+    private static Set<String> belowFilterPhysicalFields(BelowChain belowChain) {
+        List<RelDataTypeField> scanFields = belowChain.scan.getRowType().getFieldList();
+        Set<String> fields = new HashSet<>();
         for (RelNode op : belowChain.chain) {
             if (op instanceof OpenSearchFilter f) {
                 for (int refIdx : RelNodeUtils.collectInputRefs(f.getCondition())) {
@@ -301,6 +325,21 @@ public final class OpenSearchLateMaterializationRewriter {
             }
         }
         return fields;
+    }
+
+    private static boolean sortKeysCover(List<IndexSort.Key> sortKeys, Set<String> fields) {
+        return sortKeys.stream().map(IndexSort.Key::field).collect(Collectors.toSet()).containsAll(fields);
+    }
+
+    /** True when every concrete index behind {@code scan} shares an index sort that serves {@code sortKeys}. */
+    private static boolean servedByIndexSort(OpenSearchTableScan scan, List<IndexSort.Key> sortKeys, PlannerContext context) {
+        String tableName = scan.getTable().getQualifiedName().getLast();
+        IndexResolution resolution = IndexResolution.resolve(
+            tableName,
+            context.getClusterState(),
+            context.getIndexNameExpressionResolver()
+        );
+        return IndexSort.commonTo(resolution.concreteIndices()).map(sort -> sort.serves(sortKeys)).orElse(false);
     }
 
     /**
