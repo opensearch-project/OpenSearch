@@ -92,4 +92,5 @@ ${error.file}
 # disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
 
-25-:-XX:+UseCompactObjectHeaders
+# Enabled by default in JDK-27: https://openjdk.org/jeps/534
+25-26:-XX:+UseCompactObjectHeaders
