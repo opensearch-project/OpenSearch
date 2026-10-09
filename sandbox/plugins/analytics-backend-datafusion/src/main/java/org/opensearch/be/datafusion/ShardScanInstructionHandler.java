@@ -75,9 +75,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
             // delegatedPredicateCount=0. Otherwise the vanilla ListingTable path runs with zero extra
             // work (its plan bytes let Rust widen the schema for multi-index queries).
             if (requestsRowIds || requiresLiveDocs) {
-                int treeShape = requiresLiveDocs
-                    ? FilterTreeShape.CONJUNCTIVE.ordinal()
-                    : FilterTreeShape.NO_DELEGATION.ordinal();
+                int treeShape = requiresLiveDocs ? FilterTreeShape.CONJUNCTIVE.ordinal() : FilterTreeShape.NO_DELEGATION.ordinal();
                 sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
                     readerPtr,
                     runtimePtr,

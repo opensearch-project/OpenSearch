@@ -32,6 +32,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.rest-resources'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 restResources {
   restTests {
@@ -43,6 +44,7 @@ File repo = file("$buildDir/testclusters/repo")
 testClusters.integTest {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
+  installSandboxStack(delegate)
 }
 
 integTest {
