@@ -71,6 +71,7 @@ public final class Sets {
         return iterable instanceof Collection<T> collection ? new HashSet<>(collection) : newHashSet(iterable.iterator());
     }
 
+    @SafeVarargs
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
         HashSet<T> set = new HashSet<>(elements.length);

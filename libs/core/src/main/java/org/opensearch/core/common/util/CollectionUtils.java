@@ -166,7 +166,6 @@ public class CollectionUtils {
      * @param value The object to convert
      * @return The Iterable, or null if the object cannot be converted
      */
-    @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         return switch (value) {
             case Map<?, ?> map -> () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
@@ -273,7 +272,8 @@ public class CollectionUtils {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
@@ -281,7 +281,8 @@ public class CollectionUtils {
         return new ArrayList<>(Arrays.asList(elements));
     }
 
-    @SuppressWarnings("unchecked")
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
@@ -292,7 +293,8 @@ public class CollectionUtils {
         return list;
     }
 
-    @SuppressWarnings("unchecked")
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E second, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
