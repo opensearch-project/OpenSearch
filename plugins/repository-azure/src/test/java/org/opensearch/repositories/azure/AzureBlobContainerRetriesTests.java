@@ -39,6 +39,7 @@ import com.azure.storage.common.policy.RetryPolicyType;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
@@ -197,6 +198,140 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         );
 
         return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service, threadPool), threadPool);
+    }
+
+    public void testListBlobsByPrefixInSortedOrderPushesLimitToAzure() throws Exception {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container", exchange -> {
+            try {
+                assertEquals("GET", exchange.getRequestMethod());
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                assertEquals("metadata-", params.get("prefix"));
+                assertEquals("/", params.get("delimiter"));
+                assertEquals("2", params.get("maxresults"));
+                requests.incrementAndGet();
+
+                final String response = """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>
+                      <Blobs>
+                        <Blob>
+                          <Name>metadata-1</Name>
+                          <Properties><Content-Length>11</Content-Length><BlobType>BlockBlob</BlobType></Properties>
+                        </Blob>
+                        <Blob>
+                          <Name>metadata-2</Name>
+                          <Properties><Content-Length>12</Content-Length><BlobType>BlockBlob</BlobType></Properties>
+                        </Blob>
+                        <Blob>
+                          <Name>metadata-3</Name>
+                          <Properties><Content-Length>13</Content-Length><BlobType>BlockBlob</BlobType></Properties>
+                        </Blob>
+                      </Blobs>
+                      <NextMarker />
+                    </EnumerationResults>
+                    """;
+                sendXmlResponse(exchange, response);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        assertTrue(blobContainer.listBlobsByPrefixInSortedOrder("metadata-", 0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC).isEmpty());
+        assertEquals(0, requests.get());
+
+        final List<BlobMetadata> blobs = blobContainer.listBlobsByPrefixInSortedOrder(
+            "metadata-",
+            2,
+            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+        );
+        assertEquals(List.of("metadata-1", "metadata-2"), blobs.stream().map(BlobMetadata::name).toList());
+        assertEquals(List.of(11L, 12L), blobs.stream().map(BlobMetadata::length).toList());
+        assertEquals(1, requests.get());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.listBlobsByPrefixInSortedOrder("metadata-", -1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)
+        );
+    }
+
+    public void testListBlobsByPrefixInSortedOrderContinuesAfterPrefixes() throws Exception {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container", exchange -> {
+            try {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                assertEquals("2", params.get("maxresults"));
+                final int request = requests.incrementAndGet();
+                if (request == 1) {
+                    assertNull(params.get("marker"));
+                    sendXmlResponse(exchange, """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <EnumerationResults>
+                          <Blobs>
+                            <BlobPrefix><Name>metadata-child/</Name></BlobPrefix>
+                          </Blobs>
+                          <NextMarker>next-page</NextMarker>
+                        </EnumerationResults>
+                        """);
+                } else {
+                    assertEquals(2, request);
+                    assertEquals("next-page", params.get("marker"));
+                    sendXmlResponse(exchange, """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <EnumerationResults>
+                          <Blobs>
+                            <Blob>
+                              <Name>metadata-1</Name>
+                              <Properties><Content-Length>11</Content-Length><BlobType>BlockBlob</BlobType></Properties>
+                            </Blob>
+                            <Blob>
+                              <Name>metadata-2</Name>
+                              <Properties><Content-Length>12</Content-Length><BlobType>BlockBlob</BlobType></Properties>
+                            </Blob>
+                          </Blobs>
+                          <NextMarker />
+                        </EnumerationResults>
+                        """);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        final List<BlobMetadata> blobs = blobContainer.listBlobsByPrefixInSortedOrder(
+            "metadata-",
+            2,
+            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+        );
+        assertEquals(List.of("metadata-1", "metadata-2"), blobs.stream().map(BlobMetadata::name).toList());
+        assertEquals(2, requests.get());
+    }
+
+    public void testListBlobsByPrefixInSortedOrderCapsAzurePageSize() throws Exception {
+        httpServer.createContext("/container", exchange -> {
+            try {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                assertEquals("5000", params.get("maxresults"));
+                sendXmlResponse(exchange, """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>
+                      <Blobs />
+                      <NextMarker />
+                    </EnumerationResults>
+                    """);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        assertTrue(
+            blobContainer.listBlobsByPrefixInSortedOrder("metadata-", 5001, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC).isEmpty()
+        );
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
@@ -542,6 +677,14 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
             return Optional.empty();
         }
         return Optional.of(Math.toIntExact(rangeEnd));
+    }
+
+    private static void sendXmlResponse(HttpExchange exchange, String response) throws IOException {
+        final byte[] body = response.getBytes(UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), body.length);
+        exchange.getResponseBody().write(body);
     }
 
 }

@@ -218,6 +218,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            return super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder);
+        }
+        try {
+            return blobStore.listBlobsByPrefixInSortedOrder(keyPath, blobNamePrefix, limit);
+        } catch (URISyntaxException | BlobStorageException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
     public Map<String, BlobMetadata> listBlobs() throws IOException {
         logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
