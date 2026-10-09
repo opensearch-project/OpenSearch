@@ -1326,19 +1326,9 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             uploadedMetadata.set(Map.copyOf(invocation.getArgument(4)));
             return null;
         }).when(blobContainer)
-            .writeBlobWithMetadata(
-                eq("translog-23.tlog"),
-                any(InputStream.class),
-                Mockito.anyLong(),
-                eq(true),
-                any(),
-                Mockito.isNull()
-            );
+            .writeBlobWithMetadata(eq("translog-23.tlog"), any(InputStream.class), Mockito.anyLong(), eq(true), any(), Mockito.isNull());
         when(blobContainer.readBlobWithMetadata("translog-23.tlog")).thenAnswer(
-            invocation -> new InputStreamWithMetadata(
-                new ByteArrayInputStream(uploadedTranslog.get()),
-                uploadedMetadata.get()
-            )
+            invocation -> new InputStreamWithMetadata(new ByteArrayInputStream(uploadedTranslog.get()), uploadedMetadata.get())
         );
 
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
