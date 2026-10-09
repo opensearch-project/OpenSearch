@@ -35,10 +35,7 @@ public class TransportNodesHotThreadsActionTests extends OpenSearchTestCase {
 
     public void testSnapshotsJustAboveMaxRejected() {
         NodesHotThreadsRequest request = new NodesHotThreadsRequest().snapshots(MAX_SNAPSHOTS + 1);
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportNodesHotThreadsAction.validateRequestParams(request, MAX_SNAPSHOTS)
-        );
+        expectThrows(IllegalArgumentException.class, () -> TransportNodesHotThreadsAction.validateRequestParams(request, MAX_SNAPSHOTS));
     }
 
     public void testSnapshotsBelowOneRejected() {

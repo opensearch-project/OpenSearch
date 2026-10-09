@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
@@ -67,10 +68,12 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
@@ -84,12 +87,15 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -101,6 +107,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -3898,6 +3905,22 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         boolean remoteStore,
         Boolean appendOnly
     ) {
+        return buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, appendOnly, null, null);
+    }
+
+    /**
+     * {@code translogFactory} and {@code eventListener} default to the stock factory and a silent listener when null.
+     */
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly,
+        @Nullable TranslogFactory translogFactory,
+        @Nullable Engine.EventListener eventListener
+    ) {
 
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -3938,6 +3961,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
             .translogConfig(translogConfig)
+            .translogFactory(translogFactory != null ? translogFactory : new InternalTranslogFactory())
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
             .internalRefreshListener(List.of())
@@ -3947,7 +3971,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .tombstoneDocSupplier(tombstoneDocSupplier())
             .dataFormatRegistry(registry)
             .committerFactory(committerFactory)
-            .eventListener(new Engine.EventListener() {
+            .eventListener(eventListener != null ? eventListener : new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {}
             })
@@ -4244,6 +4268,230 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
             batch.finish();
         }
+    }
+
+    /**
+     * Outcome of a refresh that drained another request's batch whose append failed.
+     */
+    private static final class DrainFailureOutcome {
+        final Throwable refreshFailure;
+        final List<String> engineFailureReasons;
+        final List<Exception> engineFailures;
+        final RuntimeException ownerFailure;
+        final boolean engineClosedAfterwards;
+
+        DrainFailureOutcome(
+            Throwable refreshFailure,
+            List<String> engineFailureReasons,
+            List<Exception> engineFailures,
+            RuntimeException ownerFailure,
+            boolean engineClosedAfterwards
+        ) {
+            this.refreshFailure = refreshFailure;
+            this.engineFailureReasons = engineFailureReasons;
+            this.engineFailures = engineFailures;
+            this.ownerFailure = ownerFailure;
+            this.engineClosedAfterwards = engineClosedAfterwards;
+        }
+    }
+
+    /**
+     * Drives the scenario gbbafna raised on the composite refresh: a bulk thread leaves one deferred op in an open batch;
+     * a refresh from an unrelated caller drains that batch from inside its critical section (writers checked out and
+     * flushed, catalog snapshot held, store ref taken, {@code refreshLock} and {@code readLock} held); the drained append
+     * fails with {@code failure}, either tragically (translog records it and closes) or not.
+     *
+     * <p>The refresh runs on its own thread so a deadlock surfaces as a failed join rather than a hung suite. Returns
+     * everything the tests assert on: what the refresh threw, every engine failure the listener saw, what the batch
+     * owner sees at {@code finish()}, and whether the engine is closed afterwards.
+     */
+    private DrainFailureOutcome driveRefreshDrainOfFailedBatchAppend(
+        IOException failure,
+        FailingBatchAppendTranslog.FailureClass failureClass
+    ) throws Exception {
+        final AtomicReference<FailingBatchAppendTranslog.ArmedFailure> armedFailure = new AtomicReference<>();
+        final List<Exception> engineFailures = new CopyOnWriteArrayList<>();
+        final List<String> engineFailureReasons = new CopyOnWriteArrayList<>();
+        final Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception e) {
+                engineFailureReasons.add(reason);
+                engineFailures.add(e);
+            }
+        };
+        DocumentLookupProvider provider = mockLookupProvider();
+        final Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        final EngineConfig config = buildBatchDFAEngineConfig(
+            store,
+            translogPath,
+            provider,
+            true,
+            true,
+            null,
+            FailingBatchAppendTranslog.factory(armedFailure),
+            listener
+        );
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Bulk thread: open a scope and leave one deferred index op pending in it.
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat(batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+            final Engine.IndexResult deferred = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(deferred.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat("the op must be deferred into the open batch", deferred.getTranslogLocation(), nullValue());
+
+            // Arm the failure for the next batched append, which is the refresh's drain.
+            armedFailure.set(new FailingBatchAppendTranslog.ArmedFailure(failure, failureClass));
+
+            // Refresh thread: a refresh from an unrelated caller drains the batch inside its critical section.
+            final AtomicReference<Throwable> refreshOutcome = new AtomicReference<>();
+            final Thread refresher = new Thread(() -> {
+                try {
+                    engine.refresh("drain failed batch");
+                } catch (Throwable t) {
+                    refreshOutcome.set(t);
+                }
+            }, "refresh-under-failed-batch-append");
+            refresher.start();
+            refresher.join(TimeValue.timeValueSeconds(30).millis());
+            if (refresher.isAlive()) {
+                final StringBuilder dump = new StringBuilder("refresh did not complete; refresh thread stack:\n");
+                for (StackTraceElement frame : refresher.getStackTrace()) {
+                    dump.append("    at ").append(frame).append('\n');
+                }
+                fail(dump.toString());
+            }
+            final Throwable thrown = refreshOutcome.get();
+            logger.info(
+                "[{}] refresh threw: {}engine failures: {}",
+                failureClass,
+                thrown == null ? "nothing\n" : describeExceptionChain(thrown),
+                engineFailureReasons
+            );
+            // Disarm so the owner's finish() and the probe below exercise the engine, not the injection.
+            armedFailure.set(null);
+
+            // The batch owner is told, and its deferred result never got a location.
+            final RuntimeException ownerFailure = expectThrows(RuntimeException.class, batch::finish);
+            assertThat(rootCause(ownerFailure), sameInstance(failure));
+            assertThat(deferred.getTranslogLocation(), nullValue());
+
+            boolean closed;
+            try {
+                engine.index(indexOp(createParsedDocWithInput("2", null)));
+                closed = false;
+            } catch (AlreadyClosedException e) {
+                assertTrue(TransportActions.isShardNotAvailableException(e));
+                closed = true;
+            }
+            return new DrainFailureOutcome(thrown, engineFailureReasons, engineFailures, ownerFailure, closed);
+        }
+    }
+
+    /**
+     * The drained append is a TRAGIC translog failure. The contract this pins down:
+     * <ol>
+     *   <li>the refresh completes (no deadlock) and throws, and the exception the refresh caller receives is rooted in
+     *       the tragic {@code IOException} with nothing from the unwind masking it: no {@code IllegalStateException} from
+     *       a closed pool, no second {@code AlreadyClosedException} from closing closed resources, as the thrown chain
+     *       or as suppressed exceptions;</li>
+     *   <li>the engine is failed exactly once, and the recorded failure is the translog's tragic exception itself, as
+     *       a per-operation {@code Translog#add} failure records it, not a wrapper;</li>
+     *   <li>the batch owner sees the same failure at {@code finish()} and the engine is closed afterwards.</li>
+     * </ol>
+     */
+    public void testRefreshDrainOfTragicBatchAppendFailsEngineOnceWithTheTragicException() throws Exception {
+        final IOException tragic = new IOException("simulated tragic translog write failure");
+        final DrainFailureOutcome outcome = driveRefreshDrainOfFailedBatchAppend(tragic, FailingBatchAppendTranslog.FailureClass.TRAGIC);
+
+        assertThat("refresh must fail when the drained append fails", outcome.refreshFailure, notNullValue());
+        assertThat(
+            "the refresh failure must be rooted in the tragic exception, chain was " + describeExceptionChain(outcome.refreshFailure),
+            rootCause(outcome.refreshFailure),
+            sameInstance(tragic)
+        );
+        for (Throwable suppressed : allSuppressed(outcome.refreshFailure)) {
+            assertThat(
+                "unexpected secondary failure from the refresh unwind: " + describeExceptionChain(suppressed),
+                rootCause(suppressed),
+                sameInstance(tragic)
+            );
+        }
+        assertThat(
+            "engine must be failed exactly once, reasons were " + outcome.engineFailureReasons,
+            outcome.engineFailures.size(),
+            equalTo(1)
+        );
+        assertThat("the recorded engine failure must be the tragic exception itself", outcome.engineFailures.get(0), sameInstance(tragic));
+        assertTrue("engine must be closed after a tragic translog failure", outcome.engineClosedAfterwards);
+    }
+
+    /**
+     * The drained append is a NON-tragic translog failure (the translog stays open). Parity with the per-operation path
+     * and with the bulk-path batch failure handling means the engine must NOT be failed: the owning bulk fails at
+     * {@code finish()}, the drainer's refresh may fail, but a failure that is not the translog's tragic event never
+     * fails the engine, whichever thread happened to drain the chunk.
+     */
+    public void testRefreshDrainOfNonTragicBatchAppendDoesNotFailEngine() throws Exception {
+        final IOException nonTragic = new IOException("simulated non-tragic batch append failure");
+        final DrainFailureOutcome outcome = driveRefreshDrainOfFailedBatchAppend(
+            nonTragic,
+            FailingBatchAppendTranslog.FailureClass.NON_TRAGIC
+        );
+
+        assertThat(
+            "a non-tragic append failure must not fail the engine, but it was failed with reasons " + outcome.engineFailureReasons,
+            outcome.engineFailures,
+            empty()
+        );
+        assertThat(
+            "the drainer's refresh must not fail because of another request's append, but threw "
+                + (outcome.refreshFailure == null ? "" : describeExceptionChain(outcome.refreshFailure)),
+            outcome.refreshFailure,
+            nullValue()
+        );
+        assertFalse("engine must stay open after a non-tragic append failure", outcome.engineClosedAfterwards);
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        Throwable current = t;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static List<Throwable> allSuppressed(Throwable t) {
+        final List<Throwable> out = new ArrayList<>();
+        final Deque<Throwable> work = new ArrayDeque<>();
+        work.push(t);
+        while (work.isEmpty() == false) {
+            final Throwable current = work.pop();
+            for (Throwable s : current.getSuppressed()) {
+                out.add(s);
+                work.push(s);
+            }
+            if (current.getCause() != null && current.getCause() != current) {
+                work.push(current.getCause());
+            }
+        }
+        return out;
+    }
+
+    private static String describeExceptionChain(Throwable t) {
+        final StringBuilder sb = new StringBuilder();
+        Throwable current = t;
+        String indent = "";
+        while (current != null) {
+            sb.append(indent).append(current.getClass().getName()).append(": ").append(current.getMessage()).append('\n');
+            for (Throwable s : current.getSuppressed()) {
+                sb.append(indent).append("  suppressed: ").append(s.getClass().getName()).append(": ").append(s.getMessage()).append('\n');
+            }
+            current = current.getCause() == current ? null : current.getCause();
+            indent += "  ";
+        }
+        return sb.toString();
     }
 
     /**

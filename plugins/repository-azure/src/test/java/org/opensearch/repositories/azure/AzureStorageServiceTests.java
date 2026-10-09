@@ -34,6 +34,7 @@ package org.opensearch.repositories.azure;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.policy.RequestRetryPolicy;
 import com.microsoft.aad.msal4j.MsalServiceException;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -42,6 +43,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 
@@ -375,6 +377,104 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             assertThat(timeout, equalTo(TimeValue.timeValueMillis(1)));
             assertThat(mock.storageSettings.get("azure2").getResponseTimeout(), notNullValue());
             assertThat(mock.storageSettings.get("azure2").getResponseTimeout(), equalTo(TimeValue.timeValueSeconds(60)));
+        }
+    }
+
+    public void testTransferSettingsUseSdkDefaultsWhenUnset() throws IOException {
+        try (final AzureStorageService service = storageServiceWithSettingsValidation(buildSettings())) {
+            assertThat(service.getReadBlockSize("azure1"), nullValue());
+            assertThat(service.getBlobRequestOptionsForWriteBlob("azure1"), nullValue());
+        }
+    }
+
+    public void testTransferSettings() throws IOException {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.read.block_size", "16mb")
+            .put("azure.client.azure3.write.block_size", "8mb")
+            .put("azure.client.azure3.write.max_single_upload_size", "32mb")
+            .put("azure.client.azure3.write.max_concurrency", 4)
+            .build();
+
+        try (final AzureStorageService service = storageServiceWithSettingsValidation(settings)) {
+            assertThat(service.getReadBlockSize("azure2"), nullValue());
+            assertThat(service.getReadBlockSize("azure3"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(16))));
+
+            final ParallelTransferOptions options = service.getBlobRequestOptionsForWriteBlob("azure3");
+            assertThat(options, notNullValue());
+            assertThat(options.getBlockSizeLong(), is(ByteSizeUnit.MB.toBytes(8)));
+            assertThat(options.getMaxSingleUploadSizeLong(), is(ByteSizeUnit.MB.toBytes(32)));
+            assertThat(options.getMaxConcurrency(), is(4));
+
+            final AzureStorageSettings copiedSettings = AzureStorageSettings.overrideLocationMode(
+                service.storageSettings,
+                LocationMode.SECONDARY_ONLY
+            ).get("azure3");
+            assertThat(copiedSettings.getReadBlockSize().getBytes(), is(ByteSizeUnit.MB.toBytes(16)));
+            assertThat(copiedSettings.getWriteBlockSize().getBytes(), is(ByteSizeUnit.MB.toBytes(8)));
+            assertThat(copiedSettings.getMaxSingleUploadSize().getBytes(), is(ByteSizeUnit.MB.toBytes(32)));
+            assertThat(copiedSettings.getWriteConcurrency(), is(4));
+        }
+    }
+
+    public void testReloadTransferSettings() throws IOException {
+        final Settings initialSettings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.read.block_size", "8mb")
+            .put("azure.client.azure1.write.max_concurrency", 2)
+            .build();
+        final Settings reloadedSettings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.read.block_size", "16mb")
+            .put("azure.client.azure1.write.max_concurrency", 4)
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(initialSettings)) {
+            final AzureStorageService service = plugin.azureStoreService;
+            assertThat(service.getReadBlockSize("azure1"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(8))));
+            assertThat(service.getBlobRequestOptionsForWriteBlob("azure1").getMaxConcurrency(), is(2));
+
+            plugin.reload(reloadedSettings);
+
+            assertThat(service.getReadBlockSize("azure1"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(16))));
+            assertThat(service.getBlobRequestOptionsForWriteBlob("azure1").getMaxConcurrency(), is(4));
+        }
+    }
+
+    public void testRejectsZeroTransferSettings() {
+        for (String setting : new String[] {
+            "azure.client.azure1.read.block_size",
+            "azure.client.azure1.write.block_size",
+            "azure.client.azure1.write.max_single_upload_size",
+            "azure.client.azure1.write.max_concurrency" }) {
+            final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).put(setting, 0).build();
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> pluginWithSettingsValidation(settings)
+            );
+            assertThat(exception.getMessage(), containsString(setting));
+        }
+    }
+
+    public void testRejectsOversizedTransferSettings() {
+        final Map<String, String> invalidSettings = Map.of(
+            "azure.client.azure1.read.block_size",
+            "2gb",
+            "azure.client.azure1.write.block_size",
+            "4001mb",
+            "azure.client.azure1.write.max_single_upload_size",
+            "5001mb"
+        );
+        for (Map.Entry<String, String> entry : invalidSettings.entrySet()) {
+            final Settings settings = Settings.builder()
+                .setSecureSettings(buildSecureSettings())
+                .put(entry.getKey(), entry.getValue())
+                .build();
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> pluginWithSettingsValidation(settings)
+            );
+            assertThat(exception.getMessage(), containsString(entry.getKey()));
         }
     }
 
