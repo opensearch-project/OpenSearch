@@ -80,7 +80,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.HttpContentDecompressor;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -327,7 +326,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 threadPool::relativeTimeInMillis,
                 headerVerifier,
                 decompressorProvider.create(settings, NioHttpServerTransport.this, ChannelInboundHandlerAdapter.class)
-                    .orElseGet(HttpContentDecompressor::new),
+                    .orElseGet(NioHttpContentDecompressor::new),
                 engine
             );
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);

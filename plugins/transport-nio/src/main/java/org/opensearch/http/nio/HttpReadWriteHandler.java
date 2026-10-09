@@ -57,7 +57,6 @@ import java.util.function.LongSupplier;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -89,7 +88,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             taskScheduler,
             nanoClock,
             null, /* no header verifier */
-            new HttpContentDecompressor(),
+            new NioHttpContentDecompressor(),
             null /* no SSL/TLS */
         );
     }
