@@ -1333,6 +1333,53 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSearchReplicaDefaultRoutingUsesAdaptiveReplicaSelection() throws Exception {
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, 1, 2, 2);
+        List<ShardRouting> searchReplicas = state.routingTable().index(indexName).shard(0).searchOnlyReplicas();
+        assertEquals(2, searchReplicas.size());
+
+        String fastNode = searchReplicas.get(0).currentNodeId();
+        String slowNode = searchReplicas.get(1).currentNodeId();
+        TestThreadPool threadPool = new TestThreadPool("testSearchReplicaDefaultRoutingUsesAdaptiveReplicaSelection");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            opRouting.setUseAdaptiveReplicaSelection(true);
+
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            collector.addNodeStatistics(fastNode, 0, TimeValue.timeValueMillis(10).nanos(), TimeValue.timeValueMillis(10).nanos());
+            collector.addNodeStatistics(slowNode, 10, TimeValue.timeValueMillis(500).nanos(), TimeValue.timeValueMillis(500).nanos());
+            Map<String, Long> outstandingRequests = new HashMap<>();
+            outstandingRequests.put(fastNode, 1L);
+            outstandingRequests.put(slowNode, 1L);
+
+            ShardIterator iterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests, null).get(0);
+
+            assertEquals(2, iterator.size());
+            ShardRouting first = iterator.nextOrNull();
+            ShardRouting second = iterator.nextOrNull();
+            assertNotNull(first);
+            assertNotNull(second);
+            assertTrue(first.isSearchOnly());
+            assertTrue(second.isSearchOnly());
+            assertEquals(
+                "adaptive replica selection must preserve the lowest-ranked search replica first",
+                fastNode,
+                first.currentNodeId()
+            );
+            assertEquals(slowNode, second.currentNodeId());
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
     public void testSearchReplicaRoutingWhenSearchOnlyStrictSettingIsFalse() throws Exception {
         final int numShards = 1;
         final int numReplicas = 2;
