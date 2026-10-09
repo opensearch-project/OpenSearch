@@ -50,6 +50,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
+import com.azure.storage.blob.specialized.BlobInputStream;
 import com.azure.storage.common.implementation.Constants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -276,7 +277,8 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, BlobStorageException {
+    public BlobInputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException,
+        BlobStorageException {
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final BlobClient azureBlob = blobContainer.getBlobClient(blob);
@@ -394,6 +396,16 @@ public class AzureBlobStore implements BlobStore {
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws URISyntaxException,
         BlobStorageException, IOException {
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists, null);
+    }
+
+    public void writeBlob(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
+    ) throws URISyntaxException, BlobStorageException, IOException {
         assert inputStream.markSupported()
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
@@ -407,12 +419,13 @@ public class AzureBlobStore implements BlobStore {
             }
 
             AccessController.doPrivilegedChecked(() -> {
-                final Response<?> response = blob.uploadWithResponse(
-                    new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
-                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName)),
-                    timeout(),
-                    client.v2().get()
-                );
+                final BlobParallelUploadOptions uploadOptions = new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(
+                    blobRequestConditions
+                ).setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName));
+                if (metadata != null) {
+                    uploadOptions.setMetadata(metadata);
+                }
+                final Response<?> response = blob.uploadWithResponse(uploadOptions, timeout(), client.v2().get());
                 logger.trace(
                     () -> new ParameterizedMessage("upload({}, stream, {}) - status [{}]", blobName, blobSize, response.getStatusCode())
                 );
