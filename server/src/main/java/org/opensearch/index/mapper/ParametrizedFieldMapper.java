@@ -286,7 +286,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static sealed class Parameter<T> implements Supplier<T> permits SideEffectParameter {
+    public static sealed class Parameter<T> implements Supplier<T> permits SideEffectParameter, SharedParameter {
 
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
@@ -399,6 +399,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
             this.serializerCheck = check;
             return this;
+        }
+
+        /**
+         * Writes this parameter to the mapping as {@code mappingValue.apply(v)} and omits it whenever the value is
+         * {@code null}, so an unset parameter leaves no trace in the mapping. For value types that are not directly
+         * serializable as XContent; usable from outside this package, unlike {@link #setSerializer}.
+         */
+        public Parameter<T> setMappingValue(Function<T, Object> mappingValue) {
+            setSerializer((b, n, v) -> b.field(n, mappingValue.apply(v)), v -> String.valueOf(v == null ? null : mappingValue.apply(v)));
+            return setSerializerCheck((includeDefaults, isConfigured, value) -> value != null);
         }
 
         /**
@@ -724,7 +734,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             TriFunction<String, ParserContext, Object, T> parser,
             BiConsumer<Builder, T> sideEffect
         ) {
-            return new SideEffectParameter<>(name, updateable, () -> defaultValue, parser, m -> {
+            return new SideEffectParameter<>(
+                name,
+                updateable,
+                () -> defaultValue,
+                parser,
+                pluginValueInitializer(name, defaultValue),
+                sideEffect
+            );
+        }
+
+        /**
+         * The initializer shared by plugin-contributed parameters: reads the resolved value back from
+         * {@link ParametrizedFieldMapper#mappingPluginParameterValues()} when a mapper is re-initialised (for example
+         * during a mapping merge), falling back to {@code defaultValue} when absent, and failing loudly on a type
+         * mismatch. Exposed so parameter types defined outside this package follow the same contract.
+         */
+        public static <T> Function<FieldMapper, T> pluginValueInitializer(String name, T defaultValue) {
+            return m -> {
                 Object value = ((ParametrizedFieldMapper) m).mappingPluginParameterValues().get(name);
                 if (value == null) {
                     return defaultValue;
@@ -743,7 +770,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 @SuppressWarnings("unchecked")
                 T resolved = (T) value;
                 return resolved;
-            }, sideEffect);
+            };
         }
 
         /** Convenience factory for a boolean plugin-contributed parameter; see {@link #create}. */
@@ -758,6 +785,128 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         void applySideEffect(Builder builder) {
             sideEffect.accept(builder, getValue());
+        }
+    }
+
+    /**
+     * A plugin-contributed {@link Parameter} that several data-format plugins may contribute under the same name.
+     * Contributions merge into one parameter whose validators run in turn, so a mapping value is accepted only if
+     * every participating format can honour it. Composite plugins perform the merge with {@link #mergeInto}.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public static final class SharedParameter<T> extends Parameter<T> {
+
+        private final T defaultValue;
+        private final TriFunction<String, ParserContext, Object, T> parser;
+        private final List<Consumer<T>> validators;
+        private final List<BiConsumer<Builder, T>> sideEffects;
+        private Function<T, Object> mappingValue;
+
+        /**
+         * @param name         the parameter name as it appears in the mapping
+         * @param defaultValue the value used when the parameter is absent from the mapping
+         * @param parser       converts the raw mapping value into the parameter's type
+         * @param validators   checks applied to the parsed value, in order
+         */
+        public SharedParameter(
+            String name,
+            T defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            List<Consumer<T>> validators
+        ) {
+            this(name, defaultValue, parser, validators, List.of());
+        }
+
+        /**
+         * @param sideEffects applied at build time with the builder and the resolved value, in order; a format uses
+         *                    this to adjust sibling parameters (for example disabling inverted indexing) based on the
+         *                    storage hint
+         */
+        public SharedParameter(
+            String name,
+            T defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            List<Consumer<T>> validators,
+            List<BiConsumer<Builder, T>> sideEffects
+        ) {
+            super(name, false, () -> defaultValue, (n, c, o) -> {
+                T parsed = parser.apply(n, c, o);
+                for (Consumer<T> validator : validators) {
+                    validator.accept(parsed);
+                }
+                return parsed;
+            }, SideEffectParameter.pluginValueInitializer(name, defaultValue));
+            this.defaultValue = defaultValue;
+            this.parser = parser;
+            this.validators = List.copyOf(validators);
+            this.sideEffects = List.copyOf(sideEffects);
+        }
+
+        @Override
+        public SharedParameter<T> setMappingValue(Function<T, Object> mappingValue) {
+            this.mappingValue = mappingValue;
+            super.setMappingValue(mappingValue);
+            return this;
+        }
+
+        /** The validators contributed so far, in contribution order. */
+        public List<Consumer<T>> validators() {
+            return validators;
+        }
+
+        /** The build-time side effects contributed so far, in contribution order. */
+        public List<BiConsumer<Builder, T>> sideEffects() {
+            return sideEffects;
+        }
+
+        void applySideEffects(Builder builder) {
+            T value = getValue();
+            for (BiConsumer<Builder, T> sideEffect : sideEffects) {
+                sideEffect.accept(builder, value);
+            }
+        }
+
+        /**
+         * Returns a fresh parameter combining this one's validators and side effects with {@code other}'s. Both must
+         * carry the same name; the result is a new instance, since parameters are stateful during mapper building.
+         */
+        public SharedParameter<T> mergeWith(SharedParameter<T> other) {
+            if (Objects.equals(name, other.name) == false) {
+                throw new IllegalArgumentException("Cannot merge parameter [" + name + "] with [" + other.name + "]");
+            }
+            List<Consumer<T>> mergedValidators = new ArrayList<>(validators);
+            mergedValidators.addAll(other.validators);
+            List<BiConsumer<Builder, T>> mergedEffects = new ArrayList<>(sideEffects);
+            mergedEffects.addAll(other.sideEffects);
+            SharedParameter<T> result = new SharedParameter<>(name, defaultValue, parser, mergedValidators, mergedEffects);
+            if (mappingValue != null) {
+                result.setMappingValue(mappingValue);
+            }
+            return result;
+        }
+
+        /**
+         * Adds {@code parameter} to {@code target}, merging it into an existing {@link SharedParameter} of the same
+         * name instead of duplicating it. Returns {@code false} when the name is already taken by a parameter that
+         * cannot be merged, leaving {@code target} unchanged, so the caller can report the clash.
+         */
+        @SuppressWarnings("unchecked")
+        public static boolean mergeInto(List<Parameter<?>> target, Parameter<?> parameter) {
+            for (int i = 0; i < target.size(); i++) {
+                Parameter<?> existing = target.get(i);
+                if (existing.name.equals(parameter.name) == false) {
+                    continue;
+                }
+                if (existing instanceof SharedParameter<?> shared && parameter instanceof SharedParameter<?> incoming) {
+                    target.set(i, ((SharedParameter<Object>) shared).mergeWith((SharedParameter<Object>) incoming));
+                    return true;
+                }
+                return false;
+            }
+            target.add(parameter);
+            return true;
         }
     }
 
@@ -851,6 +1000,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : pluginMappingParameters) {
                 if (param instanceof SideEffectParameter) {
                     ((SideEffectParameter<?>) param).applySideEffect(this);
+                } else if (param instanceof SharedParameter) {
+                    ((SharedParameter<?>) param).applySideEffects(this);
                 }
             }
         }

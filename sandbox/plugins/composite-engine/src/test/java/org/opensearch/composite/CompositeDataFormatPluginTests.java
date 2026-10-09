@@ -18,7 +18,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldCodec;
+import org.opensearch.index.engine.dataformat.FieldStorageParameters;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -49,6 +52,85 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS));
         assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING));
         assertTrue(settings.contains(CompositeDataFormatPlugin.MERGE_ON_REFRESH_MAX_SIZE));
+    }
+
+    // ---- Plugin mapping parameter aggregation ----
+
+    /**
+     * Two participating formats both contributing the shared {@code codec} parameter yield one merged parameter whose
+     * validators are the union, so any second columnar format can honour the same mapping value.
+     */
+    public void testGetPluginMappingParametersMergesSharedParametersAcrossFormats() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "parquet")
+                .putList("index.composite.secondary_data_formats", "other")
+                .build()
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        DataFormat parquet = CompositeTestHelper.stubFormat("parquet", 2, Set.of());
+        DataFormat other = CompositeTestHelper.stubFormat("other", 3, Set.of());
+        when(registry.format("parquet")).thenReturn(parquet);
+        when(registry.format("other")).thenReturn(other);
+        when(registry.getPluginMappingParameters("keyword", indexSettings, parquet)).thenReturn(
+            List.of(FieldStorageParameters.codec(c -> c.requireSupported(Set.of("delta", "zstd"))), FieldStorageParameters.bloomFilter())
+        );
+        when(registry.getPluginMappingParameters("keyword", indexSettings, other)).thenReturn(
+            List.of(FieldStorageParameters.codec(c -> c.requireSupported(Set.of("delta", "fsst"))), FieldStorageParameters.bloomFilter())
+        );
+
+        List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters("keyword", indexSettings, registry);
+
+        assertEquals("codec and bloom_filter each appear once", 2, params.size());
+        ParametrizedFieldMapper.SharedParameter<?> codec = (ParametrizedFieldMapper.SharedParameter<?>) params.stream()
+            .filter(p -> p.name.equals(FieldStorageParameters.CODEC))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("both formats' validators are retained", 2, codec.validators().size());
+        @SuppressWarnings("unchecked")
+        ParametrizedFieldMapper.SharedParameter<FieldCodec> typed = (ParametrizedFieldMapper.SharedParameter<FieldCodec>) codec;
+        // delta is supported by both; zstd only by parquet; fsst only by the other format.
+        typed.validators().forEach(v -> v.accept(FieldCodec.parse("delta")));
+        assertTrue(typed.validators().stream().anyMatch(v -> throwsIae(() -> v.accept(FieldCodec.parse("zstd")))));
+        assertTrue(typed.validators().stream().anyMatch(v -> throwsIae(() -> v.accept(FieldCodec.parse("fsst")))));
+    }
+
+    /** Non-shared parameters with the same name from two formats remain a hard clash. */
+    public void testGetPluginMappingParametersRejectsDuplicateNonSharedParameter() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "parquet")
+                .putList("index.composite.secondary_data_formats", "other")
+                .build()
+        );
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        DataFormat parquet = CompositeTestHelper.stubFormat("parquet", 2, Set.of());
+        DataFormat other = CompositeTestHelper.stubFormat("other", 3, Set.of());
+        when(registry.format("parquet")).thenReturn(parquet);
+        when(registry.format("other")).thenReturn(other);
+        when(registry.getPluginMappingParameters("keyword", indexSettings, parquet)).thenReturn(
+            List.of(ParametrizedFieldMapper.SideEffectParameter.boolParam("low_cardinality", false, false, (b, v) -> {}))
+        );
+        when(registry.getPluginMappingParameters("keyword", indexSettings, other)).thenReturn(
+            List.of(ParametrizedFieldMapper.SideEffectParameter.boolParam("low_cardinality", false, false, (b, v) -> {}))
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.getPluginMappingParameters("keyword", indexSettings, registry)
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("Duplicate plugin mapping parameter [low_cardinality]"));
+    }
+
+    private static boolean throwsIae(Runnable r) {
+        try {
+            r.run();
+            return false;
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
     }
 
     // ---- Setting defaults and value parsing ----
