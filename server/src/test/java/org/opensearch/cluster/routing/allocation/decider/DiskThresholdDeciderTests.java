@@ -109,6 +109,102 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
+    DiskThresholdSettings makeDiskThresholdSettings(Settings settings) {
+        return new DiskThresholdSettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    DiskThresholdDecider.AdditionalBytesDecision canAccommodateAdditionalBytes(
+        Settings settings,
+        long additionalBytes,
+        ClusterInfo clusterInfo,
+        int dataNodeCount
+    ) {
+        return DiskThresholdDecider.canAccommodateAdditionalBytes(
+            new RoutingNode("node1", newNode("node1")),
+            additionalBytes,
+            clusterInfo,
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            makeDiskThresholdSettings(settings),
+            false,
+            dataNodeCount
+        );
+    }
+
+    public void testCanAccommodateAdditionalBytes() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 15));
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, Map.of());
+
+        assertTrue(canAccommodateAdditionalBytes(diskSettings, 5, clusterInfo, 2).isAllowed());
+
+        DiskThresholdDecider.AdditionalBytesDecision decision = canAccommodateAdditionalBytes(diskSettings, 6, clusterInfo, 2);
+        assertFalse(decision.isAllowed());
+        assertThat(decision.getExplanation(), containsString("high watermark"));
+    }
+
+    public void testCanAccommodateAdditionalBytesIncludesReservedSpace() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 20));
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(
+            usages,
+            usages,
+            Map.of(),
+            Map.of(),
+            Map.of(
+                new ClusterInfo.NodeAndPath("node1", "/dev/null"),
+                new ClusterInfo.ReservedSpace.Builder().add(new ShardId("test", "uuid", 0), 5).build()
+            ),
+            Map.of()
+        );
+
+        DiskThresholdDecider.AdditionalBytesDecision decision = canAccommodateAdditionalBytes(diskSettings, 6, clusterInfo, 2);
+        assertFalse(decision.isAllowed());
+        assertThat(decision.getExplanation(), containsString("high watermark"));
+    }
+
+    public void testCanAccommodateAdditionalBytesRejectsLowWatermark() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 12));
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, Map.of());
+
+        DiskThresholdDecider.AdditionalBytesDecision decision = canAccommodateAdditionalBytes(diskSettings, 1, clusterInfo, 2);
+        assertFalse(decision.isAllowed());
+        assertThat(decision.getExplanation(), containsString("low watermark"));
+    }
+
+    public void testCanAccommodateAdditionalBytesAllowsSingleDataNodeByDefault() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 1));
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, Map.of());
+
+        assertTrue(canAccommodateAdditionalBytes(diskSettings, 100, clusterInfo, 1).isAllowed());
+    }
+
     public void testDiskThreshold() {
         Settings diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
@@ -810,7 +906,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(
+        Double after = DiskThresholdDecider.freeDiskPercentageAfterShardAssigned(
             new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("node2", "n2", "/dev/null", 100, 30), 0L),
             11L
         );
