@@ -2200,6 +2200,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         cleanupPendingMergedSegments(catalogSnapshot);
         evictStaleDownloadedChecksums(catalogSnapshot);
+        // Stamp term/gen into the tracker even when Lucene infos version (and didRefresh) did not
+        // change. Otherwise 20551's catch-up compares against a stale achieved checkpoint and
+        // loops getCheckpointMetadata (S3 LIST+GET) after a primary restart. See #18605.
+        updateReplicationCheckpoint();
     }
 
     /**
@@ -5991,6 +5995,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Refresh listener to update the Shard's ReplicationCheckpoint post refresh.
+     * Also recomputes when primary term or segments generation changed without a Lucene infos
+     * version bump ({@code didRefresh} false) so the replica tracker cannot lag those fields.
      */
     private class ReplicationCheckpointUpdater implements ReferenceManager.RefreshListener {
         @Override
@@ -5998,12 +6004,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
-            if (didRefresh) {
-                // We're only starting to track the replication checkpoint. The timers for replication are started when
-                // the checkpoint is published. This is done so that the timers do not include the time spent by primary
-                // in uploading the segments to remote store.
+            // Timers for replication start when the checkpoint is published, so they do not include
+            // time the primary spent uploading segments. Recompute whenever the reader changed or
+            // term/gen is stale versus the cached checkpoint (18605: promotion/restart).
+            if (didRefresh || isReplicationCheckpointTermOrGenerationStale()) {
                 updateReplicationCheckpoint();
             }
+        }
+    }
+
+    /**
+     * True when the cached replication checkpoint's primary term or segments generation no longer
+     * matches the live engine. Infos version can stay unchanged across a primary restart.
+     */
+    private boolean isReplicationCheckpointTermOrGenerationStale() {
+        final ReplicationCheckpoint latest = getLatestReplicationCheckpoint();
+        if (latest == null) {
+            return false;
+        }
+        if (latest.getPrimaryTerm() != getOperationPrimaryTerm()) {
+            return true;
+        }
+        try (GatedCloseable<CatalogSnapshot> snapshot = getCatalogSnapshot()) {
+            return latest.getSegmentsGen() != snapshot.get().getLastCommitGeneration();
+        } catch (AlreadyClosedException e) {
+            return false;
+        } catch (IOException e) {
+            throw new OpenSearchException("Error comparing replication checkpoint generation to CatalogSnapshot", e);
         }
     }
 
