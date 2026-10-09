@@ -671,6 +671,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("store", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
