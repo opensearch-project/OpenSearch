@@ -17,7 +17,9 @@ import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +33,7 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
+    private final Map<Plugin, PluginSubject> pluginSubjects = new HashMap<>();
 
     public IdentityService(final Settings settings, final ThreadPool threadPool, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
@@ -67,8 +70,17 @@ public class IdentityService {
         if (identityAwarePlugins != null) {
             for (IdentityAwarePlugin plugin : identityAwarePlugins) {
                 PluginSubject pluginSubject = identityPlugin.getPluginSubject((Plugin) plugin);
+                pluginSubjects.put((Plugin) plugin, pluginSubject);
                 plugin.assignSubject(pluginSubject);
             }
         }
+    }
+
+    /**
+     * Returns the subject {@link #initializeIdentityAwarePlugins} assigned to the given plugin, so core can run code on the
+     * plugin's behalf as the plugin itself. Returns {@code null} for a plugin that was not initialized.
+     */
+    public PluginSubject getPluginSubject(final Plugin plugin) {
+        return pluginSubjects.get(plugin);
     }
 }
