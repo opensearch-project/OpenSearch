@@ -25,6 +25,7 @@ dependencies {
   compileOnly project(':modules:autotagging-commons')
   testImplementation project(':modules:autotagging-commons')
   testImplementation project(':modules:autotagging-commons:common')
+  testImplementation project(':modules:transport-netty4')
 }
 
 testClusters.all {

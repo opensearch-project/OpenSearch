@@ -8,10 +8,12 @@
 
 package org.opensearch.rule.rest;
 
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RestDeleteRuleActionTests extends OpenSearchTestCase {
-    RestDeleteRuleAction action = new RestDeleteRuleAction();
+    RestDeleteRuleAction action = new RestDeleteRuleAction(new AutoTaggingRegistry());
 
     public void testGetName() {
         assertEquals("delete_rule", action.getName());

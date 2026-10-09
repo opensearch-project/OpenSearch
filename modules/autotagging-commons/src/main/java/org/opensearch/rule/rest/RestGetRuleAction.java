@@ -21,6 +21,7 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.action.GetRuleAction;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -49,10 +50,16 @@ public class RestGetRuleAction extends BaseRestHandler {
      */
     public static final String FEATURE_TYPE = "featureType";
 
+    private final AutoTaggingRegistry registry;
+
     /**
-     * constructor for RestGetRuleAction
+     * Creates the handler with this node's feature type registry.
+     *
+     * @param registry this node's feature type registry
      */
-    public RestGetRuleAction() {}
+    public RestGetRuleAction(AutoTaggingRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public String getName() {
@@ -72,7 +79,7 @@ public class RestGetRuleAction extends BaseRestHandler {
             throw new IllegalArgumentException("Invalid route.");
         }
 
-        final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
+        final FeatureType featureType = registry.getFeatureType(request.param(FEATURE_TYPE));
         final List<String> attributeParams = request.params()
             .keySet()
             .stream()

@@ -8,11 +8,10 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -27,10 +26,11 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
      */
     public void testSerialization() throws IOException {
         UpdateRuleResponse response = new UpdateRuleResponse(ruleOne);
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-        UpdateRuleResponse otherResponse = new UpdateRuleResponse(streamInput);
+        UpdateRuleResponse otherResponse = copyWriteable(
+            response,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            UpdateRuleResponse::new
+        );
         assertEqualRule(response.getRule(), otherResponse.getRule(), false);
     }
 

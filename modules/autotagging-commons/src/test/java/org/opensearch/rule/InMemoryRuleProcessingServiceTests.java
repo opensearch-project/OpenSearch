@@ -10,7 +10,6 @@ package org.opensearch.rule;
 
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
@@ -184,10 +183,6 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     public enum WLMFeatureType implements FeatureType {
         WLM;
-
-        static {
-            AutoTaggingRegistry.registerFeatureType(WLM);
-        }
 
         @Override
         public String getName() {

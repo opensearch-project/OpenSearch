@@ -78,7 +78,7 @@ public class GetRuleRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        featureType.writeTo(out);
+        out.writeNamedWriteable(featureType);
         out.writeMap(attributeFilters, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeOptionalString(searchAfter);
     }

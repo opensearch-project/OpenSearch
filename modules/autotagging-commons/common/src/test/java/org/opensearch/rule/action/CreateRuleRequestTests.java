@@ -8,8 +8,7 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -24,10 +23,11 @@ public class CreateRuleRequestTests extends OpenSearchTestCase {
      */
     public void testSerialization() throws IOException {
         CreateRuleRequest request = new CreateRuleRequest(ruleOne);
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-        CreateRuleRequest otherRequest = new CreateRuleRequest(streamInput);
+        CreateRuleRequest otherRequest = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            CreateRuleRequest::new
+        );
         assertEqualRule(ruleOne, otherRequest.getRule(), false);
     }
 }

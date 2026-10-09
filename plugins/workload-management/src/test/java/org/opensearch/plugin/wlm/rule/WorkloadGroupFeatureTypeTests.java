@@ -50,6 +50,8 @@ public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
     }
 
     public void testRegisterFeatureType() {
-        AutoTaggingRegistry.registerFeatureType(featureType);
+        AutoTaggingRegistry registry = new AutoTaggingRegistry();
+        registry.registerFeatureType(featureType);
+        assertSame(featureType, registry.getFeatureType(featureType.getName()));
     }
 }
