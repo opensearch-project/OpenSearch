@@ -124,7 +124,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public long readBlobPreferredLength() {
-        return DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
+        return blobStore.getReadBlobPreferredLength();
     }
 
     @Override
@@ -213,6 +213,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             return blobStore.listBlobsByPrefix(keyPath, prefix);
         } catch (URISyntaxException | BlobStorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore, e.getMessage());
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            return super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder);
+        }
+        try {
+            return blobStore.listBlobsByPrefixInSortedOrder(keyPath, blobNamePrefix, limit);
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException(e);
         }
     }
