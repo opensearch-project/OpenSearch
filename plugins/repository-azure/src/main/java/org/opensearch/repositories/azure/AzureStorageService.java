@@ -101,6 +101,7 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final Map<AzureStorageSettings, ClientState> conditionalWriteClients = new ConcurrentHashMap<>();
     private final ExecutorService executor;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
@@ -171,16 +172,34 @@ public class AzureStorageService implements AutoCloseable {
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
+        return client(clientName, statsCollector, clients, false);
+    }
+
+    Tuple<BlobServiceClient, Supplier<Context>> clientForConditionalWrite(
+        String clientName,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector
+    ) {
+        // Retrying a conditional write after its response is lost can turn an applied write into a 412 and falsely
+        // report a lost CAS. Use a dedicated one-attempt client so the caller can reconcile an ambiguous IOException.
+        return client(clientName, statsCollector, conditionalWriteClients, true);
+    }
+
+    private Tuple<BlobServiceClient, Supplier<Context>> client(
+        String clientName,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector,
+        Map<AzureStorageSettings, ClientState> clientCache,
+        boolean disableRetries
+    ) {
         final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
 
         // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
         // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
-        ClientState state = clients.get(azureStorageSettings);
+        ClientState state = clientCache.get(azureStorageSettings);
 
         if (state == null) {
-            state = clients.computeIfAbsent(azureStorageSettings, key -> {
+            state = clientCache.computeIfAbsent(azureStorageSettings, key -> {
                 try {
-                    return buildClient(azureStorageSettings, statsCollector);
+                    return buildClient(azureStorageSettings, statsCollector, disableRetries);
                 } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
                     throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
                 }
@@ -190,8 +209,11 @@ public class AzureStorageService implements AutoCloseable {
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
-    private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
-        throws InvalidKeyException, URISyntaxException {
+    private ClientState buildClient(
+        AzureStorageSettings azureStorageSettings,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector,
+        boolean disableRetries
+    ) throws InvalidKeyException, URISyntaxException {
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
@@ -231,7 +253,7 @@ public class AzureStorageService implements AutoCloseable {
 
         // We define a default exponential retry policy
         return new ClientState(
-            applyLocationMode(builder, azureStorageSettings).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
+            applyLocationMode(builder, azureStorageSettings, disableRetries).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
             eventLoopGroup
         );
     }
@@ -241,11 +263,20 @@ public class AzureStorageService implements AutoCloseable {
      * retry options and combination of primary / secondary endpoints. Refer to
      * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
-    private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
+    private BlobServiceClientBuilder applyLocationMode(
+        final BlobServiceClientBuilder builder,
+        final AzureStorageSettings settings,
+        final boolean disableRetries
+    ) {
         final StorageEndpoint endpoint = settings.getStorageEndpoint(logger);
 
         if (endpoint == null || endpoint.getPrimaryUri() == null) {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
+        }
+
+        if (disableRetries) {
+            return builder.endpoint(endpoint.getPrimaryUri())
+                .retryOptions(new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, 1, (Integer) null, null, null, null));
         }
 
         final LocationMode locationMode = settings.getLocationMode();
@@ -309,10 +340,12 @@ public class AzureStorageService implements AutoCloseable {
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
         prevClients.values().forEach(this::closeInternally);
+        this.conditionalWriteClients.values().forEach(this::closeInternally);
         prevClients.clear();
 
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         this.clients.clear();
+        this.conditionalWriteClients.clear();
 
         // clients are built lazily by {@link client(String)}
         return prevSettings;
@@ -321,7 +354,9 @@ public class AzureStorageService implements AutoCloseable {
     @Override
     public void close() throws IOException {
         this.clients.values().forEach(this::closeInternally);
+        this.conditionalWriteClients.values().forEach(this::closeInternally);
         this.clients.clear();
+        this.conditionalWriteClients.clear();
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
