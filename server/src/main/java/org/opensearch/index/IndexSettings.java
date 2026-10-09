@@ -1013,6 +1013,32 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Whether a bulk request may declare its update ids to the engine up front, so an engine that can
+     * read documents together reads their stored rows in one pass per file instead of one read per
+     * item. Purely an optimization: turning it on or off changes nothing observable, only how many
+     * reads the update legs of a bulk request cost.
+     */
+    public static final Setting<Boolean> BATCHED_UPDATE_GET_ENABLED_SETTING = Setting.boolSetting(
+        "index.pluggable.dataformat.batched_update_get.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Upper bound, in documents, on what the engine will hold from reading ahead for bulk updates.
+     * Bounds the read itself and not only what is retained, because rows past the bound would be
+     * fetched out of the primary store only to be discarded. Zero disables the read-ahead.
+     */
+    public static final Setting<Integer> BATCHED_UPDATE_GET_CACHE_SIZE_SETTING = Setting.intSetting(
+        "index.pluggable.dataformat.batched_update_get.cache_size",
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;

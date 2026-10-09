@@ -17,6 +17,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.plugins.DocumentLookupProvider;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Shared get-by-id helper for the {@code DataFormatAware*} engines. Centralizes the pluggable lookup
@@ -57,6 +59,17 @@ public final class DocumentLookupSupport {
             return DocumentLookupResult.notFound(get.id());
         }
         return provider.getById(get, reader, shardId.getIndex(), resolver);
+    }
+
+    /**
+     * Resolves and reads many documents in as few backend calls as possible. Best-effort: ids the
+     * provider could not serve are absent from the result and must be read individually.
+     */
+    public Map<String, DocumentLookupResult> prefetchFromReader(List<String> ids, IndexReaderProvider.Reader reader) throws IOException {
+        if (provider == null || ids.isEmpty() || reader.catalogSnapshot().getSegments().isEmpty()) {
+            return Map.of();
+        }
+        return provider.prefetchByIds(ids, reader, shardId.getIndex(), resolver);
     }
 
     /**
