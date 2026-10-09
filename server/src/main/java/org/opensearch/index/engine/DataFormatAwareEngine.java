@@ -2400,9 +2400,15 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }
 
-            // Fall through: read from parquet
+            // Fall through: read from parquet. Resolved through DocumentLookupSupport#getById,
+            // which applies read-time version/if_seq_no conflicts to the result — the realtime
+            // branch above checks them inline, and the read-only and NRT replica engines already
+            // go through this same helper. Calling lookupFromReader directly skipped the checks,
+            // so a stale precondition on a get (and therefore on an update of any committed
+            // document, since UpdateHelper rebuilds the index request from the get's seqNo) was
+            // silently dropped rather than enforced.
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.lookupFromReader(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         } // readLock
