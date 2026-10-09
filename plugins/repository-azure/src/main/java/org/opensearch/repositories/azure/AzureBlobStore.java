@@ -419,17 +419,13 @@ public class AzureBlobStore implements BlobStore {
             }
 
             AccessController.doPrivilegedChecked(() -> {
-                final BlobParallelUploadOptions uploadOptions = new BlobParallelUploadOptions(inputStream, blobSize)
-                    .setRequestConditions(blobRequestConditions)
-                    .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName));
+                final BlobParallelUploadOptions uploadOptions = new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(
+                    blobRequestConditions
+                ).setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName));
                 if (metadata != null) {
                     uploadOptions.setMetadata(metadata);
                 }
-                final Response<?> response = blob.uploadWithResponse(
-                    uploadOptions,
-                    timeout(),
-                    client.v2().get()
-                );
+                final Response<?> response = blob.uploadWithResponse(uploadOptions, timeout(), client.v2().get());
                 logger.trace(
                     () -> new ParameterizedMessage("upload({}, stream, {}) - status [{}]", blobName, blobSize, response.getStatusCode())
                 );

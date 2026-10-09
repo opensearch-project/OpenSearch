@@ -217,7 +217,6 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                     secondaryHost
                 );
             }
-
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
@@ -732,7 +731,8 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     public void testWriteLargeBlobMetadataIsAppliedOnlyToBlockList() throws Exception {
-        final byte[] data = randomBytes(BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE * 2);
+        final int blockSize = Math.toIntExact(ByteSizeUnit.MB.toBytes(1));
+        final byte[] data = randomBytes(blockSize * 2);
         final Map<String, String> logicalMetadata = Map.of("ckp-data", "checkpoint-値");
         final Map<String, String> wireMetadata = AzureBlobMetadataCodec.encode(logicalMetadata);
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
@@ -780,7 +780,11 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(between(1, 3));
+        final BlobContainer blobContainer = createBlobContainer(between(1, 3), (settings, clientName) -> {
+            settings.put(WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), blockSize + "b");
+            settings.put(MAX_SINGLE_UPLOAD_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), blockSize + "b");
+            settings.put(WRITE_CONCURRENCY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 2);
+        });
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
             blobContainer.writeBlobWithMetadata("write_large_blob_with_metadata", stream, data.length, false, logicalMetadata);
         }
