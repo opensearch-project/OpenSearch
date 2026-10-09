@@ -13,11 +13,14 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.query.range.RangeBoundMath;
 import org.opensearch.index.mapper.NumberFieldMapper;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Optional;
 
 /**
@@ -154,6 +157,74 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
      */
     @Override
     public Optional<RexNode> toTermLiteral(Object value, RelDataTypeField field, ConversionContext ctx) throws ConversionException {
+        SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
+        // WHY: A String/BytesRef skips the Number-gated guards below and crashes in Calcite; normalise to BigDecimal so they
+        // apply unchanged.
+        if ((fieldTypeName == SqlTypeName.TINYINT
+            || fieldTypeName == SqlTypeName.SMALLINT
+            || fieldTypeName == SqlTypeName.INTEGER
+            || fieldTypeName == SqlTypeName.BIGINT) && (value instanceof String || value instanceof BytesRef)) {
+            String raw = (value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : (String) value).trim();
+            // Try the exact BigDecimal parse first so values above 2^53 keep full precision, then fall back to the lenient
+            // Double.parseDouble path (whitespace, d/f suffixes, Infinity/NaN) only when BigDecimal rejects the input.
+            try {
+                value = new BigDecimal(raw);
+            } catch (NumberFormatException exact) {
+                try {
+                    double parsed = Double.parseDouble(raw);
+                    value = Double.isFinite(parsed) ? new BigDecimal(parsed) : parsed;
+                } catch (NumberFormatException lenient) {
+                    String capped = raw.length() > 64 ? raw.substring(0, 64) + "..." : raw;
+                    throw new ConversionException(
+                        "Value [" + capped + "] is not a valid number for " + fieldTypeName + " field '" + field.getName() + "'"
+                    );
+                }
+            }
+        }
+        // Parity with NumberFieldMapper exact-integer termQuery: a fractional value can never match → drop it (match-none).
+        if ((fieldTypeName == SqlTypeName.TINYINT
+            || fieldTypeName == SqlTypeName.SMALLINT
+            || fieldTypeName == SqlTypeName.INTEGER
+            || fieldTypeName == SqlTypeName.BIGINT) && NumberFieldMapper.NumberType.hasDecimalPart(value)) {
+            return Optional.empty();
+        }
+        // Parity with NumberFieldMapper range check: a whole value outside the integer domain rejects or matches none.
+        if (RangeBoundMath.isIntegerType(fieldTypeName) && value instanceof Number) {
+            long longValue;
+            if (value instanceof BigInteger || value instanceof BigDecimal || value instanceof Double || value instanceof Float) {
+                // Narrow via BigInteger so a whole Double/Float beyond long's range overflows the bitLength guard rather than saturating.
+                BigInteger asInt;
+                if (value instanceof BigDecimal) {
+                    asInt = ((BigDecimal) value).toBigInteger();
+                } else if (value instanceof BigInteger) {
+                    asInt = (BigInteger) value;
+                } else {
+                    asInt = new BigDecimal(value.toString()).toBigInteger();
+                }
+                if (asInt.bitLength() > Long.SIZE - 1) {
+                    if (fieldTypeName == SqlTypeName.BIGINT) {
+                        throw new ConversionException("Value [" + value + "] is out of range for a long");
+                    }
+                    throw new ConversionException(
+                        "Value " + value + " is out of range for " + fieldTypeName + " field '" + field.getName() + "'"
+                    );
+                }
+                longValue = asInt.longValue();
+            } else {
+                longValue = ((Number) value).longValue();
+            }
+            RangeBoundMath.CheckedNarrow narrowed = RangeBoundMath.narrowChecked(longValue, fieldTypeName, true, field.getName());
+            if (narrowed.result() != RangeBoundMath.NarrowResult.OK) {
+                return Optional.empty();
+            }
+        }
+        // Calcite rejects Double/Float literals for exact-integer target types; coerce the surviving whole value to BigDecimal.
+        if ((fieldTypeName == SqlTypeName.TINYINT
+            || fieldTypeName == SqlTypeName.SMALLINT
+            || fieldTypeName == SqlTypeName.INTEGER
+            || fieldTypeName == SqlTypeName.BIGINT) && (value instanceof Double || value instanceof Float)) {
+            value = new BigDecimal(value.toString());
+        }
         RexNode literal = ctx.getRexBuilder().makeLiteral(value, field.getType(), true);
         return Optional.of(literal);
     }

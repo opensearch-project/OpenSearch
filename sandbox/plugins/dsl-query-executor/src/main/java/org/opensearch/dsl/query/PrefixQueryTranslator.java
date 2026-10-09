@@ -13,7 +13,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.PrefixQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -29,13 +28,7 @@ public class PrefixQueryTranslator implements QueryTranslator {
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         PrefixQueryBuilder prefixQuery = (PrefixQueryBuilder) query;
 
-        if (prefixQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("Prefix query parameter 'boost' is not supported");
-        }
-        // matched_queries is not surfaced by this path
-        if (prefixQuery.queryName() != null) {
-            throw new ConversionException("Prefix query parameter '_name' is not supported");
-        }
+        rejectScoringParams(prefixQuery, "Prefix");
 
         // MappedFieldType.prefixQuery:291-297 — only keyword and text fields support prefix queries
         RelDataTypeField field = ctx.getField(prefixQuery.fieldName());

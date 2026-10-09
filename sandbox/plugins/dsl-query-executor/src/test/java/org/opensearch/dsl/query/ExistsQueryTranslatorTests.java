@@ -51,6 +51,14 @@ public class ExistsQueryTranslatorTests extends OpenSearchTestCase {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.existsQuery("name").boost(2.0f), ctx));
     }
 
+    public void testThrowsForName() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.existsQuery("name").queryName("my_exists"), ctx)
+        );
+        assertEquals("Exists query parameter '_name' is not supported", ex.getMessage());
+    }
+
     public void testReportsCorrectQueryType() {
         assertEquals(ExistsQueryBuilder.class, translator.getQueryType());
     }
