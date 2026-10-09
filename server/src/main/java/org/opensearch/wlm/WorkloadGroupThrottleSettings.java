@@ -32,10 +32,10 @@ public class WorkloadGroupThrottleSettings {
     /** Internal dimension used when {@link #BY} is omitted: one bucket for the workload group as a whole. */
     public static final String GROUP_SCOPE = "group";
 
-    /** {@link #BY} value giving each username its own bucket per node. */
+    /** {@link #BY} value giving each username its own bucket. */
     public static final String BY_USERNAME = "username";
 
-    /** {@link #BY} value giving each role its own bucket per node. */
+    /** {@link #BY} value giving each role its own bucket. */
     public static final String BY_ROLE = "role";
 
     /**
@@ -89,7 +89,36 @@ public class WorkloadGroupThrottleSettings {
         }
     );
 
-    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(BY.getKey(), BY, NODE_LIMIT.getKey(), NODE_LIMIT);
+    /**
+     * Cluster-wide in-flight allowance. Consulted once {@code node_limit} is exhausted, or for every request when
+     * {@code node_limit} is unset or 0. An absent value resolves to
+     * {@link #UNSET_LIMIT}, while an explicitly supplied value must be non-negative.
+     */
+    public static final Setting<Integer> SHARED_LIMIT = Setting.intSetting(
+        "shared_limit",
+        UNSET_LIMIT,
+        Integer.MIN_VALUE,
+        new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer value) {}
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && value < 0) {
+                    throw new IllegalArgumentException("throttling.shared_limit must be non-negative but was " + value);
+                }
+            }
+        }
+    );
+
+    private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(
+        BY.getKey(),
+        BY,
+        NODE_LIMIT.getKey(),
+        NODE_LIMIT,
+        SHARED_LIMIT.getKey(),
+        SHARED_LIMIT
+    );
 
     private WorkloadGroupThrottleSettings() {
         throw new UnsupportedOperationException("Utility class");
@@ -97,7 +126,7 @@ public class WorkloadGroupThrottleSettings {
 
     /** True for keys holding an integer limit, which xContent must emit as a JSON number rather than a string. */
     static boolean isLimitKey(String key) {
-        return NODE_LIMIT.getKey().equals(key);
+        return NODE_LIMIT.getKey().equals(key) || SHARED_LIMIT.getKey().equals(key);
     }
 
     /**
@@ -149,9 +178,9 @@ public class WorkloadGroupThrottleSettings {
     }
 
     /**
-     * Cross-field validation on a fully-merged throttling config. When throttling is configured, {@code node_limit} is
-     * required and its effective ceiling must be at least 1, since a ceiling of 0 rejects every request. The optional
-     * {@code by} key defaults to group scope. Must be called on the merged result, not a partial update fragment.
+     * Cross-field validation on a fully-merged throttling config. When throttling is configured, at least one limit
+     * must be set and the effective ceiling must be at least 1. The optional {@code by} key defaults to group scope.
+     * Must be called on the merged result, not a partial update fragment.
      *
      * @param throttling the merged throttling settings
      * @throws IllegalArgumentException if a {@code by} value has no limit, or the effective ceiling is 0
@@ -162,23 +191,28 @@ public class WorkloadGroupThrottleSettings {
         }
         validate(throttling);
         boolean hasNode = throttling.hasValue(NODE_LIMIT.getKey());
+        boolean hasShared = throttling.hasValue(SHARED_LIMIT.getKey());
 
-        if (hasNode == false) {
+        if (hasNode == false && hasShared == false) {
             // A null-valued key is an update clear marker and configures nothing after merging.
             if (throttling.hasValue(BY.getKey())) {
                 throw new IllegalArgumentException(
-                    "throttling.node_limit is required when throttling.by is set; " + "set throttling as null to disable throttling instead"
+                    "throttling.node_limit or throttling.shared_limit is required when throttling.by is set; "
+                        + "set throttling as null to disable throttling instead"
                 );
             }
             return;
         }
         int node = NODE_LIMIT.get(throttling);
-        if (node < 1) {
+        int shared = SHARED_LIMIT.get(throttling);
+        if ((long) Math.max(0, node) + Math.max(0, shared) < 1) {
             throw new IllegalArgumentException(
                 "Effective throttle ceiling is 0 (node_limit="
-                    + node
+                    + (hasNode ? node : "unset")
+                    + ", shared_limit="
+                    + (hasShared ? shared : "unset")
                     + "); this would reject all requests. "
-                    + "Set node_limit to a positive value, or set throttling as null to disable throttling"
+                    + "Set at least one limit to a positive value, or set throttling as null to disable throttling"
             );
         }
     }
