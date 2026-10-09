@@ -224,6 +224,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 logger.debug("received a join request for an existing node [{}]", node);
             } else {
                 try {
+                    // The join was validated over a connection from this node to the joining node. If that connection
+                    // has closed since then, for example because a node-left task that was queued ahead of this join
+                    // disconnected the node, adding the node now would fail its first follower check at once and
+                    // remove it again. Reject the join instead, so the node retries and reconnects first.
+                    if (isJoiningNodeConnected(node) == false) {
+                        throw new IllegalStateException(
+                            "cluster-manager is no longer connected to joining node [" + node + "], node must retry the join"
+                        );
+                    }
                     if (enforceMajorVersion) {
                         ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
                     }
@@ -451,6 +460,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 );
             }
         }
+    }
+
+    /**
+     * Whether this node still has a connection to a node whose join is being processed. Always true by default; the
+     * cluster-manager's executor checks its transport connections.
+     */
+    protected boolean isJoiningNodeConnected(DiscoveryNode node) {
+        return true;
     }
 
     /**
