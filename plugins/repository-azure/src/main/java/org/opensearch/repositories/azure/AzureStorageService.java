@@ -77,7 +77,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import io.netty.channel.EventLoopGroup;
@@ -110,7 +109,6 @@ public class AzureStorageService implements AutoCloseable {
     private final Map<String, PrimaryClientState> primaryClients = new ConcurrentHashMap<>();
     private final Object clientLifecycleMutex = new Object();
     private final ExecutorService executor;
-    private volatile Consumer<String> lifecycleObserver = operation -> {};
     private boolean closed;
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
@@ -181,7 +179,6 @@ public class AzureStorageService implements AutoCloseable {
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-        lifecycleObserver.accept("ordinary_acquire");
         synchronized (clientLifecycleMutex) {
             ensureOpen();
             final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
@@ -202,7 +199,6 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     Tuple<BlobServiceClient, Supplier<Context>> clientForPrimaryOnly(String clientName) {
-        lifecycleObserver.accept("primary_acquire");
         synchronized (clientLifecycleMutex) {
             ensureOpen();
             final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
@@ -241,7 +237,6 @@ public class AzureStorageService implements AutoCloseable {
         LocationMode locationMode,
         BiConsumer<HttpRequest, HttpResponse> statsCollector
     ) {
-        lifecycleObserver.accept("location_acquire");
         synchronized (clientLifecycleMutex) {
             ensureOpen();
             final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
@@ -388,7 +383,7 @@ public class AzureStorageService implements AutoCloseable {
      * @return the old settings
      */
     public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
-        lifecycleObserver.accept("refresh");
+        beforeRefresh();
         final Map<String, AzureStorageSettings> prevSettings;
         final List<ClientState> detachedClients;
         synchronized (clientLifecycleMutex) {
@@ -403,7 +398,7 @@ public class AzureStorageService implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        lifecycleObserver.accept("close");
+        beforeClose();
         final List<ClientState> detachedClients;
         synchronized (clientLifecycleMutex) {
             if (closed) {
@@ -616,9 +611,10 @@ public class AzureStorageService implements AutoCloseable {
         }
     }
 
-    void setLifecycleObserver(Consumer<String> lifecycleObserver) {
-        this.lifecycleObserver = lifecycleObserver == null ? operation -> {} : lifecycleObserver;
-    }
+    // Package-private no-op hooks for deterministic lifecycle tests.
+    void beforeRefresh() {}
+
+    void beforeClose() {}
 
     private void ensureOpen() {
         if (closed) {

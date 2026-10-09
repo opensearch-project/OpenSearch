@@ -235,6 +235,24 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     private AzureBlobStore createBlobStore(AzureStorageService storageService, String clientName, LocationMode locationMode) {
+        return new AzureBlobStore(createRepositoryMetadata(clientName, locationMode), storageService, threadPool);
+    }
+
+    private AzureBlobStore createBlobStore(
+        AzureStorageService storageService,
+        String clientName,
+        LocationMode locationMode,
+        Runnable beforeValidation
+    ) {
+        return new AzureBlobStore(createRepositoryMetadata(clientName, locationMode), storageService, threadPool) {
+            @Override
+            void beforeExistenceResultValidation() {
+                beforeValidation.run();
+            }
+        };
+    }
+
+    private RepositoryMetadata createRepositoryMetadata(String clientName, LocationMode locationMode) {
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
             AzureRepository.TYPE,
@@ -245,7 +263,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 .build()
         );
 
-        return new AzureBlobStore(repositoryMetadata, storageService, threadPool);
+        return repositoryMetadata;
     }
 
     private BlobContainer createBlobContainer(AzureStorageService storageService, String clientName, LocationMode locationMode) {
@@ -662,7 +680,6 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         final String authority = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
         activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         service = createStorageService(buildClientSettings(activeClientName, 1, authority + "/old", null));
-        final AzureBlobStore blobStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY);
         final String blobName = oldResult ? "stale-success" : "stale-not-found";
         httpServer.createContext("/old/container/" + blobName, exchange -> {
             if (oldResult) {
@@ -681,7 +698,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
         final CountDownLatch validationReached = new CountDownLatch(1);
         final CountDownLatch releaseValidation = new CountDownLatch(1);
-        blobStore.setBeforeExistenceResultValidation(() -> {
+        final AzureBlobStore blobStore = createBlobStore(service, activeClientName, LocationMode.PRIMARY_ONLY, () -> {
             validationReached.countDown();
             try {
                 if (releaseValidation.await(10, TimeUnit.SECONDS) == false) {

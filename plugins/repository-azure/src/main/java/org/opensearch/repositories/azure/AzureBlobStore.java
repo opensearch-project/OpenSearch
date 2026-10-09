@@ -106,7 +106,6 @@ public class AzureBlobStore implements BlobStore {
 
     private final Stats stats = new Stats();
     private final BiConsumer<HttpRequest, HttpResponse> metricsCollector;
-    private volatile Runnable beforeExistenceResultValidation = () -> {};
 
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -188,7 +187,7 @@ public class AzureBlobStore implements BlobStore {
             try {
                 AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
                 stats.headOperations.incrementAndGet();
-                beforeExistenceResultValidation.run();
+                beforeExistenceResultValidation();
                 if (service.isPrimaryClientCurrent(clientName, client.v1())) {
                     return true;
                 }
@@ -197,7 +196,7 @@ public class AzureBlobStore implements BlobStore {
                     || BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode()) == false) {
                     throw e;
                 }
-                beforeExistenceResultValidation.run();
+                beforeExistenceResultValidation();
                 if (service.isPrimaryClientCurrent(clientName, client.v1())) {
                     return false;
                 }
@@ -456,9 +455,8 @@ public class AzureBlobStore implements BlobStore {
         return service.client(clientName, locationMode, metricsCollector);
     }
 
-    void setBeforeExistenceResultValidation(Runnable beforeExistenceResultValidation) {
-        this.beforeExistenceResultValidation = beforeExistenceResultValidation == null ? () -> {} : beforeExistenceResultValidation;
-    }
+    // Package-private no-op hook for deterministic reload tests.
+    void beforeExistenceResultValidation() {}
 
     private Duration timeout() {
         return service.getBlobRequestTimeout(clientName);

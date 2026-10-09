@@ -544,7 +544,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
             reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
             final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
-            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final CountDownLatch reloadQueued = service.expectRefresh();
             final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
             assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
 
@@ -567,7 +567,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final Future<?> acquisition = executor.submit(() -> service.clientForPrimaryOnly("azure1"));
             assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
 
-            final CountDownLatch closeQueued = observeLifecycleOperation(service, "close");
+            final CountDownLatch closeQueued = service.expectClose();
             final Future<?> close = executor.submit(() -> {
                 service.close();
                 return null;
@@ -596,7 +596,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
             reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
             final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
-            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final CountDownLatch reloadQueued = service.expectRefresh();
             final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
             assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
 
@@ -619,7 +619,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final Future<?> acquisition = executor.submit(() -> service.client("azure1"));
             assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
 
-            final CountDownLatch closeQueued = observeLifecycleOperation(service, "close");
+            final CountDownLatch closeQueued = service.expectClose();
             final Future<?> close = executor.submit(() -> {
                 service.close();
                 return null;
@@ -650,7 +650,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
             reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
             final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
-            final CountDownLatch reloadQueued = observeLifecycleOperation(service, "refresh");
+            final CountDownLatch reloadQueued = service.expectRefresh();
             final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
             assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
 
@@ -1021,23 +1021,41 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         return null;
     }
 
-    private static CountDownLatch observeLifecycleOperation(AzureStorageService service, String expectedOperation) {
-        final CountDownLatch queued = new CountDownLatch(1);
-        service.setLifecycleObserver(operation -> {
-            if (expectedOperation.equals(operation)) {
-                queued.countDown();
-            }
-        });
-        return queued;
-    }
-
     private static class BlockingPrimaryClientService extends AzureStorageService {
         private final CountDownLatch buildStarted = new CountDownLatch(1);
         private final CountDownLatch releaseBuild = new CountDownLatch(1);
         private final AtomicBoolean blockNextBuild = new AtomicBoolean(true);
+        private volatile CountDownLatch refreshExpected;
+        private volatile CountDownLatch closeExpected;
 
         BlockingPrimaryClientService(Settings settings) {
             super(settings);
+        }
+
+        CountDownLatch expectRefresh() {
+            refreshExpected = new CountDownLatch(1);
+            return refreshExpected;
+        }
+
+        CountDownLatch expectClose() {
+            closeExpected = new CountDownLatch(1);
+            return closeExpected;
+        }
+
+        @Override
+        void beforeRefresh() {
+            final CountDownLatch expected = refreshExpected;
+            if (expected != null) {
+                expected.countDown();
+            }
+        }
+
+        @Override
+        void beforeClose() {
+            final CountDownLatch expected = closeExpected;
+            if (expected != null) {
+                expected.countDown();
+            }
         }
 
         @Override
