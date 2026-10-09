@@ -47,6 +47,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -87,6 +88,20 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
+    }
+
+    @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        try {
+            return new PlainBlobMetadata(blobName, blobStore.getBlobLength(buildKey(blobName)));
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new NoSuchFileException(blobName);
+            }
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        }
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {

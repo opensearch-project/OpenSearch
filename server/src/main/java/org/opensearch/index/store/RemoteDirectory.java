@@ -342,12 +342,7 @@ public class RemoteDirectory extends Directory {
      */
     @Override
     public long fileLength(String name) throws IOException {
-        // ToDo: Instead of calling remote store each time, keep a cache with segment metadata
-        List<BlobMetadata> metadata = blobContainer.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
-            return metadata.get(0).length();
-        }
-        throw new NoSuchFileException(name);
+        return blobContainer.getBlobMetadata(name).length();
     }
 
     /**
