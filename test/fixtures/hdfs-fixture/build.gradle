@@ -107,5 +107,5 @@ dependencies {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.17.0"
-  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.8"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.10"
 }
