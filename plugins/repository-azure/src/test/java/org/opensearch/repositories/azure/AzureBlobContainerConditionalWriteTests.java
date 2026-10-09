@@ -353,7 +353,7 @@ public class AzureBlobContainerConditionalWriteTests extends OpenSearchTestCase 
             }
 
             @Override
-            ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
+            ParallelTransferOptions getBlobRequestOptionsForWriteBlob(String clientName) {
                 return new ParallelTransferOptions().setMaxSingleUploadSizeLong(ByteSizeUnit.MB.toBytes(1));
             }
         };
