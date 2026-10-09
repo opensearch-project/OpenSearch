@@ -10,18 +10,26 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.opensearch.search.DocValueFormat;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Translates MIN metric aggregation to Calcite. */
 public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregationBuilder> {
 
-    /** Creates a MIN metric translator. */
-    public MinMetricTranslator() {}
+    /**
+     * Creates a MIN metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public MinMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        super(mapperServiceSupplier);
+    }
 
     @Override
     public Class<MinAggregationBuilder> getAggregationType() {
@@ -40,8 +48,9 @@ public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregation
 
     /** Null (no matching docs) becomes +Infinity — legacy sentinel, rendered as {@code "value": null}. */
     @Override
-    public InternalAggregation toInternalAggregation(String name, Object value, Map<String, Object> metadata) {
-        double min = value == null ? Double.POSITIVE_INFINITY : toDouble(value);
-        return new InternalMin(name, min, DocValueFormat.RAW, metadata);
+    public InternalAggregation toInternalAggregation(MinAggregationBuilder agg, Map<String, Object> values) {
+        Object result = getResult(agg, values);
+        double min = result == null ? Double.POSITIVE_INFINITY : toDouble(result);
+        return new InternalMin(agg.getName(), min, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }
