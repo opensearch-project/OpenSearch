@@ -165,6 +165,11 @@ public class JoinHelper {
             private final long term = currentTermSupplier.getAsLong();
 
             @Override
+            protected boolean isJoiningNodeConnected(DiscoveryNode node) {
+                return transportService.nodeConnected(node);
+            }
+
+            @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
                 // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager
