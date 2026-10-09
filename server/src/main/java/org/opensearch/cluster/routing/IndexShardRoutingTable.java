@@ -57,7 +57,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -703,16 +702,23 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
     }
 
     private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter) {
-        LinkedList<ShardRouting> ordered = new LinkedList<>();
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+        List<ShardRouting> activeMatches = new ArrayList<>();
+        List<ShardRouting> initializingMatches = new ArrayList<>();
+        for (ShardRouting replica : replicas) {
             if (filter.test(replica)) {
                 if (replica.active()) {
-                    ordered.addFirst(replica);
+                    activeMatches.add(replica);
                 } else if (replica.initializing()) {
-                    ordered.addLast(replica);
+                    initializingMatches.add(replica);
                 }
             }
         }
+        // Rotate the filtered list rather than the full replicas list: rotation offsets that land on
+        // filtered-out shards would otherwise collapse onto the same starting shard, permanently
+        // skewing traffic toward the replica that precedes the filtered-out ones in list order.
+        List<ShardRouting> ordered = new ArrayList<>(activeMatches.size() + initializingMatches.size());
+        ordered.addAll(shuffler.shuffle(activeMatches));
+        ordered.addAll(initializingMatches);
         return new PlainShardIterator(shardId, ordered);
     }
 
