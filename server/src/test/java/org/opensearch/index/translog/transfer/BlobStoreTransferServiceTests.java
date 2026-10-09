@@ -342,10 +342,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> new BlobStoreTransferService(blobStore, threadPool).downloadBlobWithMetadata(
-                BlobPath.cleanPath(),
-                "translog-1.tlog"
-            )
+            () -> new BlobStoreTransferService(blobStore, threadPool).downloadBlobWithMetadata(BlobPath.cleanPath(), "translog-1.tlog")
         );
         assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
         verify(blobStore, Mockito.never()).blobContainer(any(BlobPath.class));
