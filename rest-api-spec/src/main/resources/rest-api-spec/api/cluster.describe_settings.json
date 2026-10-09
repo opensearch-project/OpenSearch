@@ -1,0 +1,25 @@
+{
+  "cluster.describe_settings": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-settings/",
+      "description": "Describes exact registered cluster setting names using the elected cluster-manager's definitions. Returns dynamic metadata, not values or defaults. Unknown and filtered names are omitted."
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {"path": "/_cluster/settings/_describe", "methods": ["GET"]}
+      ]
+    },
+    "params": {
+      "settings": {
+        "type": "list",
+        "required": true,
+        "description": "Exact setting names, including concrete affix keys. Wildcards are not supported."
+      },
+      "cluster_manager_timeout": {
+        "type": "time",
+        "description": "Timeout for connecting to the elected cluster-manager"
+      }
+    }
+  }
+}

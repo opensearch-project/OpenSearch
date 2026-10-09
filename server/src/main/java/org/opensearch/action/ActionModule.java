@@ -95,7 +95,9 @@ import org.opensearch.action.admin.cluster.repositories.verify.TransportVerifyRe
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsAction;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.opensearch.action.admin.cluster.settings.TransportClusterDescribeSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.CatShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -358,6 +360,7 @@ import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsA
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterDeleteWeightedRoutingAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterDescribeSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -697,6 +700,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTermVersionAction.INSTANCE, TransportGetTermVersionAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
+        actions.register(ClusterDescribeSettingsAction.INSTANCE, TransportClusterDescribeSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
@@ -915,6 +919,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
+        registerHandler.accept(new RestClusterDescribeSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
