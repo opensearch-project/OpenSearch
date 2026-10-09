@@ -38,6 +38,7 @@ import org.opensearch.index.query.ParsedQuery;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -52,6 +53,7 @@ public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
+    private RescoreReorderMode reorderMode = RescoreReorderMode.LEGACY;
 
     /**
      * Build the context.
@@ -74,6 +76,17 @@ public class RescoreContext {
      */
     public int getWindowSize() {
         return windowSize;
+    }
+
+    /**
+     * How hits are reordered after rescoring relative to hits beyond the rescore window.
+     */
+    public RescoreReorderMode getReorderMode() {
+        return reorderMode;
+    }
+
+    public void setReorderMode(RescoreReorderMode reorderMode) {
+        this.reorderMode = Objects.requireNonNull(reorderMode);
     }
 
     public void setRescoredDocs(Set<Integer> docIds) {
