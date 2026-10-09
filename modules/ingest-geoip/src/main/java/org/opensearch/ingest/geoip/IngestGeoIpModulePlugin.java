@@ -36,7 +36,7 @@ import com.maxmind.db.NoCache;
 import com.maxmind.db.NodeCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.JsonSerializable;
 
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
@@ -218,26 +218,22 @@ public class IngestGeoIpModulePlugin extends Plugin implements IngestPlugin, Clo
      * reduction of CPU usage.
      */
     static class GeoIpCache {
-        private final Cache<CacheKey<?>, AbstractResponse> cache;
+        private final Cache<CacheKey<?>, JsonSerializable> cache;
 
         // package private for testing
         GeoIpCache(long maxSize) {
             if (maxSize < 0) {
                 throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
             }
-            this.cache = CacheBuilder.<CacheKey<?>, AbstractResponse>builder().setMaximumWeight(maxSize).build();
+            this.cache = CacheBuilder.<CacheKey<?>, JsonSerializable>builder().setMaximumWeight(maxSize).build();
         }
 
-        <T extends AbstractResponse> T putIfAbsent(
-            InetAddress ip,
-            Class<T> responseType,
-            Function<InetAddress, AbstractResponse> retrieveFunction
-        ) {
+        <T extends JsonSerializable> T putIfAbsent(InetAddress ip, Class<T> responseType, Function<InetAddress, T> retrieveFunction) {
 
             // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
             CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-            AbstractResponse response = cache.get(cacheKey);
+            JsonSerializable response = cache.get(cacheKey);
             if (response == null) {
                 response = retrieveFunction.apply(ip);
                 cache.put(cacheKey, response);
@@ -246,7 +242,7 @@ public class IngestGeoIpModulePlugin extends Plugin implements IngestPlugin, Clo
         }
 
         // only useful for testing
-        <T extends AbstractResponse> T get(InetAddress ip, Class<T> responseType) {
+        <T extends JsonSerializable> T get(InetAddress ip, Class<T> responseType) {
             CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
             return responseType.cast(cache.get(cacheKey));
         }
@@ -256,9 +252,9 @@ public class IngestGeoIpModulePlugin extends Plugin implements IngestPlugin, Clo
         * type is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
         * IP may be in both with different values and we need to cache both. The response type scopes the IP to the correct database
         * provides a means to safely cast the return objects.
-        * @param <T> The AbstractResponse type used to scope the key and cast the result.
+        * @param <T> The JsonSerializable type used to scope the key and cast the result.
         */
-        private static class CacheKey<T extends AbstractResponse> {
+        private static class CacheKey<T extends JsonSerializable> {
 
             private final InetAddress ip;
             private final Class<T> responseType;
