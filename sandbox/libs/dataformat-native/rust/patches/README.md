@@ -1,50 +1,50 @@
-# Third-party crate patches
+# Build-time third-party crate patches
 
-Patches applied to official crates.io sources at build time by the Gradle task
-`:sandbox:libs:dataformat-native:preparePatchedParquet`. The task downloads the official `.crate`
-tarball, verifies it against the checked-in `<crate>-<version>.crate.sha256`, unpacks it under
-`rust/build/patched/`, and applies the patch. `Cargo.toml`'s `[patch.crates-io]` section points at
-the result.
+Some fixes must live inside a crates.io crate — either crate-internal APIs our own Rust can't
+reach, or upstream behavior we carry until a fix lands upstream. These patches are applied to the
+official crate sources at build time by the generic `registerCratePatch(crate, version, patchFile)`
+helper in `../../build.gradle`.
 
-## parquet-58.3.0-forward-cursor.patch
+## How it works
+For each registered crate the Gradle task (`preparePatched<CrateName>`) does:
+1. Download `https://static.crates.io/crates/<crate>/<crate>-<version>.crate` into `build/downloads/`
+   (skipped if already present; fails under `--offline` if not cached).
+2. Verify the tarball against the checked-in `<crate>-<version>.crate.sha256` — the integrity gate
+   (a `[patch.crates-io]` path dep carries no Cargo.lock checksum, so this is what guarantees we
+   patched the same bytes that were reviewed).
+3. Unpack under `build/patched/<crate>-<version>/`.
+4. `git apply -p2 <patch>` (with `GIT_CEILING_DIRECTORIES` set so git treats the unpacked tree as
+   standalone), then verify every target file actually changed (git apply exits 0 even when it
+   skips a file, so a no-op apply is caught here).
 
-Adds three methods to `ParquetRecordBatchReader`, consumed by
-`sandbox/plugins/analytics-backend-datafusion/rust/src/forward_reader.rs`:
+`rust/Cargo.toml`'s `[patch.crates-io]` points each patched crate at `build/patched/<crate>-<version>`,
+and `buildRustLibrary` depends on every patch task, so cargo never sees the unpatched crate.
+`build/` is gitignored — the patched tree is regenerated on every build.
 
-| Method | Purpose |
-|---|---|
-| `skip_rows(num_rows) -> Result<usize>` | Advance the decoder past `num_rows` without materializing them, so a forward doc-values cursor can skip unfetched pages. |
-| `read_next_batch(num_rows) -> Result<Option<RecordBatch>>` | Decode a bounded batch instead of the reader's fixed batch size, so the caller controls the decode window. |
-| `set_batch_size(batch_size)` | Adjust the decode window in place. `pub(crate)`; used by the two methods above. |
+## Adding / refreshing a patch
+1. Add the patch file here as `<crate>-<version>-<slug>.patch`. Generate it against the **unmodified
+   crates.io sources** with headers `+++ b/<crate>/<path>` (so `git apply -p2` strips `b/<crate>`).
+2. Add `<crate>-<version>.crate.sha256` (format: `<sha256>  <crate>-<version>.crate`;
+   `sha256sum` of the crates.io `.crate` tarball).
+3. Register it in `../../build.gradle`: add a `registerCratePatch('<crate>', '<version>', '<patchFile>')`
+   entry to `cratePatchTasks`.
+4. Add the `[patch.crates-io]` entry in `rust/Cargo.toml`:
+   `<crate> = { path = "build/patched/<crate>-<version>" }`.
+5. Materialize once for a bare `cargo`/rust-analyzer (Gradle does this automatically):
+   `./gradlew :sandbox:libs:dataformat-native:preparePatched<CrateName>`.
 
-These manipulate `ParquetRecordBatchReader`'s private fields (its array reader and read plan), which
-Rust only permits from inside the `parquet` crate, so the change cannot live in OpenSearch's own
-Rust code.
+Bumping a crate version: update the version in all four places (build.gradle, Cargo.toml patch path,
+patch filename, sha256 filename) and regenerate the patch + sha256 against the new sources.
 
-The patch applies to the unmodified `parquet` 58.3.0 sources, which is the base to regenerate it
-against.
-
-## Bumping the parquet version
-
-Update `parquetVersion` in `dataformat-native/build.gradle`, the `[patch.crates-io]` path in
-`rust/Cargo.toml`, and regenerate both `parquet-<version>-forward-cursor.patch` and
-`parquet-<version>.crate.sha256`. The build fails with an explicit message if these disagree.
-
-## Removing this patch
-
-Tracked upstream at https://github.com/apache/arrow-rs/issues/10655. Drop the patch, the
-`[patch.crates-io]` entry, and the Gradle task once the APIs are released in arrow-rs and
-DataFusion's pinned arrow version includes them. DataFusion 54.0.0 pins arrow/parquet at 58.3.0, so
-this cannot happen until that pin moves.
-
-## Running cargo by hand
-
-`[patch.crates-io]` points at a generated directory, so cargo cannot read the workspace manifest
-until it exists. After a fresh clone, materialize it once:
-
-```
-./gradlew :sandbox:libs:dataformat-native:preparePatchedParquet
-```
-
-Gradle builds do this automatically. Without it, `cargo build` / `cargo test` and rust-analyzer fail
-with `failed to load source for dependency 'parquet'`.
+## Current patches
+- **`parquet-59.2.0-forward-cursor.patch`** — adds forward-cursor APIs `skip_rows` /
+  `read_next_batch` (and a `ReadPlan::set_batch_size` helper) to `ParquetRecordBatchReader`, used by
+  `forward_reader.rs`. They require the crate's private internals, so they can't live outside the
+  crate. Not yet upstream (`apache/arrow-rs#10655`); **drop this patch + its `[patch.crates-io]`
+  entry** once the APIs land upstream and DataFusion's arrow/parquet pin includes them.
+- **`datafusion-datasource-parquet-55.0.0-infer-skip-pageindex.patch`** — forces
+  `ParquetFormat::infer_schema` to `PageIndexPolicy::Skip`. DF55 (apache/datafusion#22857) made it
+  fetch the parquet page index (default `Optional` when a file-metadata cache is present), which
+  schema inference never uses; our footer-only metadata cache strips it, so it reloaded ~30ms/query
+  per segment (absent on DF54). The page index is still loaded lazily per-column at scan by the
+  scoped cache. **Upstream candidate** — drop this patch + its `[patch.crates-io]` entry if adopted.

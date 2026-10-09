@@ -12,12 +12,12 @@ plans:
             OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
                 OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
         OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
         OpenSearchProject($f0=[$0], $f1=[CAST($1):BIGINT NOT NULL], viableBackends=[[datafusion]])
@@ -25,8 +25,8 @@ plans:
             OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical: |
-      AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.UserID) as $f0, count(<scrubbed>.UserID) as $f1]
-        DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+      AggregateExec: mode=Partial, gby=[], aggr=[sum(scrub_S005.UserID) as $f0, count(scrub_S005.UserID) as $f1]
+        DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet
     coord_physical: |
       ProjectionExec: expr=[CASE WHEN sum(input-0.$f1)@1 = 0 THEN NULL ELSE CAST(sum(input-0.$f0)@0 AS Float64) / CAST(sum(input-0.$f1)@1 AS Float64) END as avg(UserID)]
         AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.$f0), sum(input-0.$f1)]
@@ -39,20 +39,20 @@ plans:
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
           OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[SINGLE], viableBackends=[[datafusion]])
           OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      ProjectionExec: expr=[CASE WHEN count(<scrubbed>.UserID)@1 = 0 THEN NULL ELSE CAST(sum(<scrubbed>.UserID)@0 AS Float64) / CAST(count(<scrubbed>.UserID)@1 AS Float64) END as avg(UserID)]
-        AggregateExec: mode=Single, gby=[], aggr=[sum(<scrubbed>.UserID), count(<scrubbed>.UserID)]
-          DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+      ProjectionExec: expr=[CASE WHEN count(scrub_S005.UserID)@1 = 0 THEN NULL ELSE CAST(sum(scrub_S005.UserID)@0 AS Float64) / CAST(count(scrub_S005.UserID)@1 AS Float64) END as avg(UserID)]
+        AggregateExec: mode=Single, gby=[], aggr=[sum(scrub_S005.UserID), count(scrub_S005.UserID)]
+          DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet
     shard_physical_nseg: |
-      ProjectionExec: expr=[CASE WHEN count(<scrubbed>.UserID)@1 = 0 THEN NULL ELSE CAST(sum(<scrubbed>.UserID)@0 AS Float64) / CAST(count(<scrubbed>.UserID)@1 AS Float64) END as avg(UserID)]
-        AggregateExec: mode=Final, gby=[], aggr=[sum(<scrubbed>.UserID), count(<scrubbed>.UserID)]
+      ProjectionExec: expr=[CASE WHEN count(scrub_S005.UserID)@1 = 0 THEN NULL ELSE CAST(sum(scrub_S005.UserID)@0 AS Float64) / CAST(count(scrub_S005.UserID)@1 AS Float64) END as avg(UserID)]
+        AggregateExec: mode=Final, gby=[], aggr=[sum(scrub_S005.UserID), count(scrub_S005.UserID)]
           CoalescePartitionsExec
-            AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.UserID), count(<scrubbed>.UserID)]
-              DataSourceExec: file_groups={<scrubbed>}, projection=[UserID], file_type=parquet
+            AggregateExec: mode=Partial, gby=[], aggr=[sum(scrub_S005.UserID), count(scrub_S005.UserID)]
+              DataSourceExec: file_groups={scrub_S001}, projection=[UserID], file_type=parquet
