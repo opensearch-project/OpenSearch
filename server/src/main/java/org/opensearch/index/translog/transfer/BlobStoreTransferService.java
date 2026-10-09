@@ -94,7 +94,14 @@ public class BlobStoreTransferService implements TransferService {
         Map<String, String> metadata = buildTransferFileMetadata(fileSnapshot);
         try (InputStream inputStream = fileSnapshot.inputStream()) {
             blobStore.blobContainer(blobPath)
-                .writeBlobWithMetadata(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true, metadata, cryptoMetadata);
+                .writeBlobWithMetadata(
+                    fileSnapshot.getName(),
+                    inputStream,
+                    fileSnapshot.getContentLength(),
+                    true,
+                    metadata,
+                    cryptoMetadata
+                );
         }
     }
 
