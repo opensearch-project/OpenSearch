@@ -72,14 +72,15 @@ import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTrack
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     // Tracker-apply rules (each tracker decides independently via this map):
-    // - CPU tracker fires when CPU is in duress. CPU and native trackers are mutually
-    // exclusive at install time (see getTrackers): when isNativeTrackingSupported()
-    // we install the native tracker, otherwise we install CPU. The map predicates only
-    // gate on duress; addResourceTrackerBasedCancellations is a no-op for any
-    // tracker that wasn't installed (Optional.ifPresent in TaskResourceUsageTrackers).
+    // - CPU tracker fires when CPU is in duress. It is always installed (see getTrackers); it
+    // measures Java-side CPU only, so it under-counts (and therefore does not fire for) work
+    // delegated to a native engine, while remaining the full signal for searches executed by
+    // OpenSearch itself. The map predicates only gate on duress; addResourceTrackerBasedCancellations
+    // is a no-op for any tracker that wasn't installed (Optional.ifPresent in TaskResourceUsageTrackers).
     // - Heap tracker fires when heap is in duress (and heap tracking is supported).
     // - Elapsed-time tracker always fires.
     // - Native-memory tracker fires when native memory is in duress (and tracking is supported).
+    // CPU and native-memory trackers coexist: each contributes its own cancellation reasons.
     //
     // When native-memory duress is active, doRun() bypasses the heap-dominance gate so all
     // in-flight tasks become cancellation candidates (off-heap pressure is invisible to heap
@@ -430,13 +431,15 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         Setting<Integer> windowSizeSetting
     ) {
         TaskResourceUsageTrackers trackers = new TaskResourceUsageTrackers();
+        // The CPU tracker is always installed. It only sees Java-side CPU time, which
+        // under-counts work executed by a native engine (so it will not fire for that work),
+        // but is the complete signal for searches executed by OpenSearch itself.
+        trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
         if (isNativeTrackingSupported()) {
             trackers.addTracker(
                 new NativeMemoryUsageTracker(nativeMemoryPercentThresholdSupplier),
                 TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER
             );
-        } else {
-            trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
         }
         if (isHeapTrackingSupported()) {
             trackers.addTracker(

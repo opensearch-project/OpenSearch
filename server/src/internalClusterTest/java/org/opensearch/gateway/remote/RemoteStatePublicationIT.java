@@ -169,6 +169,13 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         return plugins;
     }
 
+    // Registers its own "FLIGHT" stream transport (MockStreamTransportPlugin); the sandbox stack's real
+    // FlightStreamPlugin would collide on that name, so opt out of the stack.
+    @Override
+    protected boolean installSandboxPlugins() {
+        return false;
+    }
+
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testPublication() throws Exception {
         // create cluster with multi node (3 master + 2 data)
