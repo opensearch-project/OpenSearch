@@ -38,6 +38,20 @@ public class QueryRegistry {
     }
 
     /**
+     * Returns whether a translator is registered for this query's type.
+     *
+     * <p>Callers that validate a clause without converting it use this to stay aligned with
+     * {@link #convert}: an unregistered type is wrapped in {@link UnresolvedQueryCall} rather than
+     * rejected, so it receives no translator-level validation today.
+     *
+     * @param query the query builder to check
+     * @return true if a translator is registered for the query's type
+     */
+    public boolean hasTranslator(QueryBuilder query) {
+        return translators.containsKey(query.getClass());
+    }
+
+    /**
      * Converts a query using the registered translator for its type.
      * If no translator is registered, wraps the query in an {@link UnresolvedQueryCall}
      * for the analytics engine's optimizer to resolve or reject.
