@@ -230,6 +230,7 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -649,6 +650,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * To be delegated to {@link ReplicationTracker} so that relevant remote store based
      * operations can be ignored during engine migration
      * <p>
+     * This tracks the remote translog specifically, because the tracker uses it to decide whether a replica can be
+     * excluded from the replication group. A shard on a {@code segments_only} node keeps its translog locally, so it
+     * must stay in the replication group even though its segments live in a remote store.
+     * <p>
      * Has explicit null checks to ensure that the {@link ReplicationTracker#invariant()}
      * checks does not fail during a cluster manager state update when the latest replication group
      * calculation is not yet done and the cached replication group details are available
@@ -656,13 +661,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            return node.isRemoteStoreNode();
+            return node.isRemoteTranslogStoreNode();
         }
         return false;
     };
 
     public boolean isRemoteSeeded() {
         return shardMigrationState == REMOTE_MIGRATING_SEEDED;
+    }
+
+    /**
+     * Whether this shard's translog has an authoritative copy in the remote store, so that the local translog directory
+     * is a cache of that copy: a remote-store index, or a docrep index whose shard was seeded into the remote store by a
+     * remote source while migrating ({@link ShardMigrationState#REMOTE_MIGRATING_SEEDED}). Every decision that reads the
+     * remote translog during recovery ({@link #hydrateFromRemoteStore}, {@link #resetEngineToGlobalCheckpoint}) and the
+     * one that discards a local copy proven corrupt ({@link #discardCorruptLocalRemoteTranslog}) must agree on this, so
+     * they all go through here. An unseeded migrating shard has no remote copy yet, and its local translog is the only one.
+     */
+    boolean isTranslogBackedByRemoteStore() {
+        return isTranslogBackedByRemoteStore(indexSettings, shardMigrationState);
+    }
+
+    static boolean isTranslogBackedByRemoteStore(IndexSettings indexSettings, ShardMigrationState shardMigrationState) {
+        return indexSettings.isRemoteTranslogStoreEnabled() || shardMigrationState == REMOTE_MIGRATING_SEEDED;
     }
 
     public Store remoteStore() {
@@ -1314,6 +1335,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         state = newState;
         this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
         return previousState;
+    }
+
+    /**
+     * Begin a translog batch for the current thread on this shard's indexer. The caller (the primary bulk path) must
+     * flush and close the returned batch on the same thread. Indexers that do not opt in return a no-op batch (the
+     * {@link org.opensearch.index.engine.exec.Indexer#beginTranslogBatch()} default), so the bulk loop runs unchanged.
+     */
+    public Engine.TranslogBatch beginTranslogBatch() {
+        return getIndexer().beginTranslogBatch();
     }
 
     public Engine.IndexResult applyIndexOperationOnPrimary(
@@ -3376,12 +3406,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <p>
      * Since the remote store holds an intact copy, delete the local directory so that the next attempt starts from the
      * remote store instead. This is what a recovery did unconditionally before local generations were reused; it is now
-     * done only once the local copy has been proven wrong. Shards without a remote translog are left alone - their local
-     * translog is the only copy, and discarding it would lose data.
+     * done only once the local copy has been proven wrong. The decision uses the same predicate as the download that
+     * reused the generation ({@link #isTranslogBackedByRemoteStore()}), so a shard whose translog came from the remote
+     * store - a remote-store index, or a migrating docrep shard seeded by a remote source - always gets the retry, and a
+     * shard without a remote translog is left alone: its local translog is the only copy, and discarding it would lose data.
      */
     private void discardCorruptLocalRemoteTranslog(Exception failure) {
-        if (indexSettings.isRemoteTranslogStoreEnabled() == false
-            || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
+        if (isTranslogBackedByRemoteStore() == false || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
             return;
         }
         final Path translogLocation = shardPath().resolveTranslog();
@@ -3435,6 +3466,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         innerOpenEngineAndTranslog(globalCheckpointSupplier, true);
     }
 
+    /**
+     * Whether this shard rebuilds its translog from the primary instead of from a remote store. This is the case for a
+     * write replica of an index whose segments live in a remote store but whose translog does not, as happens when the
+     * cluster runs in {@code segments_only} mode. Such a replica receives operations through node-to-node replication,
+     * so restoring it from the remote store would discard a translog that is the only durable copy of those operations.
+     * Search-only replicas never receive operations and so are excluded.
+     */
+    private boolean recoversTranslogFromPeer() {
+        return shardRouting.primary() == false
+            && shardRouting.isSearchOnly() == false
+            && indexSettings.isRemoteTranslogStoreEnabled() == false
+            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+    }
+
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
         syncFromRemote = syncFromRemote && indexSettings.isRemoteSnapshot() == false;
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
@@ -3452,7 +3497,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
-        final boolean hydrateFromRemote = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
+            && recoversTranslogFromPeer() == false;
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }
@@ -3522,13 +3568,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 cancellableThreads.executeIO(() -> {
                     // A primary must claim the fence before reading either remote flow. Peer-recovery relocation targets
                     // deliberately skip the seal inside sealRemoteStoreFenceForRecovery.
-                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                    if (shardRouting.primary() && isTranslogBackedByRemoteStore()) {
                         sealRemoteStoreFenceForRecovery();
                     }
                     if (syncFromRemote) {
                         syncSegmentsFromRemoteSegmentStore(false);
                     }
-                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                    if (shardRouting.primary() && isTranslogBackedByRemoteStore()) {
                         if (syncFromRemote) {
                             syncRemoteTranslogAndUpdateGlobalCheckpoint();
                         } else if (isSnapshotV2Restore() == false) {
@@ -6092,7 +6138,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
+            if (isTranslogBackedByRemoteStore() && shardRouting.primary()) {
                 // On replica-to-primary promotion the operation term has already been bumped, and the previous primary
                 // may be alive behind a partition, still holding a valid fence token. Seal before reading the remote
                 // translog restore point, or that primary could keep acknowledging writes landing after it. A primary
