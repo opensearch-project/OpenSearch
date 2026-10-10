@@ -117,8 +117,8 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     }
 
     /**
-     * AzureRepositoryPlugin that allows to set low values for the Azure's client retry policy
-     * and for BlobRequestOptions#getSingleBlobPutThresholdInBytes().
+     * AzureRepositoryPlugin that allows low values for the Azure client retry policy
+     * and single-upload threshold.
      */
     public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
 
@@ -147,7 +147,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
                 }
 
                 @Override
-                ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
+                ParallelTransferOptions getBlobRequestOptionsForWriteBlob(String clientName) {
                     return new ParallelTransferOptions().setMaxSingleUploadSizeLong(ByteSizeUnit.MB.toBytes(1));
                 }
             };
