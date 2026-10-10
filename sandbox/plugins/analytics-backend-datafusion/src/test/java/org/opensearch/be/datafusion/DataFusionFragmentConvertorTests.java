@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
@@ -15,13 +16,21 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.CorrelationId;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Uncollect;
+import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalCorrelate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -33,6 +42,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -705,8 +715,316 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
     // ── Extension function rename tests ────────────────────────────────────────
 
+    public void testListOverSourceMultiValueRoutesToMvCollect() throws Exception {
+        assertListAggregateUses("test_index", "mv_collect");
+    }
+
+    public void testListOverFinalStateRoutesToListMerge() throws Exception {
+        assertListAggregateUses("input-7", "list_merge");
+    }
+
+    public void testListAggregateGroupedBySameMultiValueFieldPreservesListInput() {
+        RelNode scan = buildListTableScan("test_index");
+        LogicalAggregate aggregate = LogicalAggregate.create(
+            scan,
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(buildListAggregateCall(scan, 1))
+        );
+
+        RelNode rewritten = MultiValueRelRewriter.rewrite(PplAggregateCallRewriter.rewrite(aggregate));
+        assertTrue(rewritten instanceof LogicalProject);
+        LogicalProject output = (LogicalProject) rewritten;
+        assertEquals(List.of("tags", "values"), output.getRowType().getFieldNames());
+        assertTrue(output.getInput() instanceof org.apache.calcite.rel.core.Aggregate);
+
+        org.apache.calcite.rel.core.Aggregate grouped = (org.apache.calcite.rel.core.Aggregate) output.getInput();
+        assertEquals("GROUP BY must use the appended scalar field", ImmutableBitSet.of(1), grouped.getGroupSet());
+        assertEquals("aggregate argument must remain on the source LIST", List.of(0), grouped.getAggCallList().get(0).getArgList());
+        assertEquals(DataFusionFragmentConvertor.LOCAL_MV_COLLECT_OP, grouped.getAggCallList().get(0).getAggregation());
+        assertTrue(grouped.getInput() instanceof MultiValueExpandRel);
+        assertNotNull(grouped.getInput().getRowType().getFieldList().get(0).getType().getComponentType());
+        assertNull(grouped.getInput().getRowType().getFieldList().get(1).getType().getComponentType());
+    }
+
+    public void testListGroupByRemapsGroupingSetsAndRestoresOutputOrder() {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType inputType = typeFactory.builder()
+            .add("tags", list)
+            .add("category", typeFactory.createSqlType(SqlTypeName.VARCHAR))
+            .build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", inputType);
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count"
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(
+            scan,
+            List.of(),
+            ImmutableBitSet.of(0, 1),
+            ImmutableBitSet.ORDERING.immutableSortedCopy(List.of(ImmutableBitSet.of(0), ImmutableBitSet.of(1), ImmutableBitSet.of(0, 1))),
+            List.of(count)
+        );
+
+        LogicalProject output = (LogicalProject) MultiValueRelRewriter.rewrite(aggregate);
+        org.apache.calcite.rel.core.Aggregate grouped = (org.apache.calcite.rel.core.Aggregate) output.getInput();
+        assertEquals(ImmutableBitSet.of(1, 2), grouped.getGroupSet());
+        assertEquals(
+            ImmutableBitSet.ORDERING.immutableSortedCopy(List.of(ImmutableBitSet.of(2), ImmutableBitSet.of(1), ImmutableBitSet.of(1, 2))),
+            grouped.getGroupSets()
+        );
+        assertEquals(List.of("tags", "category", "count"), output.getRowType().getFieldNames());
+        assertEquals(1, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(0)).getIndex());
+        assertEquals(0, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(1)).getIndex());
+        assertEquals(2, ((org.apache.calcite.rex.RexInputRef) output.getProjects().get(2)).getIndex());
+    }
+
+    public void testListGroupByAddsDistinctAppendExpansion() throws Exception {
+        RelNode scan = buildListTableScan("test_index");
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count"
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(aggregate));
+        Rel root = rootRel(plan);
+        assertTrue("output projection restores the original group field name", root.hasProject());
+        Rel aggregateRel = root.getProject().getInput();
+        assertTrue(aggregateRel.hasAggregate());
+        Rel expanded = aggregateRel.getAggregate().getInput();
+        assertTrue("LIST GROUP BY must use an ExtensionSingleRel", expanded.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(-1, payload.getInt());
+        assertEquals("implicit GROUP BY expansion appends a scalar field", 1, payload.getInt());
+        assertEquals("implicit GROUP BY expansion de-duplicates within each document", 1, payload.getInt());
+        assertEquals(List.of("tags", "count"), plan.getRelations(0).getRoot().getNamesList());
+    }
+
+    /**
+     * Multi-shard LIST GROUP BY: the coordinator decodes the shard-stage bytes (which carry the
+     * multi-value expand as an {@code ExtensionSingleRel}) to splice the FINAL aggregate on top.
+     * The stock proto converter turns unknown extensions into an empty-struct detail, so the
+     * PARTIAL aggregate's GROUP BY field reference fails with
+     * "Field reference offset (N) must be less than number of fields in struct (0)". The decoder
+     * must rebuild the extension with its real output schema so the round trip succeeds and the
+     * extension survives re-serialization unchanged.
+     */
+    public void testAttachFragmentOnTopDecodesMultiValueExpandExtension() throws Exception {
+        RelNode scan = buildListTableScan("test_index");
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count"
+        );
+        LogicalAggregate partial = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        byte[] innerBytes = newConvertor().convertFragment(partial);
+        assertTrue(
+            "shard fragment must carry the expand extension",
+            rootRel(decodeSubstrait(innerBytes)).getProject().getInput().getAggregate().getInput().hasExtensionSingle()
+        );
+
+        // FINAL half: SUM(count) grouped by the expanded (now scalar VARCHAR) tags column.
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType partialRowType = typeFactory.builder()
+            .add("tags", element)
+            .add("count", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true))
+            .build();
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, partialRowType, List.of("datafusion"), List.of());
+        AggregateCall sumCounts = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "count"
+        );
+        LogicalAggregate finalAgg = LogicalAggregate.create(stageInput, List.of(), ImmutableBitSet.of(0), null, List.of(sumCounts));
+
+        byte[] combined = newConvertor().attachFragmentOnTop(finalAgg, innerBytes);
+
+        Rel root = rootRel(decodeSubstrait(combined));
+        assertTrue("root must be the FINAL aggregate", root.hasAggregate());
+        Rel inner = root.getAggregate().getInput();
+        assertTrue("FINAL aggregate must sit on the shard fragment's output projection", inner.hasProject());
+        Rel partialAgg = inner.getProject().getInput();
+        assertTrue(partialAgg.hasAggregate());
+        Rel expanded = partialAgg.getAggregate().getInput();
+        assertTrue("expand extension must survive decode + re-encode", expanded.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(-1, payload.getInt());
+        assertEquals(1, payload.getInt());
+        assertEquals(1, payload.getInt());
+        assertEquals(
+            "PARTIAL GROUP BY key must still reference the appended expanded column",
+            1,
+            partialAgg.getAggregate()
+                .getGroupings(0)
+                .getGroupingExpressions(0)
+                .getSelection()
+                .getDirectReference()
+                .getStructField()
+                .getField()
+        );
+    }
+
+    /**
+     * FINAL half of a multi-shard LIST GROUP BY. The stage input is still typed with the
+     * pre-expansion ARRAY key, but the PARTIAL fragment already emits the scalar element, so the
+     * FINAL aggregate must not expand again and its Read must declare the key as a string —
+     * otherwise DataFusion rejects the plan with "Field 'tags' in Substrait schema has a
+     * different type (List(Utf8)) than the corresponding field in the table schema (Utf8View)".
+     */
+    public void testFinalAggregateRetypesExpandedStageInputKeyInsteadOfExpanding() throws Exception {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType partialRowType = typeFactory.builder()
+            .add("tags", list)
+            .add("count", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true))
+            .build();
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, partialRowType, List.of("datafusion"), List.of());
+        AggregateCall sumCounts = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "count"
+        );
+        LogicalAggregate finalAgg = LogicalAggregate.create(
+            stageInput,
+            List.of(RelHint.builder(OpenSearchAggregate.FINAL_MODE_HINT).build()),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(sumCounts)
+        );
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(finalAgg)));
+        assertTrue("FINAL aggregate must be emitted without an expansion Project", root.hasAggregate());
+        Rel input = root.getAggregate().getInput();
+        assertTrue("FINAL aggregate must read the stage input directly, not a second expand", input.hasRead());
+        io.substrait.proto.Type keyType = input.getRead().getBaseSchema().getStruct().getTypes(0);
+        assertTrue("stage-input key must be declared with the element type: " + keyType, keyType.hasString());
+        assertEquals("input-1", input.getRead().getNamedTable().getNames(0));
+
+        // Without the FINAL hint the same shape is a PARTIAL over a worker stage input and must still expand.
+        LogicalAggregate partialOverStageInput = LogicalAggregate.create(
+            stageInput,
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(sumCounts)
+        );
+        Rel partialRoot = rootRel(decodeSubstrait(newConvertor().convertFragment(partialOverStageInput)));
+        assertTrue(partialRoot.hasProject());
+        assertTrue(partialRoot.getProject().getInput().getAggregate().getInput().hasExtensionSingle());
+    }
+
+    public void testExplicitMvExpandCorrelateEmitsAppendExtensionWithLimit() throws Exception {
+        RelNode left = buildListTableScan("test_index");
+        CorrelationId correlationId = cluster.createCorrel();
+        RexNode correlatedTags = rexBuilder.makeFieldAccess(rexBuilder.makeCorrel(left.getRowType(), correlationId), 0);
+        RelNode values = LogicalValues.createOneRow(cluster);
+        RelNode project = LogicalProject.create(
+            values,
+            List.of(),
+            List.of(correlatedTags),
+            List.of("tags"),
+            java.util.Set.of(correlationId)
+        );
+        RelNode uncollect = Uncollect.create(cluster.traitSet(), project, false, List.of());
+        RexNode fetch = rexBuilder.makeLiteral(2, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelNode limited = LogicalSort.create(uncollect, RelCollations.EMPTY, null, fetch);
+        RelNode correlate = LogicalCorrelate.create(left, limited, correlationId, ImmutableBitSet.of(0), JoinRelType.INNER);
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(correlate)));
+        assertTrue(root.hasExtensionSingle());
+        java.nio.ByteBuffer payload = root.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(2, payload.getInt());
+        assertEquals("explicit mvexpand appends its element for the frontend projection", 1, payload.getInt());
+        assertEquals("explicit mvexpand preserves duplicate elements", 0, payload.getInt());
+    }
+
+    private void assertListAggregateUses(String tableName, String expectedFunction) throws Exception {
+        RelNode scan = buildListTableScan(tableName);
+        LogicalAggregate aggregate = LogicalAggregate.create(
+            scan,
+            List.of(),
+            ImmutableBitSet.of(),
+            null,
+            List.of(buildListAggregateCall(scan, 0))
+        );
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(aggregate));
+        assertTrue(
+            "expected aggregate extension " + expectedFunction,
+            plan.getExtensionsList()
+                .stream()
+                .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+                .map(declaration -> declaration.getExtensionFunction().getName())
+                .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
+                .anyMatch(expectedFunction::equals)
+        );
+    }
+
+    private AggregateCall buildListAggregateCall(RelNode input, int groupCount) {
+        SqlAggFunction list = new SqlAggFunction(
+            "LIST",
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.ARG0,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        return AggregateCall.create(
+            list,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(0),
+            -1,
+            null,
+            RelCollations.EMPTY,
+            groupCount,
+            input,
+            input.getRowType().getFieldList().get(0).getType(),
+            "values"
+        );
+    }
+
+    private RelNode buildListTableScan(String tableName) {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType type = typeFactory.builder().add("tags", list).build();
+        return new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), tableName, type);
+    }
+
     /**
      * APPROX_COUNT_DISTINCT aggregate emits as {@code approx_distinct} in the
+
      * Substrait extension declarations — not the Calcite-native
      * {@code approx_count_distinct} name.
      */
@@ -849,4 +1167,36 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
+    // VirtualTable inline Values CHAR to Str normalization
+    /**
+     * A precision-unspecified VARCHAR Values converts straight through isthmus to a VirtualTable whose
+     * char column and every row cell are Str while the integer column stays i32. This is the generic
+     * path that {@code OpenSearchValuesCharNormalizeRule} feeds after normalising a raw CHAR Values.
+     */
+    public void testVirtualTable_VarcharValues_ConvertsToStrGenerically() throws Exception {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", varchar).add("age", intType).build();
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Alice"),
+                (RexLiteral) rexBuilder.makeLiteral(30, intType, false)
+            ),
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Bob"),
+                (RexLiteral) rexBuilder.makeLiteral(25, intType, false)
+            )
+        );
+        LogicalValues values = (LogicalValues) LogicalValues.create(cluster, rowType, tuples);
+        ReadRel read = rootRel(decodeSubstrait(newConvertor().convertFragment(values))).getRead();
+        assertTrue("must be a VirtualTable", read.hasVirtualTable());
+        assertTrue("varchar column -> Str schema", read.getBaseSchema().getStruct().getTypes(0).hasString());
+        assertTrue("int column stays numeric (i32)", read.getBaseSchema().getStruct().getTypes(1).hasI32());
+        assertEquals("two rows", 2, read.getVirtualTable().getExpressionsCount());
+        for (int r = 0; r < 2; r++) {
+            Expression.Nested.Struct row = read.getVirtualTable().getExpressions(r);
+            assertTrue("row " + r + " char cell must be a string literal", row.getFields(0).getLiteral().hasString());
+        }
+        assertEquals("int cell stays i32", 30, read.getVirtualTable().getExpressions(0).getFields(1).getLiteral().getI32());
+    }
 }

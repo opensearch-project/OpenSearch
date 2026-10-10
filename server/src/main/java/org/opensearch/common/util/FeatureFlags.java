@@ -128,6 +128,25 @@ public class FeatureFlags {
     public static final Setting<Boolean> STREAM_TRANSPORT_SETTING = Setting.boolSetting(STREAM_TRANSPORT, false, Property.NodeScope);
 
     /**
+     * Gates strict snapshot version parsing. When enabled, reading snapshot metadata whose stored
+     * version_id is unsupported (e.g. a legacy Elasticsearch snapshot) fails instead of resolving the
+     * version to unknown. Disabled by default so snapshot listing tolerates such repositories.
+     */
+    public static final String SNAPSHOT_STRICT_VERSION_PARSING = FEATURE_FLAG_PREFIX + "snapshot.strict_version_parsing.enabled";
+    public static final Setting<Boolean> SNAPSHOT_STRICT_VERSION_PARSING_SETTING = Setting.boolSetting(
+        SNAPSHOT_STRICT_VERSION_PARSING,
+        false,
+        Property.NodeScope
+    );
+
+    /**
+     * Gates the snapshot resilience optimizations (timeout budgets, circuit breaker, retry foundation).
+     * Default off for the first minor, flipped on in the next, removed one minor later.
+     */
+    public static final String SNAPSHOT_RESILIENCE = FEATURE_FLAG_PREFIX + "snapshot_resilience.enabled";
+    public static final Setting<Boolean> SNAPSHOT_RESILIENCE_SETTING = Setting.boolSetting(SNAPSHOT_RESILIENCE, false, Property.NodeScope);
+
+    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -153,6 +172,8 @@ public class FeatureFlags {
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(SNAPSHOT_STRICT_VERSION_PARSING_SETTING, SNAPSHOT_STRICT_VERSION_PARSING_SETTING.getDefault(Settings.EMPTY));
+                put(SNAPSHOT_RESILIENCE_SETTING, SNAPSHOT_RESILIENCE_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

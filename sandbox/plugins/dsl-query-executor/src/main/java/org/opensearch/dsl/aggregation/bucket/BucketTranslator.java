@@ -49,6 +49,8 @@ public interface BucketTranslator<T extends AggregationBuilder> extends Aggregat
 
     /**
      * Converts grouped bucket entries into an OpenSearch InternalAggregation for response building.
+     * Each entry carries one key per field declared in {@link #getGrouping}, in declaration order:
+     * {@code keys().get(i)} is the value of the i-th group field.
      *
      * @param agg the original aggregation builder
      * @param buckets the bucket entries with keys, doc counts, and sub-aggs

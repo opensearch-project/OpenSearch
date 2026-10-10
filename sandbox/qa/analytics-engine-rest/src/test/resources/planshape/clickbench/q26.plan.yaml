@@ -8,34 +8,30 @@ plans:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
             OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-              OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
-          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+        OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
             OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
             OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
-      SortPreservingMergeExec: [SearchPhrase@0 ASC], fetch=10
-        SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[true]
-          FilterExec: SearchPhrase@0 != 
-            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-              DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 !=  AND DynamicFilter [ <scrubbed> ], pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+      SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[false]
+        CooperativeExec
+          QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       SortPreservingMergeExec: [SearchPhrase@0 ASC], fetch=10
         SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[true]
-          FilterExec: SearchPhrase@0 != 
-            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-              DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 !=  AND DynamicFilter [ <scrubbed> ], pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+          QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[false]
         StreamingTableExec: partition_sizes=1, projection=[SearchPhrase]
@@ -43,25 +39,21 @@ plans:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
-            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+          OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
               OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
-          OpenSearchProject(SearchPhrase=[$74], viableBackends=[[datafusion]])
-            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($74, ''))], viableBackends=[[datafusion]])
+          OpenSearchProject(SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], <>($74, ''))], viableBackends=[[lucene, datafusion]])
               OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
-      SortPreservingMergeExec: [SearchPhrase@0 ASC], fetch=10
-        SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[true]
-          FilterExec: SearchPhrase@0 != 
-            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-              DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 !=  AND DynamicFilter [ <scrubbed> ], pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+      SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[false]
+        CooperativeExec
+          QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       SortPreservingMergeExec: [SearchPhrase@0 ASC], fetch=10
         SortExec: TopK(fetch=10), expr=[SearchPhrase@0 ASC], preserve_partitioning=[true]
-          FilterExec: SearchPhrase@0 != 
-            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-              DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase], file_type=parquet, predicate=SearchPhrase@63 !=  AND DynamicFilter [ <scrubbed> ], pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+          QueryShardExec: partitions=2, segments=2, ordering=unsorted

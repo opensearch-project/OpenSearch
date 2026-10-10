@@ -129,6 +129,7 @@ pub async fn build_segments(
             object_path: meta.location.clone(),
             parquet_size: size,
             row_groups,
+            arrow_schema: file_schema,
             metadata: pq_meta,
             global_base,
             sort_min,
@@ -136,21 +137,15 @@ pub async fn build_segments(
         });
     }
 
-    // Delegate to DataFusion's canonical schema inference. Internally:
-    //   1. Fetch each file's schema concurrently (meta_fetch_concurrency).
-    //   2. Sort by location for determinism (see apache/datafusion#6629).
-    //   3. Strip field-level metadata when skip_metadata=true (default).
-    //   4. `arrow::datatypes::Schema::try_merge` — union by field name,
-    //      first-seen order, nullability OR'd, types must match for
-    //      primitives (recursively merged for Struct/List/Union).
-    //   5. Apply `binary_as_string` and `force_view_types` transforms
-    //      if configured.
-    // Use Utf8View — ParquetOpener's apply_file_schema_type_coercions keeps the file/table
-    // schemas aligned, so QTF's coordinator-declared Utf8View matches the produced batches.
+    // Delegate to DataFusion's canonical schema inference. All files for a predefined
+    // multi-value field share the same LIST storage shape from their first generation.
     let format = ParquetFormat::default().with_force_view_types(true);
     let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
+    // force_view_types does not recursively rewrite LIST children.
+    let schema = crate::schema_coerce::transform_schema_to_view_recursive(schema.as_ref());
+    let schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(schema));
 
     Ok((segments, schema))
 }
@@ -295,7 +290,9 @@ mod tests {
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
-    use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};
+    use object_store::{
+        local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt,
+    };
     use tempfile::tempdir;
 
     /// Mirror of what `CacheManager::try_new` auto-installs when no custom

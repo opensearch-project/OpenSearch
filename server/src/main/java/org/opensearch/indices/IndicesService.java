@@ -96,6 +96,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -110,6 +111,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -160,6 +162,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -188,6 +191,7 @@ import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -455,6 +459,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
+    private final IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry;
     private final Supplier<IngestService> ingestServiceSupplier;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
@@ -523,6 +528,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry,
         Supplier<IngestService> ingestServiceSupplier,
         RecoverySettings recoverySettings,
         CacheService cacheService,
@@ -584,7 +590,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
-        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings, threadPool);
+        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
@@ -594,6 +600,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
+        this.ingestionPayloadDecoderRegistry = ingestionPayloadDecoderRegistry;
         this.ingestServiceSupplier = ingestServiceSupplier;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -610,7 +617,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesFieldDataCache,
                         cacheCleaner,
                         indicesRequestCache,
-                        indicesQueryCache
+                        indicesQueryCache,
+                        ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -711,6 +719,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -744,6 +753,7 @@ public class IndicesService extends AbstractLifecycleComponent
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
             ingestionConsumerFactories,
+            payloadDecoderRegistry,
             () -> null,
             recoverySettings,
             cacheService,
@@ -1275,7 +1285,11 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier);
+            IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
+                indexMetadata.getIngestionSource().getDecoderType()
+            );
+            decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
+            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
@@ -1331,7 +1345,7 @@ public class IndicesService extends AbstractLifecycleComponent
             dataFormatAwareStoreDirectoryFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, dataFormatRegistry);
     }
 
     /**
@@ -2273,6 +2287,21 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns a new {@link QueryRewriteContext} whose async actions issue their requests as children of
+     * {@code parentTaskId}. Rewriting can issue real requests -- a terms lookup with a subquery runs a search -- and
+     * without a parent those look like fresh top-level requests to anything that tracks the task tree.
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, TaskId parentTaskId) {
+        return new BaseQueryRewriteContext(
+            xContentRegistry,
+            namedWriteableRegistry,
+            parentTaskId != null && parentTaskId.isSet() ? new ParentTaskAssigningClient(client, parentTaskId) : client,
+            nowInMillis,
+            false
+        );
+    }
+
+    /**
      * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
      */
     public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
@@ -2311,11 +2340,18 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns a function which given an index name, returns a predicate which fields must match in order to be returned by get mappings,
-     * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
-     * The predicate receives the field name as input argument. In case multiple plugins register a field filter through
-     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be
-     * returned by get mappings, get index, get field mappings and field capabilities API.
+     * Returns a function that, given a concrete index name, returns a predicate that determines field visibility. Consumers include
+     * metadata APIs such as get mappings, get index, get field mappings, and field capabilities, as well as APIs that access field values
+     * or otherwise operate on payload data. The predicate receives the field name as its input.
+     *
+     * <p>In case multiple plugins register a field filter through
+     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all registered filters are returned by get
+     * mappings, get index, get field mappings, and field capabilities APIs. Other consumers, including payload-data APIs, must likewise
+     * make only fields matching all registered filters available. The same aggregated filter is exposed to query-schema and query-planning
+     * implementations.
+     *
+     * <p>Plugins may use these filters to implement authorization access controls such as field-level security. Consumers must therefore
+     * treat the result as an access-control boundary and must not bypass it or reintroduce rejected fields.
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();

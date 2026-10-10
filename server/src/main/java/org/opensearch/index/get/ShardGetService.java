@@ -181,7 +181,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            GetResult getResult;
+            if (engineGetResult instanceof DocumentLookupResult.PreMaterialized) {
+                // A PreMaterialized result carries no docId/searcher; its lookup already holds the
+                // materialized source and fields, so build the GetResult directly from it (mirrors innerGet).
+                getResult = buildFromLookup(((DocumentLookupResult.PreMaterialized) engineGetResult).lookup(), fetchSourceContext);
+            } else {
+                getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            }
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -310,7 +317,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        // Only fail if we know it is an object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
                 }

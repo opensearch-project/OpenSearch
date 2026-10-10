@@ -32,7 +32,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 
 pub fn register_all(ctx: &SessionContext) {
@@ -90,25 +91,33 @@ impl ScalarUDFImpl for IpToStringUdf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 1 {
-            return exec_err!("ip_to_string expects exactly 1 argument, got {}", args.args.len());
+            return exec_err!(
+                "ip_to_string expects exactly 1 argument, got {}",
+                args.args.len()
+            );
         }
         match &args.args[0] {
             ColumnarValue::Scalar(ScalarValue::Binary(opt)) => Ok(ColumnarValue::Scalar(
                 ScalarValue::Utf8(opt.as_ref().and_then(|b| format_ip_bytes(b))),
             )),
-            ColumnarValue::Scalar(other) => exec_err!("ip_to_string: expected Binary input, got {other:?}"),
+            ColumnarValue::Scalar(other) => {
+                exec_err!("ip_to_string: expected Binary input, got {other:?}")
+            }
             ColumnarValue::Array(arr) => {
-                let bin = arr
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .ok_or_else(|| {
-                        datafusion::common::DataFusionError::Execution(format!(
-                            "ip_to_string: expected BinaryArray, got {:?}",
-                            arr.data_type()
-                        ))
-                    })?;
+                let bin = arr.as_any().downcast_ref::<BinaryArray>().ok_or_else(|| {
+                    datafusion::common::DataFusionError::Execution(format!(
+                        "ip_to_string: expected BinaryArray, got {:?}",
+                        arr.data_type()
+                    ))
+                })?;
                 let out: StringArray = (0..bin.len())
-                    .map(|i| if bin.is_null(i) { None } else { format_ip_bytes(bin.value(i)) })
+                    .map(|i| {
+                        if bin.is_null(i) {
+                            None
+                        } else {
+                            format_ip_bytes(bin.value(i))
+                        }
+                    })
                     .collect();
                 Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
             }
@@ -125,7 +134,10 @@ fn format_ip_bytes(bytes: &[u8]) -> Option<String> {
     }
     // IPv4-mapped IPv6: 80 bits of zero, then 0xffff, then 4 bytes of IPv4.
     if bytes[..10].iter().all(|&b| b == 0) && bytes[10] == 0xff && bytes[11] == 0xff {
-        return Some(format!("{}.{}.{}.{}", bytes[12], bytes[13], bytes[14], bytes[15]));
+        return Some(format!(
+            "{}.{}.{}.{}",
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ));
     }
     let arr: [u8; 16] = bytes.try_into().expect("checked length above");
     Some(Ipv6Addr::from(arr).to_string())

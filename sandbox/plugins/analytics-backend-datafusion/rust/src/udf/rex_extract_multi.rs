@@ -37,8 +37,8 @@ use datafusion::logical_expr::{
 };
 use regex::Regex;
 
-use super::{coerce_args, CoerceMode};
 use super::rex_extract::compile_pattern;
+use super::{coerce_args, CoerceMode};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(RexExtractMultiUdf::new()));
@@ -73,11 +73,18 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         if arg_types.len() != 4 {
-            return plan_err!("rex_extract_multi expects 4 arguments, got {}", arg_types.len());
+            return plan_err!(
+                "rex_extract_multi expects 4 arguments, got {}",
+                arg_types.len()
+            );
         }
         // List<String?> — element type is nullable Utf8 to match the Java
         // signature `ARRAY(VARCHAR_2000_NULLABLE)`.
-        Ok(DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))))
+        Ok(DataType::List(Arc::new(Field::new(
+            "item",
+            DataType::Utf8,
+            true,
+        ))))
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
@@ -95,7 +102,10 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 4 {
-            return plan_err!("rex_extract_multi expects 4 arguments, got {}", args.args.len());
+            return plan_err!(
+                "rex_extract_multi expects 4 arguments, got {}",
+                args.args.len()
+            );
         }
         let n = args.number_rows;
 
@@ -111,25 +121,32 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
         let input_arr = args.args[0].clone().into_array(n)?;
         let input = StringArrayView::from_array(&input_arr)?;
 
-        let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(args.args[1].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let group_arr_ref: Option<ArrayRef> = if group_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
-            Some(args.args[2].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let max_match_arr_ref: Option<ArrayRef> = if max_match_scalar.is_none() && matches!(&args.args[3], ColumnarValue::Array(_)) {
-            Some(args.args[3].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let pattern_array: Option<StringArrayView<'_>> =
-            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
-        let group_array: Option<StringArrayView<'_>> =
-            group_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let pattern_arr_ref: Option<ArrayRef> =
+            if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
+                Some(args.args[1].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let group_arr_ref: Option<ArrayRef> =
+            if group_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
+                Some(args.args[2].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let max_match_arr_ref: Option<ArrayRef> =
+            if max_match_scalar.is_none() && matches!(&args.args[3], ColumnarValue::Array(_)) {
+                Some(args.args[3].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let pattern_array: Option<StringArrayView<'_>> = pattern_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
+        let group_array: Option<StringArrayView<'_>> = group_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
         // After coerce_types(Int64) the array may arrive as Int32 in some plans;
         // accept either by widening on read.
         let max_match_array_i32: Option<&Int32Array> = max_match_arr_ref
@@ -138,7 +155,9 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
 
         let value_builder = StringBuilder::new();
         let mut builder = ListBuilder::new(value_builder).with_field(Arc::new(Field::new(
-            "item", DataType::Utf8, true,
+            "item",
+            DataType::Utf8,
+            true,
         )));
 
         for i in 0..n {
@@ -148,7 +167,10 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
             };
 
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
+            let regex: &Regex = match (
+                &scalar_regex,
+                pattern_array.as_ref().and_then(|a| a.cell(i)),
+            ) {
                 (Some(r), _) => r,
                 (None, Some(s)) => {
                     regex_owned = compile_pattern(s)?;
@@ -160,14 +182,15 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
                 }
             };
 
-            let group_name: &str = match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
-                (Some(g), _) => g.as_str(),
-                (None, Some(s)) => s,
-                _ => {
-                    builder.append_null();
-                    continue;
-                }
-            };
+            let group_name: &str =
+                match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
+                    (Some(g), _) => g.as_str(),
+                    (None, Some(s)) => s,
+                    _ => {
+                        builder.append_null();
+                        continue;
+                    }
+                };
 
             let max_match: i64 = match (max_match_scalar, max_match_array_i32) {
                 (Some(m), _) => m,

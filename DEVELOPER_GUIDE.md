@@ -181,6 +181,18 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+A cluster of several nodes may be run by passing `-PnumNodes`. Every node stops when any of them does, so to be able
+to stop some nodes and keep the rest, start them from a second terminal, numbered from `-PstartNode`. Its nodes join
+the running cluster, and each build stops only its own:
+
+```bash
+./gradlew run -PnumNodes=2                # runTask-0 and runTask-1, on ports 9200/9300 and 9201/9301
+./gradlew run -PnumNodes=2 -PstartNode=2  # in another terminal: runTask-2 and runTask-3, on 9202/9302 and 9203/9303
+```
+
+Stopping nodes that are eligible to be cluster manager can leave the rest without a quorum. To be able to stop the second
+build's nodes without that, make them data-only: `-Dtests.opensearch.node.roles=data`.
+
 [Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
 
 ```bash
@@ -191,6 +203,12 @@ External plugins may also be fetched and installed from maven snapshots:
 
 ```bash
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
+```
+
+In case when `opensearch-security` is required, provide the `crypto.standard` property explicitly:
+
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-security']" -Pcrypto.standard=FIPS-140-3
 ```
 
 You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
@@ -216,7 +234,7 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 ```bash
 curl localhost:9200
 ```
-The expected reponse should be
+The expected response should be
 ```
 {
   "name" : "runTask-0",
@@ -440,7 +458,7 @@ A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libra
 
 There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client.
 
-Use [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Use [Gradle Shadow plugin](https://gradleup.com/shadow/).
 Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
 
 ```
@@ -454,7 +472,7 @@ Run the `shadowJar` command using:
 
 This will generate a fat-JAR in the `build/distributions` folder of the module, e.g. .`/client/rest-high-level/build/distributions/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar`.
 
-You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
+You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://gradleup.com/shadow/).
 
 To use the generated JAR, install the JAR locally, e.g.
 ```

@@ -17,6 +17,7 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Entry-point for the approximation framework.
@@ -77,10 +78,12 @@ public final class ApproximateScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (!sameClassAs(o)) {
-            return false;
-        }
-        return true;
+        return sameClassAs(o) && equalsTo((ApproximateScoreQuery) o);
+    }
+
+    private boolean equalsTo(ApproximateScoreQuery other) {
+        // resolvedQuery is rewrite-time state and must not participate in equality
+        return Objects.equals(originalQuery, other.originalQuery) && Objects.equals(approximationQuery, other.approximationQuery);
     }
 
     @Override

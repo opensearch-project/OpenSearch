@@ -12,7 +12,9 @@ use std::sync::Arc;
 
 use datafusion::common::DataFusionError;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
+use datafusion::datasource::listing::{
+    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+};
 use datafusion::execution::context::SessionContext;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
@@ -24,7 +26,9 @@ use object_store::{ObjectMeta, ObjectStore};
 use crate::agg_mode::physical_optimizer_rules_without_combine;
 use crate::api::DataFusionRuntime;
 use crate::datafusion_query_config::DatafusionQueryConfig;
-use crate::indexed_table::substrait_to_tree::{create_delegation_possible_udf, create_index_filter_udf};
+use crate::indexed_table::substrait_to_tree::{
+    create_delegation_possible_udf, create_index_filter_udf,
+};
 use crate::query_executor::build_query_runtime_env;
 use crate::query_tracker::{QueryTrackingContext, QueryType};
 use crate::schema_coerce::coerce_inferred_schema;
@@ -45,7 +49,9 @@ pub fn new_query_tracking_context(
     query_type: QueryType,
 ) -> (QueryTrackingContext, Option<Arc<dyn MemoryPool>>) {
     let query_context = QueryTrackingContext::new(context_id, global_pool, query_type);
-    let query_memory_pool = query_context.memory_pool().map(|p| p as Arc<dyn MemoryPool>);
+    let query_memory_pool = query_context
+        .memory_pool()
+        .map(|p| p as Arc<dyn MemoryPool>);
     (query_context, query_memory_pool)
 }
 
@@ -158,7 +164,8 @@ pub fn build_query_session_context(
     indexed_path: bool,
 ) -> SessionContext {
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = query_config.listing_table_pushdown_filters;
+    config.options_mut().execution.parquet.pushdown_filters =
+        query_config.listing_table_pushdown_filters;
     config.options_mut().execution.target_partitions = target_partitions.max(1);
     config.options_mut().execution.batch_size = query_config.batch_size;
 

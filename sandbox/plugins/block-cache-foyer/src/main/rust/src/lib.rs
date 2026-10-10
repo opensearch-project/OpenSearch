@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
+pub mod foyer;
+pub mod key_index_store;
 pub mod range_cache;
 pub mod stats;
-pub mod traits;
-pub mod key_index_store;
-pub mod foyer;
 pub mod tiered_block_cache;
+pub mod traits;
 
 #[cfg(test)]
 mod tests;

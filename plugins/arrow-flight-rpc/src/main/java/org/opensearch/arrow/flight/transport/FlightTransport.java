@@ -18,6 +18,7 @@ import org.apache.arrow.flight.OSFlightServer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
@@ -25,6 +26,7 @@ import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
@@ -65,8 +67,10 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import io.grpc.netty.NettyServerBuilder;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
@@ -251,6 +255,17 @@ class FlightTransport extends TcpTransport {
                     .backpressureThreshold((int) ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(settings).getBytes())
                     .middleware(SERVER_HEADER_KEY, factory);
 
+                // Server-side gRPC keepalive (see ServerConfig.FLIGHT_KEEPALIVE_TIME). NOTE: only the
+                // server pings today; adding a client keepalive also requires
+                // permitKeepAliveTime/permitKeepAliveWithoutCalls here, else the server GOAWAYs the
+                // client with "too_many_pings".
+                final long keepAliveTimeMs = ServerConfig.getGrpcKeepAliveTime().millis();
+                final long keepAliveTimeoutMs = ServerConfig.getGrpcKeepAliveTimeout().millis();
+                builder.transportHint("grpc.builderConsumer", (Consumer<NettyServerBuilder>) b -> {
+                    b.keepAliveTime(keepAliveTimeMs, TimeUnit.MILLISECONDS);
+                    b.keepAliveTimeout(keepAliveTimeoutMs, TimeUnit.MILLISECONDS);
+                });
+
                 builder.location(locations.get(0));
                 for (int i = 1; i < locations.size(); i++) {
                     builder.addListenAddress(locations.get(i));
@@ -276,19 +291,22 @@ class FlightTransport extends TcpTransport {
 
     @Override
     protected void stopInternal() {
-        try {
-
+        // Each step is isolated so a failure (e.g. an allocator reporting leaked buffers) cannot
+        // skip the remaining teardown — most importantly the event-loop-group shutdowns, whose
+        // threads would otherwise leak.
+        safeStop("flight server", () -> {
             if (flightServer != null) {
                 flightServer.shutdown();
                 flightServer.awaitTermination();
                 flightServer.close();
                 flightServer = null;
             }
-            serverAllocator.close();
-            clientAllocator.close();
-            gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
-            gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
-
+        });
+        safeStop("server allocator", () -> serverAllocator.close());
+        safeStop("client allocator", () -> clientAllocator.close());
+        safeStop("boss event loop group", () -> gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG"));
+        safeStop("worker event loop group", () -> gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG"));
+        safeStop("flight event loops", () -> {
             for (ExecutorService executor : flightEventLoopGroup) {
                 executor.shutdown();
                 try {
@@ -300,11 +318,17 @@ class FlightTransport extends TcpTransport {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (statsCollector != null) {
-                statsCollector.decrementServerChannelsActive();
-            }
+        });
+        if (statsCollector != null) {
+            safeStop("server channel stats", () -> statsCollector.decrementServerChannelsActive());
+        }
+    }
+
+    private void safeStop(String what, CheckedRunnable<Exception> action) {
+        try {
+            action.run();
         } catch (Exception e) {
-            logger.error("Error stopping FlightTransport", e);
+            logger.error(() -> new ParameterizedMessage("Error stopping FlightTransport: failed to stop {}", what), e);
         }
     }
 
@@ -321,6 +345,11 @@ class FlightTransport extends TcpTransport {
     @Override
     protected TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         TransportAddress publishAddress = node.getStreamAddress();
+        // A node that predates the stream transport, or has it disabled, publishes no stream address.
+        // Fail cleanly instead of NPEing on the address below.
+        if (publishAddress == null) {
+            throw new ConnectTransportException(node, "node does not publish a stream (Flight) address");
+        }
         String address = publishAddress.getAddress();
         int flightPort = publishAddress.address().getPort();
         Location location = sslContextProvider != null

@@ -1291,7 +1291,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 e
             );
 
-            // We hit a error during preprocessing a request, so we:
+            // We hit an error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.

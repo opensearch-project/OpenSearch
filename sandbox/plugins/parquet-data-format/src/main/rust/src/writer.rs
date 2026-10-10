@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
+use arrow::compute::{concat_batches, take};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
-use arrow::compute::{concat_batches, take};
 use arrow::row::{RowConverter, SortField};
-use arrow_ipc::writer::FileWriter as IpcFileWriter;
 use arrow_ipc::reader::FileReader as IpcFileReader;
+use arrow_ipc::writer::FileWriter as IpcFileWriter;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
@@ -20,12 +20,16 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::{log_error, log_debug, log_info};
 use crate::crc_writer::CrcWriter;
 use crate::memory::write_pool;
-use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
+use crate::merge::{
+    heap::{reduced_sort_array, reduced_sort_type},
+    merge_sorted_with_pool,
+    schema::ROW_ID_COLUMN_NAME,
+};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
+use crate::{log_debug, log_error, log_info};
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
@@ -78,6 +82,8 @@ struct SortingChunkedWriter {
     sort_columns: Vec<String>,
     reverse_sorts: Vec<bool>,
     nulls_first: Vec<bool>,
+    /// Parallel with `sort_columns`: `true` = MAX reduction, `false` = MIN.
+    max_sort_modes: Vec<bool>,
     /// Current IPC writer for staging incoming batches.
     current_ipc_writer: Option<IpcFileWriter<File>>,
     /// Tracked byte size of the current IPC staging file (approximated from
@@ -108,6 +114,7 @@ impl SortingChunkedWriter {
         sort_columns: Vec<String>,
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
+        max_sort_modes: Vec<bool>,
         writer_generation: i64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut writer = Self {
@@ -118,6 +125,7 @@ impl SortingChunkedWriter {
             sort_columns,
             reverse_sorts,
             nulls_first,
+            max_sort_modes,
             current_ipc_writer: None,
             current_chunk_bytes: 0,
             current_rows: 0,
@@ -150,7 +158,11 @@ impl SortingChunkedWriter {
         Ok(())
     }
 
-    fn write(&mut self, batch: &RecordBatch, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
+    fn write(
+        &mut self,
+        batch: &RecordBatch,
+        reservation: &mut MemoryReservation,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if self.current_ipc_writer.is_none() {
             return Ok(());
         }
@@ -181,10 +193,8 @@ impl SortingChunkedWriter {
             let num_rows = batch.num_rows();
             let bytes_per_row = incoming_batch_bytes / num_rows as u64;
             // Compute how many rows fit within the threshold (at least 1 to make progress).
-            let rows_per_slice = std::cmp::max(
-                1,
-                (self.memory_threshold_bytes / bytes_per_row) as usize,
-            );
+            let rows_per_slice =
+                std::cmp::max(1, (self.memory_threshold_bytes / bytes_per_row) as usize);
 
             let mut offset = 0;
             while offset < num_rows {
@@ -216,7 +226,10 @@ impl SortingChunkedWriter {
     }
 
     /// Close the current IPC file, read it back, sort, write as sorted Parquet chunk.
-    fn flush_and_sort_chunk(&mut self, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
+    fn flush_and_sort_chunk(
+        &mut self,
+        reservation: &mut MemoryReservation,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         use arrow::array::Int64Array;
 
         log_debug!(
@@ -258,14 +271,23 @@ impl SortingChunkedWriter {
         let combined = concat_batches(&self.schema, &batches)?;
         drop(batches); // free memory before sort allocates
         let sorted_batch = NativeParquetWriter::sort_batch(
-            &combined, &self.sort_columns, &self.reverse_sorts, &self.nulls_first,
+            &combined,
+            &self.sort_columns,
+            &self.reverse_sorts,
+            &self.nulls_first,
+            &self.max_sort_modes,
         )?;
         drop(combined); // free unsorted data
 
         // Capture original row IDs for permutation building, then rewrite to sequential 0..N
-        let row_id_col_idx = self.schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
+        let row_id_col_idx = self
+            .schema
+            .fields()
+            .iter()
+            .position(|f| f.name() == ROW_ID_COLUMN_NAME);
         let final_batch = if let Some(idx) = row_id_col_idx {
-            let row_id_array = sorted_batch.column(idx)
+            let row_id_array = sorted_batch
+                .column(idx)
                 .as_any()
                 .downcast_ref::<Int64Array>()
                 .expect("___row_id column must be Int64");
@@ -275,9 +297,8 @@ impl SortingChunkedWriter {
             self.chunk_row_ids.push(ids);
 
             // Rewrite ___row_id to sequential 0..N so the chunk file is self-consistent
-            let sequential_ids = Int64Array::from_iter_values(
-                (0..sorted_batch.num_rows() as i64).map(|x| x)
-            );
+            let sequential_ids =
+                Int64Array::from_iter_values((0..sorted_batch.num_rows() as i64).map(|x| x));
             let mut columns = sorted_batch.columns().to_vec();
             columns[idx] = Arc::new(sequential_ids);
             RecordBatch::try_new(self.schema.clone(), columns)?
@@ -288,7 +309,11 @@ impl SortingChunkedWriter {
         // Write sorted chunk as Parquet
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
         let crc32 = NativeParquetWriter::write_final_file(
-            &chunk_path, &self.index_name, &final_batch, self.schema.clone(), Some(self.writer_generation),
+            &chunk_path,
+            &self.index_name,
+            &final_batch,
+            self.schema.clone(),
+            Some(self.writer_generation),
         )?;
 
         self.completed_chunks.push(chunk_path);
@@ -309,7 +334,10 @@ impl SortingChunkedWriter {
     }
 
     /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
-    fn finish(mut self, reservation: &mut MemoryReservation) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
+    fn finish(
+        mut self,
+        reservation: &mut MemoryReservation,
+    ) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
         if self.current_rows > 0 {
             self.flush_and_sort_chunk(reservation)?;
         }
@@ -336,7 +364,8 @@ impl SortingChunkedWriter {
     /// where the IPC file is read back and sorted — that's short-lived and freed
     /// before the method returns.
     fn memory_size(&self) -> usize {
-        self.chunk_row_ids.iter()
+        self.chunk_row_ids
+            .iter()
             .map(|ids| ids.len() * std::mem::size_of::<i64>())
             .sum()
     }
@@ -370,12 +399,31 @@ impl NativeParquetWriter {
         let temp_filename = Self::temp_filename(filename);
         WRITERS.contains_key(&temp_filename)
     }
+
+    /// Removes the writer entry for `filename` from the registry without finalizing it, dropping the
+    /// underlying writer (which closes its file handle and releases its memory reservation).
+    ///
+    /// Idempotent: returns `Ok(())` whether or not an entry existed. Called by the shard
+    /// close / going-red flow so that a writer left behind by a failed operation (e.g. an Arrow OOM
+    /// that failed the shard before finalize could run) does not survive as a stale entry and block
+    /// the next `create_writer` — which is what recovery does when it re-creates a writer for the
+    /// same generation/file.
+    pub fn cleanup_writer(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let temp_filename = Self::temp_filename(filename);
+        if WRITERS.remove(&temp_filename).is_some() {
+            log_info!("Cleaned up writer entry for {}", temp_filename);
+        }
+        Ok(())
+    }
     /// Build the temp filename by prepending "temp-" to the basename.
     fn temp_filename(filename: &str) -> String {
         let path = Path::new(filename);
         path.parent()
             .unwrap_or_else(|| Path::new(""))
-            .join(format!("temp-{}", path.file_name().unwrap().to_str().unwrap()))
+            .join(format!(
+                "temp-{}",
+                path.file_name().unwrap().to_str().unwrap()
+            ))
             .to_string_lossy()
             .to_string()
     }
@@ -387,23 +435,35 @@ impl NativeParquetWriter {
         sort_columns: Vec<String>,
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
+        max_sort_modes: Vec<bool>,
         writer_generation: i64,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_debug!(
-            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, writer_generation: {}",
-            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation
+            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, max_sort_modes: {:?}, writer_generation: {}",
+            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, max_sort_modes, writer_generation
         );
 
         if (schema_address as *mut u8).is_null() {
-            log_error!("ERROR: Invalid schema address (null pointer) for file: {}", filename);
+            log_error!(
+                "ERROR: Invalid schema address (null pointer) for file: {}",
+                filename
+            );
             return Err("Invalid schema address".into());
         }
 
         let temp_filename = Self::temp_filename(&filename);
 
         if WRITERS.contains_key(&temp_filename) {
-            log_error!("ERROR: Writer already exists for file: {}", temp_filename);
-            return Err("Writer already exists for this file".into());
+            // A stale entry survived a prior failure (e.g. an Arrow OOM that failed the shard before
+            // the writer could be finalized). Rather than reject — which permanently blocks shard
+            // recovery, since recovery re-creates a writer for the same generation/file — remove the
+            // stale entry (dropping the old writer, closing its file handle and releasing its
+            // reservation) and proceed to create a fresh writer.
+            log_error!(
+                "Stale writer entry already exists for file: {} — removing it before re-create (likely a prior failed shard / Arrow OOM)",
+                temp_filename
+            );
+            WRITERS.remove(&temp_filename);
         }
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
@@ -418,6 +478,7 @@ impl NativeParquetWriter {
         settings.sort_columns = sort_columns;
         settings.reverse_sorts = reverse_sorts;
         settings.nulls_first = nulls_first;
+        settings.max_sort_modes = max_sort_modes;
 
         SETTINGS_STORE.insert(index_name.clone(), settings.clone());
 
@@ -435,32 +496,58 @@ impl NativeParquetWriter {
                 settings.sort_columns.clone(),
                 settings.reverse_sorts.clone(),
                 settings.nulls_first.clone(),
+                settings.max_sort_modes.clone(),
                 writer_generation,
             )?;
-            (WriterVariant::Ipc(Arc::new(Mutex::new(chunked_writer))), None)
+            (
+                WriterVariant::Ipc(Arc::new(Mutex::new(chunked_writer))),
+                None,
+            )
         } else {
             let file = File::create(&temp_filename)?;
             let (crc_file, crc_handle) = CrcWriter::new(file);
-            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation), &schema)
-                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
+            let props = WriterPropertiesBuilder::build_with_generation(
+                &settings,
+                Some(writer_generation),
+                &schema,
+            )
+            .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
-            (WriterVariant::Parquet(Arc::new(Mutex::new(writer))), Some(crc_handle))
+            (
+                WriterVariant::Parquet(Arc::new(Mutex::new(writer))),
+                Some(crc_handle),
+            )
         };
 
-        WRITERS.insert(temp_filename, WriterState {
-            variant,
-            settings,
-            crc_handle,
-            writer_generation,
-            reservation: MemoryReservation::new(write_pool(), "parquet_writer", PoolBehavior::IgnoreLimit),
-        });
+        WRITERS.insert(
+            temp_filename,
+            WriterState {
+                variant,
+                settings,
+                crc_handle,
+                writer_generation,
+                reservation: MemoryReservation::new(
+                    write_pool(),
+                    "parquet_writer",
+                    PoolBehavior::IgnoreLimit,
+                ),
+            },
+        );
 
         Ok(())
     }
 
-    pub fn write_data(filename: String, array_address: i64, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn write_data(
+        filename: String,
+        array_address: i64,
+        schema_address: i64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let temp_filename = Self::temp_filename(&filename);
-        log_debug!("write_data called for file: {} (temp: {})", filename, temp_filename);
+        log_debug!(
+            "write_data called for file: {} (temp: {})",
+            filename,
+            temp_filename
+        );
 
         if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
             log_error!("ERROR: Invalid FFI addresses for file: {}", temp_filename);
@@ -476,7 +563,11 @@ impl NativeParquetWriter {
             if let Some(struct_array) = array.as_any().downcast_ref::<arrow::array::StructArray>() {
                 let schema = Arc::new(arrow::datatypes::Schema::new(struct_array.fields().clone()));
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
-                log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
+                log_debug!(
+                    "Created RecordBatch with {} rows and {} columns",
+                    record_batch.num_rows(),
+                    record_batch.num_columns()
+                );
 
                 if let Some(mut state) = WRITERS.get_mut(&temp_filename) {
                     match &state.variant {
@@ -509,18 +600,33 @@ impl NativeParquetWriter {
                     Err("Writer not found".into())
                 }
             } else {
-                log_error!("ERROR: Array is not a StructArray, type: {:?}", array.data_type());
+                log_error!(
+                    "ERROR: Array is not a StructArray, type: {:?}",
+                    array.data_type()
+                );
                 Err("Expected struct array from VectorSchemaRoot".into())
             }
         }
     }
 
-    pub fn finalize_writer(filename: String) -> Result<Option<FinalizeResult>, Box<dyn std::error::Error>> {
+    pub fn finalize_writer(
+        filename: String,
+    ) -> Result<Option<FinalizeResult>, Box<dyn std::error::Error>> {
         let temp_filename = Self::temp_filename(&filename);
-        log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
+        log_debug!(
+            "finalize_writer called for file: {} (temp: {})",
+            filename,
+            temp_filename
+        );
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { variant, settings, crc_handle, writer_generation, mut reservation } = state;
+            let WriterState {
+                variant,
+                settings,
+                crc_handle,
+                writer_generation,
+                mut reservation,
+            } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
 
             match variant {
@@ -530,16 +636,26 @@ impl NativeParquetWriter {
                             let chunked_writer = mutex.into_inner().unwrap();
                             let total_rows = chunked_writer.total_rows();
                             let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish(&mut reservation)?;
+                            let (chunk_paths, chunk_row_ids, chunk_crcs) =
+                                chunked_writer.finish(&mut reservation)?;
                             log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
                             );
 
                             let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
-                                &chunk_paths, &chunk_row_ids, &chunk_crcs, &filename, index_name,
-                                &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first,
-                                writer_generation, schema.clone(), &mut reservation,
+                                &chunk_paths,
+                                &chunk_row_ids,
+                                &chunk_crcs,
+                                &filename,
+                                index_name,
+                                &settings.sort_columns,
+                                &settings.reverse_sorts,
+                                &settings.nulls_first,
+                                &settings.max_sort_modes,
+                                writer_generation,
+                                schema.clone(),
+                                &mut reservation,
                             )?;
 
                             // Clean up sorted chunk files only after successful finalization.
@@ -560,10 +676,17 @@ impl NativeParquetWriter {
                                 reservation.shrink(mapping.len() * std::mem::size_of::<i64>());
                             }
 
-                            Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping }))
+                            Ok(Some(FinalizeResult {
+                                metadata: parquet_metadata,
+                                crc32,
+                                row_id_mapping,
+                            }))
                         }
                         Err(_) => {
-                            log_error!("ERROR: IPC Writer still in use for temp file: {}", temp_filename);
+                            log_error!(
+                                "ERROR: IPC Writer still in use for temp file: {}",
+                                temp_filename
+                            );
                             Err("IPC Writer still in use".into())
                         }
                     }
@@ -575,7 +698,10 @@ impl NativeParquetWriter {
                             match writer.close() {
                                 Ok(_) => {
                                     let crc32 = crc_handle.map(|h| h.crc32()).unwrap_or(0);
-                                    log_info!("Successfully closed temp writer for: {}", temp_filename);
+                                    log_info!(
+                                        "Successfully closed temp writer for: {}",
+                                        temp_filename
+                                    );
 
                                     // Parquet variant is used for non-sorted data; just rename.
                                     std::fs::rename(&temp_filename, &filename)?;
@@ -586,16 +712,26 @@ impl NativeParquetWriter {
                                     let reader = SerializedFileReader::new(file)?;
                                     let parquet_metadata = reader.metadata().clone();
 
-                                    Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping: None }))
+                                    Ok(Some(FinalizeResult {
+                                        metadata: parquet_metadata,
+                                        crc32,
+                                        row_id_mapping: None,
+                                    }))
                                 }
                                 Err(e) => {
-                                    log_error!("ERROR: Failed to close writer for temp file: {}", temp_filename);
+                                    log_error!(
+                                        "ERROR: Failed to close writer for temp file: {}",
+                                        temp_filename
+                                    );
                                     Err(e.into())
                                 }
                             }
                         }
                         Err(_) => {
-                            log_error!("ERROR: Writer still in use for temp file: {}", temp_filename);
+                            log_error!(
+                                "ERROR: Writer still in use for temp file: {}",
+                                temp_filename
+                            );
                             Err("Writer still in use".into())
                         }
                     }
@@ -619,6 +755,7 @@ impl NativeParquetWriter {
         sort_columns: &[String],
         reverse_sorts: &[bool],
         nulls_first: &[bool],
+        max_sort_modes: &[bool],
         writer_generation: i64,
         schema: Arc<arrow::datatypes::Schema>,
         reservation: &mut MemoryReservation,
@@ -629,8 +766,12 @@ impl NativeParquetWriter {
                 .get(index_name)
                 .map(|r| r.clone())
                 .unwrap_or_default();
-            let props = WriterPropertiesBuilder::build_with_generation(&config, Some(writer_generation), &schema)
-                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
+            let props = WriterPropertiesBuilder::build_with_generation(
+                &config,
+                Some(writer_generation),
+                &schema,
+            )
+            .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let file = File::create(output_filename)?;
             let writer = ArrowWriter::try_new(file, schema, Some(props))?;
             writer.close()?;
@@ -671,10 +812,15 @@ impl NativeParquetWriter {
         let overall_start = std::time::Instant::now();
         log_info!(
             "finalize_sorted_chunks: merging {} pre-sorted chunks for {}",
-            chunk_paths.len(), output_filename
+            chunk_paths.len(),
+            output_filename
         );
 
-        let mut merge_reservation = MemoryReservation::new(write_pool(), "writer:k_way_merge", PoolBehavior::IgnoreLimit);
+        let mut merge_reservation = MemoryReservation::new(
+            write_pool(),
+            "writer:k_way_merge",
+            PoolBehavior::IgnoreLimit,
+        );
         let merge_output = merge_sorted_with_pool(
             chunk_paths,
             output_filename,
@@ -682,8 +828,11 @@ impl NativeParquetWriter {
             sort_columns,
             reverse_sorts,
             nulls_first,
+            max_sort_modes,
             writer_generation,
             &mut merge_reservation,
+            // Chunk finalization merges freshly written chunks; no deletes apply here.
+            &[],
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()
@@ -691,7 +840,8 @@ impl NativeParquetWriter {
         let merge_duration = overall_start.elapsed();
         log_info!(
             "finalize_sorted_chunks: k-way merge complete: {} chunks merged, duration={:?}",
-            chunk_paths.len(), merge_duration
+            chunk_paths.len(),
+            merge_duration
         );
 
         // Build the flat permutation: result[original_row_id] = new_row_id
@@ -718,7 +868,11 @@ impl NativeParquetWriter {
             drop(merge_output);
             // merge_output.mapping freed — release its share, flat_mapping remains tracked
             reservation.shrink(mapping_bytes);
-            log_info!("finalize_sorted_chunks: produced {} permutation entries for {}", flat_mapping.len(), output_filename);
+            log_info!(
+                "finalize_sorted_chunks: produced {} permutation entries for {}",
+                flat_mapping.len(),
+                output_filename
+            );
             Some(flat_mapping)
         } else {
             None
@@ -726,7 +880,9 @@ impl NativeParquetWriter {
 
         log_info!(
             "finalize_sorted_chunks: DONE file={}, chunks={}, merge_duration={:?}",
-            output_filename, chunk_paths.len(), merge_duration
+            output_filename,
+            chunk_paths.len(),
+            merge_duration
         );
         Ok((crc32, row_id_mapping))
     }
@@ -734,19 +890,22 @@ impl NativeParquetWriter {
     /// Sort a batch using RowConverter: converts sort columns into compact
     /// byte-comparable rows, sorts indices by comparing those rows, then
     /// reorders all columns via take.
-    fn sort_batch(
+    pub(crate) fn sort_batch(
         batch: &RecordBatch,
         sort_columns: &[String],
         reverse_sorts: &[bool],
         nulls_first: &[bool],
+        max_sort_modes: &[bool],
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let sort_fields: Vec<SortField> = sort_columns
             .iter()
             .enumerate()
             .map(|(i, col_name)| {
-                let col_index = batch.schema().index_of(col_name)
+                let col_index = batch
+                    .schema()
+                    .index_of(col_name)
                     .map_err(|_| format!("Sort column '{}' not found in schema", col_name))?;
-                let data_type = batch.schema().field(col_index).data_type().clone();
+                let data_type = reduced_sort_type(batch.schema().field(col_index).data_type());
                 let options = arrow::compute::SortOptions {
                     descending: reverse_sorts.get(i).copied().unwrap_or(false),
                     nulls_first: nulls_first.get(i).copied().unwrap_or(false),
@@ -759,11 +918,13 @@ impl NativeParquetWriter {
 
         let sort_arrays: Vec<Arc<dyn arrow::array::Array>> = sort_columns
             .iter()
-            .map(|col_name| {
-                let col_index = batch.schema().index_of(col_name).unwrap();
-                batch.column(col_index).clone()
+            .enumerate()
+            .map(|(i, col_name)| {
+                let col_index = batch.schema().index_of(col_name)?;
+                let max = max_sort_modes.get(i).copied().unwrap_or(false);
+                reduced_sort_array(batch.column(col_index), max)
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let rows = converter.convert_columns(&sort_arrays)?;
         let mut sort_indices: Vec<u32> = (0..batch.num_rows() as u32).collect();
@@ -790,20 +951,26 @@ impl NativeParquetWriter {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation, &schema)
-            .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
+        let props =
+            WriterPropertiesBuilder::build_with_generation(&config, writer_generation, &schema)
+                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
         let file = File::create(output_filename)?;
         let (crc_file, crc_handle) = CrcWriter::new(file);
         let mut writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
         writer.write(batch)?;
         writer.close()?;
         let crc32 = crc_handle.crc32();
-        log_debug!("Successfully wrote final file: {} (crc32={:#010x})", output_filename, crc32);
+        log_debug!(
+            "Successfully wrote final file: {} (crc32={:#010x})",
+            output_filename,
+            crc32
+        );
         Ok(crc32)
     }
 
-
-    pub fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
+    pub fn get_filtered_writer_memory_usage(
+        path_prefix: String,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
         let mut total_memory = 0;
         for entry in WRITERS.iter() {
             if entry.key().starts_with(&path_prefix) {
@@ -813,12 +980,19 @@ impl NativeParquetWriter {
         Ok(total_memory)
     }
 
-    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::ParquetMetaData, Box<dyn std::error::Error>> {
+    pub fn get_file_metadata(
+        filename: String,
+    ) -> Result<parquet::file::metadata::ParquetMetaData, Box<dyn std::error::Error>> {
         let file = File::open(&filename)?;
         let reader = SerializedFileReader::new(file)?;
         let metadata = reader.metadata().clone();
-        log_debug!("Metadata for {}: version={}, num_rows={}, num_row_groups={}",
-            filename, metadata.file_metadata().version(), metadata.file_metadata().num_rows(), metadata.num_row_groups());
+        log_debug!(
+            "Metadata for {}: version={}, num_rows={}, num_row_groups={}",
+            filename,
+            metadata.file_metadata().version(),
+            metadata.file_metadata().num_rows(),
+            metadata.num_row_groups()
+        );
         Ok(metadata)
     }
 }

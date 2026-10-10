@@ -494,6 +494,46 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * A bulk-request scope that batches successful primary index operations before appending them to the translog.
+     * Created by {@link #beginTranslogBatch()}.
+     * <p>
+     * The default {@link #beginTranslogBatch()} returns {@link #NO_OP_TRANSLOG_BATCH}, under which engines keep writing
+     * inline exactly as today; only an engine that overrides it defers. {@link #flush()} appends the currently pending
+     * chunk but keeps the scope open, allowing a realtime GET or a size limit to force an early append while the bulk
+     * continues. {@link #finish()} appends the final chunk and closes the scope.
+     * <p>
+     * A flush may be initiated by another thread resolving a pending realtime GET. Implementations must serialize
+     * concurrent add/flush activity. If an append fails, all affected requests must fail with the exception the
+     * per-operation translog path would have thrown, and the engine is consulted exactly as for a per-operation
+     * translog failure: it fails only if the exception is the translog's own tragic event.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.0.0")
+    public interface TranslogBatch {
+        /** Append the currently pending chunk and return the greatest location appended by this scope so far. */
+        @Nullable
+        Translog.Location flush();
+
+        /** Append the final pending chunk, close this scope, and return its greatest translog location. */
+        @Nullable
+        default Translog.Location finish() {
+            return flush();
+        }
+    }
+
+    /** A {@link TranslogBatch} that batches nothing; every op is written inline as before. */
+    public static final TranslogBatch NO_OP_TRANSLOG_BATCH = () -> null;
+
+    /**
+     * Begin a translog batch for the current bulk-request execution scope. The default is a no-op batch, so engines
+     * that do not opt in keep appending inline.
+     */
+    public TranslogBatch beginTranslogBatch() {
+        return NO_OP_TRANSLOG_BATCH;
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
@@ -1233,6 +1273,30 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
+     * Publishes the total size of segment bytes not yet referenced by the last commit point, computed from the
+     * post-refresh local segment file sizes. Engine-generic: the notion of "bytes since the last commit" is not
+     * remote-specific -- only the publisher (the remote segment upload path) is. The default is a no-op so that
+     * engines which never publish (e.g. {@link NRTReplicationEngine}, read-only engines) are correct by
+     * construction; {@link InternalEngine} overrides it to drive its uncommitted-segment-bytes flush condition.
+     *
+     * The threshold to flush at is supplied by the publisher rather than read from settings here, because resolving it
+     * is the publisher's concern: it owns both the index setting and the cluster setting it falls back to.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     * @param flushThresholdBytes  the uncommitted segment bytes at or above which the engine should flush, as resolved
+     *                             by the publisher at the time of this publication
+     */
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap, long flushThresholdBytes) {}
+
+    /**
+     * Discards any previously published uncommitted segment bytes accounting, so that it can no longer trigger a flush.
+     * Invoked by the publisher when the condition is turned off, since a value published while it was on would
+     * otherwise stay armed until the next commit invalidates it. The default is a no-op, mirroring
+     * {@link #updateUncommittedSegmentBytes(Map, long)}.
+     */
+    public void clearUncommittedSegmentBytes() {}
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
@@ -1596,8 +1660,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Base operation class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Operation {
 
         /**
@@ -1774,9 +1839,23 @@ public abstract class Engine implements LifecycleAware, Closeable {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
+        return prepareDelete(id, null, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.Delete prepareDelete(
+        String id,
+        @Nullable String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
         long startTime = System.nanoTime();
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     /**
@@ -1907,6 +1986,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public static class Delete extends Operation {
 
         private final String id;
+        private final @Nullable String routing;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
@@ -1922,6 +2002,22 @@ public abstract class Engine implements LifecycleAware, Closeable {
             long ifSeqNo,
             long ifPrimaryTerm
         ) {
+            this(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, null);
+        }
+
+        public Delete(
+            String id,
+            Term uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            VersionType versionType,
+            Origin origin,
+            long startTime,
+            long ifSeqNo,
+            long ifPrimaryTerm,
+            @Nullable String routing
+        ) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
@@ -1929,6 +2025,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM)
                 : "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.id = Objects.requireNonNull(id);
+            this.routing = routing;
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
@@ -1944,7 +2041,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 Origin.PRIMARY,
                 System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                null
             );
         }
 
@@ -1959,13 +2057,21 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 template.origin(),
                 template.startTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                template.routing()
             );
         }
 
         @Override
         public String id() {
             return this.id;
+        }
+
+        /**
+         * Returns the routing value for this delete operation, or {@code null} if no custom routing was specified.
+         */
+        public @Nullable String routing() {
+            return this.routing;
         }
 
         @Override
@@ -2270,6 +2376,26 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @return the number of no-ops added
      */
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
+
+    /**
+     * Re-reads the {@link PrimaryOperationPolicy} from {@link EngineConfig#getPrimaryOperationPolicy()},
+     * so a shard that is becoming a primary uses the policy its plugin resolves from the index settings
+     * as they are now, rather than the one resolved when this engine was built. A replica never consults
+     * the policy, so a long-lived replica engine can otherwise carry a policy that no longer matches the
+     * settings by the time it is promoted.
+     * <p>
+     * A policy change alters sequence-number assignment, so callers must invoke this only while
+     * operations on the shard are blocked. The default implementation does nothing, which is correct for
+     * engines that never serve primary-origin operations.
+     */
+    void refreshPrimaryOperationPolicy() {}
+
+    /**
+     * Returns the {@link PrimaryOperationPolicy} in effect for this engine.
+     */
+    PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return DefaultPrimaryOperationPolicy.INSTANCE;
+    }
 
     /**
      * Tries to prune buffered deletes from the version map.

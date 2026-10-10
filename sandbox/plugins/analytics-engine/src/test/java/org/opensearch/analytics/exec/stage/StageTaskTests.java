@@ -16,10 +16,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Tests the sealed {@link StageTask} hierarchy: shared state-machine + per-variant payload.
- * {@link ShardStageTask} carries an {@link ExecutionTarget} (routing key for Flight dispatch);
- * {@link LocalStageTask} carries a {@link Runnable} body for coordinator-local execution.
- * Neither variant has a "fake" target for the other's payload.
+ * Tests the sealed {@link StageTask} hierarchy: a shared state machine plus per-variant payload.
+ * {@link ShardStageTask} carries an {@link ExecutionTarget}; {@link LocalStageTask} carries a body
+ * {@link java.util.function.Consumer} for coordinator-local execution.
  */
 public class StageTaskTests extends OpenSearchTestCase {
 
@@ -59,6 +58,39 @@ public class StageTaskTests extends OpenSearchTestCase {
             assertFalse("terminal is sticky", task.transitionTo(StageTaskState.FAILED));
             assertEquals(StageTaskState.FINISHED, task.state());
         }
+    }
+
+    // ── SKIPPED: a terminal that means "never sent, and that was correct" ──
+
+    /**
+     * {@code SKIPPED} must be terminal and reachable straight from CREATED — a skipped task is never
+     * dispatched, so a non-terminal SKIPPED would leave the stage RUNNING forever.
+     */
+    public void testSkippedIsTerminalFromCreated() {
+        StageTask task = new ShardStageTask(new StageTaskId(0, 0), newShardTarget());
+
+        assertTrue(StageTaskState.SKIPPED.isTerminal());
+        assertTrue(task.transitionTo(StageTaskState.SKIPPED));
+        assertEquals(StageTaskState.SKIPPED, task.state());
+        assertTrue("finishedAtMs stamped like any other terminal", task.finishedAtMs() > 0);
+    }
+
+    /**
+     * Only the first terminal claims the task; later attempts return false so the caller doesn't
+     * decrement the stage counter twice. The real race is a cancel sweep against a dispatch-side skip.
+     */
+    public void testOnlyTheFirstTerminalClaimsTheTask() {
+        StageTask skippedFirst = new ShardStageTask(new StageTaskId(0, 0), newShardTarget());
+        assertTrue(skippedFirst.transitionTo(StageTaskState.SKIPPED));
+        assertFalse("no transition back out", skippedFirst.transitionTo(StageTaskState.RUNNING));
+        assertFalse("nor to another terminal", skippedFirst.transitionTo(StageTaskState.CANCELLED));
+        assertFalse("nor a repeat of the same one", skippedFirst.transitionTo(StageTaskState.SKIPPED));
+        assertEquals(StageTaskState.SKIPPED, skippedFirst.state());
+
+        StageTask cancelledFirst = new ShardStageTask(new StageTaskId(0, 1), newShardTarget());
+        assertTrue(cancelledFirst.transitionTo(StageTaskState.CANCELLED));
+        assertFalse("cancel already settled it — the skip must not settle it again", cancelledFirst.transitionTo(StageTaskState.SKIPPED));
+        assertEquals(StageTaskState.CANCELLED, cancelledFirst.state());
     }
 
     private static ExecutionTarget newShardTarget() {

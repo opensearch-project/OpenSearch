@@ -58,6 +58,8 @@ subprojects {
     resolutionStrategy {
       force "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
       force "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
+      force "org.apache.calcite.avatica:avatica-core:${libVersions['avatica']}"
+      force "com.jayway.jsonpath:json-path:${libVersions['jsonpath']}"
     }
   }
 

@@ -38,6 +38,10 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.DocumentLocation;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
@@ -65,6 +69,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -103,7 +108,6 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -112,6 +116,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -154,6 +160,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     private final IndexingExecutionEngine indexingExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final DeletionStrategyPlanner deletionStrategyPlanner;
     private final DocumentCountTracker documentCountTracker;
     private final AtomicLong pendingRowCount = new AtomicLong();
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
@@ -163,6 +170,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
+    private final DeleteExecutionEngine<?> deleteExecutionEngine;
     private final List<ReferenceManager.RefreshListener> refreshListeners;
     private final CatalogSnapshotStatsCache statsCache;
 
@@ -172,6 +180,11 @@ public class DataFormatAwareEngine implements Indexer {
     // Sequence number tracking
     private final LocalCheckpointTracker localCheckpointTracker;
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
+
+    // The scope used by the current bulk thread. Active scopes are also registered globally so refresh/commit can
+    // force every operation represented by a segment into the translog before publishing that segment.
+    private final ThreadLocal<TranslogBatchScope> activeBatch = new ThreadLocal<>();
+    private final Set<TranslogBatchScope> activeBatches = ConcurrentHashMap.newKeySet();
 
     // Wall-clock time (ms) of the last version-map delete-tombstone prune; used to throttle maybePruneDeletes().
     protected volatile long lastDeleteVersionPruneTimeMSec;
@@ -231,6 +244,9 @@ public class DataFormatAwareEngine implements Indexer {
     // Closed after refresh completes.
     private final ConcurrentLinkedQueue<Writer<?>> pendingWritersToClose = new ConcurrentLinkedQueue<>();
 
+    /** Set when deletes were applied without publishing a segment; the next refresh consumes it to reopen readers. */
+    private final AtomicBoolean unpublishedDeletes = new AtomicBoolean();
+
     // Shared queue of writers pending flush. Populated by refresh (checkoutAll),
     // drained cooperatively by both the refresh thread and write threads (backpressure).
     private final ConcurrentLinkedQueue<Writer<?>> flushQueue = new ConcurrentLinkedQueue<>();
@@ -275,6 +291,7 @@ public class DataFormatAwareEngine implements Indexer {
                     + "); use a segment-consuming or read-only engine"
             );
         }
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
         this.logger = Loggers.getLogger(DataFormatAwareEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -349,6 +366,7 @@ public class DataFormatAwareEngine implements Indexer {
 
             // 5. Create IndexingExecutionEngine and ReaderManagers
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
+            this.deleteExecutionEngine = registry.getDeleteExecutionEngine(committer);
             this.indexingExecutionEngine = registry.getIndexingEngine(
                 new IndexingEngineConfig(
                     committer,
@@ -377,6 +395,7 @@ public class DataFormatAwareEngine implements Indexer {
                 long gen = writerGenerationCounter.incrementAndGet();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
                 Writer<?> writer = indexingExecutionEngine.createWriter(new WriterConfig(gen));
+                deleteExecutionEngine.createDeleter(writer);
                 return DefaultLockableHolder.of(new RowIdAwareWriter<>(writer));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
             // Create Reader managers
@@ -433,7 +452,7 @@ public class DataFormatAwareEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, LiveDocsSource.docCountsResolver(readerManagers.values()), logger);
             this.refreshListeners.add(this.statsCache);
             this.documentCountTracker = new DocumentCountTracker(shardId, () -> {
                 // First get active writes as active writes are only reduced after catalog snapshot refresh
@@ -456,6 +475,15 @@ public class DataFormatAwareEngine implements Indexer {
                 this::resolveDocVersion,
                 this::updateAutoIdTimestamp,
                 documentCountTracker::tryAcquireInFlightDocs
+            );
+            this.deletionStrategyPlanner = new DeletionStrategyPlanner(
+                engineConfig.getIndexSettings(),
+                engineConfig.getShardId(),
+                this::hasBeenProcessedBefore,
+                op -> OpVsEngineDocStatus.OP_NEWER,
+                this::resolveDocVersion,
+                documentCountTracker::tryAcquireInFlightDocs,
+                this::incrementVersionLookup
             );
             // All critical engine components must be initialized before the engine is considered ready
             assert translogManager != null : "translog manager must be initialized";
@@ -708,6 +736,11 @@ public class DataFormatAwareEngine implements Indexer {
             });
             Writer currentWriter = lockedWriter.get();
             currentWriter.updateMappingVersion(mappingVersion);
+            if (currentWriter.state() != WriterState.ACTIVE) {
+                writerCheckedOut = retireWriterIfNeeded(lockedWriter);
+                lockedWriter = null;
+                return indexIntoEngine(index, plan);
+            }
             // Writer pool must never return null — it creates on demand via the supplier
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
@@ -718,12 +751,22 @@ public class DataFormatAwareEngine implements Indexer {
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
 
             if (result instanceof WriteResult.Success) {
-                indexResult = new Engine.IndexResult(plan.version, index.primaryTerm(), index.seqNo(), true);
+                indexResult = new Engine.IndexResult(plan.version, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
                 assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
                     + indexResult.getSeqNo()
                     + "] must match operation seq no ["
                     + index.seqNo()
                     + "]";
+                if (plan.useUpdateDocument) {
+                    deleteExecutionEngine.deleteDocument(
+                        new DeleteInput(IdFieldMapper.NAME, index.id(), currentWriter.generation()),
+                        currentWriter
+                    );
+                }
+                assert currentWriter instanceof RowIdAwareWriter : "writer pool must wrap every writer in a RowIdAwareWriter; got "
+                    + currentWriter.getClass().getName();
+                long insertionRowId = ((RowIdAwareWriter<?>) currentWriter).docCount() - 1;
+                deleteExecutionEngine.recordWrite(index.id(), new DocumentLocation(currentWriter.generation(), insertionRowId));
                 pendingRowCount.incrementAndGet();
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
@@ -756,58 +799,308 @@ public class DataFormatAwareEngine implements Indexer {
             }
         }
 
+        // When a translog batch is active for THIS thread and this is a successful primary (non-translog-origin) Index
+        // op, defer its translog append into the batch. The version, seqNo and term are already known; only the
+        // Location is deferred inside a PendingLocation held by the version-map entry. The batch's flush() assigns the
+        // location, marks the seqNo processed, and (via the fsync callback) marks it persisted -- so we must NOT run
+        // the inline markSeqNoAsProcessed / markSeqNoAsPersisted tail below for a deferred op. Deletes and NoOps stay
+        // inline (handled by the non-deferred branch and by delete()).
+        boolean deferred = false;
+        final TranslogBatchScope batch = activeBatch.get();
         if (index.origin().isFromTranslog() == false) {
-            final Translog.Location location;
-            if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
-                location = translogManager.add(new Translog.Index(index, indexResult));
+            if (batch != null && indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                final IndexVersionValue.PendingLocation pending = new IndexVersionValue.PendingLocation(batch);
+                indexResult.setTook(System.nanoTime() - index.startTime());
+                batch.add(new Translog.Index(index, indexResult), indexResult, pending, indexResult.getSeqNo());
                 versionMap.maybePutIndexUnderLock(
                     index.uid().bytes(),
-                    new IndexVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
+                    IndexVersionValue.withPendingLocation(pending, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
                 );
-            } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
-                && indexResult.getFailure() != null
-                && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                    final Engine.NoOp noOp = new Engine.NoOp(
-                        indexResult.getSeqNo(),
-                        index.primaryTerm(),
-                        index.origin(),
-                        index.startTime(),
-                        indexResult.getFailure().toString()
+                deferred = true;
+            } else {
+                final Translog.Location location;
+                if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                    location = translogManager.add(new Translog.Index(index, indexResult));
+                    versionMap.maybePutIndexUnderLock(
+                        index.uid().bytes(),
+                        new IndexVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm())
                     );
-                    location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-                } else {
-                    location = null;
-                }
-            indexResult.setTranslogLocation(location);
-        }
-        // Non-translog-origin successful operations must be recorded in the translog for durability
-        assert index.origin().isFromTranslog()
-            || indexResult.getResultType() != Engine.Result.Type.SUCCESS
-            || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
-        // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
-        assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
-            : "translog-origin op should not have a translog location";
-
-        // Track the sequence number
-        assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
-        localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-        if (indexResult.getTranslogLocation() == null) {
-            localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
+                    && indexResult.getFailure() != null
+                    && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                        flushActiveBatchBeforeInlineWrite();
+                        final Engine.NoOp noOp = new Engine.NoOp(
+                            indexResult.getSeqNo(),
+                            index.primaryTerm(),
+                            index.origin(),
+                            index.startTime(),
+                            indexResult.getFailure().toString()
+                        );
+                        location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                    } else {
+                        location = null;
+                    }
+                indexResult.setTranslogLocation(location);
+            }
         }
 
-        indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
+        if (deferred == false) {
+            // Non-translog-origin successful operations must be recorded in the translog for durability
+            assert index.origin().isFromTranslog()
+                || indexResult.getResultType() != Engine.Result.Type.SUCCESS
+                || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
+            // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
+            assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
+                : "translog-origin op should not have a translog location";
+
+            // Track the sequence number
+            assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
+            localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+            if (indexResult.getTranslogLocation() == null) {
+                localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+            }
+        } else {
+            // The batch owns processed-checkpoint advancement (on flush) and persisted-checkpoint advancement (on the
+            // translog fsync callback). The seqNo must still be valid.
+            assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
+        }
+
+        if (deferred == false) {
+            indexResult.setTook(System.nanoTime() - index.startTime());
+            indexResult.freeze();
+        }
+        // A deferred result is timed before entering the batch and frozen when its chunk is appended.
         return indexResult;
     }
 
     /**
-     * Not supported — delete operations are not implemented for data-format-aware engines.
+     * Begin a remote-store translog batch for the current bulk execution. Local-store composite indexes and all
+     * non-composite engines retain inline translog appends even when the prototype setting is present.
+     */
+    @Override
+    public Engine.TranslogBatch beginTranslogBatch() {
+        if (engineConfig.getIndexSettings().isTranslogBatchAppendEnabled() == false
+            || engineConfig.getIndexSettings().isRemoteStoreEnabled() == false
+            || engineConfig.getIndexSettings().isRemoteTranslogStoreEnabled() == false
+            || engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode() == false) {
+            return Engine.NO_OP_TRANSLOG_BATCH;
+        }
+        // A scope opened against a closed engine would only fail at its first append with the same
+        // AlreadyClosedException; refuse it up front so the bulk is retried on the new primary without doing any work.
+        ensureOpen();
+        if (activeBatch.get() != null) {
+            throw new IllegalStateException("a translog batch is already active on this bulk thread");
+        }
+        final TranslogBatchScope batch = new TranslogBatchScope(
+            translogManager,
+            localCheckpointTracker,
+            shardId,
+            // Same decision as a per-operation translog failure in index(): fail the engine only if the exception is the
+            // translog's tragic event (or an AlreadyClosedException over one); otherwise only the request fails.
+            this::maybeFailEngine,
+            this::onTranslogBatchFinished,
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxOperations(),
+            engineConfig.getIndexSettings().getTranslogBatchAppendMaxSize().getBytes()
+        );
+        activeBatch.set(batch);
+        activeBatches.add(batch);
+        return batch;
+    }
+
+    private void onTranslogBatchFinished(TranslogBatchScope batch) {
+        activeBatches.remove(batch);
+        if (activeBatch.get() == batch) {
+            activeBatch.remove();
+        }
+    }
+
+    /**
+     * Deletes, no-ops and the no-op recorded for a failed index are written inline. If this bulk thread still holds
+     * index operations in its batch, append them first so the translog keeps request order (an index of a document
+     * precedes the delete of the same document) whichever path the caller took.
+     */
+    private void flushActiveBatchBeforeInlineWrite() {
+        final TranslogBatchScope batch = activeBatch.get();
+        if (batch != null) {
+            batch.flush();
+        }
+    }
+
+    /** Force every live bulk scope to append its current chunk before publishing a catalog snapshot. */
+    /**
+     * Appends every live bulk scope's pending chunk so that a refresh or flush publishes no row whose translog record
+     * is still deferred.
      *
-     * @throws UnsupportedEncodingException always
+     * <p>A scope's append failure belongs to the bulk that owns the scope: the scope has recorded it, completed its
+     * pending readers exceptionally and rethrows it at {@code finish()}, and {@code maybeFailEngine} has already been
+     * consulted for it exactly as for a per-operation {@code Translog#add} failure. The drainer therefore only stops
+     * for a failure that is the translog's tragic event (the translog is closed and the engine is failing); any other
+     * failure is the owning request's to report, and the drainer carries on with the remaining scopes. Whether the
+     * engine fails must not depend on which thread happened to drain the chunk. The rows of the failed scope are
+     * unacknowledged with unprocessed sequence numbers, the same state the stock engine leaves a document in between
+     * its Lucene add and its translog add.
+     */
+    private void flushActiveTranslogBatches() {
+        for (TranslogBatchScope batch : activeBatches) {
+            try {
+                batch.flush();
+            } catch (Exception e) {
+                if (e instanceof AlreadyClosedException || translogManager.getTragicExceptionIfClosed() != null) {
+                    throw e;
+                }
+                logger.debug(() -> new ParameterizedMessage("[{}] batched translog append failed while draining", shardId), e);
+            }
+        }
+    }
+
+    /**
+     * Deletes a document using primary planning or local recovery/reset semantics, then updates
+     * sequence-number, translog, checkpoint, and version-map state.
+     *
+     * @param delete the delete operation
+     * @return the delete result
+     * @throws IOException if the engine or translog write fails
      */
     @Override
     public Engine.DeleteResult delete(Engine.Delete delete) throws IOException {
-        throw new UnsupportedEncodingException("delete operation not supported.");
+        versionMap.enforceSafeAccess();
+        assert delete.origin() == Engine.Operation.Origin.PRIMARY
+            || delete.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+            || delete.origin() == Engine.Operation.Origin.LOCAL_RESET
+            : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + delete.origin();
+        flushActiveBatchBeforeInlineWrite();
+        final Engine.DeleteResult deleteResult;
+        int reservedDocs = 0;
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+            ensureOpen();
+            lastWriteNanos = delete.startTime();
+            final DeletionStrategy plan = planDelete(delete);
+            reservedDocs = plan.reservedDocs;
+            if (plan.earlyResultOnPreFlightError.isPresent()) {
+                assert delete.origin() == Engine.Operation.Origin.PRIMARY : delete.origin();
+                deleteResult = (Engine.DeleteResult) plan.earlyResultOnPreFlightError.get();
+            } else {
+                delete = generateSeqNoForDelete(delete);
+                deleteResult = executeDeletePlan(delete, plan);
+            }
+            finalizeDelete(delete, deleteResult);
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("delete", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        } finally {
+            documentCountTracker.releaseInFlightDocs(reservedDocs);
+        }
+        maybePruneDeletes();
+        return deleteResult;
+    }
+
+    /** Chooses the primary or local recovery/reset deletion plan. */
+    private DeletionStrategy planDelete(Engine.Delete delete) throws IOException {
+        if (delete.origin() == Engine.Operation.Origin.PRIMARY) {
+            return deletionStrategyPlanner.planOperationAsPrimary(delete);
+        }
+        return deletionStrategyPlanner.planOperationAsNonPrimary(delete);
+    }
+
+    /** Assigns a new primary sequence number or marks a local recovery/reset sequence number as seen. */
+    private Engine.Delete generateSeqNoForDelete(Engine.Delete delete) {
+        if (delete.origin() == Engine.Operation.Origin.PRIMARY) {
+            delete = new Engine.Delete(
+                delete.id(),
+                delete.uid(),
+                generateSeqNoForOperationOnPrimary(delete),
+                delete.primaryTerm(),
+                delete.version(),
+                delete.versionType(),
+                delete.origin(),
+                delete.startTime(),
+                delete.getIfSeqNo(),
+                delete.getIfPrimaryTerm()
+            );
+            advanceMaxSeqNoOfUpdatesOrDeletes(delete.seqNo());
+        } else {
+            markSeqNoAsSeen(delete.seqNo());
+        }
+        assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
+        return delete;
+    }
+
+    /** Applies the deletion plan and records a tombstone for executed operations. */
+    private Engine.DeleteResult executeDeletePlan(Engine.Delete delete, DeletionStrategy plan) throws IOException {
+        if (plan.executeOpOnEngine == false && plan.addStaleOpToEngine == false) {
+            return new Engine.DeleteResult(plan.version, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+        }
+        final Engine.DeleteResult deleteResult = deleteInEngine(delete, plan);
+        if (plan.executeOpOnEngine) {
+            versionMap.putDeleteUnderLock(
+                delete.uid().bytes(),
+                new DeleteVersionValue(
+                    plan.version,
+                    delete.seqNo(),
+                    delete.primaryTerm(),
+                    engineConfig.getThreadPool().relativeTimeInMillis()
+                )
+            );
+        }
+        return deleteResult;
+    }
+
+    /**
+     * Records non-translog deletes, updates checkpoint state, and finalizes the result. A successful
+     * delete is appended as a delete; a failed one already holds an issued sequence number, so it is
+     * appended as a no-op to keep recovery gap-free (mirroring the indexing path).
+     */
+    private void finalizeDelete(Engine.Delete delete, Engine.DeleteResult deleteResult) throws IOException {
+        if (delete.origin().isFromTranslog() == false) {
+            final Translog.Location location;
+            if (deleteResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                location = translogManager.add(new Translog.Delete(delete, deleteResult));
+            } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                location = translogManager.add(
+                    new Translog.NoOp(deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getFailure().toString())
+                );
+            } else {
+                // A pre-flight failure (version conflict) never issued a sequence number.
+                location = null;
+            }
+            deleteResult.setTranslogLocation(location);
+        }
+        localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+        if (deleteResult.getTranslogLocation() == null) {
+            assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+            localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
+        }
+        deleteResult.setTook(System.nanoTime() - delete.startTime());
+        deleteResult.freeze();
+    }
+
+    /**
+     * Routes the planned delete to the {@link DeleteExecutionEngine} under a locked active writer
+     * (locked only for the generation context; no document is added), mapping its {@link DeleteResult}.
+     */
+    private Engine.DeleteResult deleteInEngine(Engine.Delete delete, DeletionStrategy plan) throws IOException {
+        // Deletes need only an active writer for generation context; they do not apply mappings.
+        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock(h -> h.get().state() == WriterState.ACTIVE);
+        try {
+            Writer<?> currentWriter = lockedWriter.get();
+            DeleteResult deleteResult = deleteExecutionEngine.deleteDocument(
+                new DeleteInput(IdFieldMapper.NAME, delete.id(), currentWriter.generation()),
+                currentWriter
+            );
+            if (deleteResult instanceof DeleteResult.Success) {
+                return new Engine.DeleteResult(plan.version, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+            }
+            DeleteResult.Failure f = (DeleteResult.Failure) deleteResult;
+            return new Engine.DeleteResult(f.cause(), plan.version, delete.primaryTerm(), delete.seqNo(), false);
+        } finally {
+            if (writerPool.isRegistered(lockedWriter)) {
+                writerPool.releaseAndUnlock(lockedWriter);
+            }
+        }
     }
 
     /**
@@ -822,6 +1115,7 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
+        flushActiveBatchBeforeInlineWrite();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return innerNoOp(noOp);
@@ -906,9 +1200,18 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     /**
-     * Not supported — delete operations are not implemented for data-format-aware engines.
+     * Builds an {@link Engine.Delete} operation for the given document id. The {@code _id} term is
+     * constructed from the id via {@link Uid#encodeId}.
      *
-     * @throws UnsupportedOperationException always
+     * @param id            the document id to delete
+     * @param seqNo         the sequence number ({@code UNASSIGNED_SEQ_NO} for primary)
+     * @param primaryTerm   the primary term
+     * @param version       the expected version
+     * @param versionType   the version type
+     * @param origin        the operation origin
+     * @param ifSeqNo       the conditional sequence number
+     * @param ifPrimaryTerm the conditional primary term
+     * @return the prepared delete operation
      */
     @Override
     public Engine.Delete prepareDelete(
@@ -921,7 +1224,24 @@ public class DataFormatAwareEngine implements Indexer {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
-        throw new UnsupportedOperationException("delete operation not supported.");
+        return prepareDelete(id, null, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     /**
@@ -940,6 +1260,7 @@ public class DataFormatAwareEngine implements Indexer {
         final long refreshStartNanos = System.nanoTime();
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
+        boolean deletesApplied = false;
         List<Closeable> toClose = new ArrayList<>();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -1000,6 +1321,9 @@ public class DataFormatAwareEngine implements Indexer {
                                     Segment segment = segmentBuilder.build();
                                     newSegments.add(segment);
                                     rowsToRelease += segment.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
+                                } else if (writerToFlush instanceof RowIdAwareWriter<?> rowIdAwareWriter) {
+                                    // Release admitted rows even when a fully deleted generation produces no files.
+                                    rowsToRelease += rowIdAwareWriter.docCount();
                                 }
                                 refreshed |= hasFiles;
                             } catch (Exception e) {
@@ -1042,6 +1366,14 @@ public class DataFormatAwareEngine implements Indexer {
                             toClose.add(pendingWriter);
                         }
 
+                        for (Closeable retiring : toClose) {
+                            if (retiring instanceof Writer<?> retiringWriter) {
+                                deletesApplied |= deleteExecutionEngine.onWriterCheckedOut(retiringWriter.generation());
+                            }
+                        }
+
+                        deletesApplied |= unpublishedDeletes.getAndSet(false);
+
                         logger.debug(
                             "refresh[{}]: flushed {} writers producing {} new segments in [{}ms]",
                             source,
@@ -1061,35 +1393,58 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
-                        if (refreshed) {
+                        if (refreshed || deletesApplied) {
                             final long engineRefreshStartNanos = System.nanoTime();
                             long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen);
+                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen, deletesApplied);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
                             logger.debug(
                                 "refresh[{}]: indexingExecutionEngine.refresh took [{}ms] "
-                                    + "existingSegments={} newSegments={} resultSegments={}",
+                                    + "existingSegments={} newSegments={} resultSegments={} dropped={}",
                                 source,
                                 engineRefreshElapsedMs,
                                 existingSegments.size(),
                                 newSegments.size(),
-                                result.refreshedSegments().size()
+                                result.refreshedSegments().size(),
+                                result.droppedGenerations().size()
                             );
-                            // Refresh result must contain at least as many segments as existed before (existing + new)
-                            assert result.refreshedSegments().size() >= existingSegments.size()
+                            // Refresh must not lose existing segments beyond those fully deleted (dropped).
+                            assert result.refreshedSegments().size() >= existingSegments.size() - result.droppedGenerations().size()
                                 : "refresh must not lose existing segments; had "
                                     + existingSegments.size()
+                                    + " dropped "
+                                    + result.droppedGenerations().size()
                                     + " but got "
                                     + result.refreshedSegments().size();
 
+                            // Drop fully-deleted generations so the catalog stays consistent with the reader.
+                            final List<Segment> finalSegments = result.refreshedSegments()
+                                .stream()
+                                .filter(seg -> result.droppedGenerations().contains(seg.generation()) == false)
+                                .toList();
+
                             final long commitStartNanos = System.nanoTime();
-                            catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
-                            assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
-                                + rowsToRelease
-                                + " for shard: "
-                                + shardId;
-                            pendingRowCount.addAndGet(-rowsToRelease);
+                            // A writer can be flushed while its bulk still owns deferred translog entries. Append every
+                            // pending chunk before publishing the segments so that, for every row whose bulk thread has
+                            // reached batch.add, the WAL record exists before the row is searchable. The residual window
+                            // is a thread that has written its row to the writer but not yet called batch.add; the
+                            // stock engine has the same window between the Lucene add and translogManager.add, and in
+                            // both cases the operation is unacknowledged until its append and sync complete.
+                            flushActiveTranslogBatches();
+                            catalogSnapshotManager.commitNewSnapshot(finalSegments);
+                            // A refresh that published segments must have rows to release; a pure delete
+                            // that flushed nothing adds none.
+                            if (refreshed) {
+                                assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
+                                    + rowsToRelease
+                                    + " for shard: "
+                                    + shardId;
+                            }
+                            // Dropped generations may release rows without publishing segments.
+                            if (rowsToRelease > 0L) {
+                                pendingRowCount.addAndGet(-rowsToRelease);
+                            }
                             final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
                             logger.trace("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         } else if ("flush".equals(source)) {
@@ -1098,14 +1453,14 @@ public class DataFormatAwareEngine implements Indexer {
                     } finally {
                         store.decRef();
                     }
-                    if (refreshed) {
+                    if (refreshed || deletesApplied) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
                         maybePruneDeletes();
                         triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
-                notifyRefreshListenersAfter(refreshed);
+                notifyRefreshListenersAfter(refreshed || deletesApplied);
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
@@ -1178,6 +1533,9 @@ public class DataFormatAwareEngine implements Indexer {
                     // durably contains, mirroring Lucene's InternalEngine.commitIndexWriter (which
                     // captures the checkpoint before IndexWriter.commit flushes). See
                     // DataFormatAwareEngineTests#testFlushMustNotCommitCheckpointAheadOfPersistedSnapshot.
+                    // Include operations already applied by live bulk scopes in the checkpoint whenever possible. The
+                    // refresh path drains again immediately before catalog publication to close concurrent races.
+                    flushActiveTranslogBatches();
                     final long committedLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
                     // Refresh first to flush buffered data to segments
                     refresh("flush");
@@ -1336,7 +1694,7 @@ public class DataFormatAwareEngine implements Indexer {
     /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
     @Override
     public long getHeapBytesUsed() {
-        return indexingExecutionEngine.getHeapBytesUsed();
+        return indexingExecutionEngine.getHeapBytesUsed() + deleteExecutionEngine.ramBytesUsed();
     }
 
     @Override
@@ -1644,6 +2002,26 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     @Override
+    public void refreshPrimaryOperationPolicy() {
+        // A plugin can key its policy off an updatable setting, so the combination this engine rejects at
+        // construction can also appear later. Fail here rather than silently ignoring the policy.
+        ensureDefaultPrimaryOperationPolicy(engineConfig);
+    }
+
+    private static void ensureDefaultPrimaryOperationPolicy(EngineConfig engineConfig) {
+        final PrimaryOperationPolicy policy = engineConfig.getPrimaryOperationPolicy();
+        if (policy != DefaultPrimaryOperationPolicy.INSTANCE) {
+            throw new IllegalStateException(
+                "DataFormatAwareEngine does not support primary operation policy ["
+                    + policy
+                    + "] requested for shard ["
+                    + engineConfig.getShardId()
+                    + "]; pluggable data format cannot be combined with a non-default primary operation policy"
+            );
+        }
+    }
+
+    @Override
     public CommitStats commitStats() {
         return committer.getCommitStats();
     }
@@ -1673,11 +2051,13 @@ public class DataFormatAwareEngine implements Indexer {
             try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
                 CatalogSnapshot snapshot = snapshotRef.get();
 
-                return statsCache.buildSegmentsStats(
+                SegmentsStats stats = statsCache.buildSegmentsStats(
                     indexingExecutionEngine.getNativeBytesUsed(),
                     maxUnsafeAutoIdTimestamp.get(),
                     snapshot
                 );
+                stats.addVersionMapMemoryInBytes(deleteExecutionEngine.ramBytesUsed());
+                return stats;
             } catch (Exception e) {
                 logger.warn("Failed to compute segments stats with file sizes, falling back to cached stats", e);
                 return statsCache.getSegmentsStats();
@@ -1685,16 +2065,21 @@ public class DataFormatAwareEngine implements Indexer {
         } else {
             // Fast path - return precomputed stats from cache (without file sizes)
             SegmentsStats cachedStats = statsCache.getSegmentsStats();
-            if (cachedStats.getFileSizes() != null && !cachedStats.getFileSizes().isEmpty()) {
+            final long deleteRamBytes = deleteExecutionEngine.ramBytesUsed();
+            if (cachedStats.getFileSizes() != null && cachedStats.getFileSizes().isEmpty() == false) {
                 // Create a copy without file sizes when includeSegmentFileSizes=false
                 SegmentsStats statsWithoutFileSizes = new SegmentsStats();
                 statsWithoutFileSizes.add(cachedStats.getCount());
                 statsWithoutFileSizes.addIndexWriterMemoryInBytes(cachedStats.getIndexWriterMemoryInBytes());
-                statsWithoutFileSizes.addVersionMapMemoryInBytes(cachedStats.getVersionMapMemoryInBytes());
+                statsWithoutFileSizes.addVersionMapMemoryInBytes(cachedStats.getVersionMapMemoryInBytes() + deleteRamBytes);
                 statsWithoutFileSizes.updateMaxUnsafeAutoIdTimestamp(cachedStats.getMaxUnsafeAutoIdTimestamp());
                 return statsWithoutFileSizes;
             }
-            return cachedStats;
+            // Copy the shared cached stats before adding delete-tracking memory.
+            SegmentsStats statsWithDeleteBytes = new SegmentsStats();
+            statsWithDeleteBytes.add(cachedStats);
+            statsWithDeleteBytes.addVersionMapMemoryInBytes(deleteRamBytes);
+            return statsWithDeleteBytes;
         }
     }
 
@@ -1871,6 +2256,18 @@ public class DataFormatAwareEngine implements Indexer {
                 );
             }
 
+            // Drain deletes and remove tracking before publishing the retired segment.
+            try {
+                if (deleteExecutionEngine.onWriterCheckedOut(writer.generation())) {
+                    unpublishedDeletes.set(true);
+                }
+            } catch (IOException deleteEx) {
+                throw new IllegalStateException(
+                    "could not apply buffered deletes while retiring writer generation [" + writer.generation() + "]",
+                    deleteEx
+                );
+            }
+
             // RETIRED_FLUSHABLE: flush the buffered N-1 docs. A throw here loses those acked
             // docs; surface as IllegalStateException so the caller fails the engine for recovery.
             FileInfos retiredFileInfos;
@@ -2003,9 +2400,15 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }
 
-            // Fall through: read from parquet
+            // Fall through: read from parquet. Resolved through DocumentLookupSupport#getById,
+            // which applies read-time version/if_seq_no conflicts to the result — the realtime
+            // branch above checks them inline, and the read-only and NRT replica engines already
+            // go through this same helper. Calling lookupFromReader directly skipped the checks,
+            // so a stale precondition on a get (and therefore on an update of any committed
+            // document, since UpdateHelper rebuilds the index request from the get's seqNo) was
+            // silently dropped rather than enforced.
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.lookupFromReader(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         } // readLock
@@ -2120,6 +2523,12 @@ public class DataFormatAwareEngine implements Indexer {
                     refreshListener.afterRefresh(true);
                 }
             }
+            // A merge replaces segments and drops rows that were hidden by a delete or an update, so
+            // doc counts and per-segment stats change even though no checkpoint moved. applyMergeResults
+            // ends by committing the post-merge snapshot, which registers a reader for it, so liveness
+            // can be read here. Without this the stats cache would keep serving pre-merge numbers until
+            // the next ordinary refresh.
+            statsCache.forceRefresh();
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);
@@ -2149,6 +2558,11 @@ public class DataFormatAwareEngine implements Indexer {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
+                final EngineException closeFailure = new EngineException(shardId, "engine closed with pending translog batches: " + reason);
+                for (TranslogBatchScope batch : activeBatches) {
+                    batch.abort(closeFailure);
+                }
+                activeBatches.clear();
                 this.versionMap.clear();
                 // Stop accepting new merges immediately
                 mergeScheduler.shutdown();
@@ -2169,7 +2583,7 @@ public class DataFormatAwareEngine implements Indexer {
                 for (var holder : writerPool.checkoutAll()) {
                     IOUtils.closeWhileHandlingException(holder.get());
                 }
-                IOUtils.close(indexingExecutionEngine, committer, translogManager);
+                IOUtils.close(deleteExecutionEngine, indexingExecutionEngine, committer, translogManager);
                 closeReaders();
             } catch (Exception e) {
                 logger.warn("failed to close engine resources", e);
@@ -2355,6 +2769,10 @@ public class DataFormatAwareEngine implements Indexer {
             final long flushStartNanos = System.nanoTime();
             FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
             final long flushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - flushStartNanos);
+
+            if (deleteExecutionEngine.onWriterCheckedOut(writerToFlush.generation())) {
+                unpublishedDeletes.set(true);
+            }
 
             if (fileInfos.writerFilesMap().isEmpty() == false) {
                 Segment.Builder segmentBuilder = Segment.builder(writerToFlush.generation());

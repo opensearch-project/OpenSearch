@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 
 import java.util.Map;
 
@@ -33,4 +34,16 @@ public interface IngestionConsumerPlugin {
      * @return the type of the ingestion consumer plugin. the type name shall be in upper case
      */
     String getType();
+
+    /**
+     * Returns a map of decoder-name → factory contributed by this plugin.
+     *
+     * <p>Decoder names must be globally unique across all installed plugins and core built-ins.
+     * Node startup fails with a duplicate-registration error if two sources register the same name.
+     *
+     * @return map of decoder names to their factories; empty map if this plugin provides no decoders
+     */
+    default Map<String, IngestionPayloadDecoderFactory> getIngestionPayloadDecoderFactories() {
+        return Map.of();
+    }
 }

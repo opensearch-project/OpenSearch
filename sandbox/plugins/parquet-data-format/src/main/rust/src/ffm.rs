@@ -14,11 +14,11 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::{ffm_safe, log_debug};
+use native_bridge_common::ffm_safe;
 
-use crate::native_settings::NativeSettings;
 use crate::field_config::FieldConfig;
 use crate::merge;
+use crate::native_settings::NativeSettings;
 use crate::writer::{NativeParquetWriter, SETTINGS_STORE};
 
 unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
@@ -55,15 +55,42 @@ unsafe fn str_array_from_raw(
 }
 
 /// Decode a parallel (pointers, count) array of i64 values interpreted as booleans (0 = false).
-unsafe fn bool_array_from_raw(
-    vals: *const i64,
-    count: i64,
-) -> Vec<bool> {
+unsafe fn bool_array_from_raw(vals: *const i64, count: i64) -> Vec<bool> {
     if count == 0 || vals.is_null() {
         return vec![];
     }
     let n = count as usize;
     (0..n).map(|i| *vals.add(i) != 0).collect()
+}
+
+/// Decode a parallel array of (pointer, length) pairs into a vector of owned `u64` bitsets.
+/// Each entry corresponds to one input file. Null pointer or zero length ⇒ "all alive".
+/// Bitsets use Lucene `FixedBitSet#getBits()` layout.
+unsafe fn live_bits_array_from_raw(
+    ptrs: *const *const i64,
+    lens: *const i64,
+    count: i64,
+) -> Vec<Option<Vec<u64>>> {
+    if count == 0 || lens.is_null() {
+        return vec![];
+    }
+    let n = count as usize;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let l = *lens.add(i);
+        if l <= 0 || ptrs.is_null() {
+            out.push(None);
+            continue;
+        }
+        let p = *ptrs.add(i);
+        if p.is_null() {
+            out.push(None);
+            continue;
+        }
+        let slice = slice::from_raw_parts(p as *const u64, l as usize);
+        out.push(Some(slice.to_vec()));
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -85,20 +112,34 @@ pub unsafe extern "C" fn parquet_create_writer(
     reverse_count: i64,
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
+    max_sort_mode_vals: *const i64,
+    max_sort_mode_count: i64,
     writer_generation: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
-        .map_err(|e| format!("parquet_create_writer file: {}", e))?.to_string();
+        .map_err(|e| format!("parquet_create_writer file: {}", e))?
+        .to_string();
     let index_name = str_from_raw(index_name_ptr, index_name_len)
-        .map_err(|e| format!("parquet_create_writer index_name: {}", e))?.to_string();
+        .map_err(|e| format!("parquet_create_writer index_name: {}", e))?
+        .to_string();
     let sort_columns = str_array_from_raw(sort_ptrs, sort_lens, sort_count)
         .map_err(|e| format!("parquet_create_writer sort_columns: {}", e))?;
     let reverse_sorts = bool_array_from_raw(reverse_vals, reverse_count);
     let nulls_first = bool_array_from_raw(nulls_first_vals, nulls_first_count);
+    let max_sort_modes = bool_array_from_raw(max_sort_mode_vals, max_sort_mode_count);
 
-    NativeParquetWriter::create_writer(filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation)
-        .map(|_| 0)
-        .map_err(|e| e.to_string())
+    NativeParquetWriter::create_writer(
+        filename,
+        index_name,
+        schema_address,
+        sort_columns,
+        reverse_sorts,
+        nulls_first,
+        max_sort_modes,
+        writer_generation,
+    )
+    .map(|_| 0)
+    .map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
@@ -109,8 +150,25 @@ pub unsafe extern "C" fn parquet_write(
     array_address: i64,
     schema_address: i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_write: {}", e))?.to_string();
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_write: {}", e))?
+        .to_string();
     NativeParquetWriter::write_data(filename, array_address, schema_address)
+        .map(|_| 0)
+        .map_err(|e| e.to_string())
+}
+
+/// Removes the writer registry entry for `file` without finalizing it (idempotent).
+///
+/// Used by the Java shard close / going-red flow to guarantee a writer left behind by a failed
+/// operation does not survive as a stale entry and block recovery's re-`create_writer`.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_cleanup_writer(file_ptr: *const u8, file_len: i64) -> i64 {
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_cleanup_writer: {}", e))?
+        .to_string();
+    NativeParquetWriter::cleanup_writer(&filename)
         .map(|_| 0)
         .map_err(|e| e.to_string())
 }
@@ -131,24 +189,36 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     sort_perm_ptr_out: *mut i64,
     sort_perm_len_out: *mut i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_finalize_writer: {}", e))?.to_string();
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_finalize_writer: {}", e))?
+        .to_string();
     match NativeParquetWriter::finalize_writer(filename) {
         Ok(Some(result)) => {
             let fm = result.metadata.file_metadata();
-            if !version_out.is_null() { *version_out = fm.version(); }
-            if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+            if !version_out.is_null() {
+                *version_out = fm.version();
+            }
+            if !num_rows_out.is_null() {
+                *num_rows_out = fm.num_rows();
+            }
             if let Some(cb) = fm.created_by() {
                 if !created_by_buf.is_null() && created_by_buf_len > 0 {
                     let bytes = cb.as_bytes();
                     let n = bytes.len().min(created_by_buf_len as usize);
                     std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
-                    if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+                    if !created_by_len_out.is_null() {
+                        *created_by_len_out = n as i64;
+                    }
                 }
             } else if !created_by_len_out.is_null() {
                 *created_by_len_out = -1;
             }
-            if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
-            if !num_row_groups_out.is_null() { *num_row_groups_out = result.metadata.num_row_groups() as i64; }
+            if !crc32_out.is_null() {
+                *crc32_out = result.crc32 as i64;
+            }
+            if !num_row_groups_out.is_null() {
+                *num_row_groups_out = result.metadata.num_row_groups() as i64;
+            }
 
             // Return sort permutation if present
             if !sort_perm_ptr_out.is_null() && !sort_perm_len_out.is_null() {
@@ -172,7 +242,6 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     }
 }
 
-
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_file_metadata(
@@ -185,18 +254,28 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     created_by_len_out: *mut i64,
     num_row_groups_out: *mut i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_file_metadata: {}", e))?.to_string();
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_get_file_metadata: {}", e))?
+        .to_string();
     let metadata = NativeParquetWriter::get_file_metadata(filename).map_err(|e| e.to_string())?;
     let fm = metadata.file_metadata();
-    if !version_out.is_null() { *version_out = fm.version(); }
-    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
-    if !num_row_groups_out.is_null() { *num_row_groups_out = metadata.num_row_groups() as i64; }
+    if !version_out.is_null() {
+        *version_out = fm.version();
+    }
+    if !num_rows_out.is_null() {
+        *num_rows_out = fm.num_rows();
+    }
+    if !num_row_groups_out.is_null() {
+        *num_row_groups_out = metadata.num_row_groups() as i64;
+    }
     if let Some(cb) = fm.created_by() {
         if !created_by_buf.is_null() && created_by_buf_len > 0 {
             let bytes = cb.as_bytes();
             let n = bytes.len().min(created_by_buf_len as usize);
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
-            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+            if !created_by_len_out.is_null() {
+                *created_by_len_out = n as i64;
+            }
         }
     } else if !created_by_len_out.is_null() {
         *created_by_len_out = -1;
@@ -219,9 +298,12 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
     use parquet::file::reader::{FileReader, SerializedFileReader};
     use std::fs::File;
 
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_column_metadata: {}", e))?.to_string();
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_get_column_metadata: {}", e))?
+        .to_string();
     let file = File::open(&filename).map_err(|e| format!("Failed to open file: {}", e))?;
-    let reader = SerializedFileReader::new(file).map_err(|e| format!("Failed to read parquet: {}", e))?;
+    let reader =
+        SerializedFileReader::new(file).map_err(|e| format!("Failed to read parquet: {}", e))?;
     let metadata = reader.metadata();
 
     if metadata.num_row_groups() == 0 {
@@ -229,7 +311,9 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
         let bytes = json.as_bytes();
         let n = bytes.len().min(out_buf_len as usize);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, n);
-        if !out_len.is_null() { *out_len = n as i64; }
+        if !out_len.is_null() {
+            *out_len = n as i64;
+        }
         return Ok(0);
     }
 
@@ -241,11 +325,17 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
         let encodings: Vec<String> = col.encodings().map(|e| format!("{:?}", e)).collect();
         let compression = format!("{:?}", col.compression());
         let has_bloom_filter = col.bloom_filter_offset().is_some();
-        if i > 0 { json.push(','); }
+        if i > 0 {
+            json.push(',');
+        }
         json.push_str(&format!(
             "\"{}\":{{\"encodings\":[{}],\"compression\":\"{}\",\"bloom_filter\":{}}}",
             col_name,
-            encodings.iter().map(|e| format!("\"{}\"" , e)).collect::<Vec<_>>().join(","),
+            encodings
+                .iter()
+                .map(|e| format!("\"{}\"", e))
+                .collect::<Vec<_>>()
+                .join(","),
             compression,
             has_bloom_filter
         ));
@@ -255,7 +345,9 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
     let bytes = json.as_bytes();
     let n = bytes.len().min(out_buf_len as usize);
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, n);
-    if !out_len.is_null() { *out_len = n as i64; }
+    if !out_len.is_null() {
+        *out_len = n as i64;
+    }
     Ok(0)
 }
 
@@ -264,7 +356,9 @@ pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
     prefix_len: i64,
 ) -> i64 {
-    let prefix = str_from_raw(prefix_ptr, prefix_len).unwrap_or("").to_string();
+    let prefix = str_from_raw(prefix_ptr, prefix_len)
+        .unwrap_or("")
+        .to_string();
     NativeParquetWriter::get_filtered_writer_memory_usage(prefix).unwrap_or(0) as i64
 }
 
@@ -331,93 +425,218 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     type_bf_ndv_count: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
-        .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?.to_string();
+        .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?
+        .to_string();
 
     let compression_type = if compression_type_ptr.is_null() || compression_type_len < 0 {
         None
     } else {
-        Some(str_from_raw(compression_type_ptr, compression_type_len)
-            .map_err(|e| format!("parquet_on_settings_update compression_type: {}", e))?.to_string())
+        Some(
+            str_from_raw(compression_type_ptr, compression_type_len)
+                .map_err(|e| format!("parquet_on_settings_update compression_type: {}", e))?
+                .to_string(),
+        )
     };
 
-    fn opt_i32(v: i64) -> Option<i32> { if v < 0 { None } else { Some(v as i32) } }
-    fn opt_usize(v: i64) -> Option<usize> { if v < 0 { None } else { Some(v as usize) } }
-    fn opt_bool(v: i64) -> Option<bool> { if v < 0 { None } else { Some(v != 0) } }
-    fn opt_f64(v: f64) -> Option<f64> { if v < 0.0 { None } else { Some(v) } }
-    fn opt_u64(v: i64) -> Option<u64> { if v < 0 { None } else { Some(v as u64) } }
+    fn opt_i32(v: i64) -> Option<i32> {
+        if v < 0 {
+            None
+        } else {
+            Some(v as i32)
+        }
+    }
+    fn opt_usize(v: i64) -> Option<usize> {
+        if v < 0 {
+            None
+        } else {
+            Some(v as usize)
+        }
+    }
+    fn opt_bool(v: i64) -> Option<bool> {
+        if v < 0 {
+            None
+        } else {
+            Some(v != 0)
+        }
+    }
+    fn opt_f64(v: f64) -> Option<f64> {
+        if v < 0.0 {
+            None
+        } else {
+            Some(v)
+        }
+    }
+    fn opt_u64(v: i64) -> Option<u64> {
+        if v < 0 {
+            None
+        } else {
+            Some(v as u64)
+        }
+    }
 
     let field_names = str_array_from_raw(field_name_ptrs, field_name_lens, field_count)
         .map_err(|e| format!("parquet_on_settings_update field_names: {}", e))?;
     let field_encodings = str_array_from_raw(field_encoding_ptrs, field_encoding_lens, field_count)
         .map_err(|e| format!("parquet_on_settings_update field_encodings: {}", e))?;
-    let field_compression_names = str_array_from_raw(field_compression_name_ptrs, field_compression_name_lens, field_compression_count)
-        .map_err(|e| format!("parquet_on_settings_update field_compression_names: {}", e))?;
-    let field_compressions = str_array_from_raw(field_compression_value_ptrs, field_compression_value_lens, field_compression_count)
-        .map_err(|e| format!("parquet_on_settings_update field_compressions: {}", e))?;
+    let field_compression_names = str_array_from_raw(
+        field_compression_name_ptrs,
+        field_compression_name_lens,
+        field_compression_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update field_compression_names: {}", e))?;
+    let field_compressions = str_array_from_raw(
+        field_compression_value_ptrs,
+        field_compression_value_lens,
+        field_compression_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update field_compressions: {}", e))?;
 
-    let type_encoding_names = str_array_from_raw(type_encoding_name_ptrs, type_encoding_name_lens, type_encoding_count)
-        .map_err(|e| format!("parquet_on_settings_update type_encoding_names: {}", e))?;
-    let type_encodings = str_array_from_raw(type_encoding_value_ptrs, type_encoding_value_lens, type_encoding_count)
-        .map_err(|e| format!("parquet_on_settings_update type_encodings: {}", e))?;
-    let type_compression_names = str_array_from_raw(type_compression_name_ptrs, type_compression_name_lens, type_compression_count)
-        .map_err(|e| format!("parquet_on_settings_update type_compression_names: {}", e))?;
-    let type_compressions = str_array_from_raw(type_compression_value_ptrs, type_compression_value_lens, type_compression_count)
-        .map_err(|e| format!("parquet_on_settings_update type_compressions: {}", e))?;
+    let type_encoding_names = str_array_from_raw(
+        type_encoding_name_ptrs,
+        type_encoding_name_lens,
+        type_encoding_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_encoding_names: {}", e))?;
+    let type_encodings = str_array_from_raw(
+        type_encoding_value_ptrs,
+        type_encoding_value_lens,
+        type_encoding_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_encodings: {}", e))?;
+    let type_compression_names = str_array_from_raw(
+        type_compression_name_ptrs,
+        type_compression_name_lens,
+        type_compression_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_compression_names: {}", e))?;
+    let type_compressions = str_array_from_raw(
+        type_compression_value_ptrs,
+        type_compression_value_lens,
+        type_compression_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_compressions: {}", e))?;
 
     // Parse per-field bloom filter arrays
-    let bf_enabled_names = str_array_from_raw(bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_count)
-        .map_err(|e| format!("parquet_on_settings_update bf_enabled_names: {}", e))?;
+    let bf_enabled_names =
+        str_array_from_raw(bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_count)
+            .map_err(|e| format!("parquet_on_settings_update bf_enabled_names: {}", e))?;
 
     let field_configs = {
         let mut map = std::collections::HashMap::new();
         for (name, encoding) in field_names.into_iter().zip(field_encodings.into_iter()) {
-            map.insert(name, FieldConfig { encoding_type: Some(encoding), ..Default::default() });
+            map.insert(
+                name,
+                FieldConfig {
+                    encoding_type: Some(encoding),
+                    ..Default::default()
+                },
+            );
         }
-        for (name, compression) in field_compression_names.into_iter().zip(field_compressions.into_iter()) {
+        for (name, compression) in field_compression_names
+            .into_iter()
+            .zip(field_compressions.into_iter())
+        {
             map.entry(name)
-               .and_modify(|fc| fc.compression_type = Some(compression.clone()))
-               .or_insert(FieldConfig { compression_type: Some(compression), ..Default::default() });
+                .and_modify(|fc| fc.compression_type = Some(compression.clone()))
+                .or_insert(FieldConfig {
+                    compression_type: Some(compression),
+                    ..Default::default()
+                });
         }
         for (i, name) in bf_enabled_names.into_iter().enumerate() {
             let val = *bf_enabled_vals.add(i) != 0;
             map.entry(name)
-               .and_modify(|fc| fc.bloom_filter_enabled = Some(val))
-               .or_insert(FieldConfig { bloom_filter_enabled: Some(val), ..Default::default() });
+                .and_modify(|fc| fc.bloom_filter_enabled = Some(val))
+                .or_insert(FieldConfig {
+                    bloom_filter_enabled: Some(val),
+                    ..Default::default()
+                });
         }
-        if map.is_empty() { None } else { Some(map) }
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
 
     let type_encoding_configs: Option<std::collections::HashMap<String, String>> = {
-        let map: std::collections::HashMap<_, _> = type_encoding_names.into_iter().zip(type_encodings.into_iter()).collect();
-        if map.is_empty() { None } else { Some(map) }
+        let map: std::collections::HashMap<_, _> = type_encoding_names
+            .into_iter()
+            .zip(type_encodings.into_iter())
+            .collect();
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
     let type_compression_configs: Option<std::collections::HashMap<String, String>> = {
-        let map: std::collections::HashMap<_, _> = type_compression_names.into_iter().zip(type_compressions.into_iter()).collect();
-        if map.is_empty() { None } else { Some(map) }
+        let map: std::collections::HashMap<_, _> = type_compression_names
+            .into_iter()
+            .zip(type_compressions.into_iter())
+            .collect();
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
 
     // Parse type-level bloom filter arrays
-    let type_bf_enabled_names = str_array_from_raw(type_bf_enabled_name_ptrs, type_bf_enabled_name_lens, type_bf_enabled_count)
-        .map_err(|e| format!("parquet_on_settings_update type_bf_enabled_names: {}", e))?;
-    let type_bf_fpp_names = str_array_from_raw(type_bf_fpp_name_ptrs, type_bf_fpp_name_lens, type_bf_fpp_count)
-        .map_err(|e| format!("parquet_on_settings_update type_bf_fpp_names: {}", e))?;
-    let type_bf_ndv_names = str_array_from_raw(type_bf_ndv_name_ptrs, type_bf_ndv_name_lens, type_bf_ndv_count)
-        .map_err(|e| format!("parquet_on_settings_update type_bf_ndv_names: {}", e))?;
+    let type_bf_enabled_names = str_array_from_raw(
+        type_bf_enabled_name_ptrs,
+        type_bf_enabled_name_lens,
+        type_bf_enabled_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_bf_enabled_names: {}", e))?;
+    let type_bf_fpp_names = str_array_from_raw(
+        type_bf_fpp_name_ptrs,
+        type_bf_fpp_name_lens,
+        type_bf_fpp_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_bf_fpp_names: {}", e))?;
+    let type_bf_ndv_names = str_array_from_raw(
+        type_bf_ndv_name_ptrs,
+        type_bf_ndv_name_lens,
+        type_bf_ndv_count,
+    )
+    .map_err(|e| format!("parquet_on_settings_update type_bf_ndv_names: {}", e))?;
 
     let type_bloom_filter_enabled: Option<std::collections::HashMap<String, bool>> = {
-        let map: std::collections::HashMap<_, _> = type_bf_enabled_names.into_iter().enumerate()
-            .map(|(i, name)| (name, *type_bf_enabled_vals.add(i) != 0)).collect();
-        if map.is_empty() { None } else { Some(map) }
+        let map: std::collections::HashMap<_, _> = type_bf_enabled_names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| (name, *type_bf_enabled_vals.add(i) != 0))
+            .collect();
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
     let type_bloom_filter_fpp: Option<std::collections::HashMap<String, f64>> = {
-        let map: std::collections::HashMap<_, _> = type_bf_fpp_names.into_iter().enumerate()
-            .map(|(i, name)| (name, *type_bf_fpp_vals.add(i))).collect();
-        if map.is_empty() { None } else { Some(map) }
+        let map: std::collections::HashMap<_, _> = type_bf_fpp_names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| (name, *type_bf_fpp_vals.add(i)))
+            .collect();
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
     let type_bloom_filter_ndv: Option<std::collections::HashMap<String, u64>> = {
-        let map: std::collections::HashMap<_, _> = type_bf_ndv_names.into_iter().enumerate()
-            .map(|(i, name)| (name, *type_bf_ndv_vals.add(i) as u64)).collect();
-        if map.is_empty() { None } else { Some(map) }
+        let map: std::collections::HashMap<_, _> = type_bf_ndv_names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| (name, *type_bf_ndv_vals.add(i) as u64))
+            .collect();
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     };
 
     let config = NativeSettings {
@@ -456,7 +675,8 @@ pub unsafe extern "C" fn parquet_remove_settings(
     index_name_len: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
-        .map_err(|e| format!("parquet_remove_settings: {}", e))?.to_string();
+        .map_err(|e| format!("parquet_remove_settings: {}", e))?
+        .to_string();
     SETTINGS_STORE.remove(&index_name);
     Ok(0)
 }
@@ -492,6 +712,11 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_flush_and_sort_chunk_count: *mut i64,
     out_flush_and_sort_chunk_time_millis: *mut i64,
     out_row_id_mapping_max: *mut i64,
+    // Per-input live-docs bitsets (parallel to input_ptrs) in Lucene `FixedBitSet#getBits()`
+    // layout. Pass `live_bits_count == 0`, or per-file length 0, for "all alive".
+    live_bits_ptrs: *const *const i64,
+    live_bits_lens: *const i64,
+    live_bits_count: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -500,27 +725,42 @@ pub unsafe extern "C" fn parquet_merge_files(
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_merge_files index_name: {}", e))?;
 
-    let (sort_cols, reverse_flags, nulls_first_flags) = match SETTINGS_STORE.get(index_name) {
+    // Decode live-docs; pad with None to cover every input file.
+    let mut live_docs = live_bits_array_from_raw(live_bits_ptrs, live_bits_lens, live_bits_count);
+    if live_docs.len() < input_files.len() {
+        live_docs.resize(input_files.len(), None);
+    }
+
+    let (sort_cols, reverse_flags, nulls_first_flags, max_sort_mode_flags) = match SETTINGS_STORE
+        .get(index_name)
+    {
         Some(s) => {
             let sc = s.sort_columns.clone();
             let rf = s.reverse_sorts.clone();
             let nf = s.nulls_first.clone();
+            let mm = s.max_sort_modes.clone();
             if !sc.is_empty() && rf.is_empty() {
                 crate::log_info!("parquet_merge_files: sort columns present but reverse_sorts is empty for index '{}', defaulting to ascending", index_name);
             }
             if !sc.is_empty() && nf.is_empty() {
                 crate::log_info!("parquet_merge_files: sort columns present but nulls_first is empty for index '{}', defaulting to nulls last", index_name);
             }
-            (sc, rf, nf)
+            (sc, rf, nf, mm)
         }
         None => {
             crate::log_info!("parquet_merge_files: no settings found for index '{}', proceeding with unsorted merge", index_name);
-            (vec![], vec![], vec![])
+            (vec![], vec![], vec![], vec![])
         }
     };
 
     let result = if sort_cols.is_empty() {
-        merge::merge_unsorted(&input_files, output_path, index_name, output_writer_generation)
+        merge::merge_unsorted(
+            &input_files,
+            output_path,
+            index_name,
+            output_writer_generation,
+            &live_docs,
+        )
     } else {
         merge::merge_sorted(
             &input_files,
@@ -529,26 +769,36 @@ pub unsafe extern "C" fn parquet_merge_files(
             &sort_cols,
             &reverse_flags,
             &nulls_first_flags,
+            &max_sort_mode_flags,
             output_writer_generation,
+            &live_docs,
         )
     }
     .map_err(|e| format!("{}", e))?;
 
     // Write Parquet file metadata to out-pointers.
     let fm = result.metadata.file_metadata();
-    if !version_out.is_null() { *version_out = fm.version(); }
-    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if !version_out.is_null() {
+        *version_out = fm.version();
+    }
+    if !num_rows_out.is_null() {
+        *num_rows_out = fm.num_rows();
+    }
     if let Some(cb) = fm.created_by() {
         if !created_by_buf.is_null() && created_by_buf_len > 0 {
             let bytes = cb.as_bytes();
             let n = bytes.len().min(created_by_buf_len as usize);
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
-            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+            if !created_by_len_out.is_null() {
+                *created_by_len_out = n as i64;
+            }
         }
     } else if !created_by_len_out.is_null() {
         *created_by_len_out = -1;
     }
-    if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
+    if !crc32_out.is_null() {
+        *crc32_out = result.crc32 as i64;
+    }
 
     // Write row-ID mapping into out-pointers as heap-allocated arrays.
     // Java reads them and then calls parquet_free_merge_result to deallocate.
@@ -590,7 +840,10 @@ pub unsafe extern "C" fn parquet_free_merge_result(
         let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
         // Java released merge mapping — free from pool
         crate::memory::merge_pool().shrink(mapping_bytes);
-        let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
+        let _ = Box::from_raw(slice::from_raw_parts_mut(
+            mapping_ptr as *mut i64,
+            mapping_len as usize,
+        ));
     }
     let n = gen_count as usize;
     if gen_keys_ptr != 0 && n > 0 {
@@ -608,6 +861,70 @@ pub unsafe extern "C" fn parquet_free_merge_result(
 // Parquet reader (for test verification)
 // ---------------------------------------------------------------------------
 
+/// Serializes a single Arrow array cell to JSON, recursing into LIST children.
+///
+/// This lets list-typed columns round-trip through `parquet_read_as_json` so tests
+/// can assert LIST values survive the write/merge path: a null list row stays JSON
+/// `null`, an empty list stays `[]`, and a null child element stays JSON `null`,
+/// preserving the null-vs-empty-vs-null-child distinctions the merge must not lose.
+fn array_value_to_json(col: &dyn arrow::array::Array, row_idx: usize) -> serde_json::Value {
+    use arrow::array::Array;
+
+    if col.is_null(row_idx) {
+        return serde_json::Value::Null;
+    }
+    match col.data_type() {
+        arrow::datatypes::DataType::Int32 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Int32Array>()
+                .unwrap();
+            serde_json::Value::Number(arr.value(row_idx).into())
+        }
+        arrow::datatypes::DataType::Int64 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Int64Array>()
+                .unwrap();
+            serde_json::Value::Number(arr.value(row_idx).into())
+        }
+        arrow::datatypes::DataType::Utf8 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::StringArray>()
+                .unwrap();
+            serde_json::Value::String(arr.value(row_idx).to_string())
+        }
+        arrow::datatypes::DataType::Boolean => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::BooleanArray>()
+                .unwrap();
+            serde_json::Value::Bool(arr.value(row_idx))
+        }
+        arrow::datatypes::DataType::Float64 => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .unwrap();
+            serde_json::json!(arr.value(row_idx))
+        }
+        arrow::datatypes::DataType::List(_) => {
+            let arr = col
+                .as_any()
+                .downcast_ref::<arrow::array::ListArray>()
+                .unwrap();
+            let elements = arr.value(row_idx);
+            let mut items = Vec::with_capacity(elements.len());
+            for i in 0..elements.len() {
+                items.push(array_value_to_json(elements.as_ref(), i));
+            }
+            serde_json::Value::Array(items)
+        }
+        _ => serde_json::Value::String(format!("<unsupported:{}>", col.data_type())),
+    }
+}
+
 /// Reads a parquet file and returns its contents as a JSON string.
 /// Each row is a JSON object. The result is a JSON array of objects.
 /// The JSON bytes are written into `out_buf`, actual length into `out_len`.
@@ -621,16 +938,17 @@ pub unsafe extern "C" fn parquet_read_as_json(
     buf_capacity: i64,
     out_len: *mut i64,
 ) -> i64 {
-    use arrow::array::Array;
-
     let filename = str_from_raw(file_ptr, file_len)
-        .map_err(|e| format!("parquet_read_as_json: {}", e))?.to_string();
+        .map_err(|e| format!("parquet_read_as_json: {}", e))?
+        .to_string();
 
     let file = std::fs::File::open(&filename)
         .map_err(|e| format!("Failed to open {}: {}", filename, e))?;
     let builder = parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(file)
         .map_err(|e| format!("Failed to read parquet: {}", e))?;
-    let reader = builder.with_batch_size(8192).build()
+    let reader = builder
+        .with_batch_size(8192)
+        .build()
         .map_err(|e| format!("Failed to build reader: {}", e))?;
 
     let mut rows: Vec<serde_json::Value> = Vec::new();
@@ -641,44 +959,24 @@ pub unsafe extern "C" fn parquet_read_as_json(
             let mut obj = serde_json::Map::new();
             for (col_idx, field) in schema.fields().iter().enumerate() {
                 let col = batch.column(col_idx);
-                let val = if col.is_null(row_idx) {
-                    serde_json::Value::Null
-                } else {
-                    match col.data_type() {
-                        arrow::datatypes::DataType::Int32 => {
-                            let arr = col.as_any().downcast_ref::<arrow::array::Int32Array>().unwrap();
-                            serde_json::Value::Number(arr.value(row_idx).into())
-                        }
-                        arrow::datatypes::DataType::Int64 => {
-                            let arr = col.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
-                            serde_json::Value::Number(arr.value(row_idx).into())
-                        }
-                        arrow::datatypes::DataType::Utf8 => {
-                            let arr = col.as_any().downcast_ref::<arrow::array::StringArray>().unwrap();
-                            serde_json::Value::String(arr.value(row_idx).to_string())
-                        }
-                        arrow::datatypes::DataType::Boolean => {
-                            let arr = col.as_any().downcast_ref::<arrow::array::BooleanArray>().unwrap();
-                            serde_json::Value::Bool(arr.value(row_idx))
-                        }
-                        arrow::datatypes::DataType::Float64 => {
-                            let arr = col.as_any().downcast_ref::<arrow::array::Float64Array>().unwrap();
-                            serde_json::json!(arr.value(row_idx))
-                        }
-                        _ => serde_json::Value::String(format!("<unsupported:{}>", col.data_type())),
-                    }
-                };
-                obj.insert(field.name().clone(), val);
+                obj.insert(
+                    field.name().clone(),
+                    array_value_to_json(col.as_ref(), row_idx),
+                );
             }
             rows.push(serde_json::Value::Object(obj));
         }
     }
 
-    let json_str = serde_json::to_string(&rows)
-        .map_err(|e| format!("JSON serialization failed: {}", e))?;
+    let json_str =
+        serde_json::to_string(&rows).map_err(|e| format!("JSON serialization failed: {}", e))?;
     let bytes = json_str.as_bytes();
     if bytes.len() > buf_capacity as usize {
-        return Err(format!("JSON output ({} bytes) exceeds buffer capacity ({})", bytes.len(), buf_capacity));
+        return Err(format!(
+            "JSON output ({} bytes) exceeds buffer capacity ({})",
+            bytes.len(),
+            buf_capacity
+        ));
     }
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, bytes.len());
     *out_len = bytes.len() as i64;
@@ -691,15 +989,15 @@ pub unsafe extern "C" fn parquet_read_as_json(
 
 /// Frees the heap-allocated row ID mapping array returned as part of `parquet_finalize_writer`.
 #[no_mangle]
-pub unsafe extern "C" fn parquet_free_row_id_mapping(
-    mapping_ptr: i64,
-    mapping_len: i64,
-) {
+pub unsafe extern "C" fn parquet_free_row_id_mapping(mapping_ptr: i64, mapping_len: i64) {
     if mapping_ptr != 0 && mapping_len > 0 {
         let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
         // Java released write mapping — free from pool
         crate::memory::write_pool().shrink(mapping_bytes);
-        let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
+        let _ = Box::from_raw(slice::from_raw_parts_mut(
+            mapping_ptr as *mut i64,
+            mapping_len as usize,
+        ));
     }
 }
 
@@ -715,10 +1013,7 @@ pub unsafe extern "C" fn parquet_free_row_id_mapping(
 /// Returns 0 on success, negative error pointer on failure (per FFM convention).
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn parquet_collect_runtime_metrics(
-    out_buf: *mut i64,
-    out_len: i64,
-) -> i64 {
+pub unsafe extern "C" fn parquet_collect_runtime_metrics(out_buf: *mut i64, out_len: i64) -> i64 {
     if out_buf.is_null() {
         return Err("parquet_collect_runtime_metrics: null out_buf".to_string());
     }
@@ -774,6 +1069,20 @@ pub extern "C" fn parquet_set_merge_pool_limit(new_limit: i64) {
     crate::memory::set_merge_limit(new_limit as usize);
 }
 
+/// Register the over-commit decision callbacks (FFM upcall stubs from the Java allocator).
+///
+/// `decider(requested_bytes) -> 1|0` decides whether a full pool may over-commit; `releaser(bytes)`
+/// is called with the granted byte count when the reservation is released. Because all native
+/// modules share one cdylib (and thus one `native-bridge-common` instance), this single
+/// registration covers every pool that uses `Reject`.
+#[no_mangle]
+pub extern "C" fn parquet_register_overcommit_callbacks(
+    decider: native_bridge_common::memory_pool::OverCommitDecider,
+    releaser: native_bridge_common::memory_pool::OverCommitReleaser,
+) {
+    native_bridge_common::memory_pool::set_overcommit_callbacks(decider, releaser);
+}
+
 /// Get pool stats: writes 6 i64s to out_buf.
 /// Layout: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak]
 #[no_mangle]
@@ -781,5 +1090,118 @@ pub unsafe extern "C" fn parquet_get_pool_stats(out_buf: *mut i64) {
     let stats = crate::memory::get_stats();
     for (i, val) in stats.iter().enumerate() {
         *out_buf.add(i) = *val as i64;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ===== live_bits_array_from_raw =====
+
+    #[test]
+    fn live_bits_array_from_raw_zero_count_returns_empty() {
+        let result = unsafe { live_bits_array_from_raw(std::ptr::null(), std::ptr::null(), 0) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_lens_returns_empty() {
+        let invalid_ptr: *const i64 = usize::MAX as *const i64;
+        let invalid_ptrs: *const *const i64 = &invalid_ptr;
+        let result = unsafe { live_bits_array_from_raw(invalid_ptrs, std::ptr::null(), 1) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_decodes_single_input() {
+        let bits: Vec<i64> = vec![0xFFFF_FFFF_FFFF_FFFEu64 as i64];
+        let ptr = bits.as_ptr();
+        let ptrs: Vec<*const i64> = vec![ptr];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        let decoded = result[0].as_ref().expect("expected non-None entry");
+        assert_eq!(decoded.len(), 1);
+        // i64 0xFFFF_FFFF_FFFF_FFFE reinterpreted as u64 ⇒ 0xFFFF_FFFF_FFFF_FFFE
+        assert_eq!(decoded[0], 0xFFFF_FFFF_FFFF_FFFEu64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_zero_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![0];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_negative_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![-1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_inner_ptr_yields_none() {
+        let lens: Vec<i64> = vec![1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(
+            result[0].is_none(),
+            "null pointer with positive length should yield None"
+        );
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_mixed_some_none() {
+        let bits_a: Vec<i64> = vec![0x0000_0000_0000_000Fi64];
+        let bits_c: Vec<i64> = vec![0x00FF_FF00_0000_0000u64 as i64];
+
+        let ptrs: Vec<*const i64> = vec![bits_a.as_ptr(), std::ptr::null(), bits_c.as_ptr()];
+        let lens: Vec<i64> = vec![bits_a.len() as i64, 0, bits_c.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 3) };
+
+        assert_eq!(result.len(), 3);
+        assert!(result[0].is_some());
+        assert!(
+            result[1].is_none(),
+            "middle entry with len=0 should be None"
+        );
+        assert!(result[2].is_some());
+        assert_eq!(result[0].as_ref().unwrap()[0], 0x0000_0000_0000_000Fu64);
+        assert_eq!(result[2].as_ref().unwrap()[0], 0x00FF_FF00_0000_0000u64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_multi_word_bitmap() {
+        let bits: Vec<i64> = vec![1i64, 0i64, 0x0123_4567i64];
+        let ptrs: Vec<*const i64> = vec![bits.as_ptr()];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        let decoded = result[0].as_ref().expect("expected Some");
+        assert_eq!(decoded.len(), 3);
+        assert_eq!(decoded[0], 1u64);
+        assert_eq!(decoded[1], 0u64);
+        assert_eq!(decoded[2], 0x0123_4567u64);
     }
 }

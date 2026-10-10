@@ -74,6 +74,9 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -329,12 +332,6 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.opensearch.action.admin.indices.view.CreateViewAction;
-import org.opensearch.action.admin.indices.view.DeleteViewAction;
-import org.opensearch.action.admin.indices.view.GetViewAction;
-import org.opensearch.action.admin.indices.view.ListViewNamesAction;
-import org.opensearch.action.admin.indices.view.SearchViewAction;
-import org.opensearch.action.admin.indices.view.UpdateViewAction;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -772,26 +769,6 @@ public abstract class AbstractClient implements Client {
         return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE, indices);
     }
 
-    @Override
-    public void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener) {
-        execute(SearchViewAction.INSTANCE, request);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> searchView(final SearchViewAction.Request request) {
-        return execute(SearchViewAction.INSTANCE, request);
-    }
-
-    @Override
-    public void listViewNames(final ListViewNamesAction.Request request, ActionListener<ListViewNamesAction.Response> listener) {
-        execute(ListViewNamesAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<ListViewNamesAction.Response> listViewNames(final ListViewNamesAction.Request request) {
-        return execute(ListViewNamesAction.INSTANCE, request);
-    }
-
     static class Admin implements AdminClient {
 
         private final ClusterAdmin clusterAdmin;
@@ -1059,6 +1036,26 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetTaskRequestBuilder prepareGetTask(TaskId taskId) {
             return new GetTaskRequestBuilder(this, GetTaskAction.INSTANCE).setTaskId(taskId);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteTask(DeleteTaskRequest request) {
+            return execute(DeleteTaskAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteTask(DeleteTaskRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteTaskAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(String taskId) {
+            return prepareDeleteTask(new TaskId(taskId));
+        }
+
+        @Override
+        public DeleteTaskRequestBuilder prepareDeleteTask(TaskId taskId) {
+            return new DeleteTaskRequestBuilder(this, DeleteTaskAction.INSTANCE).setTaskId(taskId);
         }
 
         @Override
@@ -2144,48 +2141,8 @@ public abstract class AbstractClient implements Client {
             return execute(ResolveIndexAction.INSTANCE, request);
         }
 
-        @Override
-        public void createView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
-            execute(CreateViewAction.INSTANCE, request);
-        }
-
-        @Override
-        public ActionFuture<GetViewAction.Response> createView(CreateViewAction.Request request) {
-            return execute(CreateViewAction.INSTANCE, request);
-        }
-
-        /** Gets a view */
-        public void getView(GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
-            execute(GetViewAction.INSTANCE, request, listener);
-        }
-
-        /** Gets a view */
-        public ActionFuture<GetViewAction.Response> getView(GetViewAction.Request request) {
-            return execute(GetViewAction.INSTANCE, request);
-        }
-
-        /** Create a view */
-        public void deleteView(DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-            execute(DeleteViewAction.INSTANCE, request, listener);
-        }
-
-        /** Create a view */
-        public ActionFuture<AcknowledgedResponse> deleteView(DeleteViewAction.Request request) {
-            return execute(DeleteViewAction.INSTANCE, request);
-        }
-
-        /** Create a view */
-        public void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
-            execute(UpdateViewAction.INSTANCE, request, listener);
-        }
-
         public ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly) {
             return new ScaleIndexRequestBuilder(this, searchOnly, index);
-        }
-
-        /** Create a view */
-        public ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request) {
-            return execute(UpdateViewAction.INSTANCE, request);
         }
 
         /** Pause ingestion */

@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.Scheduler;
@@ -57,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * if there are unassigned shards with delayed allocation (unassigned shards that have
  * the delay marker). These are shards that have become unassigned due to a node leaving
  * and which were assigned the delay marker based on the index delay setting
- * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
+ * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING} or the cluster-level delayed node-left timeout
  * (see {@link AllocationService#disassociateDeadNodes(RoutingAllocation)}.
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
@@ -75,6 +76,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final Settings settings;
 
     AtomicReference<DelayedRerouteTask> delayedRerouteTask = new AtomicReference<>(); // package private to access from tests
 
@@ -150,7 +152,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
+        this.settings = clusterService.getSettings();
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.addListener(this);
         }
     }
@@ -197,7 +200,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
      */
     private synchronized void scheduleIfNeeded(long currentNanoTime, ClusterState state) {
         assertClusterOrClusterManagerStateThread();
-        long nextDelayNanos = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state);
+        long nextDelayNanos = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state, clusterSettings(state));
         if (nextDelayNanos < 0) {
             logger.trace("no need to schedule reroute - no delayed unassigned shards");
             removeTaskAndCancel();
@@ -233,6 +236,10 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                 logger.trace("no need to reschedule delayed reroute - currently scheduled delayed reroute in [{}] is enough", nextDelay);
             }
         }
+    }
+
+    private Settings clusterSettings(ClusterState state) {
+        return Settings.builder().put(settings).put(state.metadata().settings()).build();
     }
 
     // protected so that it can be overridden (and disabled) by unit tests

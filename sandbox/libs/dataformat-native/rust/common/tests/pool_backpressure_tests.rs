@@ -53,11 +53,8 @@ fn test_request_waits_and_succeeds() {
     let pool = Arc::new(MemoryPool::new("test", 10_000));
 
     // Blocker fills pool
-    let mut blocker = MemoryReservation::new(
-        &pool,
-        "blocker",
-        PoolBehavior::Wait(Duration::from_secs(1)),
-    );
+    let mut blocker =
+        MemoryReservation::new(&pool, "blocker", PoolBehavior::Wait(Duration::from_secs(1)));
     blocker.grow(9_500);
     assert_eq!(pool.used(), 9_500);
 
@@ -69,11 +66,8 @@ fn test_request_waits_and_succeeds() {
     });
 
     // Writer requests — should block then succeed after space is freed
-    let mut writer = MemoryReservation::new(
-        &pool,
-        "writer",
-        PoolBehavior::Wait(Duration::from_secs(5)),
-    );
+    let mut writer =
+        MemoryReservation::new(&pool, "writer", PoolBehavior::Wait(Duration::from_secs(5)));
     let start = Instant::now();
     let result = writer.request(5_000);
     let elapsed = start.elapsed();
@@ -100,18 +94,12 @@ fn test_request_waits_and_succeeds() {
 fn test_request_waits_and_times_out() {
     let pool = Arc::new(MemoryPool::new("test", 1_000));
 
-    let mut blocker = MemoryReservation::new(
-        &pool,
-        "blocker",
-        PoolBehavior::Wait(Duration::from_secs(1)),
-    );
+    let mut blocker =
+        MemoryReservation::new(&pool, "blocker", PoolBehavior::Wait(Duration::from_secs(1)));
     blocker.grow(999);
 
-    let mut writer = MemoryReservation::new(
-        &pool,
-        "writer",
-        PoolBehavior::Wait(Duration::from_secs(2)),
-    );
+    let mut writer =
+        MemoryReservation::new(&pool, "writer", PoolBehavior::Wait(Duration::from_secs(2)));
 
     let start = Instant::now();
     let result = writer.request(500);
@@ -144,11 +132,8 @@ fn test_no_deadlock_two_requesters_same_pool() {
 
         // Thread 1: grabs 3000, holds for 500ms, releases
         s.spawn(move || {
-            let mut r = MemoryReservation::new(
-                &p1,
-                "t1",
-                PoolBehavior::Wait(Duration::from_secs(10)),
-            );
+            let mut r =
+                MemoryReservation::new(&p1, "t1", PoolBehavior::Wait(Duration::from_secs(10)));
             r.request(3_000).expect("t1 request should succeed");
             std::thread::sleep(Duration::from_millis(500));
             r.shrink(3_000);
@@ -157,13 +142,11 @@ fn test_no_deadlock_two_requesters_same_pool() {
         // Thread 2: waits 100ms (ensure t1 gets in first), then requests 3000
         s.spawn(move || {
             std::thread::sleep(Duration::from_millis(100));
-            let mut r = MemoryReservation::new(
-                &p2,
-                "t2",
-                PoolBehavior::Wait(Duration::from_secs(10)),
-            );
+            let mut r =
+                MemoryReservation::new(&p2, "t2", PoolBehavior::Wait(Duration::from_secs(10)));
             // This blocks until t1 releases (pool: 3000/5000, needs 3000 more = 6000 > 5000)
-            r.request(3_000).expect("t2 request should succeed after t1 releases");
+            r.request(3_000)
+                .expect("t2 request should succeed after t1 releases");
             r.shrink(3_000);
         });
     });
@@ -185,11 +168,8 @@ fn test_reservation_drop_frees_all_on_partial_failure() {
     let pool = Arc::new(MemoryPool::new("test", 10_000));
 
     {
-        let mut reservation = MemoryReservation::new(
-            &pool,
-            "res",
-            PoolBehavior::Wait(Duration::from_secs(1)),
-        );
+        let mut reservation =
+            MemoryReservation::new(&pool, "res", PoolBehavior::Wait(Duration::from_secs(1)));
 
         // First allocation succeeds
         let r1 = reservation.request(3_000);

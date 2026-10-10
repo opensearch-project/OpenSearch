@@ -186,7 +186,10 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
     }
 
     public void testTranslogMetadataAllowedTrueWithMinVersionNewer() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), true)
+            .put("node.attr.remote_store.translog.repository", "my-translog-repo")
+            .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);

@@ -16,8 +16,8 @@ pub mod s3;
 pub use s3::build;
 pub use s3::S3Config;
 
-use std::sync::Arc;
 use object_store::ObjectStore;
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // FFM entry points
@@ -49,7 +49,12 @@ pub unsafe extern "C" fn s3_create_store(
     let credentials = if cred_provider_ptr != 0 {
         // SAFETY: ptr was produced by Box::into_raw(Box::new(Arc<dyn CredentialProvider<Credential = AwsCredential>>))
         let provider = Box::from_raw(
-            cred_provider_ptr as *mut Arc<dyn object_store::CredentialProvider<Credential = object_store::aws::AwsCredential>>,
+            cred_provider_ptr
+                as *mut Arc<
+                    dyn object_store::CredentialProvider<
+                        Credential = object_store::aws::AwsCredential,
+                    >,
+                >,
         );
         Some(*provider)
     } else {

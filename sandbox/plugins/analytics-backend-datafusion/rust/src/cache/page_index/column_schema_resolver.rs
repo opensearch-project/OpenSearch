@@ -18,7 +18,6 @@ use std::sync::Arc;
 use arrow::datatypes::SchemaRef;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use parquet::arrow::parquet_to_arrow_schema;
 
 /// Map the query's predicate-column names to **this file's** parquet leaf
 /// indices, resolving against the file's OWN schema so the indices are correct
@@ -45,23 +44,10 @@ pub fn resolve_predicate_parquet_columns(
     _arrow_schema: &SchemaRef,
     metadata: &ParquetMetaData,
     predicate_column_names: &[String],
+    file_schema: &SchemaRef,
 ) -> Vec<usize> {
     let parquet_schema = metadata.file_metadata().schema_descr();
-    // Per-file arrow schema: 1:1 with this file's parquet leaves, so a column's
-    // arrow position maps to its true leaf. (The passed `_arrow_schema` is the
-    // union table schema and is intentionally NOT used for index resolution —
-    // see the doc comment.)
-    let file_arrow_schema = match parquet_to_arrow_schema(
-        parquet_schema,
-        metadata.file_metadata().key_value_metadata(),
-    ) {
-        Ok(s) => Arc::new(s),
-        // If we can't derive the file schema (malformed footer, unsupported type),
-        // return empty. Empty is the safe conservative choice:  the caller skips the
-        // scoped load and falls back to footer-only.
-        Err(_) => return vec![],
-    };
-    resolve_with_schema(&file_arrow_schema, metadata, predicate_column_names)
+    resolve_with_schema(file_schema, metadata, predicate_column_names)
 }
 
 /// Resolve TWO name-sets (e.g. predicate columns and projection columns) against
@@ -76,22 +62,12 @@ pub fn resolve_predicate_parquet_columns_pair(
     metadata: &ParquetMetaData,
     predicate_col_names: &[String],
     projection_col_names: &[String],
+    file_schema: &SchemaRef,
 ) -> (Vec<usize>, Vec<usize>) {
-    let parquet_schema = metadata.file_metadata().schema_descr();
-    match parquet_to_arrow_schema(
-        parquet_schema,
-        metadata.file_metadata().key_value_metadata(),
-    ) {
-        Ok(s) => {
-            let file_arrow_schema = Arc::new(s);
-            (
-                resolve_with_schema(&file_arrow_schema, metadata, predicate_col_names),
-                resolve_with_schema(&file_arrow_schema, metadata, projection_col_names),
-            )
-        }
-        // Can't derive the file schema — return empty for both sets.
-        Err(_) => (vec![], vec![]),
-    }
+    (
+        resolve_with_schema(file_schema, metadata, predicate_col_names),
+        resolve_with_schema(file_schema, metadata, projection_col_names),
+    )
 }
 
 /// Resolve predicate column names → parquet leaf indices against a specific arrow
@@ -104,9 +80,25 @@ pub(super) fn resolve_with_schema(
     let parquet_schema = metadata.file_metadata().schema_descr();
     let mut set = HashSet::new();
     for name in predicate_column_names {
-        if let Ok(conv) = StatisticsConverter::try_new(name, arrow_schema, parquet_schema) {
-            if let Some(idx) = conv.parquet_column_index() {
-                set.insert(idx);
+        let resolved = StatisticsConverter::try_new(name, arrow_schema, parquet_schema)
+            .ok()
+            .and_then(|conv| conv.parquet_column_index());
+        if let Some(idx) = resolved {
+            set.insert(idx);
+            continue;
+        }
+
+        // parquet-rs intentionally does not resolve nested Arrow fields through
+        // `parquet_column()`: LIST/MAP/STRUCT roots may map to one or more physical
+        // leaves. Since `arrow_schema` is derived from this file's footer, its root
+        // index matches `SchemaDescriptor::get_column_root_idx`; include every leaf
+        // under the requested root so any projected nested field receives a real
+        // OffsetIndex rather than a scoped-out placeholder.
+        if let Some((root_idx, _)) = arrow_schema.fields().find(name) {
+            for leaf_idx in 0..parquet_schema.num_columns() {
+                if parquet_schema.get_column_root_idx(leaf_idx) == root_idx {
+                    set.insert(leaf_idx);
+                }
             }
         }
     }

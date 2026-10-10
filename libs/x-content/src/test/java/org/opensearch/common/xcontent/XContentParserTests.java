@@ -83,8 +83,11 @@ public class XContentParserTests extends OpenSearchTestCase {
         () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN),
         /* YAML parser limitation */
         XContentType.YAML,
-        /* use 50% of the limit, difficult to get the exact size of the content right */
-        () -> randomRealisticUnicodeOfCodepointLengthBetween(1, (int) (YamlXContent.DEFAULT_CODEPOINT_LIMIT * 0.50))
+        // Leave room for YAML syntax and allow up to two UTF-16 code units per Unicode code point.
+        () -> randomRealisticUnicodeOfCodepointLengthBetween(
+            1,
+            Math.min(YamlXContent.DEFAULT_CODEPOINT_LIMIT / 2, YamlXContent.DEFAULT_MAX_STRING_LEN / 2)
+        )
     );
 
     private static final Map<XContentType, Supplier<String>> OFF_LIMIT_GENERATORS = Map.of(
@@ -221,17 +224,7 @@ public class XContentParserTests extends OpenSearchTestCase {
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                // See please https://github.com/FasterXML/jackson-dataformats-binary/issues/392, support
-                // for CBOR, Smile is coming
-                if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
-                    assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                    assertEquals(field, parser.currentName());
-                    assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-                    assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                    assertNull(parser.nextToken());
-                } else {
-                    assertThrows(StreamConstraintsException.class, () -> parser.nextToken());
-                }
+                assertThrows(StreamConstraintsException.class, () -> parser.nextToken());
             }
         }
     }

@@ -35,6 +35,7 @@ package org.opensearch.rest;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.OriginalIndices;
@@ -66,6 +67,33 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BytesRestResponseTests extends OpenSearchTestCase {
+
+    /**
+     * Drives an oversized string through the public constructor, so this fails if the guard is ever unwired from
+     * {@link BytesRestResponse#BytesRestResponse(RestStatus, String, String)}.
+     * <p>
+     * The guard trips above {@code Integer.MAX_VALUE / 3} UTF-16 chars, so the smallest string that reaches it is
+     * 715,827,883 chars - roughly 683 MiB as a Latin-1 compact string. That fits comfortably in the test heap, which
+     * {@code build.gradle} fixes at {@code options.forkOptions.memoryMaximumSize} (3g) for every forked test JVM. The
+     * assumption below is insurance in case that value is ever lowered; it is not reachable through
+     * {@code -Dtests.heap.size}, which the same assignment overrides. Only the string has to fit, because the guard
+     * throws before {@code BytesRef} allocates its {@code maxUTF8Length} byte array.
+     */
+    public void testStringConstructorMapsOversizedContentToRequestEntityTooLarge() {
+        final int overflowingLength = (Integer.MAX_VALUE / 3) + 1;
+        assumeTrue("needs ~683MiB of heap to build the oversized string", Runtime.getRuntime().maxMemory() >= 1_500_000_000L);
+
+        final String oversized = "a".repeat(overflowingLength);
+
+        OpenSearchStatusException exception = expectThrows(
+            OpenSearchStatusException.class,
+            () -> new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, oversized)
+        );
+
+        assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, exception.status());
+        assertThat(exception.getMessage(), containsString("UTF16 string length"));
+        assertThat(exception.getMessage(), containsString(String.valueOf(overflowingLength)));
+    }
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {
@@ -246,6 +274,17 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         assertThat(content, containsString("\"type\":\"exception\""));
         assertThat(content, containsString("\"reason\":\"simulated\""));
         assertThat(content, containsString("\"status\":" + 500));
+    }
+
+    public void testResponseWhenTimeoutException() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final BytesRestResponse response = new BytesRestResponse(channel, new OpenSearchTimeoutException("simulated timeout"));
+        assertEquals(RestStatus.GATEWAY_TIMEOUT, response.status());
+        assertNotNull(response.content());
+        final String content = response.content().utf8ToString();
+        assertThat(content, containsString("\"reason\":\"simulated timeout\""));
+        assertThat(content, containsString("\"status\":" + 504));
     }
 
     public void testErrorToAndFromXContent() throws IOException {

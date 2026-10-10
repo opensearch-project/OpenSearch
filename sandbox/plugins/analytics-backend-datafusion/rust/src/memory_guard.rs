@@ -58,7 +58,10 @@ pub fn cached_resident_bytes() -> i64 {
     let now_ms = base.elapsed().as_millis() as u64;
     let last = LAST_CHECK_MS.load(Ordering::Relaxed);
     if now_ms.wrapping_sub(last) >= RESIDENT_CACHE_INTERVAL_MS {
-        if LAST_CHECK_MS.compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+        if LAST_CHECK_MS
+            .compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             let r = native_bridge_common::allocator::resident_bytes();
             CACHED_RESIDENT.store(r, Ordering::Relaxed);
             return r;
@@ -192,7 +195,9 @@ pub fn should_cancel_query(pool_limit_bytes: usize) -> bool {
     if resident <= 0 {
         return false;
     }
-    let critical_bytes = (pool_limit_bytes as u64).saturating_mul(EXECUTION_CRITICAL_X1000.load(Ordering::Acquire)) / 1000;
+    let critical_bytes = (pool_limit_bytes as u64)
+        .saturating_mul(EXECUTION_CRITICAL_X1000.load(Ordering::Acquire))
+        / 1000;
     resident >= critical_bytes as i64
 }
 
@@ -329,7 +334,8 @@ pub fn per_query_spill_budget() -> SpillBudget {
     let fraction_x1000 = DISK_FRACTION_X1000.load(Ordering::Acquire);
     let budget = available * fraction_x1000 / 1000;
 
-    if budget < 64 * 1024 * 1024 { // 64MB minimum viable spill
+    if budget < 64 * 1024 * 1024 {
+        // 64MB minimum viable spill
         log::warn!(
             "[disk-pressure] Spill budget too low: {} MB (available={} MB)",
             budget / (1024 * 1024),
@@ -376,7 +382,8 @@ mod tests {
     #[test]
     fn set_and_get_thresholds() {
         set_thresholds(MemoryThresholds {
-            admission_throttle: 0.60, admission_reject: 0.80,
+            admission_throttle: 0.60,
+            admission_reject: 0.80,
             execution_spill: 0.90,
             execution_critical: 0.97,
         });
@@ -432,7 +439,10 @@ mod tests {
             return; // jemalloc not active in this test env (CI)
         }
         let result = should_override(large_pool, OverrideContext::Execution);
-        assert!(result, "With 1TB pool limit, resident should be well below threshold — override should fire");
+        assert!(
+            result,
+            "With 1TB pool limit, resident should be well below threshold — override should fire"
+        );
     }
 
     #[test]
@@ -467,7 +477,11 @@ mod tests {
     fn cached_resident_bytes_returns_non_negative() {
         // Returns > 0 when jemalloc is active, 0 when not (CI may not link jemalloc)
         let resident = cached_resident_bytes();
-        assert!(resident >= 0, "cached_resident_bytes() should never return negative, got {}", resident);
+        assert!(
+            resident >= 0,
+            "cached_resident_bytes() should never return negative, got {}",
+            resident
+        );
     }
 
     #[test]
@@ -540,8 +554,14 @@ mod tests {
         let spill_result = should_override(pool_at_midpoint, OverrideContext::Execution);
 
         // admission: resident (77%) >= threshold (70%) → NOT below → override = false
-        assert!(!admission_result, "At 77% RSS, admission override should NOT fire (threshold 70%)");
+        assert!(
+            !admission_result,
+            "At 77% RSS, admission override should NOT fire (threshold 70%)"
+        );
         // operator: resident (77%) < threshold (85%) → below → override = true
-        assert!(spill_result, "At 77% RSS, spill override SHOULD fire (threshold 85%)");
+        assert!(
+            spill_result,
+            "At 77% RSS, spill override SHOULD fire (threshold 85%)"
+        );
     }
 }

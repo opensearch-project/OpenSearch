@@ -18,6 +18,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -65,12 +66,41 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
         this.workloadGroupPersistenceService = workloadGroupPersistenceService;
     }
 
+    /**
+     * Validates principal-scoped throttling on the node that accepted the request before forwarding; the manager-side
+     * check remains authoritative.
+     *
+     * @param task task associated with the request
+     * @param request create workload group request
+     * @param listener listener notified with the response or failure
+     */
+    @Override
+    protected void doExecute(Task task, CreateWorkloadGroupRequest request, ActionListener<CreateWorkloadGroupResponse> listener) {
+        try {
+            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        super.doExecute(task, request, listener);
+    }
+
     @Override
     protected void clusterManagerOperation(
         CreateWorkloadGroupRequest request,
         ClusterState clusterState,
         ActionListener<CreateWorkloadGroupResponse> listener
     ) {
+        try {
+            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         workloadGroupPersistenceService.persistInClusterStateMetadata(request.getWorkloadGroup(), listener);
     }
 

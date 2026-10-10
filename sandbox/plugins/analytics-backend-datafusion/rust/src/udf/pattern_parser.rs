@@ -97,20 +97,18 @@ impl ScalarUDFImpl for PatternParserUdf {
         let first = utf8_or_err(NAME, 0, &arg_types[0])?;
         let second = match &arg_types[1] {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
-            DataType::List(inner) | DataType::LargeList(inner) => {
-                match inner.data_type() {
-                    DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
-                        DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
-                    }
-                    other => {
-                        return plan_err!(
-                            "{} arg 1: List element must be string, got {:?}",
-                            NAME,
-                            other
-                        );
-                    }
+            DataType::List(inner) | DataType::LargeList(inner) => match inner.data_type() {
+                DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
+                    DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
                 }
-            }
+                other => {
+                    return plan_err!(
+                        "{} arg 1: List element must be string, got {:?}",
+                        NAME,
+                        other
+                    );
+                }
+            },
             other => {
                 return plan_err!(
                     "{} arg 1: expected string or List<string>, got {:?}",
@@ -390,12 +388,7 @@ fn read_utf8<'a>(udf: &str, slot: usize, arr: &'a ArrayRef) -> Result<Utf8View<'
 fn utf8_or_err(udf: &str, slot: usize, dt: &DataType) -> Result<DataType> {
     match dt {
         DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => Ok(DataType::Utf8),
-        other => plan_err!(
-            "{} arg {}: expected string, got {:?}",
-            udf,
-            slot,
-            other
-        ),
+        other => plan_err!("{} arg {}: expected string, got {:?}", udf, slot, other),
     }
 }
 
@@ -449,8 +442,7 @@ fn build_struct_array(results: &[PatternResult]) -> Result<ArrayRef> {
         Field::new(FIELD_PATTERN, DataType::Utf8, true),
         Field::new(FIELD_TOKENS, tokens_map_type(), true),
     ]);
-    let struct_array =
-        StructArray::new(struct_fields, vec![pattern_array, tokens_array], None);
+    let struct_array = StructArray::new(struct_fields, vec![pattern_array, tokens_array], None);
     Ok(Arc::new(struct_array) as ArrayRef)
 }
 

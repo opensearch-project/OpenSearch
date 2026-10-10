@@ -410,11 +410,41 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     /**
      * Changes the maximum number of bytes a script's source is allowed to have.
+     * <p>
+     * Runs as the {@code script.max_size_in_bytes} settings-update consumer at apply time and only assigns. The
+     * stored-script invariant is enforced up front by {@link #validateMaxSizeInBytes(int, ClusterState)} in the
+     * cluster-settings update transport action, so an invalid value is rejected before commit rather than throwing
+     * while the new cluster state is applied (which would destabilize the cluster-manager).
      * @param newMaxSizeInBytes The new maximum number of bytes.
      */
     void setMaxSizeInBytes(int newMaxSizeInBytes) {
-        for (Map.Entry<String, StoredScriptSource> source : getScriptsFromClusterState().entrySet()) {
-            if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length > newMaxSizeInBytes) {
+        maxSizeInBytes = newMaxSizeInBytes;
+    }
+
+    /**
+     * Validates that {@code script.max_size_in_bytes} is not being lowered below the size of an already stored script.
+     * <p>
+     * This invariant depends on cluster state (the stored scripts), so it cannot be expressed by a stateless
+     * {@link Setting.Validator}. It is invoked from the cluster-settings update transport action against the current
+     * cluster state so that an invalid value is rejected before it is committed and applied, rather than throwing while
+     * the new cluster state is being applied (which would destabilize the cluster-manager).
+     *
+     * @param newMaxSizeInBytes the proposed new maximum stored-script size in bytes
+     * @param clusterState the cluster state whose stored scripts the new value must accommodate
+     * @throws IllegalArgumentException if any stored script is larger than the proposed maximum
+     */
+    public static void validateMaxSizeInBytes(int newMaxSizeInBytes, ClusterState clusterState) {
+        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+        if (scriptMetadata == null) {
+            return;
+        }
+        validateMaxSizeInBytes(newMaxSizeInBytes, scriptMetadata.getStoredScripts());
+    }
+
+    private static void validateMaxSizeInBytes(int newMaxSizeInBytes, Map<String, StoredScriptSource> storedScripts) {
+        for (Map.Entry<String, StoredScriptSource> source : storedScripts.entrySet()) {
+            int storedSize = source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length;
+            if (storedSize > newMaxSizeInBytes) {
                 throw new IllegalArgumentException(
                     "script.max_size_in_bytes cannot be set to ["
                         + newMaxSizeInBytes
@@ -423,13 +453,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                         + source.getKey()
                         + "] exceeds the new value with a size of "
                         + "["
-                        + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length
+                        + storedSize
                         + "]"
                 );
             }
         }
-
-        maxSizeInBytes = newMaxSizeInBytes;
     }
 
     /*

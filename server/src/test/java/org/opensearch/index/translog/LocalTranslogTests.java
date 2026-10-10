@@ -305,6 +305,124 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         return translog.add(op);
     }
 
+    private List<Translog.Operation> buildHttpLogLikeOps(int n, long seqNoBase) {
+        final List<Translog.Operation> ops = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            final long seqNo = seqNoBase + i;
+            final String id = String.format(java.util.Locale.ROOT, "%020d", seqNo);
+            // ~300 byte source, representative of an http_logs document body
+            final byte[] source = new byte[300];
+            for (int b = 0; b < source.length; b++) {
+                source[b] = (byte) ((seqNo * 31 + b) & 0xFF);
+            }
+            ops.add(new Translog.Index(id, seqNo, primaryTerm.get(), source));
+        }
+        return ops;
+    }
+
+    /**
+     * A batch add must produce a byte-identical translog file, identical Locations, and the same readable ops as the
+     * same operations added one at a time. We build two translogs from identical configs/ops and compare on disk.
+     */
+    public void testBatchAddByteIdenticalToSingleAdds() throws IOException {
+        // Use a small, fixed buffer so the batch spans the writer's buffer-flush threshold at least once.
+        final int opCount = 250;
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1ms")
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1b")
+            .build();
+
+        final Path singleDir = createTempDir();
+        final Path batchDir = createTempDir();
+        final TranslogConfig singleConfig = new TranslogConfig(
+            shardId,
+            singleDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(4, ByteSizeUnit.KB),
+            "",
+            false
+        );
+        final TranslogConfig batchConfig = new TranslogConfig(
+            shardId,
+            batchDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(4, ByteSizeUnit.KB),
+            "",
+            false
+        );
+
+        final String singleUUID = Translog.createEmptyTranslog(singleDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String batchUUID = Translog.createEmptyTranslog(batchDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+
+        final List<Translog.Location> singleLocations = new ArrayList<>();
+        final Translog.Location[] batchLocations;
+        final byte[] singleBytes;
+        final byte[] batchBytes;
+        final long gen;
+
+        final List<Translog.Operation> ops = buildHttpLogLikeOps(opCount, 0);
+
+        try (
+            Translog singleTranslog = openTranslog(singleConfig, singleUUID);
+            Translog batchTranslog = openTranslog(batchConfig, batchUUID)
+        ) {
+            for (Translog.Operation op : ops) {
+                singleLocations.add(singleTranslog.add(op));
+            }
+            batchLocations = batchTranslog.add(ops);
+
+            singleTranslog.sync();
+            batchTranslog.sync();
+
+            // 1. Identical Locations (generation, offset, size) per op
+            assertThat(batchLocations.length, equalTo(singleLocations.size()));
+            for (int i = 0; i < opCount; i++) {
+                assertThat("location mismatch at op " + i, batchLocations[i], equalTo(singleLocations.get(i)));
+            }
+
+            // 2. snapshot reads all ops back from the batch translog, in order and equal to the inputs
+            try (Translog.Snapshot snapshot = batchTranslog.newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(opCount));
+                for (int i = 0; i < opCount; i++) {
+                    final Translog.Operation read = snapshot.next();
+                    assertThat("op " + i + " read back", read, equalTo(ops.get(i)));
+                }
+                assertNull(snapshot.next());
+            }
+
+            // 3. Read the on-disk write-generation file from each translog while both are still open (after sync).
+            gen = singleTranslog.currentFileGeneration();
+            assertThat("both translogs on same generation", batchTranslog.currentFileGeneration(), equalTo(gen));
+            singleBytes = Files.readAllBytes(singleDir.resolve(Translog.getFilename(gen)));
+            batchBytes = Files.readAllBytes(batchDir.resolve(Translog.getFilename(gen)));
+        }
+
+        // Byte-identical .tlog payloads. The two files share an identical header layout (same version, same UUID
+        // length) and differ only in the UUID bytes, so compare the operations region after the header for exact
+        // byte identity.
+        assertThat("translog file length differs", batchBytes.length, equalTo(singleBytes.length));
+        final int headerSize = TranslogHeader.headerSizeInBytes(singleUUID);
+        for (int i = headerSize; i < singleBytes.length; i++) {
+            assertThat("operation byte region differs at offset " + i, batchBytes[i], equalTo(singleBytes[i]));
+        }
+    }
+
+    /** A single-element batch and an empty batch must behave sanely and match the single-op path. */
+    public void testBatchAddEdgeCounts() throws IOException {
+        assertThat(translog.add(new ArrayList<>()).length, equalTo(0));
+        final List<Translog.Operation> one = buildHttpLogLikeOps(1, 0);
+        final Translog.Location[] locs = translog.add(one);
+        assertThat(locs.length, equalTo(1));
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(1));
+            assertThat(snapshot.next(), equalTo(one.get(0)));
+            assertNull(snapshot.next());
+        }
+    }
+
     public void testIdParsingFromFile() {
         long id = randomIntBetween(0, Integer.MAX_VALUE);
         Path file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id + ".tlog");
@@ -477,9 +595,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(194L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(139L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -487,9 +605,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(231L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(176L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -497,9 +615,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(273L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(218L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -507,9 +625,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(273L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -519,7 +637,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(328L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -527,9 +645,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.endObject();
                 assertEquals(
                     "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                        + 326
+                        + 328
                         + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                        + 271
+                        + 273
                         + ",\"earliest_last_modified_age\":"
                         + stats.getEarliestLastModifiedAge()
                         + ",\"remote_store\":{\"upload\":{"
@@ -546,7 +664,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -749,6 +867,30 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         translog.close();
         AlreadyClosedException ex = expectThrows(AlreadyClosedException.class, () -> translog.newSnapshot());
         assertEquals(ex.getMessage(), "translog is already closed");
+    }
+
+    /**
+     * A local-only translog must keep the layout it has always had: no footer, so the file is exactly as long as
+     * the offset recorded in its checkpoint and no content checksum is derived. The footer is a remote-store
+     * concern only (see {@link TranslogFooter}).
+     */
+    public void testLocalTranslogGenerationHasNoFooter() throws IOException {
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
+        translog.rollGeneration();
+        final long closedGeneration = translog.currentFileGeneration() - 1;
+
+        final Path translogFile = translogDir.resolve(Translog.getFilename(closedGeneration));
+        final Checkpoint checkpoint = Checkpoint.read(translogDir.resolve(Translog.getCommitCheckpointFileName(closedGeneration)));
+        assertThat(Files.size(translogFile), equalTo(checkpoint.offset));
+        assertThat(TranslogFooter.readChecksum(translogFile, checkpoint.offset), nullValue());
+
+        final TranslogReader reader = translog.readers.stream()
+            .filter(r -> r.getGeneration() == closedGeneration)
+            .findFirst()
+            .orElseThrow();
+        assertThat(reader.getTranslogChecksum(), nullValue());
+        assertThat(reader.getTranslogContentChecksum(), nullValue());
     }
 
     public void testRangeSnapshot() throws Exception {
@@ -3612,6 +3754,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
+        String deleteRouting = wireVersion.onOrAfter(Version.V_3_9_0) ? "custom-routing" : null;
         Engine.Delete eDelete = new Engine.Delete(
             doc.id(),
             newUid(doc),
@@ -3622,7 +3765,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             Origin.PRIMARY,
             0,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            0,
+            deleteRouting
         );
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
@@ -3634,6 +3778,76 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         in.setVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
+        assertEquals(deleteRouting, serializedDelete.routing());
+    }
+
+    public void testDeleteRoutingBackwardCompatibility() throws Exception {
+        // Old version writes without routing, new version reads with routing=null
+        BytesStreamOutput out = new BytesStreamOutput();
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.V_3_9_0)
+        );
+        out.setVersion(oldVersion);
+        Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, "tenant-abc");
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(oldVersion);
+        Translog.Delete deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals(1, deserialized.seqNo());
+        assertNull("Routing must be null when written with old format", deserialized.routing());
+
+        // New version writes with routing, new version reads with routing preserved
+        out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        Translog.Operation.writeOperation(out, deleteWithRouting);
+
+        in = out.bytes().streamInput();
+        in.setVersion(Version.CURRENT);
+        deserialized = (Translog.Delete) Translog.Operation.readOperation(in);
+        assertEquals("doc-1", deserialized.id());
+        assertEquals("tenant-abc", deserialized.routing());
+    }
+
+    public void testDeleteRoutingTranslogRoundTrip() throws Exception {
+        // Write deletes with and without routing to a real translog, read them back
+        Translog.Location loc1 = translog.add(new Translog.Delete("doc-1", 0, primaryTerm.get(), 1, "tenant-routing"));
+        Translog.Location loc2 = translog.add(new Translog.Delete("doc-2", 1, primaryTerm.get(), 1));
+
+        Translog.Delete readBack1 = (Translog.Delete) translog.readOperation(loc1);
+        assertNotNull(readBack1);
+        assertEquals("doc-1", readBack1.id());
+        assertEquals("tenant-routing", readBack1.routing());
+
+        Translog.Delete readBack2 = (Translog.Delete) translog.readOperation(loc2);
+        assertNotNull(readBack2);
+        assertEquals("doc-2", readBack2.id());
+        assertNull(readBack2.routing());
+
+        // Verify via snapshot as well
+        translog.rollGeneration();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            boolean foundRouted = false;
+            boolean foundUnrouted = false;
+            while ((op = snapshot.next()) != null) {
+                if (op instanceof Translog.Delete) {
+                    Translog.Delete del = (Translog.Delete) op;
+                    if ("doc-1".equals(del.id())) {
+                        assertEquals("tenant-routing", del.routing());
+                        foundRouted = true;
+                    } else if ("doc-2".equals(del.id())) {
+                        assertNull(del.routing());
+                        foundUnrouted = true;
+                    }
+                }
+            }
+            assertTrue("Should find delete with routing in snapshot", foundRouted);
+            assertTrue("Should find delete without routing in snapshot", foundUnrouted);
+        }
     }
 
     public void testRollGeneration() throws Exception {

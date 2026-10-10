@@ -59,6 +59,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -112,6 +113,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1206,6 +1208,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             Arrays.asList(
@@ -1247,7 +1252,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 new SearchRequestOperationsCompositeListenerFactory(),
                 mock(Tracer.class),
                 mock(TaskResourceTrackingService.class),
-                mock(IndicesService.class)
+                mock(IndicesService.class),
+                mock(WorkloadGroupService.class)
             );
 
             // Actual test cases start here:

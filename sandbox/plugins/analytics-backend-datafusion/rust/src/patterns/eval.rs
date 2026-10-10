@@ -88,14 +88,24 @@ pub struct AggCandidate {
 /// Used by PPL's BRAIN label mode: the window function emits one
 /// `(pattern, count, samples)` map per row, and this scalar UDF picks the
 /// best-fit pattern for the original field value.
-pub fn eval_agg(field: &str, agg_object: &[AggCandidate], show_numbered_token: bool) -> PatternResult {
+pub fn eval_agg(
+    field: &str,
+    agg_object: &[AggCandidate],
+    show_numbered_token: bool,
+) -> PatternResult {
     if field.trim().is_empty() || agg_object.is_empty() {
         return PatternResult::empty();
     }
     let preprocessed_tokens = preprocess(field, default_filter_patterns(), default_delimiters());
     let candidates: Vec<Vec<String>> = agg_object
         .iter()
-        .map(|entry| entry.pattern.split(' ').map(String::from).collect::<Vec<_>>())
+        .map(|entry| {
+            entry
+                .pattern
+                .split(' ')
+                .map(String::from)
+                .collect::<Vec<_>>()
+        })
         .filter(|split| split.len() == preprocessed_tokens.len())
         .collect();
     let best = find_best_candidate(&candidates, &preprocessed_tokens);
@@ -162,9 +172,18 @@ mod tests {
         // tokens = {token1: [amberduke], token2: [pyrami], token3: [com]}.
         let result = eval_field("<*>@<*>.<*>", "amberduke@pyrami.com");
         assert_eq!(result.pattern, "<token1>@<token2>.<token3>");
-        assert_eq!(result.tokens.get("<token1>").unwrap(), &vec!["amberduke".to_string()]);
-        assert_eq!(result.tokens.get("<token2>").unwrap(), &vec!["pyrami".to_string()]);
-        assert_eq!(result.tokens.get("<token3>").unwrap(), &vec!["com".to_string()]);
+        assert_eq!(
+            result.tokens.get("<token1>").unwrap(),
+            &vec!["amberduke".to_string()]
+        );
+        assert_eq!(
+            result.tokens.get("<token2>").unwrap(),
+            &vec!["pyrami".to_string()]
+        );
+        assert_eq!(
+            result.tokens.get("<token3>").unwrap(),
+            &vec!["com".to_string()]
+        );
     }
 
     #[test]
@@ -252,8 +271,14 @@ mod tests {
             &candidates,
             true,
         );
-        assert_eq!(result.pattern, "Verification succeeded <token1> blk_<token2>");
-        assert_eq!(result.tokens.get("<token1>").unwrap(), &vec!["for".to_string()]);
+        assert_eq!(
+            result.pattern,
+            "Verification succeeded <token1> blk_<token2>"
+        );
+        assert_eq!(
+            result.tokens.get("<token1>").unwrap(),
+            &vec!["for".to_string()]
+        );
         // The blk_<*> preprocessing replaces -1547954353065580372 with <*> in
         // the input, so <token2>'s extracted value in this layer is the
         // preprocessed wildcard rather than the raw number. The exact value
@@ -284,7 +309,10 @@ mod tests {
             &candidates,
             false,
         );
-        assert_eq!(result.pattern, "Verification succeeded <token1> blk_<token2>");
+        assert_eq!(
+            result.pattern,
+            "Verification succeeded <token1> blk_<token2>"
+        );
         assert!(
             result.tokens.is_empty(),
             "show_numbered_token=false must produce empty tokens map, got {:?}",

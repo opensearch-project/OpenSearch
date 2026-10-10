@@ -1,0 +1,37 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "o_orderkey": {
+        "type": "long"
+      },
+      "o_custkey": {
+        "type": "long"
+      },
+      "o_orderstatus": {
+        "type": "keyword"
+      },
+      "o_totalprice": {
+        "type": "double"
+      },
+      "o_orderdate": {
+        "type": "date"
+      },
+      "o_orderpriority": {
+        "type": "keyword"
+      },
+      "o_clerk": {
+        "type": "keyword"
+      },
+      "o_shippriority": {
+        "type": "integer"
+      },
+      "o_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

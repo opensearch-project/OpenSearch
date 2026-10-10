@@ -89,6 +89,36 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 
+/// Convert Parquet string/binary fields to Arrow view types, including LIST children.
+/// DataFusion's `transform_schema_to_view` only rewrites top-level fields, while the
+/// coordinator declares `ARRAY<VARCHAR>` as `List<Utf8View>`.
+pub fn transform_schema_to_view_recursive(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .map(|field| Arc::new(rewrite_field_to_view(field)))
+        .collect::<Vec<_>>();
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+fn rewrite_field_to_view(field: &Field) -> Field {
+    Field::new(
+        field.name(),
+        rewrite_data_type_to_view(field.data_type()),
+        field.is_nullable(),
+    )
+    .with_metadata(field.metadata().clone())
+}
+
+fn rewrite_data_type_to_view(data_type: &DataType) -> DataType {
+    match data_type {
+        DataType::Utf8 | DataType::LargeUtf8 => DataType::Utf8View,
+        DataType::Binary | DataType::LargeBinary => DataType::BinaryView,
+        DataType::List(child) => DataType::List(Arc::new(rewrite_field_to_view(child))),
+        other => other.clone(),
+    }
+}
+
 /// Rewrite the schema to forms Substrait can bind against:
 ///   - `BinaryView` → `Binary`
 ///   - `UInt64`     → `Int64`
@@ -102,11 +132,7 @@ pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
     if !schema_needs_coerce(&schema) {
         return schema;
     }
-    let rewritten_fields: Vec<Field> = schema
-        .fields()
-        .iter()
-        .map(|f| rewrite_field(f))
-        .collect();
+    let rewritten_fields: Vec<Field> = schema.fields().iter().map(|f| rewrite_field(f)).collect();
     Arc::new(Schema::new_with_metadata(
         rewritten_fields,
         schema.metadata().clone(),
@@ -114,7 +140,10 @@ pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
 }
 
 fn schema_needs_coerce(schema: &Schema) -> bool {
-    schema.fields().iter().any(|f| contains_incompatible(f.data_type()))
+    schema
+        .fields()
+        .iter()
+        .any(|f| contains_incompatible(f.data_type()))
 }
 
 fn contains_incompatible(dt: &DataType) -> bool {
@@ -125,7 +154,9 @@ fn contains_incompatible(dt: &DataType) -> bool {
         }
         DataType::Map(f, _) => contains_incompatible(f.data_type()),
         DataType::Struct(fields) => fields.iter().any(|f| contains_incompatible(f.data_type())),
-        DataType::Union(fields, _) => fields.iter().any(|(_, f)| contains_incompatible(f.data_type())),
+        DataType::Union(fields, _) => fields
+            .iter()
+            .any(|(_, f)| contains_incompatible(f.data_type())),
         DataType::Dictionary(_, value_type) => contains_incompatible(value_type),
         _ => false,
     }
@@ -133,8 +164,7 @@ fn contains_incompatible(dt: &DataType) -> bool {
 
 fn rewrite_field(field: &Field) -> Field {
     let new_type = rewrite_data_type(field.data_type());
-    Field::new(field.name(), new_type, field.is_nullable())
-        .with_metadata(field.metadata().clone())
+    Field::new(field.name(), new_type, field.is_nullable()).with_metadata(field.metadata().clone())
 }
 
 fn rewrite_data_type(dt: &DataType) -> DataType {
@@ -169,16 +199,24 @@ pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option
     for ef in expected.fields() {
         if registered.field_with_name(ef.name()).is_err() {
             added.push(
-                Field::new(ef.name(), ef.data_type().clone(), true).with_metadata(ef.metadata().clone()),
+                Field::new(ef.name(), ef.data_type().clone(), true)
+                    .with_metadata(ef.metadata().clone()),
             );
         }
     }
     if added.is_empty() {
         return None;
     }
-    let mut fields: Vec<Field> = registered.fields().iter().map(|f| f.as_ref().clone()).collect();
+    let mut fields: Vec<Field> = registered
+        .fields()
+        .iter()
+        .map(|f| f.as_ref().clone())
+        .collect();
     fields.extend(added);
-    Some(Arc::new(Schema::new_with_metadata(fields, registered.metadata().clone())))
+    Some(Arc::new(Schema::new_with_metadata(
+        fields,
+        registered.metadata().clone(),
+    )))
 }
 
 #[cfg(test)]
@@ -199,7 +237,8 @@ mod tests {
             Field::new("alias", DataType::Utf8, false),
         ]);
 
-        let merged = append_missing_nullable(&registered, &expected).expect("alias missing → augmented");
+        let merged =
+            append_missing_nullable(&registered, &expected).expect("alias missing → augmented");
         assert_eq!(merged.fields().len(), 3);
         let alias = merged.field_with_name("alias").unwrap();
         assert_eq!(alias.data_type(), &DataType::Utf8);
@@ -249,15 +288,21 @@ mod tests {
         ]));
         let before = Arc::as_ptr(&schema);
         let out = coerce_inferred_schema(schema);
-        assert_eq!(Arc::as_ptr(&out), before, "unchanged schema must not reallocate");
+        assert_eq!(
+            Arc::as_ptr(&out),
+            before,
+            "unchanged schema must not reallocate"
+        );
     }
 
     #[test]
     fn nested_list_of_binary_view_gets_rewritten() {
         let inner = Field::new("item", DataType::BinaryView, true);
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("xs", DataType::List(Arc::new(inner)), true),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "xs",
+            DataType::List(Arc::new(inner)),
+            true,
+        )]));
         let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Binary),
@@ -268,9 +313,11 @@ mod tests {
     #[test]
     fn nested_list_of_uint64_gets_rewritten() {
         let inner = Field::new("item", DataType::UInt64, true);
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("xs", DataType::List(Arc::new(inner)), true),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "xs",
+            DataType::List(Arc::new(inner)),
+            true,
+        )]));
         let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Int64),

@@ -92,7 +92,7 @@ public class QueryCoordinatorContextTests extends OpenSearchTestCase {
             client
         );
         final SearchRequest searchRequest = new SearchRequest();
-        return searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        return searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
     }
 
     public void testGetContextVariables_whenNotPipelinedSearchRequest_thenReturnEmpty() {

@@ -24,7 +24,9 @@ import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -54,9 +56,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -102,6 +106,123 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.NORMAL, null);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSynchronousUploadIncludesCheckpointMetadata() throws IOException {
+        byte[] checkpointBytes = "checkpoint-data".getBytes(StandardCharsets.UTF_8);
+        TrackingInputStream metadataInputStream = new TrackingInputStream(checkpointBytes);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        transferFileSnapshot.setMetadataFileInputStream(metadataInputStream);
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+
+        new BlobStoreTransferService(blobStore, threadPool).uploadBlob(
+            transferFileSnapshot,
+            BlobPath.cleanPath(),
+            WritePriority.HIGH,
+            null
+        );
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(blobContainer).writeBlobWithMetadata(
+            Mockito.eq(transferFileSnapshot.getName()),
+            any(InputStream.class),
+            Mockito.eq(transferFileSnapshot.getContentLength()),
+            Mockito.eq(true),
+            metadataCaptor.capture(),
+            Mockito.isNull()
+        );
+        assertEquals(Base64.getEncoder().encodeToString(checkpointBytes), metadataCaptor.getValue().get(CHECKPOINT_FILE_DATA_KEY));
+        assertEquals(0, metadataInputStream.available());
+        assertFalse(metadataInputStream.isClosed());
+    }
+
+    public void testSynchronousUploadWithoutMetadataPassesNull() throws IOException {
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+
+        new BlobStoreTransferService(blobStore, threadPool).uploadBlob(
+            transferFileSnapshot,
+            BlobPath.cleanPath(),
+            WritePriority.HIGH,
+            null
+        );
+
+        verify(blobContainer).writeBlobWithMetadata(
+            Mockito.eq(transferFileSnapshot.getName()),
+            any(InputStream.class),
+            Mockito.eq(transferFileSnapshot.getContentLength()),
+            Mockito.eq(true),
+            Mockito.isNull(),
+            Mockito.isNull()
+        );
+        verify(blobStore, Mockito.never()).isBlobMetadataEnabled();
+    }
+
+    public void testSynchronousUploadWithMetadataRequiresCapability() throws IOException {
+        byte[] checkpointBytes = "checkpoint-data".getBytes(StandardCharsets.UTF_8);
+        TrackingInputStream metadataInputStream = new TrackingInputStream(checkpointBytes);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        transferFileSnapshot.setMetadataFileInputStream(metadataInputStream);
+
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new BlobStoreTransferService(blobStore, threadPool).uploadBlob(
+                transferFileSnapshot,
+                BlobPath.cleanPath(),
+                WritePriority.HIGH,
+                null
+            )
+        );
+        assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
+        verify(blobStore, Mockito.never()).blobContainer(any(BlobPath.class));
+        assertEquals(checkpointBytes.length, metadataInputStream.available());
+        assertFalse(metadataInputStream.isClosed());
+    }
+
+    public void testSynchronousUploadRejectsOversizedMetadataBeforeWrite() throws IOException {
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        transferFileSnapshot.setMetadataFileInputStream(new ByteArrayInputStream(new byte[1025]));
+
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+
+        IOException exception = expectThrows(
+            IOException.class,
+            () -> new BlobStoreTransferService(blobStore, threadPool).uploadBlob(
+                transferFileSnapshot,
+                BlobPath.cleanPath(),
+                WritePriority.HIGH,
+                null
+            )
+        );
+        assertEquals("Input stream exceeds 1KB limit", exception.getMessage());
+        verify(blobStore, Mockito.never()).blobContainer(any(BlobPath.class));
+    }
+
     public void testUploadBlobAsync() throws IOException, InterruptedException {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
@@ -135,6 +256,176 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());
+    }
+
+    public void testAsyncUploadIncludesCheckpointMetadata() throws Exception {
+        byte[] checkpointBytes = "checkpoint-data".getBytes(StandardCharsets.UTF_8);
+        TrackingInputStream metadataInputStream = new TrackingInputStream(checkpointBytes);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        transferFileSnapshot.setMetadataFileInputStream(metadataInputStream);
+
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        AtomicReference<WriteContext> writeContextRef = new AtomicReference<>();
+        Mockito.doAnswer(invocation -> {
+            writeContextRef.set(invocation.getArgument(0));
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new BlobStoreTransferService(blobStore, threadPool).uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(transferFileSnapshot.getPrimaryTerm(), BlobPath.cleanPath()),
+            new LatchedActionListener<>(ActionListener.wrap(ignored -> {}, failure::set), latch),
+            WritePriority.HIGH,
+            null
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failure.get());
+        assertEquals(
+            Base64.getEncoder().encodeToString(checkpointBytes),
+            writeContextRef.get().getMetadata().get(CHECKPOINT_FILE_DATA_KEY)
+        );
+        assertEquals(0, metadataInputStream.available());
+        assertFalse(metadataInputStream.isClosed());
+    }
+
+    public void testAsyncUploadWithMetadataRequiresCapability() throws Exception {
+        byte[] checkpointBytes = "checkpoint-data".getBytes(StandardCharsets.UTF_8);
+        TrackingInputStream metadataInputStream = new TrackingInputStream(checkpointBytes);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "translog-1.tlog",
+            "translog-data".getBytes(StandardCharsets.UTF_8),
+            1
+        );
+        transferFileSnapshot.setMetadataFileInputStream(metadataInputStream);
+
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new BlobStoreTransferService(blobStore, threadPool).uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(transferFileSnapshot.getPrimaryTerm(), BlobPath.cleanPath()),
+            new LatchedActionListener<>(ActionListener.wrap(ignored -> fail("upload should have failed"), failure::set), latch),
+            WritePriority.HIGH,
+            null
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(failure.get());
+        assertTrue(failure.get() instanceof FileTransferException);
+        assertTrue(failure.get().getCause() instanceof IllegalStateException);
+        assertEquals("Blob metadata is not enabled for the configured blob store", failure.get().getCause().getMessage());
+        verify(blobContainer, Mockito.never()).asyncBlobUpload(any(WriteContext.class), any());
+        assertEquals(checkpointBytes.length, metadataInputStream.available());
+        assertFalse(metadataInputStream.isClosed());
+    }
+
+    public void testDownloadBlobWithMetadataRequiresCapability() {
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(false);
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new BlobStoreTransferService(blobStore, threadPool).downloadBlobWithMetadata(BlobPath.cleanPath(), "translog-1.tlog")
+        );
+        assertEquals("Blob metadata is not enabled for the configured blob store", exception.getMessage());
+        verify(blobStore, Mockito.never()).blobContainer(any(BlobPath.class));
+    }
+
+    public void testUploadBlobAsyncUsesSnapshotSuppliedPartStreams() throws IOException, InterruptedException {
+        // The file on disk holds one payload; the snapshot's supplier serves a different one. The async
+        // upload must take its parts from the supplier, so a snapshot that transforms its bytes is honoured
+        // without the transfer service reading -- and therefore buffering -- the file itself.
+        // Named like a first-generation translog so the checksum assert in uploadBlob is satisfied.
+        Path testFile = createTempFile("translog-1.", ".tlog");
+        Files.write(testFile, "on-disk-bytes".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+        byte[] supplied = "supplied-bytes".getBytes(StandardCharsets.UTF_8);
+
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        ) {
+            @Override
+            public RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier() {
+                return (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput("supplied", supplied), size, position);
+            }
+
+            @Override
+            public long getContentLength() {
+                return supplied.length;
+            }
+        };
+
+        BlobStore blobStore = createTestBlobStore();
+        MockAsyncFsContainer mockAsyncFsContainer = new MockAsyncFsContainer((FsBlobStore) blobStore, BlobPath.cleanPath(), null);
+        FsBlobStore fsBlobStore = mock(FsBlobStore.class);
+        when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
+
+        BlobStoreTransferService transferServiceSpy = Mockito.spy(new BlobStoreTransferService(fsBlobStore, threadPool));
+        CountDownLatch latch = new CountDownLatch(1);
+        transferServiceSpy.uploadBlobs(
+            Set.of(transferFileSnapshot),
+            Map.of(transferFileSnapshot.getPrimaryTerm(), BlobPath.cleanPath()),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Failed to upload blob", e);
+                }
+            }, latch),
+            WritePriority.HIGH,
+            null
+        );
+        assertTrue(latch.await(5000, TimeUnit.MILLISECONDS));
+
+        ArgumentCaptor<RemoteTransferContainer.OffsetRangeInputStreamSupplier> supplierCaptor = ArgumentCaptor.forClass(
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier.class
+        );
+        ArgumentCaptor<Long> contentLengthCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(transferServiceSpy).uploadBlobAsyncInternal(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            contentLengthCaptor.capture(),
+            Mockito.any(),
+            Mockito.any(),
+            supplierCaptor.capture(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any()
+        );
+
+        assertEquals(
+            "Length must come from the snapshot, not the file on disk",
+            supplied.length,
+            contentLengthCaptor.getValue().longValue()
+        );
+        try (OffsetRangeInputStream whole = supplierCaptor.getValue().get(supplied.length, 0)) {
+            assertEquals("supplied-bytes", new String(whole.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        // A part from a non-zero offset, which is what a multipart upload actually requests.
+        try (OffsetRangeInputStream part = supplierCaptor.getValue().get(5, 9)) {
+            assertEquals("bytes", new String(part.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     public void testUploadBlobFromInputStreamSyncFSRepo() throws IOException, InterruptedException {
@@ -312,6 +603,24 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         @Override
         public String toString() {
             return "TestClass{ name: " + name + ", value: " + value + " }";
+        }
+    }
+
+    private static class TrackingInputStream extends ByteArrayInputStream {
+        private boolean closed;
+
+        TrackingInputStream(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
+
+        boolean isClosed() {
+            return closed;
         }
     }
 

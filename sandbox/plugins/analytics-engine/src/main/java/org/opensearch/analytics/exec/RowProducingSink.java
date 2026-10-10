@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.spi.ExchangeSink;
 
@@ -43,6 +45,8 @@ import java.util.List;
 // close, partial buffering on early exit). Revisit the locking as part of that (e.g. tryLock with
 // timeout); the current single-monitor synchronization is correct but worth reconsidering then.
 public class RowProducingSink implements ExchangeSink, ExchangeSource {
+
+    private static final Logger logger = LogManager.getLogger(RowProducingSink.class);
 
     /**
      * Default maximum number of rows this sink will accept before rejecting
@@ -104,10 +108,24 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     @Override
     public synchronized void close() {
         closed = true;
-        for (VectorSchemaRoot batch : batches) {
-            batch.close();
+        // Guard each close individually: Arrow's VectorSchemaRoot.close() throws
+        // (IllegalStateException) when a vector's buffers were already released — e.g. a batch
+        // the consumer drained and closed via readResult(), or one whose vectors were shared with
+        // another close path. An unguarded loop would abort on the first such throw and abandon
+        // every batch after it, stranding their off-heap buffers on the (long-lived, when
+        // coordinator.buffer_limit=0) coordinator allocator. clear() runs regardless so the sink
+        // does not retain references to freed roots.
+        try {
+            for (VectorSchemaRoot batch : batches) {
+                try {
+                    batch.close();
+                } catch (RuntimeException e) {
+                    logger.warn("RowProducingSink: batch close failed during sink close; continuing to release the rest", e);
+                }
+            }
+        } finally {
+            batches.clear();
         }
-        batches.clear();
     }
 
     /**

@@ -226,8 +226,11 @@ pub fn compute_assignments_one_per_segment(
     segments: &[SegmentFileInfo],
     layouts: &[SegmentLayout],
 ) -> Vec<PartitionAssignment> {
-    debug_assert_eq!(segments.len(), layouts.len(),
-        "segments and layouts must match (one entry per segment)");
+    debug_assert_eq!(
+        segments.len(),
+        layouts.len(),
+        "segments and layouts must match (one entry per segment)"
+    );
     if segments.is_empty() {
         return Vec::new();
     }

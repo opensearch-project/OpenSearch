@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -104,6 +105,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -177,6 +179,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             "test-action",
             mock(TransportResponse.class),
             false,
+            false,
             false
         );
 
@@ -201,6 +204,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 1L,
                 "test-action",
                 mock(TransportResponse.class),
+                false,
                 false,
                 false
             );
@@ -250,6 +254,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 "test-action",
                 response,
                 false,
+                false,
                 false
             );
 
@@ -278,6 +283,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -311,6 +317,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 "test-action",
                 response,
                 false,
+                false,
                 false
             )
         );
@@ -341,6 +348,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 "test-action",
                 response,
                 false,
+                false,
                 false
             )
         );
@@ -366,6 +374,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             response,
+            false,
             false,
             false
         );
@@ -394,6 +403,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -427,6 +437,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -466,6 +477,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             "test-action",
             mock(TransportResponse.class),
             false,
+            false,
             false
         );
 
@@ -497,6 +509,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -530,6 +543,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             "test-action",
             mock(TransportResponse.class),
             false,
+            false,
             false
         );
 
@@ -557,6 +571,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             1L,
             "test-action",
             mock(TransportResponse.class),
+            false,
             false,
             false
         );
@@ -622,6 +637,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             "test-action",
             mock(TransportResponse.class),
             false,
+            false,
             false
         );
 
@@ -629,6 +645,144 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         assertTrue("awaitReadyOrThrow must run before sendResponseBatch returns", awaitCalled.get());
         assertTrue("Executor task should complete", executorRan.await(5, TimeUnit.SECONDS));
         verify(mockFlightChannel).awaitReadyOrThrow();
+    }
+
+    /** Async (sync=false): the batch send is handed to the channel executor, off the calling thread. */
+    public void testAsyncSendUsesChannelExecutor() throws Exception {
+        ExecutorService submitTrap = mock(ExecutorService.class);
+        when(mockFlightChannel.getExecutor()).thenReturn(submitTrap);
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            mock(FlightTransportChannel.class),
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false,
+            false // sync=false
+        );
+
+        verify(submitTrap).execute(any()); // dispatched to the executor
+    }
+
+    /**
+     * Sync (sync=true): the batch send is submitted to the channel executor (so it is serialized against
+     * the root free that close() posts to the same executor) AND the caller blocks until it has run.
+     * Contrast with async, which dispatches via execute() and returns without waiting.
+     */
+    public void testSyncSendRunsOnExecutorAndBlocks() throws Exception {
+        // Real named single-thread executor: the send must run ON it (not the caller thread), and the
+        // sync call must not return until the send has completed.
+        ExecutorService flightExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "flight-eventloop-unittest"));
+        try {
+            when(mockFlightChannel.getExecutor()).thenReturn(flightExecutor);
+            AtomicBoolean sentBeforeReturn = new AtomicBoolean(false);
+            AtomicReference<String> ranOnThread = new AtomicReference<>();
+            doAnswer(invocation -> {
+                ranOnThread.set(Thread.currentThread().getName());
+                sentBeforeReturn.set(true);
+                return null;
+            }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
+
+            handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                mock(FlightTransportChannel.class),
+                1L,
+                "test-action",
+                mock(TransportResponse.class),
+                false,
+                false,
+                true // sync=true
+            );
+
+            // sync blocks on the submitted task, so the send has completed by the time the call returns...
+            assertTrue("sync send must have run (and notified) before returning", sentBeforeReturn.get());
+            // ...and it ran on the flight executor thread, not the calling test thread.
+            assertEquals("sync send must run on the flight executor, not the caller", "flight-eventloop-unittest", ranOnThread.get());
+        } finally {
+            flightExecutor.shutdownNow();
+            flightExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * A sync send whose executor work throws (e.g. onResponseSent itself fails) must surface the failure
+     * to the caller as a StreamException rather than hang or swallow it — the ExecutionException unwrap in
+     * runOnExecutorAndWait. Uses an executor that runs the task but lets its exception escape the Future.
+     */
+    public void testSyncSendSurfacesWorkFailureAsStreamException() throws Exception {
+        ExecutorService flightExecutor = Executors.newSingleThreadExecutor();
+        try {
+            when(mockFlightChannel.getExecutor()).thenReturn(flightExecutor);
+            // sendBatch's own catch routes processBatchTask failures to the listener; make that listener
+            // call itself throw so the exception escapes the submitted Runnable and reaches Future.get().
+            doThrow(new RuntimeException("listener boom")).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+
+            StreamException thrown = expectThrows(
+                StreamException.class,
+                () -> handler.sendResponseBatch(
+                    Version.CURRENT,
+                    Collections.emptySet(),
+                    mockFlightChannel,
+                    mock(FlightTransportChannel.class),
+                    1L,
+                    "test-action",
+                    mock(TransportResponse.class),
+                    false,
+                    false,
+                    true // sync
+                )
+            );
+            assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());
+        } finally {
+            flightExecutor.shutdownNow();
+            flightExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Regression: a sync send whose blocking wait throws AFTER the task was accepted must NOT also run
+     * releaseUnsent — the accepted task already owns and frees the source, so a second free would be a
+     * double free. Ownership (handedOff) is transferred at submit time, before the wait, so the handler's
+     * finally must skip releaseUnsent even though the wait threw.
+     */
+    public void testSyncSendDoesNotReleaseUnsentAfterTaskAccepted() throws Exception {
+        ExecutorService flightExecutor = Executors.newSingleThreadExecutor();
+        try {
+            when(mockFlightChannel.getExecutor()).thenReturn(flightExecutor);
+            // Force the blocking wait to throw AFTER submit succeeds: the task runs, its send fails, and
+            // routing that failure to the listener throws, so the exception escapes to Future.get().
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(TransportResponse.class), any());
+            doThrow(new RuntimeException("listener boom")).when(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+
+            expectThrows(
+                StreamException.class,
+                () -> handler.sendResponseBatch(
+                    Version.CURRENT,
+                    Collections.emptySet(),
+                    mockFlightChannel,
+                    mock(FlightTransportChannel.class),
+                    1L,
+                    "test-action",
+                    mock(TransportResponse.class),
+                    false,
+                    false,
+                    true // sync
+                )
+            );
+
+            // The accepted task owns the source; releaseUnsent must NOT run (that would be the double free).
+            verify(mockFlightChannel, never()).releaseUnsent(any());
+        } finally {
+            flightExecutor.shutdownNow();
+            flightExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -653,6 +807,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 1L,
                 "test-action",
                 mock(TransportResponse.class),
+                false,
                 false,
                 false
             )

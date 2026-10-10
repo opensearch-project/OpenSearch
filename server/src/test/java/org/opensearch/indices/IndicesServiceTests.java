@@ -494,7 +494,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     /**
-     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetadata)} contains
+     * Tests that the {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetadata)} contains
      * custom types and similarities registered by plugins
      */
     public void testStandAloneMapperServiceWithPlugins() throws IOException {

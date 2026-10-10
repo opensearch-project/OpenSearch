@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
@@ -106,7 +107,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            settings
         );
     }
 
@@ -116,7 +118,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            settings
         );
     }
 
@@ -138,7 +141,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             gatewayAllocator,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            settings
         );
     }
 
@@ -153,7 +157,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             gatewayAllocator,
             new BalancedShardsAllocator(settings, clusterSettings),
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            settings
         );
     }
 
@@ -487,6 +492,25 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             SnapshotsInfoService snapshotsInfoService
         ) {
             super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        }
+
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService,
+            Settings settings
+        ) {
+            super(
+                allocationDeciders,
+                shardsAllocator,
+                clusterInfoService,
+                snapshotsInfoService,
+                settings,
+                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            );
+            setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
         }
 
         public void setNanoTimeOverride(long nanoTime) {

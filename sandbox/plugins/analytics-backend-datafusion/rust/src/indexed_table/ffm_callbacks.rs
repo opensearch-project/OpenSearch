@@ -26,7 +26,7 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-use super::index::RowGroupDocsCollector;
+use super::index::{CollectDocsResult, RowGroupDocsCollector};
 
 // ── Callback signatures ───────────────────────────────────────────────
 
@@ -161,9 +161,7 @@ pub fn create_provider(context_id: i64, annotation_id: i32) -> Result<ProviderHa
     if key < 0 {
         return Err(format!(
             "createProvider failed: context_id={} annotation_id={} -> {}",
-            context_id,
-            annotation_id,
-            key
+            context_id, annotation_id, key
         ));
     }
     Ok(ProviderHandle { context_id, key })
@@ -191,7 +189,15 @@ impl FfmSegmentCollector {
         doc_max: i32,
     ) -> Result<Self, String> {
         let create = load_create_collector()?;
-        let key = unsafe { create(context_id, provider_key, writer_generation, doc_min, doc_max) };
+        let key = unsafe {
+            create(
+                context_id,
+                provider_key,
+                writer_generation,
+                doc_min,
+                doc_max,
+            )
+        };
         if key < 0 {
             return Err(format!(
                 "createCollector(context_id={}, provider={}, writer_generation={}) failed: {}",
@@ -203,15 +209,22 @@ impl FfmSegmentCollector {
 }
 
 impl RowGroupDocsCollector for FfmSegmentCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         if max_doc <= min_doc {
-            return Ok(Vec::new());
+            return Ok(CollectDocsResult {
+                words: Vec::new(),
+                next_doc: i32::MAX,
+            });
         }
         let span = (max_doc - min_doc) as usize;
         let word_count = span.div_ceil(64);
         let mut buf = vec![0u64; word_count];
         let collect_fn = load_collect_docs()?;
-        let n = unsafe {
+        let packed = unsafe {
             collect_fn(
                 self.context_id,
                 self.key,
@@ -221,27 +234,27 @@ impl RowGroupDocsCollector for FfmSegmentCollector {
                 word_count as i64,
             )
         };
-        if n < 0 {
+        if packed < 0 {
             return Err(format!(
                 "collectDocs(context_id={}, key={}) failed: {}",
-                self.context_id, self.key, n
+                self.context_id, self.key, packed
             ));
         }
-        // Defensive: the Java callback is contracted to return
-        // `wordsWritten <= outWordCap`. If it lied, the buffer already
-        // overflowed, but truncating won't recover the clobbered heap.
-        // Detect the violation and fail loudly so the Java callback bug
-        // is surfaced before downstream code consumes the tainted bitset.
-        let n = n as usize;
-        if n > word_count {
+        let packed_u = packed as u64;
+        let words_written = (packed_u & 0xFFFF_FFFF) as usize;
+        let next_doc = (packed_u >> 32) as i32;
+        if words_written > word_count {
             return Err(format!(
                 "collectDocs(context_id={}, key={}) reported wordsWritten={} > capacity={}; \
                  callback contract violated (possible heap overflow)",
-                self.context_id, self.key, n, word_count,
+                self.context_id, self.key, words_written, word_count,
             ));
         }
-        buf.truncate(n);
-        Ok(buf)
+        buf.truncate(words_written);
+        Ok(CollectDocsResult {
+            words: buf,
+            next_doc,
+        })
     }
 }
 

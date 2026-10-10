@@ -17,8 +17,10 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -39,6 +41,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -252,11 +255,16 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     private void addDoc(String id, long generation) throws IOException {
+        addDocWithoutCommit(id);
+        indexWriter.commit();
+        stampLatestSegmentGeneration(generation);
+    }
+
+    /** Adds a document without committing, so several can be made to land in one segment. */
+    private void addDocWithoutCommit(String id) throws IOException {
         Document doc = new Document();
         doc.add(new StringField("id", id, Field.Store.YES));
         indexWriter.addDocument(doc);
-        indexWriter.commit();
-        stampLatestSegmentGeneration(generation);
     }
 
     @SuppressForbidden(reason = "Need reflection to stamp writer_generation on segments for testing")
@@ -664,6 +672,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                 new LuceneDataFormat(),
                 committer,
                 mock(MapperService.class),
+                idxSettings,
                 store
             );
             ReaderManagerConfig settings = new ReaderManagerConfig(
@@ -695,6 +704,42 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
         assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
+    }
+
+    public void testDocCountsByGenerationSplitsCountsPerWriterGeneration() throws IOException {
+        indexWriter.close();
+        indexWriter = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE));
+
+        addDocWithoutCommit("a");
+        addDocWithoutCommit("b");
+        indexWriter.commit();
+        stampLatestSegmentGeneration(1);
+        addDoc("c", 2);
+
+        // Hides "a" without creating a new segment: generation 1 keeps both rows, one now hidden.
+        indexWriter.deleteDocuments(new Term("id", "a"));
+        indexWriter.commit();
+
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1, List.of(1L, 2L));
+        rm.afterRefresh(true, snap);
+
+        Map<Long, DocCounts> counts = rm.docCountsByGeneration(snap);
+
+        assertEquals(2, counts.size());
+        assertEquals(new DocCounts(1, 1), counts.get(1L));
+        assertEquals(new DocCounts(1, 0), counts.get(2L));
+        rm.close();
+    }
+
+    public void testDocCountsByGenerationReturnsEmptyWithoutAReader() throws IOException {
+        addDoc("a", 1);
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1, List.of(1L));
+
+        assertTrue(rm.docCountsByGeneration(snap).isEmpty());
+        expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
+        rm.close();
     }
 
 }

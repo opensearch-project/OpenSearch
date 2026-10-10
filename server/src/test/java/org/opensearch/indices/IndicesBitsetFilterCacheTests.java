@@ -13,11 +13,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -27,10 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,20 +37,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
-
-    private ThreadPool threadPool;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool("indices_bitset_filter_cache_test");
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        super.tearDown();
-    }
 
     private static final BitsetFilterCache.Listener NO_OP_LISTENER = new BitsetFilterCache.Listener() {
         @Override
@@ -68,7 +53,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
     public void testCacheSizeLimitIsHonored() throws Exception {
         // First, figure out how large a single bitset entry is by caching one.
         long singleEntryBytes;
-        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
@@ -96,7 +81,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
         long cacheSizeBytes = singleEntryBytes * 2;
         Settings settings = Settings.builder().put("indices.cache.bitset.size", cacheSizeBytes + "b").build();
 
-        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings, threadPool)) {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings)) {
             // Create an index with 3 separate segments (3 commits), each with one doc matching a different query.
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
@@ -139,7 +124,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
     public void testEvictionTriggersOnRemovalListener() throws Exception {
         // Probe for single entry size.
         long singleEntryBytes;
-        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
@@ -176,7 +161,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
             }
         };
 
-        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings, threadPool)) {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings)) {
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
@@ -209,10 +194,10 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that stale entries from closed readers are purged.
+     * Verifies that entries from a closed reader are invalidated as soon as the reader closes.
      */
-    public void testStaleEntriesPurgedAfterReaderClose() throws Exception {
-        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+    public void testEntriesInvalidatedOnReaderClose() throws Exception {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
@@ -233,18 +218,17 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
             writer.close();
             reader.close();
 
-            // Purge stale entries.
-            cache.purgeStaleEntries();
+            // Reader close invalidates its entries synchronously.
             assertThat(cache.getCache().count(), equalTo(0));
         }
     }
 
     /**
      * Verifies that when one index's readers are closed (simulating index close),
-     * only that index's entries are purged while other indices' entries remain.
+     * only that index's entries are removed while other indices' entries remain.
      */
-    public void testIndexCloseOnlyPurgesItsOwnEntries() throws Exception {
-        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+    public void testIndexCloseOnlyRemovesItsOwnEntries() throws Exception {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
             // Create two separate "indices" with their own writers.
             IndexWriter writer1 = new IndexWriter(
                 new ByteBuffersDirectory(),
@@ -275,14 +259,94 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
             // Simulate index1 close: close its reader.
             reader1.close();
             writer1.close();
-            cache.purgeStaleEntries();
 
-            // Only index1's entry should be purged; index2's entry remains.
+            // Only index1's entry is removed; index2's entry remains.
             assertThat(cache.getCache().count(), equalTo(1));
 
             reader2.close();
             writer2.close();
-            cache.purgeStaleEntries();
+            assertThat(cache.getCache().count(), equalTo(0));
+        }
+    }
+
+    /**
+     * Verifies that closing one segment's reader invalidates every query cached for that segment,
+     * synchronously and by exact key, while entries for still-open segments are untouched.
+     */
+    public void testReaderCloseInvalidatesAllQueriesForItsSegments() throws Exception {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
+            IndexWriter writer1 = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            );
+            Document doc1 = new Document();
+            doc1.add(new StringField("field", "val1", Field.Store.NO));
+            writer1.addDocument(doc1);
+            writer1.commit();
+
+            IndexWriter writer2 = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            );
+            Document doc2 = new Document();
+            doc2.add(new StringField("field", "val2", Field.Store.NO));
+            writer2.addDocument(doc2);
+            writer2.commit();
+
+            DirectoryReader reader1 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer1), new ShardId("index1", "_na_", 0));
+            DirectoryReader reader2 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer2), new ShardId("index2", "_na_", 0));
+
+            // Two distinct queries cached against reader1's segment, one against reader2's.
+            cache.getBitSetProducer(new TermQuery(new Term("field", "val1")), NO_OP_LISTENER).getBitSet(reader1.leaves().get(0));
+            cache.getBitSetProducer(new TermQuery(new Term("field", "other")), NO_OP_LISTENER).getBitSet(reader1.leaves().get(0));
+            cache.getBitSetProducer(new TermQuery(new Term("field", "val2")), NO_OP_LISTENER).getBitSet(reader2.leaves().get(0));
+            assertThat(cache.getCache().count(), equalTo(3));
+
+            reader1.close();
+            writer1.close();
+            assertThat(cache.getCache().count(), equalTo(1));
+
+            reader2.close();
+            writer2.close();
+            assertThat(cache.getCache().count(), equalTo(0));
+        }
+    }
+
+    /**
+     * Verifies that an entry evicted and then reloaded while its reader is open is still
+     * invalidated when the reader closes. Guards the per-reader key registry against unregistering
+     * keys on eviction: an eviction racing a reload of the same key could unregister the key the
+     * reload just re-cached, leaving the reloaded entry with no cleanup path when the reader
+     * closes.
+     */
+    public void testReaderCloseInvalidatesEntryReloadedAfterEviction() throws Exception {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
+            IndexWriter writer = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            );
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+
+            DirectoryReader reader = DirectoryReader.open(writer);
+            IndexReader.CacheKey readerKey = reader.leaves().get(0).reader().getCoreCacheHelper().getKey();
+            Query query = new TermQuery(new Term("field", "value"));
+
+            BitSetProducer producer = cache.getBitSetProducer(query, NO_OP_LISTENER);
+            producer.getBitSet(reader.leaves().get(0));
+            assertThat(cache.getCache().count(), equalTo(1));
+
+            // Evict the entry (as size-based eviction would), then reload it through the real
+            // load path while the reader is still open.
+            cache.getCache().invalidate(new IndicesBitsetFilterCache.BitsetCacheKey(readerKey, query));
+            assertThat(cache.getCache().count(), equalTo(0));
+            producer.getBitSet(reader.leaves().get(0));
+            assertThat(cache.getCache().count(), equalTo(1));
+
+            reader.close();
+            writer.close();
             assertThat(cache.getCache().count(), equalTo(0));
         }
     }
@@ -293,7 +357,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
     public void testMultipleIndicesShareCacheWithGlobalSizeLimit() throws Exception {
         // Probe for single entry size.
         long singleEntryBytes;
-        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+        try (IndicesBitsetFilterCache probeCache = new IndicesBitsetFilterCache(Settings.EMPTY)) {
             IndexWriter writer = new IndexWriter(
                 new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
@@ -317,7 +381,7 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
         long cacheSizeBytes = singleEntryBytes * 2;
         Settings settings = Settings.builder().put("indices.cache.bitset.size", cacheSizeBytes + "b").build();
 
-        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings, threadPool)) {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(settings)) {
             // Create two separate "indices" (different ShardIds, different writers).
             IndexWriter writer1 = new IndexWriter(
                 new ByteBuffersDirectory(),

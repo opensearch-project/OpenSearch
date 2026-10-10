@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
@@ -52,8 +53,16 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  * until gRPC's outbound buffer drains below {@code setOnReadyThreshold}.
  *
  * <p><b>Ownership &amp; concurrency — single-writer model.</b> This channel is the sole owner of
- * every Arrow buffer it sends and of the gRPC stream lifecycle. It keeps that ownership safe by
- * confining the stream root to a single thread:
+ * every Arrow buffer it sends and of the gRPC stream lifecycle.
+ *
+ * <p><b>Invariant: this channel is NOT thread-safe. All send-side mutation — the stream {@link #root}
+ * (create/transfer/serialize/free), {@link #terminalSent}, and every {@code serverStreamListener} call
+ * — MUST run on the channel's single {@link #getExecutor() flight-executor thread}, and never
+ * concurrently from more than one thread.</b> The executor is single-threaded, so it serializes those
+ * mutations and the buffer frees among themselves. Violating this (e.g. mutating the root from a
+ * producer thread while {@code close()} frees it on the executor) is a data race that corrupts Arrow
+ * reference counts and can orphan or double-free buffers (an off-heap leak). It keeps that ownership
+ * safe by confining the stream root to that single thread:
  * <ul>
  *   <li><b>The stream {@link #root} and every {@code serverStreamListener} call
  *       ({@code start}/{@code putNext}/{@code completed}/{@code error}) happen only on the channel's
@@ -107,6 +116,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     /** Leaf mutex guarding {@link #closeListeners} and {@link #closeListenersFired}; its critical section only mutates them. */
     private final Object closeListenerMutex = new Object();
     private final List<ActionListener<Void>> closeListeners = new ArrayList<>();
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners = new ArrayList<>();
     private boolean closeListenersFired = false;
 
     public FlightServerChannel(
@@ -178,6 +188,11 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
 
     public BufferAllocator getAllocator() {
         return allocator;
+    }
+
+    /** Whether the client cancelled the gRPC stream (onChannelCancelled fired). Read by FlightTransportChannel. */
+    public boolean isCancelled() {
+        return cancelled;
     }
 
     /** Returns the current stream root. Package-private; intended for tests/assertions only. */
@@ -528,6 +543,28 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     }
 
     @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // Registered against notifyCloseListeners exactly like addCloseListener(ActionListener), see there.
+        boolean alreadyFired;
+        synchronized (closeListenerMutex) {
+            alreadyFired = closeListenersFired;
+            if (alreadyFired == false) {
+                removableCloseListeners.add(listener);
+            }
+        }
+        if (alreadyFired) {
+            listener.accept(null, null);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        synchronized (closeListenerMutex) {
+            removableCloseListeners.remove(listener);
+        }
+    }
+
+    @Override
     public boolean isOpen() {
         return open.get();
     }
@@ -538,14 +575,24 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         // it. Isolate each listener so one failure cannot strand the rest (e.g. the TaskManager untrack
         // listener).
         final List<ActionListener<Void>> toFire;
+        final List<BiConsumer<Void, ? super Exception>> removableToFire;
         synchronized (closeListenerMutex) {
             toFire = new ArrayList<>(closeListeners);
             closeListeners.clear();
+            removableToFire = new ArrayList<>(removableCloseListeners);
+            removableCloseListeners.clear();
             closeListenersFired = true;
         }
         for (ActionListener<Void> listener : toFire) {
             try {
                 listener.onResponse(null);
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
+            }
+        }
+        for (BiConsumer<Void, ? super Exception> listener : removableToFire) {
+            try {
+                listener.accept(null, null);
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
             }

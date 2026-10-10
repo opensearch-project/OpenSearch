@@ -32,12 +32,15 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
@@ -69,6 +72,12 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
  * @opensearch.api
  */
 public class RestGetAliasesAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetAliasesAction.class);
+    static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Parameter [master_timeout] is deprecated and will be removed in 4.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+    static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     @Override
     public List<Route> routes() {
@@ -197,6 +206,16 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
+        // TODO: Remove the if condition and statements inside after removing MASTER_ROLE.
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getAliasesRequest.clusterManagerNodeTimeout());
+        if (request.hasParam("master_timeout")) {
+            deprecationLogger.deprecate("get_aliases_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            if (request.hasParam("cluster_manager_timeout")) {
+                throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
+            }
+            clusterManagerTimeout = request.paramAsTime("master_timeout", getAliasesRequest.clusterManagerNodeTimeout());
+        }
+        getAliasesRequest.clusterManagerNodeTimeout(clusterManagerTimeout);
 
         // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         // not always be available there (they may get replaced so retrieving request.aliases is not quite the same).

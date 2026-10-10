@@ -8,8 +8,8 @@
 
 //! [`BlockCache`] trait — the abstraction for disk caching with typed keys.
 
-use bytes::Bytes;
 use crate::range_cache::CacheKey;
+use bytes::Bytes;
 
 /// A disk block cache.
 ///
@@ -28,8 +28,10 @@ use crate::range_cache::CacheKey;
 pub trait BlockCache: Send + Sync + std::any::Any {
     /// Look up a cached entry. Returns `Some(Bytes)` on hit, `None` on miss.
     fn as_any(&self) -> &dyn std::any::Any;
-    fn get<'a>(&'a self, key: &'a CacheKey)
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>;
+    fn get<'a>(
+        &'a self,
+        key: &'a CacheKey,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>;
 
     /// Insert bytes under the given key (data cache — evictable by LRU).
     fn put(&self, key: &CacheKey, data: Bytes);

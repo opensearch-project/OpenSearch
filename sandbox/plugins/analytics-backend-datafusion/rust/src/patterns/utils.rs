@@ -21,15 +21,13 @@ use regex::Regex;
 /// Regex matching wildcard placeholders of the form `<* …>`. Mirrors Java's
 /// `PatternUtils.WILDCARD_PATTERN = Pattern.compile("<\\*[^>]*>")`. Examples
 /// it matches: `<*>`, `<*IP*>`, `<*UUID*>`, `<*DATETIME*>`.
-pub static WILDCARD_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"<\*[^>]*>").expect("WILDCARD_PATTERN regex is well-formed")
-});
+pub static WILDCARD_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<\*[^>]*>").expect("WILDCARD_PATTERN regex is well-formed"));
 
 /// Regex matching numbered token placeholders like `<token1>`, `<token12>`.
 /// Mirrors Java's `PatternUtils.TOKEN_PATTERN = Pattern.compile("<token\\d+>")`.
-pub static TOKEN_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"<token\d+>").expect("TOKEN_PATTERN regex is well-formed")
-});
+pub static TOKEN_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<token\d+>").expect("TOKEN_PATTERN regex is well-formed"));
 
 /// The wildcard-style prefix used when generating numbered-token labels from
 /// wildcards. Matches Java's `PatternUtils.WILDCARD_PREFIX = "<*"`.
@@ -203,10 +201,7 @@ mod tests {
         let parsed = parse_pattern("<*>@<*>.<*>", &WILDCARD_PATTERN);
         assert_eq!(parsed.parts, vec!["<*>", "@", "<*>", ".", "<*>"]);
         assert_eq!(parsed.is_token, vec![true, false, true, false, true]);
-        assert_eq!(
-            parsed.token_order,
-            vec!["<token1>", "<token2>", "<token3>"]
-        );
+        assert_eq!(parsed.token_order, vec!["<token1>", "<token2>", "<token3>"]);
     }
 
     #[test]
@@ -222,7 +217,12 @@ mod tests {
     fn extract_variables_extracts_email_parts() {
         let parsed = parse_pattern("<*>@<*>.<*>", &WILDCARD_PATTERN);
         let mut tokens = TokensMap::new();
-        extract_variables(&parsed, "amberduke@pyrami.com", &mut tokens, WILDCARD_PREFIX);
+        extract_variables(
+            &parsed,
+            "amberduke@pyrami.com",
+            &mut tokens,
+            WILDCARD_PREFIX,
+        );
         assert_eq!(tokens.get("<token1>"), Some(&vec!["amberduke".to_string()]));
         assert_eq!(tokens.get("<token2>"), Some(&vec!["pyrami".to_string()]));
         assert_eq!(tokens.get("<token3>"), Some(&vec!["com".to_string()]));
@@ -264,7 +264,12 @@ mod tests {
         let parsed = parse_pattern("<*>@<*>", &WILDCARD_PATTERN);
         let mut tokens = TokensMap::new();
         // No '@' in original — extraction must bail without inserting partial values.
-        extract_variables(&parsed, "amberduke.pyrami.com", &mut tokens, WILDCARD_PREFIX);
+        extract_variables(
+            &parsed,
+            "amberduke.pyrami.com",
+            &mut tokens,
+            WILDCARD_PREFIX,
+        );
         assert!(tokens.is_empty(), "expected no tokens, got {:?}", tokens);
     }
 

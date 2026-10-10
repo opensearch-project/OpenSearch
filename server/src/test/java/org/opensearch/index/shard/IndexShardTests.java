@@ -98,6 +98,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -230,7 +231,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -2342,7 +2348,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(false);
         long primaryTerm = shard.getOperationPrimaryTerm();
         shard.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-        shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
+        shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id", null);
         shard.getIndexer().translogManager().rollTranslogGeneration(); // isolate the delete in it's own generation
         shard.applyIndexOperationOnReplica(
             UUID.randomUUID().toString(),
@@ -5514,6 +5520,140 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testPeriodicFlushTaskStartedOnDynamicEnable() throws Exception {
+        // Regular index: periodic flush disabled by default, so no task is started with the engine.
+        IndexShard primary = newStartedShard(true);
+        assertNull(primary.getPeriodicFlushTask());
+
+        updatePeriodicFlushInterval(primary, "1m");
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("enabling index.periodic_flush_interval on a live shard should start the task", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+        assertTrue(flushTask.isClosed());
+    }
+
+    public void testPeriodicFlushTaskRescheduledOnIntervalChange() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+
+        updatePeriodicFlushInterval(primary, "30s");
+
+        // The same task is kept and rescheduled with the new interval.
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        // An unchanged value is a no-op.
+        updatePeriodicFlushInterval(primary, "30s");
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskStoppedOnDynamicDisable() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+
+        updatePeriodicFlushInterval(primary, "-1");
+
+        assertTrue("disabling index.periodic_flush_interval should close the running task", flushTask.isClosed());
+        assertFalse(flushTask.isScheduled());
+        assertNull(primary.getPeriodicFlushTask());
+
+        // Re-enabling starts a fresh task.
+        updatePeriodicFlushInterval(primary, "2m");
+        IndexShard.AsyncShardFlushTask restarted = primary.getPeriodicFlushTask();
+        assertNotNull(restarted);
+        assertNotSame(flushTask, restarted);
+        assertEquals(TimeValue.timeValueMinutes(2), restarted.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskDeferredUntilEngineExists() throws Exception {
+        // Setting is enabled at creation, but the shard has no engine yet. A settings change in this
+        // state must defer the task (there is nothing to flush) rather than start it.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        // No engine yet: onSettingsChanged must not start the task.
+        primary.onSettingsChanged();
+        assertNull("periodic flush task must not start before an engine exists", primary.getPeriodicFlushTask());
+
+        // Once the engine is created during recovery, the task starts with the configured interval.
+        recoverShardFromStore(primary);
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("task should start once an engine is available", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+    }
+
+    /**
+     * Applies a dynamic update of {@code index.periodic_flush_interval} to the shard the same way
+     * {@code IndexService#updateMetadata} does: update the index settings, then notify the shard.
+     */
+    private static void updatePeriodicFlushInterval(IndexShard shard, String interval) {
+        IndexMetadata current = shard.indexSettings().getIndexMetadata();
+        Settings newSettings = Settings.builder()
+            .put(current.getSettings())
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), interval)
+            .build();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .settings(newSettings)
+            .settingsVersion(current.getSettingsVersion() + 1)
+            .build();
+        shard.indexSettings().updateIndexMetadata(updated);
+        shard.onSettingsChanged();
+    }
+
     /**
      * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
      * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,
@@ -5622,5 +5762,175 @@ public class IndexShardTests extends IndexShardTestCase {
         } finally {
             closeShards(replica);
         }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} returns immediately on a non-segment-replication index
+     * (the method is a no-op when segment replication is not enabled).
+     */
+    public void testWaitForReplicaSync_NonSegRepIndex_ReturnsImmediately() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        try {
+            // Should not throw — returns immediately for non-seg-rep indices
+            shard.waitForReplicaSync(TimeValue.timeValueSeconds(1));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} returns immediately when replicas are already in sync.
+     */
+    public void testWaitForReplicaSync_AlreadyInSync_ReturnsImmediately() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            // Spy on the shard to simulate a replica that's already in sync
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats inSyncStat = mock(SegmentReplicationShardStats.class);
+            when(inSyncStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(inSyncStat.getBytesBehindCount()).thenReturn(0L);
+            when(inSyncStat.getCurrentReplicationTimeMillis()).thenReturn(0L);
+            doReturn(Set.of(inSyncStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            spyShard.waitForReplicaSync(TimeValue.timeValueSeconds(10));
+
+            // Should have checked stats exactly once and returned — no polling loop
+            verify(spyShard, times(1)).getReplicationStatsForTrackedReplicas();
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} throws IOException when replicas fail to sync within timeout.
+     */
+    public void testWaitForReplicaSync_Timeout_ThrowsIOException() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            // Spy on the shard to simulate a replica that's always behind
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats behindStat = mock(SegmentReplicationShardStats.class);
+            when(behindStat.getCheckpointsBehindCount()).thenReturn(3L);
+            doReturn(Set.of(behindStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            // Use a very short timeout so the test doesn't take 30s
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString("replicas failed to sync within"));
+            assertThat(ex.getMessage(), containsString("max checkpoints behind: 3"));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} does NOT return immediately when bytesBehind is non-zero,
+     * even if checkpointsBehindCount is zero. This catches the DFA metadata mismatch scenario.
+     */
+    public void testWaitForReplicaSync_BytesBehindNonZero_TimesOut() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats behindStat = mock(SegmentReplicationShardStats.class);
+            when(behindStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(behindStat.getBytesBehindCount()).thenReturn(26600000000L);
+            when(behindStat.getCurrentReplicationTimeMillis()).thenReturn(0L);
+            doReturn(Set.of(behindStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString(IndexShard.REPLICA_SYNC_TIMEOUT_MARKER));
+            assertThat(ex.getMessage(), containsString("max bytes behind:"));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Verifies {@code waitForReplicaSync} does NOT return immediately when replication is in progress
+     * (currentReplicationTimeMillis > 0), even if checkpoints and bytes behind are zero.
+     */
+    public void testWaitForReplicaSync_ReplicationInProgress_TimesOut() throws IOException {
+        Settings segRepSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        IndexShard shard = newStartedShard(true, segRepSettings);
+        try {
+            IndexShard spyShard = spy(shard);
+            SegmentReplicationShardStats replicatingStat = mock(SegmentReplicationShardStats.class);
+            when(replicatingStat.getCheckpointsBehindCount()).thenReturn(0L);
+            when(replicatingStat.getBytesBehindCount()).thenReturn(0L);
+            when(replicatingStat.getCurrentReplicationTimeMillis()).thenReturn(5000L);
+            doReturn(Set.of(replicatingStat)).when(spyShard).getReplicationStatsForTrackedReplicas();
+
+            IOException ex = expectThrows(IOException.class, () -> spyShard.waitForReplicaSync(TimeValue.timeValueMillis(600)));
+            assertThat(ex.getMessage(), containsString(IndexShard.REPLICA_SYNC_TIMEOUT_MARKER));
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * The predicate that decides whether a shard's translog lives in the remote store drives both the recovery-time
+     * download (which may reuse local generations) and the discard of a local copy proven corrupt. The two must agree:
+     * a remote-store index always; a migrating docrep shard only once a remote source has seeded it, since an unseeded
+     * one still owns the only copy of its translog and a docrep shard has no remote copy at all.
+     */
+    public void testTranslogBackedByRemoteStoreMatchesHydrationCondition() {
+        final IndexSettings remoteStoreIndex = new IndexSettings(
+            IndexMetadata.builder("remote")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                        .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                        .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-repo")
+                        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-repo")
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        final IndexSettings docrepIndex = new IndexSettings(
+            IndexMetadata.builder("docrep")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        assertTrue(remoteStoreIndex.isRemoteTranslogStoreEnabled());
+        assertFalse(docrepIndex.isRemoteTranslogStoreEnabled());
+
+        for (IndexShard.ShardMigrationState state : IndexShard.ShardMigrationState.values()) {
+            assertTrue(
+                "a remote-store index is remote-backed in state " + state,
+                IndexShard.isTranslogBackedByRemoteStore(remoteStoreIndex, state)
+            );
+        }
+        assertTrue(
+            "a seeded migrating shard downloaded its translog from the remote store",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED)
+        );
+        assertFalse(
+            "an unseeded migrating shard still owns the only copy of its translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED)
+        );
+        assertFalse(
+            "a docrep shard has no remote translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.DOCREP_NON_MIGRATING)
+        );
+        assertFalse(IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING));
     }
 }

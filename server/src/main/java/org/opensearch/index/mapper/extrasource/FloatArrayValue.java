@@ -76,8 +76,10 @@ public non-sealed interface FloatArrayValue extends ExtraFieldValue {
     float get(int i);
 
     /**
-     * Convenience; may allocate/copy for packed (allocating float[] is unavoidable).
-     * Packed implementation must NOT perform an extra byte[] compaction copy.
+     * Convenience; allocates a float array for packed values.
+     * Zero-copy decoding is used when the packed value is backed by a usable byte array.
+     * For other BytesReference implementations, decoding may lazily materialize one cached
+     * byte array.
      */
     float[] asFloatArray();
 

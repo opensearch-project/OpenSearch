@@ -63,6 +63,7 @@ use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{
     CollectorCallStrategy, RgEvalContext, RowGroupBitsetSource, TreeBitsetSource,
 };
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruner};
 use crate::indexed_table::stream::{FilterStrategy, RowGroupInfo};
@@ -153,7 +154,11 @@ struct MockCollector {
 }
 
 impl RowGroupDocsCollector for MockCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.docs {
@@ -162,7 +167,7 @@ impl RowGroupDocsCollector for MockCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -215,11 +220,12 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         object_path: object_store::path::Path::from(path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
+        arrow_schema: schema.clone(),
         metadata: parquet_meta,
-            global_base: 0,
-            sort_min: None,
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
     (seg, schema)
 }
 
@@ -311,13 +317,15 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
         let pp_map = Arc::clone(&pp_map);
         Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(CollectorLeafBitmaps {
-                    ffm_collector_calls: sm.ffm_collector_calls.clone(),
-                }),
+                leaves: Arc::new(CollectorLeafBitmaps::new(sm.ffm_collector_calls.clone())),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
@@ -328,7 +336,8 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })
@@ -352,7 +361,11 @@ async fn run_single_collector(
         let residual_pp = residual_pp.clone();
         let residual_expr = Arc::clone(&residual_expr);
         Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(collector_for_tag(collector_tag)),
                 pruner,
@@ -1009,7 +1022,7 @@ fn fixture_eval_ctx() -> RgEvalContext {
 fn cost_ordering_predicates_sorted_by_selectivity() {
     let tmp = write_fixture();
     let (seg, schema) = load_segment(&tmp);
-    let pruner = PagePruner::new(&schema, seg.metadata);
+    let pruner = PagePruner::new(&schema, seg.metadata, schema.clone());
     let ctx = fixture_eval_ctx();
 
     let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024)); // 1/4 pages
@@ -1079,7 +1092,7 @@ fn cost_ordering_predicates_sorted_by_selectivity() {
 fn cost_ordering_nested_and_branches_selective_first() {
     let tmp = write_fixture();
     let (seg, schema) = load_segment(&tmp);
-    let pruner = PagePruner::new(&schema, seg.metadata);
+    let pruner = PagePruner::new(&schema, seg.metadata, schema.clone());
     let ctx = fixture_eval_ctx();
 
     let pred_narrow = binop(col_expr("price"), Operator::Lt, lit_i32(1024));
@@ -1138,7 +1151,7 @@ fn cost_ordering_nested_and_branches_selective_first() {
 fn cost_ordering_complex_tree_predicates_before_or_before_nothing() {
     let tmp = write_fixture();
     let (seg, schema) = load_segment(&tmp);
-    let pruner = PagePruner::new(&schema, seg.metadata);
+    let pruner = PagePruner::new(&schema, seg.metadata, schema.clone());
     let ctx = fixture_eval_ctx();
 
     let pred_ge_10k = binop(col_expr("price"), Operator::GtEq, lit_i32(10_000));

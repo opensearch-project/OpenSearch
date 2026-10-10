@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -3504,6 +3505,110 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals("false", finalCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY));
     }
 
+    /**
+     * Node attributes for {@code node.attr.remote_store.mode: segments_only}: a segment repository and neither a
+     * translog nor a cluster state repository.
+     */
+    private static Map<String, String> getSegmentsOnlyNodeAttributes() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        return attributes;
+    }
+
+    private static ClusterState clusterStateWithSegmentsOnlyNode() {
+        DiscoveryNode segmentsOnlyNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getSegmentsOnlyNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(segmentsOnlyNode).build()).build();
+    }
+
+    /**
+     * An index created on segments-only nodes must be remote-backed for segments and must carry no translog
+     * repository. updateRemoteStoreSettings selects the node to copy repository names from with
+     * DiscoveryNode::isRemoteSegmentStoreNode, so a segments-only node qualifies as a donor even though it has no
+     * cluster state repository.
+     */
+    public void testUpdateRemoteStoreSettingsForSegmentsOnlyNode() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            clusterStateWithSegmentsOnlyNode(),
+            strictClusterSettings,
+            nodeSettings,
+            "test-index"
+        );
+
+        Settings indexSettings = settingsBuilder.build();
+        assertNull("no remote translog repository should be applied", indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals("my-segment-repo-1", indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertTrue("index should be remote-backed for segments", indexSettings.getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false));
+    }
+
+    /**
+     * A segments-only index should use the cluster's configured remote store path type rather than falling back to
+     * FIXED paths, even though there is no translog repository.
+     */
+    public void testRemoteStorePathTypeForSegmentsOnlyNode() {
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        BlobStore blobStoreMock = mock(BlobStore.class);
+        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
+        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(randomBoolean());
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        ClusterState clusterState = clusterStateWithSegmentsOnlyNode();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            null,
+            null,
+            null,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            false,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        IndexMetadata.Builder imdBuilder = IndexMetadata.builder("test").settings(indexSettings);
+        checkerService.addRemoteStoreCustomMetadata(imdBuilder, true, clusterState);
+
+        assertEquals(
+            "segments-only indices should use the cluster's configured path type",
+            PathType.HASHED_PREFIX,
+            RemoteStoreUtils.determineRemoteStorePathStrategy(imdBuilder.build()).getType()
+        );
+    }
+
     private static Map<String, String> getNodeAttributes() {
         String segmentRepositoryName = "my-segment-repo-1";
         Map<String, String> attributes = new HashMap<>();
@@ -4580,4 +4685,198 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
+
+    /**
+     * Template A (lower priority) defines @fields as a dynamic object.
+     * Template B (higher priority) defines a specific sub-field @fields.userstate as keyword.
+     * After merging, @fields should retain both the dynamic:true/type:object settings AND
+     * the specific userstate mapping. The regression in PR#19958 caused the dynamic/object
+     * settings to be dropped, breaking index creation for dynamic fields under @fields.
+     */
+    public void testV1TemplateMergingPreservesDynamicObjectWithSubFieldMapping() throws Exception {
+        // Template A (lower priority / later in list): defines @fields as dynamic object
+        CompressedXContent templateA = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true",
+                    "properties": {
+                      "status": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B (higher priority / earlier in list): defines specific sub-field @fields.userstate
+        CompressedXContent templateB = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B is higher priority (first in list), Template A is lower priority (second in list)
+        List<CompressedXContent> templates = Arrays.asList(templateB, templateA);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" },
+                                  "status": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Merged V1 template result should preserve dynamic object with all sub-fields", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Tests that V1 template merging correctly handles request mapping overriding template
+     * while still inheriting non-conflicting object-level settings from templates.
+     * This ensures that a request mapping defining only sub-fields of an object still
+     * inherits the object's type/dynamic settings from templates.
+     */
+    public void testV1RequestMappingInheritsObjectSettingsFromTemplate() throws Exception {
+        // Template defines @fields as dynamic object
+        CompressedXContent template = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true"
+                  }
+                }
+              }
+            }
+            """);
+
+        // Request mapping defines a specific sub-field under @fields
+        String requestMapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        List<CompressedXContent> templates = Collections.singletonList(template);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Request mapping should inherit object settings from template", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Stamping the fencing default must not validate the settings it is handed. {@code index.remote_store.enabled}
+     * carries a validator cross-checking {@code index.replication.type}, and this code also runs from snapshot
+     * restore's override-settings step, where restoring a remote-store snapshot onto a document-replication index is a
+     * combination the restore path itself has to reject with a {@code SnapshotRestoreException}. Reading the setting
+     * through {@code Setting#get} pre-empted that with an {@code IllegalArgumentException}, breaking
+     * {@code SearchReplicaRestoreIT}. The stamp only ever needed a boolean, so it reads the raw value.
+     */
+    public void testFencingDefaultStampDoesNotValidateReplicationTypeCompatibility() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        // The invalid pairing on purpose: remote store on, document replication.
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        // No exception, and the cluster default is still baked in - rejecting the pairing belongs to the caller.
+        assertTrue(
+            "fencing default should still be stamped for a remote-store index",
+            settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)
+        );
+    }
+
 }

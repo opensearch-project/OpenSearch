@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class FlightTransportConfig {
     private final AtomicReference<TimeValue> slowLogThreshold = new AtomicReference<>(TimeValue.timeValueMillis(5000));
+    private final AtomicReference<TimeValue> streamCloseTimeout = new AtomicReference<>(TimeValue.timeValueSeconds(5));
 
     public TimeValue getSlowLogThreshold() {
         return slowLogThreshold.get();
@@ -24,5 +25,17 @@ class FlightTransportConfig {
 
     public void setSlowLogThreshold(TimeValue threshold) {
         slowLogThreshold.set(threshold);
+    }
+
+    /**
+     * How long a client channel close waits for active stream consumers to release their streams'
+     * buffers before closing the underlying flight client.
+     */
+    public TimeValue getStreamCloseTimeout() {
+        return streamCloseTimeout.get();
+    }
+
+    public void setStreamCloseTimeout(TimeValue timeout) {
+        streamCloseTimeout.set(timeout);
     }
 }

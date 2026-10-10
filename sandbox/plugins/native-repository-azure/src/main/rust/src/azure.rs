@@ -55,8 +55,12 @@ pub fn build(
 
     if config.max_retries.is_some() || config.retry_timeout_ms.is_some() {
         let mut retry = RetryConfig::default();
-        if let Some(m) = config.max_retries { retry.max_retries = m; }
-        if let Some(ms) = config.retry_timeout_ms { retry.retry_timeout = Duration::from_millis(ms); }
+        if let Some(m) = config.max_retries {
+            retry.max_retries = m;
+        }
+        if let Some(ms) = config.retry_timeout_ms {
+            retry.retry_timeout = Duration::from_millis(ms);
+        }
         builder = builder.with_retry(retry);
     }
 
@@ -66,8 +70,8 @@ pub fn build(
     // its completion work (TLS, body assembly) off the CPU runtime that drives
     // query decode. No-op when no IO runtime is installed (e.g. unit tests).
     if let Some(io) = native_bridge_common::io_runtime::io_handle() {
-        builder = builder
-            .with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
+        builder =
+            builder.with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
     }
 
     Ok(Arc::new(builder.build()?))

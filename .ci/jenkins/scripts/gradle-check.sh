@@ -62,6 +62,8 @@ fi
 
 TIMEPASS=0
 TIMEOUT=7200
+QUEUE_TIMEPASS=0
+QUEUE_TIMEOUT=900
 RESULT="null"
 PR_TITLE_NEW=`echo $pr_title | tr -dc '[:alnum:] ' | tr '[:upper:]' '[:lower:]'`
 PAYLOAD_JSON="{\"pr_from_sha\": \"$pr_from_sha\", \"pr_from_clone_url\": \"$pr_from_clone_url\", \"pr_to_clone_url\": \"$pr_to_clone_url\", \"pr_title\": \"$PR_TITLE_NEW\", \"pr_number\": \"$pr_number\", \"post_merge_action\": \"$post_merge_action\", \"pr_owner\": \"$pr_owner\", \"gradle_check_command\": \"$GRADLE_CHECK_COMMAND\"}"
@@ -112,15 +114,14 @@ echo "wait for jenkins to start workflow" && sleep 15
 
 echo "Check if queue exist in Jenkins after triggering"
 if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" != "null" ]; then
-    while [ "$RESULT" = "null" ] && [ "$TIMEPASS" -le "$TIMEOUT" ]; do
+    while [ "$RESULT" = "null" ] && [ "$QUEUE_TIMEPASS" -lt "$QUEUE_TIMEOUT" ]; do
         echo "Use queue information to find build number in Jenkins if available"
         WORKFLOW_URL=$(curl -s -XGET ${JENKINS_URL}/${QUEUE_URL}api/json --user ${GITHUB_USER}:${GITHUB_TOKEN} | jq --raw-output .executable.url)
-        echo WORKFLOW_URL $WORKFLOW_URL
-    
+
         if [ -n "$WORKFLOW_URL" ] && [ "$WORKFLOW_URL" != "null" ]; then
-    
+
             RUNNING="true"
-    
+
             echo "Waiting for Jenkins to complete the run"
             while [ "$RUNNING" = "true" ] && [ "$TIMEPASS" -le "$TIMEOUT" ]; do
                 echo "Still running, wait for another 30 seconds before checking again, max timeout $TIMEOUT"
@@ -130,7 +131,7 @@ if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" != "null" ]; then
                 RUNNING=$(perform_curl_and_process_with_jq "$WORKFLOW_URL" ".building" 10)
                 echo "Workflow running status :$RUNNING"
             done
-    
+
             if [ "$RUNNING" = "true" ]; then
                 echo "Timed out"
                 RESULT="TIMEOUT"
@@ -138,16 +139,22 @@ if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" != "null" ]; then
                 echo "Complete the run, checking results now......"
                 RESULT=$(curl -s -XGET ${WORKFLOW_URL}api/json --user ${GITHUB_USER}:${GITHUB_TOKEN} | jq --raw-output .result)
             fi
-    
+
         else
             echo "Job not started yet. Waiting for 60 seconds before next attempt."
-            TIMEPASS=$(( TIMEPASS + 60 )) && echo time passed: $TIMEPASS
+            QUEUE_TIMEPASS=$(( QUEUE_TIMEPASS + 60 )) && echo time passed: $QUEUE_TIMEPASS
             sleep 60
         fi
     done
+
+    if [ "$RESULT" = "null" ] && [ "$QUEUE_TIMEPASS" -ge "$QUEUE_TIMEOUT" ]; then
+        echo "Jenkins job did not start within $QUEUE_TIMEOUT seconds"
+        RESULT="QUEUE_TIMEOUT"
+    fi
 fi
 
 echo "Please check jenkins url for logs: $WORKFLOW_URL"
+echo WORKFLOW_URL $WORKFLOW_URL
 echo "Result: $RESULT"
 if [ "$RESULT" == "SUCCESS" ] || [ "$RESULT" == "UNSTABLE" ]; then
     echo "Get codeCoverage.xml" && curl -SLO ${WORKFLOW_URL}artifact/codeCoverage.xml --user ${GITHUB_USER}:${GITHUB_TOKEN}
