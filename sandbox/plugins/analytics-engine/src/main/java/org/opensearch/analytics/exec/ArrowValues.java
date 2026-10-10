@@ -154,8 +154,11 @@ public final class ArrowValues {
         }
         Object value = vector.getObject(index);
         if (vector instanceof ListVector lv && value instanceof List<?> raw) {
-            // child Arrow type drives temporal element formatting
-            return normalizeList(raw, lv.getDataVector().getField());
+            Field element = lv.getDataVector().getField();
+            if (element.getType() instanceof ArrowType.Struct) {
+                return NestedValueRenderer.normalizeStructList(raw, element);
+            }
+            return normalizeList(raw, element);
         }
         Object temporal = formatTemporal(vector.getField().getType(), value);
         if (temporal != null) {
@@ -171,7 +174,7 @@ public final class ArrowValues {
         return m.matches() ? m.group(1) + " " + m.group(2) : s;
     }
 
-    private static Object formatTemporal(ArrowType type, Object value) {
+    static Object formatTemporal(ArrowType type, Object value) {
         if (value == null) return null;
         if (type instanceof ArrowType.Date date) {
             return formatDate(date, value);
@@ -241,7 +244,7 @@ public final class ArrowValues {
         return ldt.getNano() == 0 ? ldt.format(TIMESTAMP_NO_NANO) : ldt.format(TIMESTAMP_WITH_NANO);
     }
 
-    private static Object normalize(Object value) {
+    static Object normalize(Object value) {
         if (value instanceof Text t) {
             return spaceSeparator(t.toString());
         }
@@ -262,7 +265,7 @@ public final class ArrowValues {
         return value;
     }
 
-    private static List<Object> normalizeList(List<?> raw, Field childField) {
+    static List<Object> normalizeList(List<?> raw, Field childField) {
         ArrowType childType = childField == null ? null : childField.getType();
         List<Object> out = new ArrayList<>(raw.size());
         for (Object element : raw) {
