@@ -230,7 +230,6 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -501,7 +500,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool,
             this::getIndexer,
-            indexSettings.isAssignedOnRemoteNode(),
+            indexSettings.hasRemoteTranslog(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
@@ -3474,10 +3473,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Search-only replicas never receive operations and so are excluded.
      */
     private boolean recoversTranslogFromPeer() {
-        return shardRouting.primary() == false
-            && shardRouting.isSearchOnly() == false
-            && indexSettings.isRemoteTranslogStoreEnabled() == false
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+        return shardRouting.primary() == false && shardRouting.isSearchOnly() == false && indexSettings.hasRemoteTranslog() == false;
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
@@ -3497,8 +3493,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
+        // A primary is only hydrated from the remote store when its translog is remote backed as well. The download
+        // rewrites the Lucene commit from the infos held remotely, which drops the reference to operations that have
+        // been acknowledged but not yet flushed; in a fully remote backed store those operations come back with the
+        // translog, but in segments_only the local translog is their only durable copy and they would be lost.
         final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
-            && recoversTranslogFromPeer() == false;
+            && recoversTranslogFromPeer() == false
+            && (shardRouting.primary() == false || indexSettings.hasRemoteTranslog());
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }

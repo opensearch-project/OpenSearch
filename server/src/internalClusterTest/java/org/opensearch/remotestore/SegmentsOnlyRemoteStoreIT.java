@@ -8,19 +8,25 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolStats;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -29,6 +35,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
@@ -53,7 +60,8 @@ public class SegmentsOnlyRemoteStoreIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class))
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -185,6 +193,51 @@ public class SegmentsOnlyRemoteStoreIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * The global checkpoint keeps advancing on a replica after its last write, and that advance is only durable once
+     * the replica syncs its translog. A remote backed translog can skip the sync because the uploaded copy already
+     * covers those operations, but a segments_only replica holds the only copy locally and has to perform it.
+     */
+    public void testReplicaPersistsTheAdvancingGlobalCheckpoint() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            )
+        );
+        ensureGreen(INDEX_NAME);
+
+        int docs = randomIntBetween(10, 20);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).get();
+        }
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ShardRouting replicaRouting = state.routingTable().index(INDEX_NAME).shard(0).replicaShards().get(0);
+        String replicaNode = state.nodes().get(replicaRouting.currentNodeId()).getName();
+        IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaNode)
+            .indexService(resolveIndex(INDEX_NAME))
+            .getShard(0);
+        assertFalse("precondition: the replica translog is local", replica.indexSettings().hasRemoteTranslog());
+
+        // Writes have stopped, so nothing other than the periodic sync can close the gap.
+        assertBusy(
+            () -> assertEquals(
+                "the replica must persist the global checkpoint it has learned",
+                replica.getLastKnownGlobalCheckpoint(),
+                replica.getLastSyncedGlobalCheckpoint()
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    /**
      * Killing the primary must not lose acknowledged writes, since the replica holds them in its own translog.
      */
     public void testReplicaPromotionRetainsAcknowledgedWrites() throws Exception {
@@ -278,5 +331,85 @@ public class SegmentsOnlyRemoteStoreIT extends OpenSearchIntegTestCase {
         // This is what makes the shard pull from RemoteStoreReplicationSource rather than from the primary.
         assertTrue(searchShard.indexSettings().isAssignedOnRemoteNode());
         assertEquals("a search replica never receives operations", 0, searchShard.translogStats().estimatedNumberOfOperations());
+    }
+
+    /**
+     * The buffered translog processor defers each fsync onto the {@code translog_sync} pool so that remote translog
+     * uploads can be batched. A segments_only translog is never uploaded, so that deferral buys nothing and only
+     * delays the write response by the upload interval. Writes here must sync inline instead, leaving the pool idle.
+     */
+    public void testLocalTranslogIsSyncedWithoutTheRemoteUploadBuffer() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        createSegmentsOnlyIndex(0);
+
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).indexService(resolveIndex(INDEX_NAME)).getShard(0);
+        assertTrue("segments must be remote backed", shard.indexSettings().isRemoteStoreEnabled());
+        assertFalse("translog must stay local in segments_only mode", shard.indexSettings().isRemoteTranslogStoreEnabled());
+
+        // Writes are issued one at a time with the default REQUEST durability, so each one is separately fsynced and
+        // would separately schedule onto the buffer pool.
+        int docs = randomIntBetween(10, 20);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).get();
+        }
+        refresh(INDEX_NAME);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), docs);
+
+        // The buffered processor is the only thing in the server that submits to this pool, so a non-zero count means
+        // the local fsync was routed through the remote upload buffer.
+        assertEquals(
+            "a local translog must be synced inline, not deferred onto the remote upload buffer",
+            0L,
+            completedTranslogSyncTasks(dataNode)
+        );
+        assertFalse("shard was built with the remote upload buffer", shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+    }
+
+    /**
+     * Operations that have been acknowledged but not yet flushed exist only in the local translog, because the remote
+     * segment store holds segments and never the operation stream. A primary must therefore recover them from its own
+     * translog across a restart rather than rebuilding its commit from the remote store, which would silently drop
+     * them. A replica is present so that the primary is restored into a replication group.
+     */
+    public void testUnflushedWritesSurviveAFullClusterRestart() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+        createSegmentsOnlyIndex(1);
+
+        // No refresh or flush, so nothing reaches a Lucene commit and the translog is the only record of these writes.
+        int docs = randomIntBetween(20, 50);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).get();
+        }
+
+        internalCluster().fullRestart();
+        ensureGreen(INDEX_NAME);
+
+        // The primary is the copy that had to replay the translog, so pinning the search to it is what proves no
+        // acknowledged operation was dropped. The replica reaches the same count only once the primary's recovered
+        // segments have been uploaded and a replication checkpoint processed, which is why it is polled separately.
+        String primaryNode = primaryNodeName(INDEX_NAME);
+        refresh(INDEX_NAME);
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), docs);
+        assertBusy(() -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), docs), 60, TimeUnit.SECONDS);
+    }
+
+    private long completedTranslogSyncTasks(String node) {
+        ThreadPoolStats stats = client().admin()
+            .cluster()
+            .prepareNodesStats(node)
+            .clear()
+            .addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())
+            .get()
+            .getNodes()
+            .get(0)
+            .getThreadPool();
+        return StreamSupport.stream(stats.spliterator(), false)
+            .filter(s -> ThreadPool.Names.TRANSLOG_SYNC.equals(s.getName()))
+            .mapToLong(ThreadPoolStats.Stats::getCompleted)
+            .sum();
     }
 }
