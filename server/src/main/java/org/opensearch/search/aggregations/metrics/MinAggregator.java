@@ -31,11 +31,13 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
@@ -152,6 +154,49 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         final BigArrays bigArrays = context.bigArrays();
+
+        // For integer-backed fields (not floating point, not unsigned long), use NumericDocValues#longValues bulk API
+        if (valuesSource.isFloatingPoint() == false && valuesSource.isBigInteger() == false) {
+            final SortedNumericDocValues longValues = valuesSource.longValues(ctx);
+            final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
+            if (singleton != null) {
+                return new LeafBucketCollectorBase(sub, longValues) {
+                    private final long[] valueBuffer = new long[256];
+
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        growMins(bucket);
+                        if (singleton.advanceExact(doc)) {
+                            double min = mins.get(bucket);
+                            mins.set(bucket, Math.min(min, (double) singleton.longValue()));
+                        }
+                    }
+
+                    @Override
+                    public void collect(int[] docs, int count, long bucket) throws IOException {
+                        growMins(bucket);
+                        singleton.longValues(count, docs, valueBuffer, Long.MAX_VALUE);
+                        double min = mins.get(bucket);
+                        for (int i = 0; i < count; i++) {
+                            if (valueBuffer[i] != Long.MAX_VALUE) {
+                                min = Math.min(min, (double) valueBuffer[i]);
+                            }
+                        }
+                        mins.set(bucket, min);
+                    }
+
+                    private void growMins(long bucket) {
+                        if (bucket >= mins.size()) {
+                            long from = mins.size();
+                            mins = bigArrays.grow(mins, bucket + 1);
+                            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                        }
+                    }
+                };
+            }
+        }
+
+        // Fallback for floating-point or multi-valued fields
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
@@ -167,27 +212,15 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collect(DocIdStream stream, long bucket) throws IOException {
+            public void collect(int[] docs, int count, long bucket) throws IOException {
                 growMins(bucket);
-                final double[] min = { mins.get(bucket) };
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
-                        min[0] = Math.min(min[0], values.doubleValue());
-                    }
-                });
-                mins.set(bucket, min[0]);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                growMins(0);
-                double minimum = mins.get(0);
-                for (int doc = min; doc < max; doc++) {
-                    if (values.advanceExact(doc)) {
-                        minimum = Math.min(minimum, values.doubleValue());
+                double min = mins.get(bucket);
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        min = Math.min(min, values.doubleValue());
                     }
                 }
-                mins.set(0, minimum);
+                mins.set(bucket, min);
             }
 
             private void growMins(long bucket) {

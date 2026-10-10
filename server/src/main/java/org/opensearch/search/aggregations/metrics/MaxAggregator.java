@@ -31,11 +31,13 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
@@ -152,6 +154,49 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         final BigArrays bigArrays = context.bigArrays();
+
+        // For integer-backed fields (not floating point, not unsigned long), use NumericDocValues#longValues bulk API
+        if (valuesSource.isFloatingPoint() == false && valuesSource.isBigInteger() == false) {
+            final SortedNumericDocValues longValues = valuesSource.longValues(ctx);
+            final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
+            if (singleton != null) {
+                return new LeafBucketCollectorBase(sub, longValues) {
+                    private final long[] valueBuffer = new long[256];
+
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        growMaxes(bucket);
+                        if (singleton.advanceExact(doc)) {
+                            double max = maxes.get(bucket);
+                            maxes.set(bucket, Math.max(max, (double) singleton.longValue()));
+                        }
+                    }
+
+                    @Override
+                    public void collect(int[] docs, int count, long bucket) throws IOException {
+                        growMaxes(bucket);
+                        singleton.longValues(count, docs, valueBuffer, Long.MIN_VALUE);
+                        double max = maxes.get(bucket);
+                        for (int i = 0; i < count; i++) {
+                            if (valueBuffer[i] != Long.MIN_VALUE) {
+                                max = Math.max(max, (double) valueBuffer[i]);
+                            }
+                        }
+                        maxes.set(bucket, max);
+                    }
+
+                    private void growMaxes(long bucket) {
+                        if (bucket >= maxes.size()) {
+                            long from = maxes.size();
+                            maxes = bigArrays.grow(maxes, bucket + 1);
+                            maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                        }
+                    }
+                };
+            }
+        }
+
+        // Fallback for floating-point or multi-valued fields
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
@@ -167,27 +212,15 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collect(DocIdStream stream, long bucket) throws IOException {
+            public void collect(int[] docs, int count, long bucket) throws IOException {
                 growMaxes(bucket);
-                final double[] max = { maxes.get(bucket) };
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
-                        max[0] = Math.max(max[0], values.doubleValue());
-                    }
-                });
-                maxes.set(bucket, max[0]);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                growMaxes(0);
-                double maximum = maxes.get(0);
-                for (int doc = min; doc < max; doc++) {
-                    if (values.advanceExact(doc)) {
-                        maximum = Math.max(maximum, values.doubleValue());
+                double max = maxes.get(bucket);
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        max = Math.max(max, values.doubleValue());
                     }
                 }
-                maxes.set(0, maximum);
+                maxes.set(bucket, max);
             }
 
             private void growMaxes(long bucket) {
