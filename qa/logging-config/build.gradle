@@ -32,6 +32,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.standalone-test'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 testClusters.integTest {
   /**
@@ -39,6 +40,7 @@ testClusters.integTest {
    * can successfully startup.
    */
   extraConfigFile 'log4j2.properties', file('custom-log4j2.properties')
+  installSandboxStack(delegate)
 }
 
 integTest {

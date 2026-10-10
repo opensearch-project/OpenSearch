@@ -41,6 +41,7 @@ import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -134,10 +136,23 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertFieldCaps(test, filteredFields);
     }
 
-    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
+    /**
+     * The metadata fields expected on every index on the node: the built-ins plus the system-managed row-id field
+     * (DocumentInput.ROW_ID_FIELD) that the composite-engine plugin registers node-wide when the sandbox stack is
+     * installed. The mapper registry is node-wide, so any index reports the same set.
+     */
+    private Set<String> expectedMetadataFields() {
+        Set<String> metadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        if (shouldInstallSandboxStack()) {
+            metadataFields.add(DocumentInput.ROW_ID_FIELD);
+        }
+        return metadataFields;
+    }
+
+    private void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
-        for (String field : builtInMetadataFields) {
+        Set<String> metadataFields = expectedMetadataFields();
+        for (String field : metadataFields) {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
             assertNotNull(" expected field [" + field + "] not found", remove);
         }
@@ -148,13 +163,10 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertFieldMappings(
-        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
-        Collection<String> expectedFields
-    ) {
+    private void assertFieldMappings(Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual, Collection<String> expectedFields) {
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
-        for (String field : builtInMetadataFields) {
+        Set<String> metadataFields = expectedMetadataFields();
+        for (String field : metadataFields) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetadata);
         }
