@@ -48,6 +48,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.admin.cluster.loadplugins.LoadPluginsAction;
+import org.opensearch.action.admin.cluster.loadplugins.TransportLoadPluginsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -65,12 +67,16 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
+import org.opensearch.action.admin.cluster.registerplugins.RegisterPluginsAction;
+import org.opensearch.action.admin.cluster.registerplugins.TransportRegisterPluginsAction;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.TransportRestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.removeplugins.RemovePluginsAction;
+import org.opensearch.action.admin.cluster.removeplugins.TransportRemovePluginsAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -357,6 +363,7 @@ import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
 import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.opensearch.rest.action.admin.cluster.RestListTasksAction;
+import org.opensearch.rest.action.admin.cluster.RestLoadPluginsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesHotThreadsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
@@ -364,9 +371,11 @@ import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestRegisterPluginsAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
+import org.opensearch.rest.action.admin.cluster.RestRemovePluginsAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
@@ -791,6 +800,11 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
         actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
+        // Plugin Management
+        actions.register(LoadPluginsAction.INSTANCE, TransportLoadPluginsAction.class);
+        actions.register(RegisterPluginsAction.INSTANCE, TransportRegisterPluginsAction.class);
+        actions.register(RemovePluginsAction.INSTANCE, TransportRemovePluginsAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -993,6 +1007,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSearchPipelineAction());
         registerHandler.accept(new RestGetSearchPipelineAction());
         registerHandler.accept(new RestDeleteSearchPipelineAction());
+
+        // Plugin Management API
+        registerHandler.accept(new RestLoadPluginsAction());
+        registerHandler.accept(new RestRegisterPluginsAction());
+        registerHandler.accept(new RestRemovePluginsAction());
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
