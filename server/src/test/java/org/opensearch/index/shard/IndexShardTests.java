@@ -85,6 +85,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.Assertions;
@@ -158,6 +159,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -1294,6 +1296,45 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         expectThrows(AssertionError.class, () -> primaryShard.getHistoryOperationsFromTranslog(0, 1));
         closeShard(primaryShard, false);
+    }
+
+    /**
+     * A translog that is uploaded to a remote store must keep the buffered processor so that the uploads are batched.
+     * This covers the window during a migration where the node is already configured with a translog repository but
+     * the index has not been stamped with one, which is why the node attribute is consulted and not just the setting.
+     */
+    public void testRemoteTranslogConfiguredOnNodeUsesBufferedSyncProcessor() throws IOException {
+        IndexShard shard = newShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        try {
+            assertFalse("the index has no translog repository yet", shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertTrue(
+                "the node does have one, so the translog is already remote",
+                RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings())
+            );
+            assertTrue(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Without a remote translog there is nothing to batch, so the fsync is issued inline on the calling thread.
+     */
+    public void testLocalTranslogUsesInlineSyncProcessor() throws IOException {
+        IndexShard shard = newShard(true);
+        try {
+            assertFalse(shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertFalse(RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings()));
+            assertFalse(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testGlobalCheckpointSync() throws IOException {

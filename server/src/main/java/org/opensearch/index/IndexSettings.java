@@ -1726,6 +1726,19 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns whether the translog of this index is backed by a remote store, which is what makes a remote upload
+     * rather than the local file the durable copy of an operation. The node attribute is consulted in addition to the
+     * index setting because during a migration to a remote backed cluster the translog becomes remote as soon as the
+     * node is configured for it, before the setting is stamped on the index, and {@code IndicesService} selects the
+     * translog factory on the same pair of conditions. This is deliberately not {@link #isAssignedOnRemoteNode()},
+     * which is also satisfied by a segment repository alone and so is true in {@code segments_only} mode, where the
+     * translog never leaves local disk.
+     */
+    public boolean hasRemoteTranslog() {
+        return isRemoteTranslogStoreEnabled() || RemoteStoreNodeAttribute.isTranslogRepoConfigured(getNodeSettings());
+    }
+
+    /**
      * Returns if object-store-backed primary fencing is enabled for this index.
      */
     public boolean isRemoteStoreFencingEnabled() {
