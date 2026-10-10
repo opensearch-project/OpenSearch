@@ -927,9 +927,29 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     /** Force every live bulk scope to append its current chunk before publishing a catalog snapshot. */
+    /**
+     * Appends every live bulk scope's pending chunk so that a refresh or flush publishes no row whose translog record
+     * is still deferred.
+     *
+     * <p>A scope's append failure belongs to the bulk that owns the scope: the scope has recorded it, completed its
+     * pending readers exceptionally and rethrows it at {@code finish()}, and {@code maybeFailEngine} has already been
+     * consulted for it exactly as for a per-operation {@code Translog#add} failure. The drainer therefore only stops
+     * for a failure that is the translog's tragic event (the translog is closed and the engine is failing); any other
+     * failure is the owning request's to report, and the drainer carries on with the remaining scopes. Whether the
+     * engine fails must not depend on which thread happened to drain the chunk. The rows of the failed scope are
+     * unacknowledged with unprocessed sequence numbers, the same state the stock engine leaves a document in between
+     * its Lucene add and its translog add.
+     */
     private void flushActiveTranslogBatches() {
         for (TranslogBatchScope batch : activeBatches) {
-            batch.flush();
+            try {
+                batch.flush();
+            } catch (Exception e) {
+                if (e instanceof AlreadyClosedException || translogManager.getTragicExceptionIfClosed() != null) {
+                    throw e;
+                }
+                logger.debug(() -> new ParameterizedMessage("[{}] batched translog append failed while draining", shardId), e);
+            }
         }
     }
 
@@ -2380,9 +2400,15 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }
 
-            // Fall through: read from parquet
+            // Fall through: read from parquet. Resolved through DocumentLookupSupport#getById,
+            // which applies read-time version/if_seq_no conflicts to the result — the realtime
+            // branch above checks them inline, and the read-only and NRT replica engines already
+            // go through this same helper. Calling lookupFromReader directly skipped the checks,
+            // so a stale precondition on a get (and therefore on an update of any committed
+            // document, since UpdateHelper rebuilds the index request from the get's seqNo) was
+            // silently dropped rather than enforced.
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.lookupFromReader(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         } // readLock

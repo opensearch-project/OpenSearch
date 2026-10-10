@@ -177,6 +177,7 @@ public class ClusterModule extends AbstractModule {
         this.shardStateActionClass = shardStateActionClass;
     }
 
+    @SuppressWarnings("removal") // ViewMetadata is kept only for rolling upgrades from pre-3.10 nodes
     public static List<Entry> getNamedWriteables() {
         List<Entry> entries = new ArrayList<>();
         // Cluster State
@@ -266,6 +267,7 @@ public class ClusterModule extends AbstractModule {
         return builder.metadata(metaBuilder).build();
     }
 
+    @SuppressWarnings("removal") // ViewMetadata is kept only for rolling upgrades from pre-3.10 nodes
     public static List<NamedXContentRegistry.Entry> getNamedXWriteables() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         // Metadata
