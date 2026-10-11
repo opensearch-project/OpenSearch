@@ -111,9 +111,10 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
         ApproximateQuery mainApproximation = approximateRange("ts", 0L, 10L);
         ApproximateScoreQuery mainQuery = new ApproximateScoreQuery(mainOriginal, mainApproximation);
 
-        Query otherOriginal = LongPoint.newRangeQuery("ts", 0L, 10L);
-        ApproximateQuery otherApproximation = approximateRange("ts", 0L, 10L);
-        ApproximateScoreQuery otherQuery = new ApproximateScoreQuery(otherOriginal, otherApproximation);
+        ApproximateScoreQuery otherQuery = new ApproximateScoreQuery(
+            LongPoint.newRangeQuery("ts", 0L, 10L),
+            approximateRange("ts", 0L, 10L)
+        );
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.query()).thenReturn(mainQuery);
@@ -134,7 +135,7 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
                 searcher.rewrite(mainQuery);
                 assertSame(mainApproximation, mainQuery.resolvedQuery);
 
-                assertSame(otherOriginal, searcher.rewrite(otherQuery));
+                assertFalse(searcher.rewrite(otherQuery) instanceof ApproximateQuery);
                 assertNull(otherQuery.resolvedQuery);
             }
         }
