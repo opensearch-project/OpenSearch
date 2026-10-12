@@ -232,9 +232,8 @@ public class MetadataCreateIndexService {
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
-                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-                : null;
+            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+            : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
@@ -694,7 +693,7 @@ public class MetadataCreateIndexService {
             .getNodes()
             .values()
             .stream()
-            .filter(DiscoveryNode::isRemoteStoreNode)
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
             .findFirst();
 
         String sseEnabledIndex = existingCustomData == null
@@ -1336,7 +1335,7 @@ public class MetadataCreateIndexService {
                 .getNodes()
                 .values()
                 .stream()
-                .filter(DiscoveryNode::isRemoteStoreNode)
+                .filter(DiscoveryNode::isRemoteSegmentStoreNode)
                 .findFirst();
 
             if (remoteNode.isPresent()) {

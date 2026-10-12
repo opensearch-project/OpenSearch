@@ -658,6 +658,89 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     /**
+     * Adds a batch of operations to the transaction log in a single critical section. The operations are serialized
+     * into one shared buffer (one {@link ReleasableBytesStreamOutput} allocation for the whole batch), the translog
+     * read lock is acquired once, and the underlying {@link TranslogWriter} monitor is entered once. Each operation is
+     * framed exactly as {@link #add(Operation)} frames it, so the on-disk bytes and returned {@link Location}s are
+     * identical to performing the adds individually.
+     *
+     * @param operations the operations to add, in order
+     * @return the locations of the operations in the translog, parallel to {@code operations}
+     * @throws IOException if adding the operations to the translog resulted in an I/O exception
+     */
+    public Location[] add(final List<Operation> operations) throws IOException {
+        final int count = operations.size();
+        if (count == 0) {
+            return new Location[0];
+        }
+        if (count == 1) {
+            return new Location[] { add(operations.get(0)) };
+        }
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        try {
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            final BytesReference[] opBytes = new BytesReference[count];
+            final long[] seqNos = new long[count];
+            final int[] sliceStarts = new int[count];
+            final int[] sliceLens = new int[count];
+            // Serialize every op into the single shared buffer; record each op's slice bounds so framing is
+            // byte-identical to a single add (size int + body + checksum). Slices are taken from the FINAL bytes()
+            // view after all serialization, since the backing buffer may reallocate as it grows.
+            long sliceStart = 0;
+            for (int i = 0; i < count; i++) {
+                final Operation operation = operations.get(i);
+                final long start = out.position();
+                out.skip(Integer.BYTES);
+                writeOperationNoSize(checksumStreamOutput, operation);
+                final long end = out.position();
+                final int operationSize = (int) (end - Integer.BYTES - start);
+                out.seek(start);
+                out.writeInt(operationSize);
+                out.seek(end);
+                sliceStarts[i] = (int) sliceStart;
+                sliceLens[i] = (int) (end - sliceStart);
+                seqNos[i] = operation.seqNo();
+                sliceStart = end;
+            }
+            final BytesReference all = out.bytes();
+            for (int i = 0; i < count; i++) {
+                opBytes[i] = all.slice(sliceStarts[i], sliceLens[i]);
+            }
+            try (ReleasableLock ignored = readLock.acquire()) {
+                ensureOpen();
+                for (int i = 0; i < count; i++) {
+                    final Operation operation = operations.get(i);
+                    if (operation.primaryTerm() > current.getPrimaryTerm()) {
+                        assert false : "Operation term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], operation term["
+                            + operation
+                            + "]";
+                        throw new IllegalArgumentException(
+                            "Operation term is newer than the current term; "
+                                + "current term["
+                                + current.getPrimaryTerm()
+                                + "], operation term["
+                                + operation
+                                + "]"
+                        );
+                    }
+                }
+                return current.add(opBytes, seqNos);
+            }
+        } catch (final AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write batch of [" + count + "] operations", ex);
+        } finally {
+            Releasables.close(out);
+        }
+    }
+
+    /**
      * Tests whether or not the translog generation should be rolled to a new generation. This test
      * is based on the size of the current generation compared to the configured generation
      * threshold size.

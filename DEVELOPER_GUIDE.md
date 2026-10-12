@@ -181,6 +181,18 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+A cluster of several nodes may be run by passing `-PnumNodes`. Every node stops when any of them does, so to be able
+to stop some nodes and keep the rest, start them from a second terminal, numbered from `-PstartNode`. Its nodes join
+the running cluster, and each build stops only its own:
+
+```bash
+./gradlew run -PnumNodes=2                # runTask-0 and runTask-1, on ports 9200/9300 and 9201/9301
+./gradlew run -PnumNodes=2 -PstartNode=2  # in another terminal: runTask-2 and runTask-3, on 9202/9302 and 9203/9303
+```
+
+Stopping nodes that are eligible to be cluster manager can leave the rest without a quorum. To be able to stop the second
+build's nodes without that, make them data-only: `-Dtests.opensearch.node.roles=data`.
+
 [Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
 
 ```bash

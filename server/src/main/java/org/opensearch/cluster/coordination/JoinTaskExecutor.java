@@ -43,6 +43,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
@@ -177,7 +178,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // An optimization can be done as this will get invoked
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
-        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
+            .findFirst();
         Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
             .values()
             .stream()
@@ -231,7 +236,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
 
-                    if ((remoteDN.isEmpty() && node.isRemoteStoreNode())
+                    if ((remoteDN.isEmpty() && node.isRemoteSegmentStoreNode())
                         || (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled())) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
@@ -287,7 +292,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     return results.build(
                         allocationService.adaptAutoExpandReplicas(
                             newState.nodes(nodesBuilder)
-                                .metadata(updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata))
+                                .metadata(
+                                    dropViewMetadata(
+                                        updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata),
+                                        minClusterNodeVersion
+                                    )
+                                )
                                 .build()
                         )
                     );
@@ -297,7 +307,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return results.build(
                 allocationService.adaptAutoExpandReplicas(
                     newState.nodes(nodesBuilder)
-                        .metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata))
+                        .metadata(
+                            dropViewMetadata(
+                                updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
+                                minClusterNodeVersion
+                            )
+                        )
                         .build()
                 )
             );
@@ -305,7 +320,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a cluster-manager
             return results.build(
-                newState.metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata)).build()
+                newState.metadata(
+                    dropViewMetadata(
+                        updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
+                        minClusterNodeVersion
+                    )
+                ).build()
             );
         }
     }
@@ -316,6 +336,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         } else {
             return Metadata.builder(currentMetadata).putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata.get()).build();
         }
+    }
+
+    /**
+     * The experimental Views feature was removed in 3.10.0. A {@code view} custom left behind by an earlier 3.x node is
+     * carried along untouched while older nodes are still in the cluster, because they read it from every published
+     * state. Once every node is on 3.10.0 or later nothing can read or write it, so it is dropped here.
+     */
+    @SuppressWarnings("removal")
+    static Metadata dropViewMetadata(Metadata metadata, Version minClusterNodeVersion) {
+        if (metadata.custom(ViewMetadata.TYPE) == null || minClusterNodeVersion.before(Version.V_3_10_0)) {
+            return metadata;
+        }
+        logger.info("all nodes are on [{}] or later, removing the [{}] metadata custom", Version.V_3_10_0, ViewMetadata.TYPE);
+        return Metadata.builder(metadata).removeCustom(ViewMetadata.TYPE).build();
     }
 
     protected ClusterState.Builder becomeClusterManagerAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {

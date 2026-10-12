@@ -94,6 +94,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<OpenSearchCluster> container = createTestClustersContainerExtension(project, reaper);
 
+        // Create every cluster's nodes once the build script has finished configuring them, so that they exist before
+        // anything plans a task with them. Anything that reads a cluster's nodes earlier creates them then.
+        if (project.getState().getExecuted()) {
+            container.all(cluster -> cluster.realize("its creation after " + project.getPath() + " was evaluated"));
+        } else {
+            project.afterEvaluate(p -> container.forEach(cluster -> cluster.realize("the end of " + p.getPath() + "'s configuration")));
+        }
+
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 
