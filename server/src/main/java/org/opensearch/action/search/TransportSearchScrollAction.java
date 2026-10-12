@@ -78,19 +78,28 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        // Released on every exit below, including the catch.
-        ActionListener<SearchResponse> throttledListener = listener;
-        try {
-
-            if (task instanceof WorkloadGroupTask) {
-                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // Scroll continuations share the node budget, or ?scroll= would bypass node_limit.
-                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, () -> false);
-                if (throttlePermit != null) {
-                    throttledListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(throttledListener, throttlePermit);
+        if (task instanceof WorkloadGroupTask workloadGroupTask) {
+            workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
+            ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
+                // notifyOnce: an exception escaping executeScroll must fail (and release) through this listener, which
+                // must never notify or release twice. The admission wrap's own onFailure would skip the release.
+                ActionListener<SearchResponse> proceedListener = ActionListener.notifyOnce(
+                    throttlePermit == null ? listener : WorkloadGroupService.releaseThrottlePermitBeforeCompletion(listener, throttlePermit)
+                );
+                try {
+                    executeScroll(task, request, proceedListener);
+                } catch (Exception e) {
+                    proceedListener.onFailure(e);
                 }
-            }
+            }, listener::onFailure);
+            workloadGroupService.acquireThrottlePermit(workloadGroupTask, () -> false, admissionListener);
+            return;
+        }
+        executeScroll(task, request, listener);
+    }
 
+    private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        try {
             ParsedScrollId scrollId = request.parseScrollId();
             Runnable action;
             switch (scrollId.getType()) {
@@ -103,7 +112,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        throttledListener
+                        listener
                     );
                     break;
                 case ParsedScrollId.QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
@@ -115,7 +124,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        throttledListener
+                        listener
                     );
                     break;
                 default:
@@ -123,7 +132,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             }
             action.run();
         } catch (Exception e) {
-            throttledListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 }
