@@ -45,7 +45,6 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
-import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
@@ -238,6 +237,7 @@ import org.opensearch.plugins.DefaultPluginComponentRegistry;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
+import org.opensearch.plugins.FieldFilterProvider;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -1205,9 +1205,8 @@ public class Node implements Closeable {
             );
             final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
-            final ViewService viewService = new ViewService(clusterService, client, null);
-
             final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
+            pluginComponentRegistry.register(new FieldFilterProvider(indicesService.getFieldFilter()));
             final List<Object> pluginComponents = new ArrayList<>();
             for (Plugin p : pluginsService.filterPlugins(Plugin.class)) {
                 Collection<Object> components = p.createComponents(
@@ -1823,7 +1822,6 @@ public class Node implements Closeable {
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
-                b.bind(ViewService.class).toInstance(viewService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);
                 if (streamSearchTransportService.isPresent()) {

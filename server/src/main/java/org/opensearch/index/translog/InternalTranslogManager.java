@@ -372,6 +372,11 @@ public class InternalTranslogManager implements TranslogManager, RemoteStoreFenc
         return translog.add(operation);
     }
 
+    @Override
+    public Translog.Location[] add(java.util.List<Translog.Operation> operations) throws IOException {
+        return translog.add(operations);
+    }
+
     /**
      * Do not replay translog operations, but make the engine be ready.
      */

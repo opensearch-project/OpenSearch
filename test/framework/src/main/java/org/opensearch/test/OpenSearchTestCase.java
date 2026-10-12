@@ -208,7 +208,7 @@ import static org.hamcrest.Matchers.hasItem;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
-@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
+@ThreadLeakFilters(filters = { BouncyCastleThreadFilter.class, ArrowAllocationLoggerThreadFilter.class })
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting

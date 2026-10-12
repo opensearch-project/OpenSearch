@@ -697,8 +697,7 @@ subprojects {
   }
 }
 
-['archives:darwin-tar',
- 'archives:darwin-arm64-tar',
+['archives:darwin-arm64-tar',
  'archives:integ-test-zip',
  'archives:linux-arm64-tar',
  'archives:linux-tar',

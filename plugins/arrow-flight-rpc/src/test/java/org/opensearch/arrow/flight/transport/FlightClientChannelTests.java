@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -899,6 +900,31 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         channel.close();
         assertTrue(closeLatch.await(1, TimeUnit.SECONDS));
+    }
+
+    /** A removable close listener fires on close, and is no longer fired once it has been removed. */
+    public void testRemovableCloseListenerCanBeGivenBack() {
+        channel = createChannel(mockFlightClient);
+        AtomicInteger fires = new AtomicInteger(0);
+        BiConsumer<Void, ? super Exception> kept = (v, e) -> fires.incrementAndGet();
+        BiConsumer<Void, ? super Exception> removed = (v, e) -> fail("a removed listener must not fire");
+
+        channel.addCloseListener(kept);
+        channel.addCloseListener(removed);
+        channel.removeCloseListener(removed);
+
+        channel.close();
+        assertEquals("the listener that was kept must fire exactly once", 1, fires.get());
+    }
+
+    /** A removable close listener registered after close() fires immediately. */
+    public void testAddRemovableCloseListenerAfterCloseFiresImmediately() {
+        channel = createChannel(mockFlightClient);
+        channel.close();
+        AtomicBoolean fired = new AtomicBoolean(false);
+        BiConsumer<Void, ? super Exception> late = (v, e) -> fired.set(true);
+        channel.addCloseListener(late);
+        assertTrue("listener added after close must fire immediately", fired.get());
     }
 
     public void testErrorInInterimBatchFromServer() throws InterruptedException, IOException {
