@@ -407,17 +407,13 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Lets a plugin declare the query that restricts this request, so BM25 statistics can be computed over that
-     * subset instead of the whole shard.
+     * Declares the query that restricts this request, so BM25 statistics are computed over the documents it admits
+     * instead of the whole shard.
      * <p>
-     * Document-level security already applies its restriction as a conjunction clause on the parsed query, which means
-     * the right documents come back but the statistics behind their scores still describe the whole shard. Handing the
-     * restriction here closes that gap without the plugin needing an alias. The query must be the restriction alone,
-     * not the user's query combined with it, or the statistics would be scoped to the search results rather than to
-     * what the user is permitted to see.
-     * <p>
-     * Ignored unless the {@code filtered_stats} behaviour is enabled, and subject to the same visible-document budget
-     * as the alias path, so a plugin cannot opt out of the guardrail.
+     * Calling this opts the request in. Pass the restriction alone, not combined with the user's query; it is subject
+     * to the visible-document budget.
+     *
+     * @param filter the restriction the caller applied to this request
      */
     public void visibleSubsetFilter(Query filter) {
         // No-op by default. A plugin calls this on whatever context a request happens to carry, and a context that

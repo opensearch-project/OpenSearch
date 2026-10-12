@@ -125,7 +125,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private SearchContext searchContext;
 
     /**
-     * Per-segment bitsets of the documents that match {@link SearchContext#aliasFilter()}, used to compute
+     * Per-segment bitsets of the documents that match {@link SearchContext#filteredStatisticsFilter()}, used to compute
      * BM25 statistics over only the "visible" subset when {@link SearchContext#useFilteredStatistics()} is true.
      * Built lazily on first use and cached for the life of the searcher. Indexed by {@link LeafReaderContext#ord}.
      * A {@code null} entry means "no visible docs in that segment". The whole array being {@code null} means the
@@ -573,7 +573,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
         // Filter-aware aliases (filtered_stats): when enabled, compute the statistics over only the documents that
-        // match the alias filter. This branch is checked BEFORE the aggregatedDfs branch on purpose so that it applies
+        // match the statistics filter. This branch is checked BEFORE the aggregatedDfs branch on purpose so that it applies
         // in two of the three cases below (see collectionStatistics for the full reasoning):
         // 1. Non-dfs query path (aggregatedDfs == null): stats are computed here, filtered.
         // 2. DFS phase (aggregatedDfs == null): DfsPhase drives statistics collection through this searcher, so the
@@ -652,7 +652,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Lazily builds the per-segment bitsets of documents matching {@link SearchContext#aliasFilter()}.
+     * Lazily builds the per-segment bitsets of documents matching {@link SearchContext#filteredStatisticsFilter()}.
      * These represent the "visible" subset over which filtered BM25 statistics are computed. Only live documents are
      * included so the counts match what a physically-filtered index would report. Per-segment bitsets are served from
      * {@link FilteredStatsCache} when available (keyed by segment + filter, evicted on segment close), so the

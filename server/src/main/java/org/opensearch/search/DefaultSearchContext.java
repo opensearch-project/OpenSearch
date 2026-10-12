@@ -475,6 +475,7 @@ final class DefaultSearchContext extends SearchContext {
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
+            filteredStatisticsFilterMemo = null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -493,6 +494,7 @@ final class DefaultSearchContext extends SearchContext {
                 throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
+        queryBuilt = true;
     }
 
     @Override
@@ -505,10 +507,8 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            AliasFilter requestAliasFilter = request.getAliasFilter();
-            if (requestAliasFilter != null
-                && (requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER
-                    || requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.FILTERED_STATS)) {
+            final AliasFilter.Enforcement enforcement = aliasEnforcement();
+            if (enforcement == AliasFilter.Enforcement.PRE_FILTER || enforcement == AliasFilter.Enforcement.FILTERED_STATS) {
                 if (useFilteredStatistics()) {
                     // Pre-filter enforcement, filtered_stats scoring: keep real BM25 scoring but restrict the
                     // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
@@ -530,6 +530,8 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(aliasFilter);
             }
         }
+
+        query = restrictionFallback(query);
 
         if (sliceBuilder != null) {
             Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion);
@@ -879,45 +881,72 @@ final class DefaultSearchContext extends SearchContext {
         return aliasFilter;
     }
 
-    /**
-     * A plugin-supplied restriction, set by {@link #visibleSubsetFilter(Query)}. Takes effect only when no
-     * {@code pre_filter} alias is already governing this request, so the two mechanisms cannot both claim to define
-     * the visible subset.
-     */
+    /** A caller-declared restriction, set by {@link #visibleSubsetFilter(Query)}; combined with any alias filter. */
     private Query pluginVisibleSubsetFilter;
+
+    /** {@link #filteredStatisticsFilter()} for this request, built once and cleared when a restriction is declared. */
+    private Query filteredStatisticsFilterMemo;
+
+    /** Whether {@link #preProcess} has built {@link #query} yet. */
+    private boolean queryBuilt;
 
     @Override
     public void visibleSubsetFilter(Query filter) {
-        this.pluginVisibleSubsetFilter = filter;
-        // The budget decision is memoized, and it is computed from whichever filter is in play, so it has to be
-        // discarded when the filter changes or the second read would answer for the wrong query.
+        // A second declaration narrows the first rather than replacing it, so neither restriction is lost.
+        this.pluginVisibleSubsetFilter = intersect(pluginVisibleSubsetFilter, filter);
+        this.filteredStatisticsFilterMemo = null;
         this.filteredStatisticsWithinBudget = null;
+        if (queryBuilt) {
+            // Declared after the query was built, so apply the fallback now instead of relying on a later preProcess.
+            this.query = restrictionFallback(query);
+        }
     }
 
     @Override
     public Query filteredStatisticsFilter() {
-        return aliasFilter != null ? aliasFilter : pluginVisibleSubsetFilter;
+        if (filteredStatisticsFilterMemo == null) {
+            final Query alias = aliasEnforcement() == AliasFilter.Enforcement.FILTERED_STATS ? aliasFilter : null;
+            // Each restriction removes documents this caller must not be scored against, so honour both.
+            filteredStatisticsFilterMemo = intersect(alias, pluginVisibleSubsetFilter);
+        }
+        return filteredStatisticsFilterMemo;
+    }
+
+    /** Both filters as non-scoring clauses, or whichever is non-null. */
+    private static Query intersect(Query a, Query b) {
+        if (a == null || b == null) {
+            return a != null ? a : b;
+        }
+        return new BooleanQuery.Builder().add(a, Occur.FILTER).add(b, Occur.FILTER).build();
+    }
+
+    /**
+     * Wraps {@code q} in constant score when a declared restriction cannot have its statistics scoped, so the request
+     * loses relevance ordering rather than scoring against documents the caller cannot read.
+     */
+    private Query restrictionFallback(Query q) {
+        if (pluginVisibleSubsetFilter != null && useFilteredStatistics() == false && (q instanceof ConstantScoreQuery) == false) {
+            return new ConstantScoreQuery(q);
+        }
+        return q;
     }
 
     @Override
     public boolean useFilteredStatistics() {
-        // Filtered BM25 statistics apply only when an alias filter is present, the alias is enforced as a
-        // pre_filter, and the filtered_stats scoring sub-behavior has been opted into. Otherwise we keep
-        // whole-shard statistics (post_filter, or pre_filter with the default constant_score behavior).
-        if (aliasFilter == null) {
-            // No alias is governing this request. A plugin may still have declared the restriction it applied, which
-            // is how document-level security gets visible-only statistics without going through an alias.
-            return pluginVisibleSubsetFilter != null && withinFilteredStatisticsBudget();
-        }
-        AliasFilter requestAliasFilter = request.getAliasFilter();
-        if (requestAliasFilter == null || requestAliasFilter.getEnforcement() != AliasFilter.Enforcement.FILTERED_STATS) {
-            return false;
-        }
-        return withinFilteredStatisticsBudget();
+        final AliasFilter.Enforcement enforcement = aliasEnforcement();
+        // pre_filter suppresses scoring, so there are no statistics to scope.
+        return enforcement != AliasFilter.Enforcement.PRE_FILTER
+            && (enforcement == AliasFilter.Enforcement.FILTERED_STATS || pluginVisibleSubsetFilter != null)
+            && withinFilteredStatisticsBudget();
+    }
+
+    /** The enforcement of the alias filter on this request, or {@code null} when no alias filter applies. */
+    private AliasFilter.Enforcement aliasEnforcement() {
+        return aliasFilter == null ? null : request.getAliasFilter().getEnforcement();
     }
 
     /**
-     * Small-view guardrail for {@code filtered_stats}. Estimates how many documents the alias filter matches and
+     * Small-view guardrail for {@code filtered_stats}. Estimates how many documents the statistics filter matches and
      * returns {@code false} when that exceeds {@link #filteredStatisticsMaxVisibleDocs()}, so the caller falls back to
      * the {@code constant_score} behavior (still leak-free and flat, but unranked) instead of paying an unbounded
      * first-query cost on a very large view.
@@ -970,7 +999,7 @@ final class DefaultSearchContext extends SearchContext {
         } catch (IOException e) {
             // Fail closed onto constant_score: it is leak-free and cheaper, so an estimation failure degrades
             // ranking rather than correctness or latency.
-            logger.debug("could not estimate alias-filter selectivity; falling back to constant_score", e);
+            logger.warn("could not estimate how many documents filtered statistics would cover; falling back to constant_score", e);
             withinBudget = false;
         }
         filteredStatisticsWithinBudget = withinBudget;
