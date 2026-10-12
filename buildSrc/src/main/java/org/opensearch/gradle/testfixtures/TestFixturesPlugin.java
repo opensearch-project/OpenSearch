@@ -134,12 +134,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 @Override
                 public void execute(Task task) {
                     task.dependsOn(buildFixture);
-                    configureServiceInfoForTask(
-                        task,
-                        project,
-                        false,
-                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                    );
+                    // Resolved here rather than inside the action: Task.extensions at execution time is
+                    // deprecated in Gradle 9.7 and fails in 10.
+                    ExtraPropertiesExtension taskExt = task.getExtensions().getByType(ExtraPropertiesExtension.class);
+                    configureServiceInfoForTask(task, project, false, taskExt::set);
                 }
             });
 
@@ -196,16 +194,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 
-        tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
-            task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
-            task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
-            configureServiceInfoForTask(
-                task,
-                fixtureProject,
-                true,
-                (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
-            );
-        }));
+        tasks.withType(Test.class).configureEach(task -> {
+            // Resolved here rather than inside the action: Task.extensions at execution time is
+            // deprecated in Gradle 9.7 and fails in 10.
+            SystemPropertyCommandLineArgumentProvider nonInputProperties = task.getExtensions()
+                .getByType(SystemPropertyCommandLineArgumentProvider.class);
+            extension.fixtures.all(fixtureProject -> {
+                task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
+                task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
+                configureServiceInfoForTask(task, fixtureProject, true, nonInputProperties::systemProperty);
+            });
+        });
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {

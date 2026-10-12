@@ -32,6 +32,7 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -42,6 +43,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 
@@ -157,6 +159,66 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
                     .collect(Collectors.toSet())
             )
         );
+    }
+
+    /**
+     * Segments-only remote store: a remote segment repository and no remote translog repository. A replica still
+     * recovers by replaying operations from the primary, so its peer recovery retention lease must be preserved.
+     * getRetentionLeases keys off remote translog presence rather than isRemoteStoreEnabled, which keeps the replica's
+     * lease alive and its recoveries sequence-number based rather than silently degrading them to file based.
+     */
+    public void testPeerRecoveryRetentionLeasesRetainedWithSegmentsOnlyRemoteStore() throws InterruptedException {
+        final Settings segmentsOnly = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+
+        final AllocationId primaryAllocationId = AllocationId.newInitializing();
+        final ReplicationTracker tracker = new ReplicationTracker(
+            new ShardId("test", "_na", 0),
+            primaryAllocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", segmentsOnly),
+            randomLongBetween(1, Long.MAX_VALUE),
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            currentTimeMillis::get,
+            (leases, listener) -> {},
+            () -> safeCommitInfo,
+            sId -> true
+        );
+        assertFalse(tracker.indexSettings().isRemoteTranslogStoreEnabled());
+
+        tracker.updateFromClusterManager(
+            1L,
+            Collections.singleton(primaryAllocationId.getId()),
+            routingTable(Collections.emptySet(), primaryAllocationId)
+        );
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+
+        final AllocationId replicaAllocationId = AllocationId.newInitializing();
+        final IndexShardRoutingTable routingTableWithReplica = routingTable(
+            Collections.singleton(replicaAllocationId),
+            primaryAllocationId
+        );
+        tracker.updateFromClusterManager(2L, Collections.singleton(primaryAllocationId.getId()), routingTableWithReplica);
+        tracker.addPeerRecoveryRetentionLease(
+            routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(),
+            randomCheckpoint(),
+            EMPTY_LISTENER
+        );
+        tracker.initiateTracking(replicaAllocationId.getId());
+        tracker.markAllocationIdAsInSync(replicaAllocationId.getId(), randomCheckpoint());
+
+        safeCommitInfo = randomSafeCommitInfo();
+        currentTimeMillis.set(currentTimeMillis.get() + randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get()));
+
+        final Set<String> leaseIds = tracker.getRetentionLeases(true)
+            .v2()
+            .leases()
+            .stream()
+            .map(RetentionLease::id)
+            .collect(Collectors.toSet());
+        assertThat("the replica's peer recovery retention lease should survive", leaseIds, hasSize(2));
     }
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {

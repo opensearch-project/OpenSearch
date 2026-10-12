@@ -311,7 +311,10 @@ pub async fn create_object_metas(
 /// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache)
 /// and a handle to change the memory pool limit at runtime.
 pub struct DataFusionRuntime {
-    pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
+    /// Behind an `Arc` only so it can be published to the global registry, which stores a `Weak`
+    /// (and a `Weak` can only be made from an `Arc`). This is the sole strong reference, so the
+    /// environment is dropped when Java closes this runtime, exactly as it was when held by value.
+    pub runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub dynamic_limit_handle: DynamicLimitHandle,
 }
@@ -412,7 +415,7 @@ pub fn build_shard_files(
 }
 
 impl DataFusionRuntime {
-    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+    pub fn new_for_bench(runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>) -> Self {
         let (_pool, handle) = DynamicLimitPool::new(0);
         Self {
             runtime_env,
@@ -707,17 +710,22 @@ pub fn create_global_runtime(
         (CacheManagerConfig::default(), None)
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_memory_pool(memory_pool)
-        .with_disk_manager_builder(disk_manager)
-        .with_cache_manager(cache_manager_config)
-        .build()?;
+    let runtime_env = Arc::new(
+        RuntimeEnvBuilder::new()
+            .with_memory_pool(memory_pool)
+            .with_disk_manager_builder(disk_manager)
+            .with_cache_manager(cache_manager_config)
+            .build()?,
+    );
 
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         dynamic_limit_handle,
     };
+    // The doc-values cursor is opened from Lucene with only a file path, so it reads the environment
+    // from here.
+    crate::cache::register_global_runtime_env(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -1023,7 +1031,7 @@ pub async unsafe fn fetch_by_row_ids(
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
-    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle};
+    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle_with_plan};
 
     // ── 1. Build RuntimeEnv + SessionContext ──
 
@@ -1057,7 +1065,7 @@ pub async unsafe fn fetch_by_row_ids(
         .runtime_env()
         .cache_manager
         .get_file_metadata_cache();
-    let (segments, _schema) = build_segments(
+    let (segments, resolved_schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
         shard_view.object_metas.as_ref(),
@@ -1130,15 +1138,6 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 3. Register ShardTableProvider ──
 
     let store_url = store_url_from_table_path(&shard_view.table_path)?;
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(Arc::new(
-        datafusion::datasource::file_format::parquet::ParquetFormat::new(),
-    ))
-    .with_file_extension(".parquet")
-    .with_collect_stat(true);
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await?;
-
     let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
         file_schema: resolved_schema,
         files,
@@ -1170,7 +1169,7 @@ pub async unsafe fn fetch_by_row_ids(
     let sql = format!("SELECT {} FROM t", projection);
     let df = ctx.sql(&sql).await?;
     let physical_plan = df.create_physical_plan().await?;
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())?;
+    let df_stream = execute_stream(Arc::clone(&physical_plan), ctx.task_ctx())?;
 
     // Post-condition: returned stream schema must contain __row_id__ plus every requested column.
     // Catches drift if SQL synthesis or the optimizer ever drops a projection silently.
@@ -1185,11 +1184,12 @@ pub async unsafe fn fetch_by_row_ids(
     // monotonically nondecreasing across the entire stream. target_partitions=1
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
-    Ok(wrap_stream_as_handle(
+    Ok(wrap_stream_as_handle_with_plan(
         df_stream,
         manager.cpu_executor(),
         runtime,
         context_id,
+        Some(physical_plan),
     ))
 }
 
@@ -1362,6 +1362,7 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
+    let expected_schema = handle.stream.schema();
     // Use the handle's OWN token, not a registry lookup by context_id. The
     // registry entry can be removed by a sibling stream's Drop (same id) while
     // this stream is mid-flight; a `None` token here silently degrades
@@ -1393,6 +1394,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
                 ._query_tracking_context
                 .apply_pending_phantom_correction();
 
+            ensure_batch_matches_stream_schema(&batch, &expected_schema)?;
             let batch = if handle.has_views {
                 compact_string_view_columns(batch)
             } else {
@@ -1405,6 +1407,49 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Tripwire at the FFI export boundary — checks, never casts.
+///
+/// Java imports every batch against the schema returned once by `stream_get_schema`,
+/// and an Arrow C Data array carries no type information of its own. A batch whose
+/// buffer layout differs from that schema is therefore read as garbage (the
+/// `List<Utf8>` vs `List<Utf8View>` JVM SIGSEGV). DataFusion guarantees that a
+/// stream's batches match its `schema()`; this turns any violation into a query
+/// error instead of native memory corruption.
+///
+/// Field names and metadata are ignored: they are not part of the buffer layout, and
+/// DataFusion is lax about them. A mismatch here is a planning-time bug (see
+/// `derive_schema_from_partial_plan`) and must be fixed there, not papered over per
+/// batch.
+fn ensure_batch_matches_stream_schema(
+    batch: &RecordBatch,
+    expected: &SchemaRef,
+) -> Result<(), DataFusionError> {
+    let actual = batch.schema();
+    if Arc::ptr_eq(&actual, expected) {
+        return Ok(());
+    }
+    if actual.fields().len() != expected.fields().len() {
+        return Err(DataFusionError::Execution(format!(
+            "stream_next: batch column count {} does not match declared schema width {}",
+            actual.fields().len(),
+            expected.fields().len()
+        )));
+    }
+    for (i, (a, e)) in actual.fields().iter().zip(expected.fields()).enumerate() {
+        if !a.data_type().equals_datatype(e.data_type()) {
+            return Err(DataFusionError::Execution(format!(
+                "stream_next: column {} ('{}') has type {:?} but the stream schema declares {:?}; \
+                 exporting it would misread buffers across FFI",
+                i,
+                e.name(),
+                a.data_type(),
+                e.data_type()
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Prevents sliced StringView batches from carrying full backing buffers across FFI.
@@ -1613,7 +1658,7 @@ fn derive_schema_from_partial_plan(
     use datafusion::prelude::SessionContext;
     use datafusion_substrait::extensions::Extensions;
     use datafusion_substrait::logical_plan::consumer::{
-        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+        from_substrait_named_struct, DefaultSubstraitConsumer,
     };
     use prost::Message;
     use substrait::proto::{read_rel::ReadType, Plan};
@@ -1675,7 +1720,15 @@ fn derive_schema_from_partial_plan(
             .parquet
             .schema_force_view_types;
         let arrow_schema = if view_types {
-            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+            // Use the recursive variant so nested types (e.g. List<Utf8> child fields)
+            // are also rewritten to view types. DataFusion's non-recursive
+            // `transform_schema_to_view` only touches top-level fields, which left
+            // `List<Utf8>` here while the data node (which uses
+            // `transform_schema_to_view_recursive`) produced `List<Utf8View>`. The
+            // reduce stage's Arrow C Data import then read the view child's buffers as
+            // Utf8 offsets: "Offset buffer for type Utf8 is malformed", surfacing as
+            // "RefCnt has gone negative".
+            crate::schema_coerce::transform_schema_to_view_recursive(&arrow_schema)
         } else {
             arrow_schema
         };
@@ -1701,7 +1754,9 @@ fn derive_schema_from_partial_plan(
         })
         .unwrap_or_default();
 
-    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let logical_plan = futures::executor::block_on(
+        crate::substrait_consumer::from_substrait_plan(&session_state, &plan),
+    )?;
     let physical_plan =
         futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
@@ -1840,6 +1895,23 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
         }
         Some(RelType::Set(s)) => {
             for input in &s.inputs {
+                collect_reads(input, out);
+            }
+        }
+        // Extension rels wrap a normal input. The multi-value expand
+        // (MULTI_VALUE_EXPAND_TYPE_URL) places its parquet ReadRel beneath an
+        // ExtensionSingleRel. Without these arms the ReadRel is invisible here,
+        // no synthetic MemTable is registered for it, and planning the producer
+        // plan on the coordinator fails with "No table named '<index>'" — only
+        // reachable with more than one shard since a single shard has no reduce
+        // stage to derive a producer schema for.
+        Some(RelType::ExtensionSingle(e)) => {
+            if let Some(input) = e.input.as_ref() {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::ExtensionMulti(e)) => {
+            for input in &e.inputs {
                 collect_reads(input, out);
             }
         }
@@ -2163,58 +2235,58 @@ pub unsafe fn sender_send(
     Ok(sender.send_blocking(Ok(batch), io_handle))
 }
 
-/// Conforms a producer batch to the consumer-side `StreamingTable`'s `declared`
-/// schema, but ONLY for the Utf8/Utf8View string-view family — the one divergence
-/// that is a genuine buffer-layout mismatch (offset buffers vs. view buffers) that
-/// crashes downstream operators rebuilding batches against the declared schema.
+/// Conforms a producer batch to the consumer-side `StreamingTable` schema.
 ///
-/// Every other type divergence is left untouched: the column keeps its actual type
-/// and field. This mirrors the pre-conform behavior (the batch flowed through as-is)
-/// and matches the Java sink's `typesMatch` tripwire, which deliberately tolerates
-/// e.g. Timestamp precision/timezone differences as advisory — a real
-/// [`arrow::compute::cast`] there would truncate sub-precision or shift values the
-/// previous contract treated as round-trippable. String-view conversion is the only
-/// safe, value-preserving cast (both are byte-identical UTF-8), so it is the only one
-/// performed here.
+/// Three tiers, checked per column against the declared field:
+/// 1. Exact type match: reuse the column, adopt the declared field (metadata agrees).
+/// 2. Layout-identical nested types ([`DataType::equals_datatype`]: same buffers and
+///    nullability, child names/metadata may differ): zero-copy relabel. This is the
+///    `List<element>` (parquet) vs `List<item>` (Substrait) case.
+/// 3. Utf8/Utf8View: a real value-preserving cast, because their buffer layouts differ.
+/// Anything else (e.g. timestamp precision) keeps its actual field and column so this
+/// boundary never silently truncates values.
 fn conform_batch_to_schema(
     batch: RecordBatch,
     declared: &SchemaRef,
 ) -> Result<RecordBatch, DataFusionError> {
-    if batch.schema().fields().len() != declared.fields().len() {
+    let actual_schema = batch.schema();
+    if actual_schema.fields().len() != declared.fields().len() {
         return Err(DataFusionError::Execution(format!(
             "sender_send: batch column count {} does not match declared schema {}",
-            batch.schema().fields().len(),
+            actual_schema.fields().len(),
             declared.fields().len()
         )));
     }
-
-    let needs_conform = batch
-        .schema()
-        .fields()
-        .iter()
-        .zip(declared.fields().iter())
-        .any(|(actual, want)| {
-            actual.data_type() != want.data_type()
-                && is_utf8_family(actual.data_type())
-                && is_utf8_family(want.data_type())
-        });
-    if !needs_conform {
+    if actual_schema.as_ref() == declared.as_ref() {
         return Ok(batch);
     }
 
-    // Build the output column-by-column: cast only the string-view-family mismatches
-    // to the declared type; keep every other column (and any tolerated divergence such
-    // as Timestamp precision) with its own actual type. The output schema therefore
-    // uses the declared field for conformed columns and the batch's own field otherwise.
-    let actual_fields = batch.schema().fields().clone();
     let mut fields = Vec::with_capacity(batch.num_columns());
     let mut columns = Vec::with_capacity(batch.num_columns());
     for (i, want) in declared.fields().iter().enumerate() {
         let col = batch.column(i);
-        if col.data_type() != want.data_type()
-            && is_utf8_family(col.data_type())
-            && is_utf8_family(want.data_type())
-        {
+        if col.data_type() == want.data_type() {
+            columns.push(Arc::clone(col));
+            fields.push(Arc::clone(want));
+        } else if col.data_type().equals_datatype(want.data_type()) {
+            // Same buffer layout and nullability, differing only in child field
+            // names/metadata (parquet emits `List<element>`, Substrait declares
+            // `List<item>`). Relabel the ArrayData in place.
+            //
+            // SAFETY: `data` was taken from a valid array and only its data_type
+            // is replaced with one `equals_datatype` has proven layout-identical,
+            // so every buffer/offset/null invariant validate_data() would check
+            // still holds. Skipping validation keeps this O(1) instead of a full
+            // per-value UTF-8 and offset scan on every batch.
+            let data = unsafe {
+                col.to_data()
+                    .into_builder()
+                    .data_type(want.data_type().clone())
+                    .build_unchecked()
+            };
+            columns.push(arrow_array::make_array(data));
+            fields.push(Arc::clone(want));
+        } else if is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
             let cast = arrow::compute::cast(col, want.data_type()).map_err(|e| {
                 DataFusionError::Execution(format!(
                     "sender_send: failed to cast column {} ('{}') from {:?} to declared {:?}: {}",
@@ -2229,10 +2301,14 @@ fn conform_batch_to_schema(
             fields.push(Arc::clone(want));
         } else {
             columns.push(Arc::clone(col));
-            fields.push(Arc::clone(&actual_fields[i]));
+            fields.push(Arc::clone(&actual_schema.fields()[i]));
         }
     }
-    let target_schema = Arc::new(arrow_schema::Schema::new(fields));
+
+    let target_schema = Arc::new(arrow_schema::Schema::new_with_metadata(
+        fields,
+        declared.metadata().clone(),
+    ));
     RecordBatch::try_new(target_schema, columns).map_err(|e| {
         DataFusionError::Execution(format!(
             "sender_send: failed to assemble conformed batch: {}",
@@ -2298,14 +2374,20 @@ pub unsafe fn sender_fail(sender_ptr: i64, reason: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow::buffer::OffsetBuffer;
+    use arrow_array::{BinaryViewArray, Int64Array, ListArray, StringViewArray};
     use arrow_schema::{Field, Schema};
 
-    /// Shared lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR
-    /// or that observe the global runtime state from `create_global_runtime`. cargo test
-    /// runs tests in parallel by default; without serialization, two runtime-construction
-    /// tests would race on these globals and produce flaky assertions.
-    static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// Lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR or that
+    /// observe the global runtime state from `create_global_runtime`. cargo test runs tests in
+    /// parallel by default; without serialization, two runtime-construction tests would race on
+    /// these globals and produce flaky assertions.
+    ///
+    /// `crate::test_process_globals::lock` rather than a lock of its own, because
+    /// `create_global_runtime` also replaces the global `RuntimeEnv` registration and
+    /// `close_global_runtime` then leaves it dangling — which fails any doc-values test reading it
+    /// at that moment with "no global DataFusion runtime environment".
+    use crate::test_process_globals::lock as lock_process_globals;
 
     /// Test helper: poll until `predicate` returns true or `timeout_ms` elapses.
     /// Used to wait on the background spill-cleanup thread without an arbitrary sleep.
@@ -2321,6 +2403,119 @@ mod tests {
     }
 
     #[test]
+    fn conforms_list_child_name_to_declared_coordinator_schema() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let expected_child = Arc::new(Field::new("item", DataType::Utf8View, true));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["prod", "error"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 2].into()),
+            values,
+            None,
+        );
+        let original_offsets = list.value_offsets().as_ptr();
+        let actual_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(actual_child),
+            true,
+        )]));
+        let expected_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(expected_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)])
+            .expect("runtime LIST batch builds");
+
+        let aligned = conform_batch_to_schema(batch, &expected_schema)
+            .expect("equivalent LIST child names align");
+        assert_eq!(aligned.schema(), expected_schema);
+        let aligned_list = aligned
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .expect("aligned column remains LIST");
+        assert_eq!(aligned_list.value_offsets().as_ptr(), original_offsets);
+        let aligned_values = aligned_list
+            .values()
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .expect("aligned child remains Utf8View");
+        assert_eq!(aligned_values.value(0), "prod");
+        assert_eq!(aligned_values.value(1), "error");
+    }
+
+    /// A child-nullability mismatch is NOT layout-equivalent: relabeling a nullable
+    /// child as non-nullable would hand the consumer nulls it does not expect. The
+    /// column must fall through to the pass-through tier and keep its actual field.
+    #[test]
+    fn conform_keeps_actual_field_when_list_child_nullability_differs() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let declared_child = Arc::new(Field::new("item", DataType::Utf8View, false));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["a"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let actual_field = Field::new("tags", DataType::List(actual_child), true);
+        let actual_schema = Arc::new(Schema::new(vec![actual_field.clone()]));
+        let declared = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(declared_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)]).unwrap();
+
+        let out = conform_batch_to_schema(batch, &declared).unwrap();
+        assert_eq!(out.schema().field(0), &actual_field);
+    }
+
+    #[test]
+    fn stream_schema_tripwire_ignores_child_names_but_rejects_layout_mismatch() {
+        let mk = |child_name: &str, child_ty: DataType| {
+            Arc::new(Schema::new(vec![Field::new(
+                "tags",
+                DataType::List(Arc::new(Field::new(child_name, child_ty, true))),
+                true,
+            )]))
+        };
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["x"]));
+        let list = ListArray::new(
+            Arc::new(Field::new("element", DataType::Utf8View, true)),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let batch =
+            RecordBatch::try_new(mk("element", DataType::Utf8View), vec![Arc::new(list)]).unwrap();
+
+        // Same layout, different child name: fine.
+        ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8View))
+            .expect("child field name is not part of the buffer layout");
+        // Utf8 vs Utf8View child: the SIGSEGV class, must be rejected.
+        let err = ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8))
+            .expect_err("view vs offset buffers must not be exported");
+        assert!(err.to_string().contains("misread buffers"), "{err}");
+    }
+
+    #[test]
+    fn stream_schema_tripwire_rejects_column_count_mismatch() {
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, false)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1]))],
+        )
+        .unwrap();
+        let wider = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, false),
+            Field::new("b", DataType::Int64, false),
+        ]));
+        assert!(ensure_batch_matches_stream_schema(&batch, &wider).is_err());
+    }
+
+    #[test]
     fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
         // Empty spill_dir is the "disabled" sentinel from Java. The runtime must build
         // successfully and the DiskManager must report tmp_files_enabled() == false so
@@ -2328,7 +2523,7 @@ mod tests {
         // instead of writing to an unintended path. Construction must also flip the
         // memory_guard SPILL_ENABLED flag off so per_query_spill_budget returns
         // Disabled (not Critical) — preventing the 1-partition clamp.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
@@ -2354,7 +2549,7 @@ mod tests {
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2414,7 +2609,7 @@ mod tests {
         // them in a background thread (remove_file for files/symlinks, remove_dir_all
         // for dirs). The original names are gone immediately after phase 1; wait
         // briefly for phase 2 to clear the *.stale entries.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2474,7 +2669,7 @@ mod tests {
         // spill disabled (empty path), no filesystem operation should run — an
         // accidental fs::remove_dir_all("") would error and break boot. This test
         // guards against future refactors that hoist the cleanup out of the else-branch.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
@@ -2487,7 +2682,7 @@ mod tests {
         // at boot with full context. Trigger the failure path by pointing spill_dir
         // at a regular file: spill_path.exists() returns true, but read_dir refuses
         // to enumerate a non-directory and returns ErrorKind::NotADirectory.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let bad_path = tmp.path().join("regular_file");
         fs::write(&bad_path, b"not a directory").expect("seed regular file");
@@ -2542,7 +2737,7 @@ mod tests {
             return;
         }
 
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let parent = tempfile::tempdir().expect("parent tempdir");
         let spill_path = parent.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill mount-point dir");
@@ -2632,7 +2827,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn create_global_runtime_unlinks_top_level_symlink_without_following() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill dir");
@@ -2685,7 +2880,7 @@ mod tests {
     /// inline recursive removal would be flagged.
     #[test]
     fn create_global_runtime_renames_orphan_subdirs_to_stale_then_async_removes() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2720,7 +2915,7 @@ mod tests {
     /// double-suffix them (no datafusion-old.stale.stale).
     #[test]
     fn create_global_runtime_cleans_prior_boot_stale_entries() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 

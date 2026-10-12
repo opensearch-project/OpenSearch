@@ -75,12 +75,12 @@ plugins.withId('opensearch.testclusters') {
       keystorePassword 'notarealpasswordphrase'
       extraConfigFile 'opensearch-fips-truststore.bcfks',
           file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
-      cluster.nodes.all { node ->
-        node.systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/opensearch-fips-truststore.bcfks'
-        node.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
-        node.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
-        node.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
-      }
+      // Cluster-wide, rather than through cluster.nodes: this runs as each cluster is created, and reading its nodes
+      // then would create them before the build script has said how many there are.
+      cluster.systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/opensearch-fips-truststore.bcfks'
+      cluster.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+      cluster.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
+      cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
     }
   }
 }

@@ -190,11 +190,17 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             }
         }
         FileInfos result = builder.build();
-        assert result.writerFilesMap().isEmpty() || result.writerFilesMap().size() == 1 + secondaryWritersByFormat.size()
+        int expectedFormats = 1 + secondaryWritersByFormat.size();
+        if (result.writerFilesMap().isEmpty() == false && result.writerFilesMap().size() < expectedFormats) {
+            // A generation must publish every format or none. Partial output could expose primary rows
+            // without corresponding live-doc state, so drop it; orphan cleanup reclaims unpublished files.
+            return FileInfos.empty();
+        }
+        assert result.writerFilesMap().isEmpty() || result.writerFilesMap().size() == expectedFormats
             : "flush must produce files for all formats or none; got "
                 + result.writerFilesMap().size()
                 + " expected 0 or "
-                + (1 + secondaryWritersByFormat.size());
+                + expectedFormats;
         return result;
     }
 

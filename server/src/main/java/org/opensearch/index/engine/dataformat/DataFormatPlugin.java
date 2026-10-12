@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -107,6 +108,27 @@ public interface DataFormatPlugin {
      * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
      */
     default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, FieldScope.ROOT);
+    }
+
+    /**
+     * Assigns the capability map on the given field type, additionally indicating whether the field is
+     * declared directly inside a {@code nested} object's scope. Only matters to a plugin that combines
+     * multiple sub-formats and must restrict which of them may claim capabilities there (e.g. the
+     * composite plugin); a plugin backing a single format has nothing to restrict.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     * @param fieldScope the field's mapping scope
+     * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
+     */
+    default void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        FieldScope fieldScope
+    ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());

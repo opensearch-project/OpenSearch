@@ -16,6 +16,12 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -162,6 +168,66 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         processor = createFingerprintProcessor(List.of(existingFieldName), null, targetField, algorithm, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(fingerprint));
+    }
+
+    /**
+     * Regression test for the thread-safety defect where the {@code HashMethod} enum cached a single
+     * {@link java.security.MessageDigest} instance and shared it across all ingest threads. Concurrent
+     * {@code execute()} calls raced on the shared digest, corrupting its internal state and producing
+     * either wrong fingerprints or an ArrayIndexOutOfBoundsException from the native crypto provider.
+     */
+    public void testConcurrentExecuteIsThreadSafe() throws Exception {
+        for (String hashMethod : hashMethods) {
+            String targetField = "fingerprint";
+            String fieldName = "content";
+            String fieldValue = randomAlphaOfLength(64);
+
+            // Compute the expected fingerprint on a single thread first.
+            Processor processor = createFingerprintProcessor(List.of(fieldName), null, targetField, hashMethod, false);
+            IngestDocument seed = new IngestDocument(new java.util.HashMap<>(Map.of(fieldName, fieldValue)), new java.util.HashMap<>());
+            processor.execute(seed);
+            String expectedFingerprint = seed.getFieldValue(targetField, String.class);
+
+            int threadCount = 16;
+            int iterationsPerThread = 200;
+            ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
+            List<Throwable> failures = new CopyOnWriteArrayList<>();
+            List<String> mismatches = new CopyOnWriteArrayList<>();
+            try {
+                for (int t = 0; t < threadCount; t++) {
+                    executor.execute(() -> {
+                        try {
+                            startLatch.await();
+                            for (int i = 0; i < iterationsPerThread; i++) {
+                                IngestDocument doc = new IngestDocument(
+                                    new java.util.HashMap<>(Map.of(fieldName, fieldValue)),
+                                    new java.util.HashMap<>()
+                                );
+                                processor.execute(doc);
+                                String actual = doc.getFieldValue(targetField, String.class);
+                                if (expectedFingerprint.equals(actual) == false) {
+                                    mismatches.add(actual);
+                                }
+                            }
+                        } catch (Throwable e) {
+                            failures.add(e);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    });
+                }
+                // Release all threads at once to maximize contention on the digest.
+                startLatch.countDown();
+                assertTrue("concurrent fingerprint execution timed out", doneLatch.await(60, TimeUnit.SECONDS));
+            } finally {
+                executor.shutdownNow();
+            }
+
+            assertThat("no exceptions expected during concurrent execution for " + hashMethod, failures, equalTo(List.of()));
+            assertThat("all concurrent fingerprints must match the sequential result for " + hashMethod, mismatches, equalTo(List.of()));
+        }
     }
 
     private FingerprintProcessor createFingerprintProcessor(

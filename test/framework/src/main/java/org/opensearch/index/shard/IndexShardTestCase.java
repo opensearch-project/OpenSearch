@@ -838,12 +838,25 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually
             }
+
+            @Override
+            protected BlobStore createBlobStore() throws Exception {
+                return wrapRemoteStoreBlobStore(super.createBlobStore());
+            }
         };
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
         // Apply state once to initialize repo properly like RepositoriesService would
         repository.updateState(clusterService.state());
         repository.start();
         return repository;
+    }
+
+    /**
+     * Hook for tests on the blob store that backs a remote-store shard's segment and translog repository. The default
+     * returns the store unchanged; a test overrides it to interpose, for instance to hold a download until released.
+     */
+    protected BlobStore wrapRemoteStoreBlobStore(BlobStore blobStore) {
+        return blobStore;
     }
 
     private Environment createEnvironment(Path path) {

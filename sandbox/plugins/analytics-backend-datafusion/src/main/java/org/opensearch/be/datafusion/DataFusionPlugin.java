@@ -76,6 +76,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -776,7 +777,9 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return DatafusionSettings.ALL_SETTINGS;
+        List<Setting<?>> settings = new ArrayList<>(DatafusionSettings.NODE_SCOPED_SETTINGS);
+        settings.addAll(DatafusionSettings.INDEX_SCOPED_SETTINGS);
+        return List.copyOf(settings);
     }
 
     @Override

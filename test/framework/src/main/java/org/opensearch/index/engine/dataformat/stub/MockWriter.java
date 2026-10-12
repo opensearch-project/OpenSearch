@@ -38,6 +38,8 @@ public class MockWriter implements Writer<MockDocumentInput> {
      * Parquet-style writer where a row is committed before a downstream operation fails.
      */
     private volatile Supplier<RuntimeException> throwAfterAdmit;
+    private volatile boolean failureKeepsActive = false;
+    private volatile boolean emptyFlushWhenNoDocs = false;
     private volatile WriterState state = WriterState.ACTIVE;
     private final AtomicInteger addDocCallCount = new AtomicInteger();
 
@@ -46,11 +48,24 @@ public class MockWriter implements Writer<MockDocumentInput> {
     }
 
     /**
+     * If true, a {@link WriteResult.Failure} from the write-result supplier leaves the writer ACTIVE,
+     * modelling a per-doc rejection the writer has already reconciled. Default false retires it.
+     */
+    public void setFailureKeepsActive(boolean keepActive) {
+        this.failureKeepsActive = keepActive;
+    }
+
+    /**
      * Configure addDoc to admit the doc (counter advances) and then throw. Used to model
      * the Parquet rotation-after-admit failure mode.
      */
     public void setThrowAfterAdmit(Supplier<RuntimeException> throwSupplier) {
         this.throwAfterAdmit = throwSupplier;
+    }
+
+    /** If true, flush returns no files when the writer never received an addDoc (a delete-only writer). */
+    public void setEmptyFlushWhenNoDocs(boolean emptyFlush) {
+        this.emptyFlushWhenNoDocs = emptyFlush;
     }
 
     /** Test-only: directly inject a state to simulate post-failure conditions. */
@@ -80,7 +95,7 @@ public class MockWriter implements Writer<MockDocumentInput> {
         addDocCallCount.incrementAndGet();
         if (writeResultSupplier != null) {
             WriteResult result = writeResultSupplier.get();
-            if (result instanceof WriteResult.Failure && state == WriterState.ACTIVE) {
+            if (result instanceof WriteResult.Failure && state == WriterState.ACTIVE && failureKeepsActive == false) {
                 state = WriterState.PENDING_ROLLBACK;
             }
             return result;
@@ -122,6 +137,9 @@ public class MockWriter implements Writer<MockDocumentInput> {
 
     @Override
     public FileInfos flush(FlushInput flushInput) {
+        if (emptyFlushWhenNoDocs && addDocCallCount.get() == 0) {
+            return FileInfos.builder().build();
+        }
         WriterFileSet fileSet = WriterFileSet.builder()
             .directory(directory)
             .writerGeneration(writerGeneration)

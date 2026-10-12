@@ -78,6 +78,10 @@
         ],
         "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
       },
+      "system":{
+        "type":"boolean",
+        "description":"Filter indices by system-index metadata. If true, return only system indices; if false, return only non-system indices. When true, hidden indices are included in wildcard expansion unless expand_wildcards is specified. Selecting system columns with h does not change wildcard expansion."
+      },
       "help":{
         "type":"boolean",
         "description":"Return help information",
@@ -124,8 +128,7 @@
           "none",
           "all"
         ],
-        "default": "all",
-        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        "description":"Whether to expand wildcard expressions to open, closed, hidden, or all indices. When system is true and this parameter is omitted, hidden indices are included by default. An explicit value overrides that behavior."
       }
     }
   }

@@ -48,7 +48,10 @@ dependencies {
   runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:windows-x86_64"
 
   testImplementation libs.log4jslf4jimpl
-  javaRestTestImplementation libs.reactor.test
+  javaRestTestImplementation(libs.reactor.test) {
+    // The test framework already supplies reactor-core and core's annotation dependencies.
+    transitive = false
+  }
   testImplementation project(":modules:transport-netty4")
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"

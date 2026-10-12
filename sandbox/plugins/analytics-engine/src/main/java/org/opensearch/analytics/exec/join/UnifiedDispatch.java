@@ -44,6 +44,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -123,13 +124,12 @@ public final class UnifiedDispatch {
         AtomicBoolean done = new AtomicBoolean(false);
         ActionListener<Iterable<VectorSchemaRoot>> terminal = onceOnly(done, rawTerminal);
         try {
-            List<Stage> builds = new ArrayList<>();
-            collectBuildStages(dag.rootStage(), builds);
-            if (builds.isEmpty()) {
+            List<List<Stage>> waves = collectBuildWaves(dag.rootStage());
+            if (waves.isEmpty()) {
                 dispatchBroadcastFree(ctx, dag, Function.identity(), queryExecutionSink, terminal);
                 return;
             }
-            captureThenDispatch(ctx, dag, builds, captureSinkFactory, queryExecutionSink, terminal);
+            captureThenDispatch(ctx, dag, waves, captureSinkFactory, queryExecutionSink, terminal);
         } catch (Exception e) {
             terminal.onFailure(e);
         }
@@ -175,26 +175,75 @@ public final class UnifiedDispatch {
     }
 
     /**
-     * Capture phase: build every broadcast subtree in isolation, collect IPC keyed by
-     * {@code broadcast-<buildStageId>}, then inject + strip + dispatch the broadcast-free residual. One
-     * shared cancel callback is installed before any scheduling; dispatch kicks off bottom-up via the
-     * build leaves; a once-only terminal guards the multiple build listeners + the residual dispatch.
+     * Capture phase, run as WAVES ordered innermost-first, then inject + strip + dispatch the
+     * broadcast-free residual.
+     *
+     * <p><b>Why waves.</b> A broadcast build can itself be a broadcast probe — nested broadcast, e.g. a
+     * customer scan that is both build-for-one-join and probe-of-another. Such a build cannot be built until
+     * its OWN build has been captured and stripped out of its subtree, because otherwise
+     * {@code buildSubGraphWithSink} walks into that un-stripped child and asks a shard fragment to be its
+     * {@code DataConsumer}, which it is not. Capturing every build in one flat pass (the previous shape)
+     * therefore failed outright on any nested-broadcast plan. Each wave depends only on shallower-depth
+     * results, so within a wave the builds still run concurrently.
+     *
+     * <p>The residual dispatch happens once, after the LAST (shallowest) wave.
      */
     private void captureThenDispatch(
         QueryContext ctx,
         QueryDAG dag,
-        List<Stage> builds,
+        List<List<Stage>> waves,
+        Function<Stage, ExchangeSink> captureSinkFactory,
+        Consumer<QueryExecution> queryExecutionSink,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        // Accumulates across waves: a wave's builds are prepared against everything captured before it.
+        Map<Integer, byte[]> capturedByBuildId = new LinkedHashMap<>();
+        // The cancel callback is installed once, by the first wave, but must cancel whichever wave is in
+        // flight — hence the shared reference rather than a capture of one wave's list.
+        AtomicReference<List<StageExecution>> activeRoots = new AtomicReference<>(List.of());
+        AtomicBoolean cancelCallbackInstalled = new AtomicBoolean(false);
+        captureWave(
+            ctx,
+            dag,
+            waves,
+            0,
+            capturedByBuildId,
+            activeRoots,
+            cancelCallbackInstalled,
+            captureSinkFactory,
+            queryExecutionSink,
+            terminal
+        );
+    }
+
+    /**
+     * Builds and schedules every build in wave {@code waveIndex} concurrently. On wave completion, either
+     * advances to the next (shallower) wave or dispatches the residual.
+     */
+    private void captureWave(
+        QueryContext ctx,
+        QueryDAG dag,
+        List<List<Stage>> waves,
+        int waveIndex,
+        Map<Integer, byte[]> capturedByBuildId,
+        AtomicReference<List<StageExecution>> activeRoots,
+        AtomicBoolean cancelCallbackInstalled,
         Function<Stage, ExchangeSink> captureSinkFactory,
         Consumer<QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         StageExecutionBuilder builder = scheduler.getStageExecutionBuilder();
-        Map<Integer, byte[]> capturedByBuildId = new LinkedHashMap<>();
+        List<Stage> builds = waves.get(waveIndex);
         AtomicInteger remaining = new AtomicInteger(builds.size());
         List<StageExecution> buildRoots = new ArrayList<>(builds.size());
         List<StageExecution> allLeaves = new ArrayList<>();
 
-        for (Stage buildStage : builds) {
+        for (Stage rawBuildStage : builds) {
+            // Prepare against earlier waves: drop the build children already captured, then hand this stage
+            // their payloads so its own OpenSearchBroadcastScan placeholders resolve. Both are no-ops in the
+            // common single-level case, where capturedByBuildId is still empty.
+            Stage buildStage = stripBuildChildren(rawBuildStage, capturedByBuildId);
+            injectBroadcastsInPlace(buildStage, capturedByBuildId);
             final int buildId = buildStage.getStageId();
             ExchangeSink captureSink = captureSinkFactory.apply(buildStage);
             StageExecutionBuilder.SubGraph buildGraph = builder.buildSubGraphWithSink(
@@ -228,6 +277,12 @@ public final class UnifiedDispatch {
                         synchronized (capturedByBuildId) {
                             capturedByBuildId.put(buildId, ipc);
                         }
+                        LOGGER.debug(
+                            "[UnifiedDispatch] captured broadcast build wave={} build={} ipcBytes={}",
+                            waveIndex,
+                            buildId,
+                            ipc == null ? -1 : ipc.length
+                        );
                         if (remaining.decrementAndGet() == 0) {
                             if (ctx.parentTask() != null && ctx.parentTask().isCancelled()) {
                                 String reason = ctx.parentTask().getReasonCancelled() != null
@@ -237,7 +292,22 @@ public final class UnifiedDispatch {
                                 return;
                             }
                             try {
-                                injectStripAndDispatch(ctx, dag, capturedByBuildId, queryExecutionSink, terminal);
+                                if (waveIndex + 1 < waves.size()) {
+                                    captureWave(
+                                        ctx,
+                                        dag,
+                                        waves,
+                                        waveIndex + 1,
+                                        capturedByBuildId,
+                                        activeRoots,
+                                        cancelCallbackInstalled,
+                                        captureSinkFactory,
+                                        queryExecutionSink,
+                                        terminal
+                                    );
+                                } else {
+                                    injectStripAndDispatch(ctx, dag, capturedByBuildId, queryExecutionSink, terminal);
+                                }
                             } catch (Exception e) {
                                 terminal.onFailure(e);
                             }
@@ -269,31 +339,67 @@ public final class UnifiedDispatch {
             });
         }
 
-        // Cancel wiring for the capture phase AFTER every listener is installed (it bypasses the normal
-        // QueryScheduler.execute cancel path by scheduling build leaves directly). Phase-2's execute
-        // replaces this callback with its own walker-level cancel.
-        AnalyticsQueryTask parentTask = ctx.parentTask();
-        if (parentTask != null) {
-            parentTask.setOnCancelCallback(() -> {
-                String reason = parentTask.getReasonCancelled() != null ? parentTask.getReasonCancelled() : "unknown";
-                LOGGER.debug("[UnifiedDispatch] capture phase cancel requested, reason={}", reason);
-                for (StageExecution buildExec : buildRoots) {
-                    try {
-                        buildExec.cancel("task cancelled: " + reason);
-                    } catch (Exception e) {
-                        LOGGER.warn("[UnifiedDispatch] failed to cancel build exec", e);
-                    }
-                }
-            });
+        // Publish this wave's roots AFTER every listener is installed, so the cancel callback cancels the
+        // wave that is actually in flight.
+        activeRoots.set(buildRoots);
+        // Install the cancel callback ONCE, and only now that a wave has roots to cancel. Ordering is
+        // load-bearing: setOnCancelCallback REPLAYS synchronously when the task is already cancelled, and it
+        // is that replay — cancelling each root, whose CANCELLED listener fails the terminal — that reports
+        // the cancellation. Installing it before any roots exist makes the replay cancel nothing, no listener
+        // fires, and the query hangs. UnifiedDispatchTests#testRunFailsTerminalWhenTaskCancelledBeforeRun
+        // guards exactly that.
+        if (cancelCallbackInstalled.compareAndSet(false, true)) {
+            installCaptureCancelCallback(ctx, activeRoots);
         }
+        AnalyticsQueryTask parentTask = ctx.parentTask();
         if (parentTask != null && parentTask.isCancelled()) {
-            LOGGER.debug("[UnifiedDispatch] task already cancelled before capture start; not scheduling builds");
+            LOGGER.debug("[UnifiedDispatch] task cancelled before wave {} was scheduled; cancelling its roots", waveIndex);
+            // Cancel THIS wave's roots explicitly rather than just returning. The cancellation may have landed
+            // in the window between the previous wave succeeding and this wave publishing its roots, in which
+            // case the one-shot cancel callback fired against the PREVIOUS wave's roots — all terminal by then,
+            // and cancel() no-ops on a terminal state, so no listener ran. Returning here without cancelling
+            // would leave nothing to complete the terminal and the query would hang. Driving our own roots to
+            // CANCELLED routes through the same CANCELLED listener every other cancel path uses, and `terminal`
+            // is once-only, so the query is failed exactly once.
+            for (StageExecution buildExec : buildRoots) {
+                try {
+                    buildExec.cancel("task cancelled before wave " + waveIndex + " was scheduled");
+                } catch (Exception e) {
+                    LOGGER.debug(new ParameterizedMessage("[UnifiedDispatch] cancel failed for build {}", buildExec.getStageId()), e);
+                }
+            }
             return;
         }
 
         for (StageExecution leaf : allLeaves) {
             scheduler.scheduleStage(leaf);
         }
+    }
+
+    /**
+     * Installs the capture-phase cancel callback ONCE, from the FIRST wave and only after that wave has
+     * published its roots to {@code activeRoots} (see the caller — the replay ordering is load-bearing). It
+     * bypasses the normal {@code QueryScheduler.execute} cancel path (the capture schedules build leaves
+     * directly), and reads {@code activeRoots} rather than closing over one wave's list so a cancel arriving
+     * during a later wave still cancels live executions. Phase-2's {@code execute} replaces this callback with
+     * its own walker-level cancel.
+     */
+    private static void installCaptureCancelCallback(QueryContext ctx, AtomicReference<List<StageExecution>> activeRoots) {
+        AnalyticsQueryTask parentTask = ctx.parentTask();
+        if (parentTask == null) {
+            return;
+        }
+        parentTask.setOnCancelCallback(() -> {
+            String reason = parentTask.getReasonCancelled() != null ? parentTask.getReasonCancelled() : "unknown";
+            LOGGER.debug("[UnifiedDispatch] capture phase cancel requested, reason={}", reason);
+            for (StageExecution buildExec : activeRoots.get()) {
+                try {
+                    buildExec.cancel("task cancelled: " + reason);
+                } catch (Exception e) {
+                    LOGGER.warn("[UnifiedDispatch] failed to cancel build exec", e);
+                }
+            }
+        });
     }
 
     /**
@@ -418,13 +524,40 @@ public final class UnifiedDispatch {
         return targets;
     }
 
-    /** Collects every {@link Stage.StageRole#BROADCAST_BUILD} stage in the DAG (multi-broadcast support). */
-    private static void collectBuildStages(Stage stage, List<Stage> out) {
+    /**
+     * Groups every {@link Stage.StageRole#BROADCAST_BUILD} stage in the DAG into capture waves, ordered
+     * INNERMOST-FIRST: wave 0 holds the most deeply nested builds, the last wave the shallowest.
+     *
+     * <p>A build's depth is the number of BROADCAST_BUILD stages strictly between it and the root, so a build
+     * that is itself a broadcast probe lands in a strictly earlier wave than the build it feeds. That is the
+     * ordering {@link #captureWave} needs: a build's own builds must already be captured (and therefore
+     * strippable) before it can be built. Returns an empty list when the DAG has no broadcast at all.
+     */
+    private static List<List<Stage>> collectBuildWaves(Stage root) {
+        Map<Integer, List<Stage>> byDepth = new LinkedHashMap<>();
+        collectBuildsByDepth(root, 0, byDepth);
+        if (byDepth.isEmpty()) {
+            return List.of();
+        }
+        int maxDepth = byDepth.keySet().stream().max(Integer::compare).orElse(0);
+        List<List<Stage>> waves = new ArrayList<>();
+        for (int depth = maxDepth; depth >= 0; depth--) {
+            List<Stage> wave = byDepth.get(depth);
+            if (wave != null && !wave.isEmpty()) {
+                waves.add(wave);
+            }
+        }
+        return waves;
+    }
+
+    private static void collectBuildsByDepth(Stage stage, int depth, Map<Integer, List<Stage>> byDepth) {
+        int childDepth = depth;
         if (stage.getRole() == Stage.StageRole.BROADCAST_BUILD) {
-            out.add(stage);
+            byDepth.computeIfAbsent(depth, d -> new ArrayList<>()).add(stage);
+            childDepth = depth + 1;
         }
         for (Stage child : stage.getChildStages()) {
-            collectBuildStages(child, out);
+            collectBuildsByDepth(child, childDepth, byDepth);
         }
     }
 

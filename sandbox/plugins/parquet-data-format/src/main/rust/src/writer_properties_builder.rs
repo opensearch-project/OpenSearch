@@ -66,6 +66,34 @@ pub fn read_format_version(metadata: &FileMetaData) -> String {
 /// - **Dependency Inversion**: Depends on NativeSettings abstraction
 pub struct WriterPropertiesBuilder;
 
+/// Returns the type that column properties apply to. Parquet encodes a LIST column's leaf, not
+/// the list wrapper, so encoding/compression decisions must be made on the element type.
+fn effective_type(dt: &arrow::datatypes::DataType) -> &arrow::datatypes::DataType {
+    use arrow::datatypes::DataType::*;
+    match dt {
+        List(f) | LargeList(f) | FixedSizeList(f, _) => effective_type(f.data_type()),
+        other => other,
+    }
+}
+
+/// Builds the parquet `ColumnPath` for a top-level Arrow field.
+///
+/// `ColumnPath::from(String)` yields a single-segment path, which only matches primitive columns.
+/// A LIST column's leaf lives at `<field>.list.element`, so per-column encoding, compression, and
+/// bloom-filter settings silently no-op for lists unless the full path is spelled out. The
+/// `list`/`element` segment names match what the arrow-rs writer emits for `DataType::List`.
+fn column_path_for(field: &arrow::datatypes::Field) -> parquet::schema::types::ColumnPath {
+    use arrow::datatypes::DataType::*;
+    let mut parts = vec![field.name().clone()];
+    let mut current = field.data_type();
+    while let List(child) | LargeList(child) | FixedSizeList(child, _) = current {
+        parts.push("list".to_string());
+        parts.push(child.name().clone());
+        current = child.data_type();
+    }
+    parquet::schema::types::ColumnPath::new(parts)
+}
+
 /// Maps an Arrow DataType to a lowercase string key used for cluster-level type config lookups.
 fn arrow_type_key(dt: &arrow::datatypes::DataType) -> String {
     use arrow::datatypes::DataType::*;
@@ -196,17 +224,28 @@ impl WriterPropertiesBuilder {
         config: &NativeSettings,
         schema: &ArrowSchema,
     ) -> Result<parquet::file::properties::WriterPropertiesBuilder, String> {
-        let type_map: std::collections::HashMap<&str, (&arrow::datatypes::DataType, String)> =
-            schema
-                .fields()
-                .iter()
-                .map(|f| {
+        // Key config decisions off the element type and address the column by its full leaf path,
+        // so a LIST column is configured like the scalar column of its element type.
+        type FieldEntry<'a> = (
+            &'a arrow::datatypes::DataType,
+            String,
+            parquet::schema::types::ColumnPath,
+        );
+        let type_map: std::collections::HashMap<&str, FieldEntry<'_>> = schema
+            .fields()
+            .iter()
+            .map(|f| {
+                let element_type = effective_type(f.data_type());
+                (
+                    f.name().as_str(),
                     (
-                        f.name().as_str(),
-                        (f.data_type(), arrow_type_key(f.data_type())),
-                    )
-                })
-                .collect();
+                        element_type,
+                        arrow_type_key(element_type),
+                        column_path_for(f),
+                    ),
+                )
+            })
+            .collect();
 
         let mut field_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
         if let Some(fc) = &config.field_configs {
@@ -224,8 +263,8 @@ impl WriterPropertiesBuilder {
                 .as_ref()
                 .and_then(|m| m.get(field_name));
 
-            let (arrow_type, type_key) = match type_map.get(field_name) {
-                Some(v) => (v.0, Some(v.1.as_str())),
+            let (arrow_type, type_key, column_path) = match type_map.get(field_name) {
+                Some(v) => (v.0, Some(v.1.as_str()), v.2.clone()),
                 None => {
                     return Err(format!(
                         "Field '{}' in field_configs does not exist in schema",
@@ -283,18 +322,15 @@ impl WriterPropertiesBuilder {
                         | Encoding::BYTE_STREAM_SPLIT
                         | Encoding::RLE
                 ) {
-                    builder =
-                        builder.set_column_dictionary_enabled(field_name.to_string().into(), false);
-                    builder = builder.set_column_encoding(field_name.to_string().into(), enc);
+                    builder = builder.set_column_dictionary_enabled(column_path.clone(), false);
+                    builder = builder.set_column_encoding(column_path.clone(), enc);
                 } else if matches!(enc, Encoding::RLE_DICTIONARY) {
                     // RLE_DICTIONARY means use dictionary encoding - just ensure it's enabled
-                    builder =
-                        builder.set_column_dictionary_enabled(field_name.to_string().into(), true);
+                    builder = builder.set_column_dictionary_enabled(column_path.clone(), true);
                 } else {
                     // PLAIN: explicitly disable dictionary so the writer uses plain encoding
-                    builder =
-                        builder.set_column_dictionary_enabled(field_name.to_string().into(), false);
-                    builder = builder.set_column_encoding(field_name.to_string().into(), enc);
+                    builder = builder.set_column_dictionary_enabled(column_path.clone(), false);
+                    builder = builder.set_column_encoding(column_path.clone(), enc);
                 }
             }
 
@@ -326,7 +362,7 @@ impl WriterPropertiesBuilder {
                 };
 
             if let Some(comp) = compression {
-                builder = builder.set_column_compression(field_name.to_string().into(), comp);
+                builder = builder.set_column_compression(column_path.clone(), comp);
             }
 
             // Bloom filter: field-level > type-level > global. Applied per-column.
@@ -338,8 +374,7 @@ impl WriterPropertiesBuilder {
                 })
                 .unwrap_or(config.get_bloom_filter_enabled());
             if bf_enabled {
-                builder =
-                    builder.set_column_bloom_filter_enabled(field_name.to_string().into(), true);
+                builder = builder.set_column_bloom_filter_enabled(column_path.clone(), true);
                 let bf_fpp = index_cfg
                     .and_then(|fc| fc.bloom_filter_fpp)
                     .or_else(|| {
@@ -347,8 +382,7 @@ impl WriterPropertiesBuilder {
                             .and_then(|t| config.type_bloom_filter_fpp.as_ref()?.get(t).copied())
                     })
                     .unwrap_or(config.get_bloom_filter_fpp());
-                builder =
-                    builder.set_column_bloom_filter_fpp(field_name.to_string().into(), bf_fpp);
+                builder = builder.set_column_bloom_filter_fpp(column_path.clone(), bf_fpp);
                 let bf_ndv = index_cfg
                     .and_then(|fc| fc.bloom_filter_ndv)
                     .or_else(|| {
@@ -356,8 +390,7 @@ impl WriterPropertiesBuilder {
                             .and_then(|t| config.type_bloom_filter_ndv.as_ref()?.get(t).copied())
                     })
                     .unwrap_or(config.get_bloom_filter_ndv());
-                builder =
-                    builder.set_column_bloom_filter_ndv(field_name.to_string().into(), bf_ndv);
+                builder = builder.set_column_bloom_filter_ndv(column_path.clone(), bf_ndv);
             }
         }
         Ok(builder)
@@ -1370,5 +1403,128 @@ mod tests {
             .any(|k| k.key == WRITER_GENERATION_KEY && k.value.as_deref() == Some("42"));
         assert!(has_format, "format_version stamp missing");
         assert!(has_gen, "writer_generation stamp missing");
+    }
+
+    /// A LIST column's leaf lives at `<field>.list.element`; a single-segment path would miss it
+    /// and every per-column setting would silently fall back to defaults.
+    fn list_schema(name: &str, element: ArrowDataType) -> ArrowSchema {
+        let child = std::sync::Arc::new(Field::new("element", element, true));
+        ArrowSchema::new(vec![Field::new(name, ArrowDataType::List(child), true)])
+    }
+
+    fn list_leaf_path(name: &str) -> parquet::schema::types::ColumnPath {
+        parquet::schema::types::ColumnPath::new(vec![
+            name.to_string(),
+            "list".to_string(),
+            "element".to_string(),
+        ])
+    }
+
+    #[test]
+    fn test_list_column_uses_leaf_column_path_for_encoding() {
+        let mut field_configs = HashMap::new();
+        field_configs.insert(
+            "tags".to_string(),
+            FieldConfig {
+                encoding_type: Some("DELTA_BYTE_ARRAY".to_string()),
+                ..Default::default()
+            },
+        );
+        let config = NativeSettings {
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = list_schema("tags", ArrowDataType::Utf8);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        assert_eq!(
+            props.encoding(&list_leaf_path("tags")),
+            Some(Encoding::DELTA_BYTE_ARRAY),
+            "encoding must be set on the list leaf path"
+        );
+        // The single-segment path must NOT carry the setting — that was the silent-no-op bug.
+        assert_eq!(
+            props.encoding(&parquet::schema::types::ColumnPath::from("tags")),
+            None
+        );
+    }
+
+    #[test]
+    fn test_list_column_encoding_validated_against_element_type() {
+        // DELTA_BYTE_ARRAY is valid for Utf8 but not Int64. Validation must look through the list
+        // wrapper at the element, otherwise every encoding would be accepted for a list column.
+        let mut field_configs = HashMap::new();
+        field_configs.insert(
+            "nums".to_string(),
+            FieldConfig {
+                encoding_type: Some("DELTA_BYTE_ARRAY".to_string()),
+                ..Default::default()
+            },
+        );
+        let config = NativeSettings {
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = list_schema("nums", ArrowDataType::Int64);
+        let err = WriterPropertiesBuilder::build(&config, &schema)
+            .expect_err("DELTA_BYTE_ARRAY must be rejected for a list of Int64");
+        assert!(err.contains("not supported"), "unexpected error: {}", err);
+    }
+
+    #[test]
+    fn test_list_column_resolves_type_level_config_by_element_type() {
+        // A cluster-level `utf8` rule must apply to LIST<Utf8>: the type key is derived from the
+        // element, not from the Debug string of the list wrapper.
+        let mut type_compression = HashMap::new();
+        type_compression.insert("utf8".to_string(), "SNAPPY".to_string());
+        let config = NativeSettings {
+            type_compression_configs: Some(type_compression),
+            ..Default::default()
+        };
+        let schema = list_schema("tags", ArrowDataType::Utf8);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+        assert!(matches!(
+            props.compression(&list_leaf_path("tags")),
+            Compression::SNAPPY
+        ));
+    }
+
+    #[test]
+    fn test_list_column_bloom_filter_on_leaf_path() {
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(true),
+            ..Default::default()
+        };
+        let schema = list_schema("tags", ArrowDataType::Utf8);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+        assert!(
+            props
+                .bloom_filter_properties(&list_leaf_path("tags"))
+                .is_some(),
+            "bloom filter must be enabled on the list leaf path"
+        );
+    }
+
+    #[test]
+    fn test_scalar_column_path_unchanged() {
+        // Regression guard: non-list columns must still be addressed by bare name.
+        let mut field_configs = HashMap::new();
+        field_configs.insert(
+            "name".to_string(),
+            FieldConfig {
+                encoding_type: Some("DELTA_BYTE_ARRAY".to_string()),
+                ..Default::default()
+            },
+        );
+        let config = NativeSettings {
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![("name", ArrowDataType::Utf8)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+        assert_eq!(
+            props.encoding(&parquet::schema::types::ColumnPath::from("name")),
+            Some(Encoding::DELTA_BYTE_ARRAY)
+        );
     }
 }

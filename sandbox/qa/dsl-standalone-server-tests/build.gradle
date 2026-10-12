@@ -1,0 +1,138 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Per-query-type DSL REST integration tests for the dsl-query-executor plugin.
+ *
+ * TWO WAYS TO RUN:
+ *   1. `integTest` (DEFAULT — wired into `check`, and therefore what the sandbox CI runs): this module
+ *      SELF-PROVISIONS a testClusters cluster with the analytics/DataFusion/DSL plugin stack (see the
+ *      `testClusters.integTest` block below), boots it on JDK 25, and runs the ITs against it. No manual
+ *      server needed:  `./gradlew :sandbox:qa:dsl-standalone-server-tests:integTest -Dsandbox.enabled=true`
+ *   2. `restTest` (optional): runs the same ITs against an EXTERNAL, already-running server you started
+ *      yourself (e.g. `./gradlew run -Dsandbox.enabled=true` with the same plugin stack). See the
+ *      `restTest` task at the bottom; point it at a cluster with `-PrestCluster=host:port`.
+ *
+ * Either way the tests talk to the cluster purely over HTTP via OpenSearchRestTestCase, so the test JVM
+ * never loads the plugins — the cluster runs on JDK 25 with the full stack, the tests just send _search
+ * requests. The plugin projects are declared as testImplementation dependencies only so Gradle builds
+ * their zips before the self-provisioned cluster starts (mirroring sandbox/qa/analytics-engine-rest);
+ * the test code references none of their classes.
+ *
+ * Each query type is a folder under src/test/resources/datasets/<type>/ (mapping.json + bulk.json +
+ * dsl/q{N}.json + dsl/expected/q{N}.json golden). DslQueryTypeCatalog lists the types; DslQueryTypesIT
+ * turns every (type, queryNumber) pair into an independent parameterized test that provisions, queries,
+ * and validates against the golden.
+ */
+
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+
+// The DSL/analytics plugin stack the cluster runs targets JDK 25; compile the tests at the same level.
+java {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+}
+
+dependencies {
+    // Shared QA fixtures (Dataset / DatasetProvisioner / DatasetQueryRunner / ResponseValidator) come
+    // from the analytics-qa-fixtures test-jar; the test JVM needs nothing else — everything else goes
+    // to the cluster over HTTP.
+    testImplementation project(path: ':sandbox:qa:analytics-qa-fixtures', configuration: 'testArtifacts')
+
+    // Plugin projects the self-provisioned cluster installs. Declared here (as analytics-engine-rest
+    // does) so Gradle builds their zips before the cluster boots; the tests load none of these classes.
+    testImplementation project(':sandbox:plugins:analytics-engine')
+    testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+    testImplementation project(':sandbox:plugins:dsl-query-executor')
+    testImplementation project(':sandbox:plugins:composite-engine')
+    testImplementation project(':sandbox:plugins:parquet-data-format')
+}
+
+// ── Self-provisioned integTest cluster ───────────────────────────────────────
+// The minimal analytics/DataFusion/DSL stack needed to serve a DSL `_search` against a parquet/
+// composite index. This mirrors sandbox/qa/analytics-engine-rest's configureAnalyticsCluster, but
+// omits the PPL/SQL-only pieces (test-ppl-frontend, the external opensearch-job-scheduler and
+// opensearch-sql zips, and the `cluster.pluggable.dataformat=composite` PPL/SQL routing opt-in) —
+// DSL _search interception is unconditional and needs none of them.
+testClusters.integTest {
+    numberOfNodes = 2
+
+    // arrow-base must precede any plugin that declares it in extendedPlugins — opensearch-plugin
+    // install runs in list order and fails jarHell otherwise. Same install order as analytics-engine-rest.
+    plugin ':plugins:arrow-base'
+    plugin ':plugins:arrow-flight-rpc'
+    plugin ':sandbox:plugins:analytics-engine'
+    plugin ':sandbox:plugins:analytics-backend-datafusion'
+    plugin ':sandbox:plugins:composite-engine'
+    plugin ':sandbox:plugins:analytics-backend-lucene'
+    plugin ':sandbox:plugins:dsl-query-executor'
+    plugin ':sandbox:plugins:parquet-data-format'
+
+    // Arrow/Flight JVM flags for the DataFusion native library.
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    // Calcite's Aggregate.typeMatchesInferred enforces declared == inferred per aggCall; the analytics
+    // engine's substrait emit is the source of truth, not Calcite's re-inference. Disable that one
+    // assertion namespace; -ea remains on elsewhere. (Copied from analytics-engine-rest's stack config.)
+    jvmArgs '-da:org.apache.calcite...'
+
+    // Arrow memory allocator needs Netty unsafe access on JDK 25 so AnalyticsSearchService can
+    // construct its RootAllocator at node start; mirrors gradle/run.gradle's arrow-flight-rpc overrides.
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+
+    // Native library path for DataFusion.
+    systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
+
+    // Feature flags: pluggable dataformat (parquet/composite) and the streaming transport the
+    // analytics engine dispatches fragments over (streaming-only) once arrow-flight is loaded.
+    systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+}
+
+integTest {
+    // The self-provisioned cluster loads the DataFusion native lib via java.library.path (set above),
+    // so that library must be built before the cluster starts — otherwise a clean workspace fails at
+    // node boot with "Failed to load native library 'opensearch_native'".
+    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+    systemProperty 'tests.security.manager', 'false'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+
+// ── External-cluster runner ──────────────────────────────────────────────────
+// Alternative to the self-provisioned `integTest` above: run against a cluster you started yourself
+// (no testClusters lifecycle). Bring up a server with the same plugin stack, then:
+//   ./gradlew :sandbox:qa:dsl-standalone-server-tests:restTest -Dsandbox.enabled=true
+//   ./gradlew :sandbox:qa:dsl-standalone-server-tests:restTest -Dsandbox.enabled=true -PrestCluster=host:port
+// Defaults to localhost:9200 (the `./gradlew run` server, cluster name runTask).
+//
+// Goldens (datasets/<type>/dsl/expected/q<N>.json) are the TRUE answer — generated out-of-band by
+// running each dataset on a VANILLA OpenSearch index (default Lucene backend, no parquet settings) and
+// committed. This suite only validates the parquet response against them.
+tasks.register('restTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class'
+    def cluster = findProperty('restCluster') ?: 'localhost:9200'
+    def clusterName = findProperty('restClusterName') ?: 'runTask'
+    systemProperty 'tests.rest.cluster', cluster
+    systemProperty 'tests.cluster', cluster
+    systemProperty 'tests.clustername', clusterName
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'tests.rest.load_packaged', 'false'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
