@@ -51,6 +51,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.ReloadableCustomAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -66,8 +67,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -101,7 +104,14 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testGetMetadataFieldsReturnsExpectedSet() throws Throwable {
         final MapperService mapperService = createIndex("test1").mapperService();
-        assertEquals(mapperService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
+        // Metadata fields are the built-ins plus the system-managed row-id field (DocumentInput.ROW_ID_FIELD) that the
+        // composite-engine plugin registers node-wide as a metadata field, so it is expected on every index when the
+        // sandbox stack is installed.
+        final Set<String> expected = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        if (shouldInstallSandboxStack()) {
+            expected.add(DocumentInput.ROW_ID_FIELD);
+        }
+        assertEquals(expected, mapperService.getMetadataFields());
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {

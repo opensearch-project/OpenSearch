@@ -62,6 +62,13 @@ sourceSets {
   }
 }
 
+// -Dsandbox.enabled=true opts the unit-test (:server:test) source set into the JDK 25 sandbox "mustang" engine stack
+// (arrow + analytics + DSL + parquet plugins), loaded in-JVM on every single-node test node via
+// OpenSearchSingleNodeTestCase.effectiveNodePlugins(). Evaluated once here and reused by the three guards below
+// (dependencies, repositories/resolution, and the test task). settings.gradle only includes the sandbox/ projects
+// under this flag, so an unguarded project(':sandbox:...') reference would break every default (JDK 21) build.
+def sandboxEnabled = System.getProperty('sandbox.enabled', 'false') == 'true'
+
 dependencies {
 
   api project(':libs:opensearch-common')
@@ -129,6 +136,25 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
+  // Sandbox parquet/analytics/DSL plugin stack, loaded in-JVM on every :server:test node via
+  // OpenSearchSingleNodeTestCase.effectiveNodePlugins() — appended after whatever a test's getPlugins() returns
+  // (de-duplicated via a LinkedHashSet, the test's own plugins first), so declaring test plugins does NOT opt out;
+  // override installSandboxPlugins() for that. The test framework resolves
+  // the plugin main classes REFLECTIVELY (Class.forName), so :server test sources never reference them at compile
+  // time; they only need to be on the test RUNTIME classpath. Hence testRuntimeOnly, which also keeps them off the
+  // JDK-21 testCompileClasspath (they are JDK 25 artifacts). The test runtime classpath's target-JVM attribute is
+  // raised to 25 below and the fork JVM is JDK 25. Only when -Dsandbox.enabled=true; settings.gradle only includes
+  // the sandbox/ projects under that flag.
+  if (sandboxEnabled) {
+    testRuntimeOnly project(':plugins:arrow-base')
+    testRuntimeOnly project(':plugins:arrow-flight-rpc')
+    testRuntimeOnly project(':sandbox:plugins:analytics-engine')
+    testRuntimeOnly project(':sandbox:plugins:composite-engine')
+    testRuntimeOnly project(':sandbox:plugins:parquet-data-format')
+    testRuntimeOnly project(':sandbox:plugins:analytics-backend-datafusion')
+    testRuntimeOnly project(':sandbox:plugins:analytics-backend-lucene')
+    testRuntimeOnly project(':sandbox:plugins:dsl-query-executor')
+  }
   internalClusterTestImplementation project(':libs:opensearch-secure-sm')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
@@ -152,6 +178,102 @@ compileJava {
 tasks.named("internalClusterTest").configure {
   // TODO: these run faster with C2 only because they run for so, so long
   jvmArgs -= '-XX:TieredStopAtLevel=1'
+}
+
+// The sandbox plugins pull patched calcite-core/linq4j SNAPSHOT artifacts from the OpenSearch Snapshots repo and
+// require the same calcite `force` sandbox/build.gradle applies. server declares neither, so add both — and pin every
+// transitive that would otherwise trip failOnVersionConflict to server's managed set. Applied to the test*
+// configurations (the :server:test classpaths) so the sandbox stack resolves without jar hell at BootstrapForTesting.
+// Only when -Dsandbox.enabled=true, so normal core builds are unaffected.
+if (sandboxEnabled) {
+  repositories {
+    // Supplies the patched Calcite artifacts the sandbox DSL engine needs, which are not published to Maven Central.
+    // Added only when -Dsandbox.enabled=true.
+    maven {
+      name = 'OpenSearch Snapshots'
+      url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+    }
+  }
+  // The sandbox plugins are JDK 25 artifacts (they declare org.gradle.jvm.version=25). :server's test source set
+  // compiles at --release 21, so testRuntimeClasspath requests JVM 21 and Gradle refuses to resolve the plugins onto
+  // it. Raise ONLY the test RUNTIME classpath's target-JVM attribute to 25 (the fork JVM is JDK 25) so the plugins
+  // resolve; testCompileClasspath is left at 21 since the framework loads them reflectively and no test source
+  // references them at compile time. A consumer requesting 25 still accepts the JVM-21 arrow plugins.
+  configurations.matching { it.name == 'testRuntimeClasspath' }.configureEach {
+    attributes {
+      attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 25)
+    }
+  }
+  def sandboxLibVersions = org.opensearch.gradle.VersionProperties.getVersions()
+  def patchedCalciteVersion = "${sandboxLibVersions['calcite']}-opensearch-${sandboxLibVersions['calcite_os_rev']}"
+  configurations.matching { it.name.startsWith('test') }.configureEach {
+    resolutionStrategy {
+      force "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
+      force "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
+      force "com.google.guava:guava:${sandboxLibVersions['guava']}"
+      force "com.fasterxml.jackson.core:jackson-core:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.core:jackson-databind:${sandboxLibVersions['jackson_databind']}"
+      force "com.fasterxml.jackson.core:jackson-annotations:${sandboxLibVersions['jackson_annotations']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${sandboxLibVersions['jackson']}"
+      force "org.locationtech.jts:jts-core:${sandboxLibVersions['jts']}"
+      force "joda-time:joda-time:${sandboxLibVersions['joda']}"
+      force "org.yaml:snakeyaml:${sandboxLibVersions['snakeyaml']}"
+      force "org.slf4j:slf4j-api:${sandboxLibVersions['slf4j']}"
+      force "commons-codec:commons-codec:${sandboxLibVersions['commonscodec']}"
+      force "commons-logging:commons-logging:${sandboxLibVersions['commonslogging']}"
+      force "org.apache.commons:commons-lang3:${sandboxLibVersions['commonslang']}"
+      // A VersionProperties key exists for error_prone_annotations (2.45.0), but this classpath is pinned to 2.36.0;
+      // using the catalogue lookup would bump the version, so the literal is kept to satisfy the sandbox test classpath only.
+      force "com.google.errorprone:error_prone_annotations:2.36.0"
+      // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
+      force "org.checkerframework:checker-qual:3.43.0"
+      // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
+      force "com.google.guava:failureaccess:1.0.2"
+    }
+  }
+}
+
+// Wire the native library + Arrow native access the parquet/DataFusion stack needs at node start (mirrors
+// composite-engine / the ICT branch), and forward -Dsandbox.enabled into the forked test JVM. Feature flags are NOT
+// set here — OpenSearchSingleNodeTestCase enables them per-node via node settings, coupled to plugin presence, so
+// flag-off unit tests in the same fork are unaffected. Only when -Dsandbox.enabled=true.
+if (sandboxEnabled) {
+  // Capture the native-lib project handle at configuration time (not its ext.nativeLibPath, which is not set until
+  // that project is evaluated). The value is read lazily in doFirst below via this captured local rather than via
+  // Task.project, which is deprecated at execution time.
+  def nativeLibProject = project(':sandbox:libs:dataformat-native')
+  tasks.named('test').configure {
+    jvmArgs += [
+      '--add-opens=java.base/java.nio=ALL-UNNAMED',
+      '--enable-native-access=ALL-UNNAMED'
+    ]
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+    systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+    // Read ext.nativeLibPath lazily at execution time (doFirst): server has no configuration-time dependency edge to
+    // the native-lib project, and forcing one via evaluationDependsOn is circular, so the ext property is not yet set
+    // when :server:test is merely realized (e.g. by spotless). By execution time all projects are configured. We use
+    // the captured nativeLibProject local (not Task.project, which is deprecated at execution time).
+    doFirst {
+      systemProperty 'native.lib.path', nativeLibProject.ext.nativeLibPath.absolutePath
+    }
+    // Gradle does NOT propagate the -Dsandbox.enabled build flag into the forked test JVM, and OpenSearchTestBasePlugin
+    // only auto-forwards tests.* / opensearch.* properties. Forward it explicitly so SandboxStackPlugins.isEnabled()
+    // returns true inside the worker.
+    systemProperty 'sandbox.enabled', 'true'
+    // The stack OOMs at the default 512m fork heap (the ICT branch saw OOMs even at 768m). OpenSearchTestBasePlugin
+    // sets -Xms/-Xmx from tests.heap.size (default 512m) via jvmArgs during task configuration; appending -Xms/-Xmx
+    // here adds them AFTER, and the JVM honours the last -Xmx/-Xms, so this wins without editing the base plugin. A
+    // command-line -Dtests.heap.size=... still overrides both consistently.
+    def sandboxHeap = System.getProperty('tests.heap.size', '2g')
+    jvmArgs += ["-Xms${sandboxHeap}".toString(), "-Xmx${sandboxHeap}".toString()]
+    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {
