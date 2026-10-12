@@ -386,6 +386,73 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(replicationCheckpoint, segmentReplicator.getPrimaryCheckpoint(shardId));
     }
 
+    /**
+     * A checkpoint deserialized from a node older than 3.0.0 has createdTimeStamp == 0. Lag must be measured from the time the
+     * checkpoint was received, not from the Unix epoch.
+     */
+    public void testGetSegmentReplicationStats_WhenCheckpointHasNoCreatedTimestamp() {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        ReplicationCheckpoint localCheckpoint = ReplicationCheckpoint.empty(shardId);
+
+        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, new BytesRef(500));
+        Map<String, StoreFileMetadata> metadataMap = new HashMap<>();
+        metadataMap.put("test-1", storeFileMetadata1);
+        // createdTimeStamp == 0, as produced by ReplicationCheckpoint(StreamInput) for a sender older than 3.0.0
+        ReplicationCheckpoint legacyPrimaryCheckpoint = new ReplicationCheckpoint(shardId, 2, 2, 2, 500, "", metadataMap, 0L);
+        assertEquals(0L, legacyPrimaryCheckpoint.getCreatedTimeStamp());
+
+        IndexShard replicaShard = mock(IndexShard.class);
+        when(replicaShard.shardId()).thenReturn(shardId);
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(localCheckpoint);
+
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.initializeStats(shardId);
+        long beforeReceive = System.currentTimeMillis();
+        segmentReplicator.updateReplicationCheckpointStats(legacyPrimaryCheckpoint, replicaShard);
+
+        ReplicationStats stats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(500, stats.totalBytesBehind);
+        assertEquals(500, stats.maxBytesBehind);
+        // lag is bounded by the time elapsed since the checkpoint was received on this node, not by the epoch
+        long elapsedSinceReceive = System.currentTimeMillis() - beforeReceive;
+        assertTrue(
+            "lag " + stats.maxReplicationLag + "ms exceeds time since receive " + elapsedSinceReceive + "ms",
+            stats.maxReplicationLag >= 0 && stats.maxReplicationLag <= elapsedSinceReceive + 1_000
+        );
+        assertTrue("lag must not be the Unix epoch", stats.maxReplicationLag < TimeUnit.DAYS.toMillis(1));
+
+        // once the replica catches up the entry is pruned and lag drops to zero
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(legacyPrimaryCheckpoint);
+        segmentReplicator.pruneCheckpointsUpToLastSync(replicaShard);
+        ReplicationStats finalStats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(0, finalStats.maxReplicationLag);
+        assertEquals(0, finalStats.totalBytesBehind);
+    }
+
+    public void testGetSegmentReplicationStats_LagIsNeverNegative() {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        ReplicationCheckpoint localCheckpoint = ReplicationCheckpoint.empty(shardId);
+
+        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 100, "1", Version.LATEST, new BytesRef(100));
+        Map<String, StoreFileMetadata> metadataMap = new HashMap<>();
+        metadataMap.put("test-1", storeFileMetadata1);
+        // primary clock ahead of this node: createdTimeStamp one hour in the future
+        long futureTimestamp = DateUtils.toLong(Instant.now()) + TimeUnit.HOURS.toNanos(1);
+        ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(shardId, 2, 2, 2, 100, "", metadataMap, futureTimestamp);
+
+        IndexShard replicaShard = mock(IndexShard.class);
+        when(replicaShard.shardId()).thenReturn(shardId);
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(localCheckpoint);
+
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.initializeStats(shardId);
+        segmentReplicator.updateReplicationCheckpointStats(checkpoint, replicaShard);
+
+        ReplicationStats stats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(100, stats.totalBytesBehind);
+        assertEquals(0, stats.maxReplicationLag);
+    }
+
     protected void resolveCheckpointListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try (final CopyState copyState = new CopyState(primary)) {
             listener.onResponse(
