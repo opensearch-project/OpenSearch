@@ -164,22 +164,8 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
             || fieldTypeName == SqlTypeName.SMALLINT
             || fieldTypeName == SqlTypeName.INTEGER
             || fieldTypeName == SqlTypeName.BIGINT) && (value instanceof String || value instanceof BytesRef)) {
-            String raw = (value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : (String) value).trim();
-            // Try the exact BigDecimal parse first so values above 2^53 keep full precision, then fall back to the lenient
-            // Double.parseDouble path (whitespace, d/f suffixes, Infinity/NaN) only when BigDecimal rejects the input.
-            try {
-                value = new BigDecimal(raw);
-            } catch (NumberFormatException exact) {
-                try {
-                    double parsed = Double.parseDouble(raw);
-                    value = Double.isFinite(parsed) ? new BigDecimal(parsed) : parsed;
-                } catch (NumberFormatException lenient) {
-                    String capped = raw.length() > 64 ? raw.substring(0, 64) + "..." : raw;
-                    throw new ConversionException(
-                        "Value [" + capped + "] is not a valid number for " + fieldTypeName + " field '" + field.getName() + "'"
-                    );
-                }
-            }
+            String raw = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : (String) value;
+            value = parseIntegerString(raw, fieldTypeName, field.getName());
         }
         // Parity with NumberFieldMapper exact-integer termQuery: a fractional value can never match → drop it (match-none).
         if ((fieldTypeName == SqlTypeName.TINYINT
@@ -213,6 +199,13 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
             } else {
                 longValue = ((Number) value).longValue();
             }
+            // WHY: vanilla BYTE/SHORT.termQuery delegate to INTEGER.termQuery (NumberFieldMapper.java:905, :1008), so a
+            // byte/short term outside the integer domain throws "out of range for an integer" (400) even though it can never
+            // match the narrower field. narrowChecked only match-nones for these types, so range-check against int here first.
+            if ((fieldTypeName == SqlTypeName.TINYINT || fieldTypeName == SqlTypeName.SMALLINT)
+                && (longValue < Integer.MIN_VALUE || longValue > Integer.MAX_VALUE)) {
+                throw new ConversionException("Value [" + value + "] is out of range for an integer");
+            }
             RangeBoundMath.CheckedNarrow narrowed = RangeBoundMath.narrowChecked(longValue, fieldTypeName, true, field.getName());
             if (narrowed.result() != RangeBoundMath.NarrowResult.OK) {
                 return Optional.empty();
@@ -240,5 +233,71 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
      */
     private RexNode createLiteral(Object value, RelDataTypeField field, ConversionContext ctx, SqlTypeName fieldTypeName) {
         return ctx.getRexBuilder().makeLiteral(value, field.getType(), true);
+    }
+
+    /**
+     * Normalises a String/BytesRef term value to an exact Number for the Number-gated guards below.
+     *
+     * <p>WHY: BIGINT mirrors {@code NumberFieldMapper} LONG.parse → {@code objectToLong}/{@code Numbers.toLong}
+     * (strict: only exact integer or decimal forms, type suffixes and surrounding whitespace rejected) so values at
+     * the 2^53 boundary keep full precision instead of collapsing through a double. The narrower types mirror
+     * INTEGER.parse → {@code objectToDouble} (lenient: {@code d}/{@code f} suffixes and whitespace accepted). A
+     * non-finite form is returned as a Double so the fractional guard match-nones it, matching legacy hasDecimalPart.
+     */
+    private static Object parseIntegerString(String raw, SqlTypeName fieldTypeName, String fieldName) throws ConversionException {
+        if (fieldTypeName == SqlTypeName.BIGINT) {
+            try {
+                return new BigDecimal(raw);
+            } catch (NumberFormatException notExact) {
+                double probe;
+                try {
+                    probe = Double.parseDouble(raw);
+                } catch (NumberFormatException notNumeric) {
+                    throw notValidNumber(raw, fieldTypeName, fieldName);
+                }
+                if (Double.isFinite(probe) == false) {
+                    return probe;
+                }
+                // A finite form BigDecimal rejected (type suffix, hex float) is lossy via double; LONG parsing rejects it.
+                throw notValidNumber(raw, fieldTypeName, fieldName);
+            }
+        }
+        String trimmed = raw.trim();
+        try {
+            return new BigDecimal(trimmed);
+        } catch (NumberFormatException notExact) {
+            String stripped = stripFloatSuffix(trimmed);
+            if (stripped.equals(trimmed) == false) {
+                try {
+                    return new BigDecimal(stripped);
+                } catch (NumberFormatException ignored) {
+                    // not an exact decimal with a type suffix; fall through to the lenient double probe
+                }
+            }
+            double probe;
+            try {
+                probe = Double.parseDouble(trimmed);
+            } catch (NumberFormatException notNumeric) {
+                throw notValidNumber(trimmed, fieldTypeName, fieldName);
+            }
+            return Double.isFinite(probe) ? new BigDecimal(probe) : (Object) probe;
+        }
+    }
+
+    /** Strips a single trailing {@code d}/{@code D}/{@code f}/{@code F} type suffix that BigDecimal rejects but Double accepts. */
+    private static String stripFloatSuffix(String s) {
+        int len = s.length();
+        if (len > 0) {
+            char last = s.charAt(len - 1);
+            if (last == 'd' || last == 'D' || last == 'f' || last == 'F') {
+                return s.substring(0, len - 1);
+            }
+        }
+        return s;
+    }
+
+    private static ConversionException notValidNumber(String raw, SqlTypeName fieldTypeName, String fieldName) {
+        String capped = raw.length() > 64 ? raw.substring(0, 64) + "..." : raw;
+        return new ConversionException("Value [" + capped + "] is not a valid number for " + fieldTypeName + " field '" + fieldName + "'");
     }
 }

@@ -15,6 +15,8 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -724,5 +726,88 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.EQUALS, call.getKind());
         assertEquals(Integer.valueOf(30), intLiteral(call.getOperands().get(1)));
+    }
+
+    // ========== ISSUE 1: rejections must carry HTTP 400, not 500 ==========
+
+    public void testIntegerTermOutOfRangeMapsToBadRequest() {
+        // A term the converter rejects must surface as a 400. ExceptionsHelper maps IllegalArgumentException
+        // (which ConversionException extends) to BAD_REQUEST; a plain checked Exception would map to 500.
+        ConversionException ex = expectThrows(ConversionException.class, () -> termLiteral("price", "2147483648"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+    }
+
+    public void testBigintTermNonNumericMapsToBadRequest() {
+        ConversionException ex = expectThrows(ConversionException.class, () -> termLiteral("timestamp", "abc"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+    }
+
+    // ========== ISSUE 2: byte/short term above the integer domain must throw (parity with INTEGER delegation) ==========
+
+    public void testSmallintTermAboveIntMaxThrows() {
+        // 3000000000 is outside SMALLINT and outside INTEGER but within long. Vanilla SHORT.termQuery delegates to
+        // INTEGER.termQuery → INTEGER.parse, which throws "out of range for an integer" → HTTP 400.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("small_val", 3000000000L), ctx)
+        );
+        assertTrue(ex.getMessage().contains("out of range"));
+        assertTrue(ex.getMessage().contains("3000000000"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+    }
+
+    public void testSmallintTermStringAboveIntMaxThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("small_val", "3000000000"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("out of range"));
+    }
+
+    public void testTinyintTermAboveIntMaxThrows() {
+        // Vanilla BYTE.termQuery delegates to INTEGER.termQuery identically.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("tiny_val", 3000000000L), ctx)
+        );
+        assertTrue(ex.getMessage().contains("out of range"));
+        assertTrue(ex.getMessage().contains("3000000000"));
+    }
+
+    // ========== ISSUE 3: BIGINT string parsing must be exact and strict ==========
+
+    public void testBigintTermSuffixedStringAbove2Pow53Rejected() {
+        // "9007199254740993d" (2^53+1 with a 'd' suffix) on BIGINT: vanilla LONG.parse → Numbers.toLong rejects the
+        // suffix (HTTP 400). The old path collapsed it through a double to 9007199254740992 and matched the wrong doc.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("timestamp", "9007199254740993d"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not a valid number"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+    }
+
+    public void testBigintTermDSuffixStringRejected() {
+        // "30d" on BIGINT: Numbers.toLong rejects a type suffix even for a tiny value. LONG is stricter than INTEGER.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("timestamp", "30d"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not a valid number"));
+    }
+
+    // NEGATIVE CONTROL: INTEGER stays lenient — "30d" matches via objectToDouble, unlike BIGINT above.
+    public void testIntegerTermDSuffixStringStillEquals() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termQuery("price", "30d"), ctx);
+        assertTrue("Expected EQUALS for 'd'-suffixed string term on INTEGER", result instanceof RexCall);
+        assertEquals(SqlKind.EQUALS, ((RexCall) result).getKind());
+        assertEquals(Integer.valueOf(30), intLiteral(((RexCall) result).getOperands().get(1)));
+    }
+
+    // NEGATIVE CONTROL: non-finite BIGINT string still reaches the fractional gate → match-none, not 400.
+    public void testBigintTermStringInfinityMatchNone() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termQuery("timestamp", "Infinity"), ctx);
+        assertTrue("Expected literal false (match-none) for Infinity string term on BIGINT", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
 }
