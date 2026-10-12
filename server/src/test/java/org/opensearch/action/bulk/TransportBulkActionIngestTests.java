@@ -187,6 +187,7 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
                 ),
                 null,
                 new SystemIndices(emptyMap()),
+                null,
                 NoopTracer.INSTANCE
             );
         }
