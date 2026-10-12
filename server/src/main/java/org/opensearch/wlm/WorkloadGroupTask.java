@@ -121,7 +121,7 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * Marks this task's work as accounted for against a node-level throttle bucket, so a nested coordinator search on the
+     * Marks this task's work as accounted for against a throttle bucket, so a nested coordinator search on the
      * same node inherits the charge rather than taking a second permit (which would make the request compete with itself).
      * Set when this task took a permit, inherited its parent's charge, or was admitted over the limit in monitor mode;
      * never set when no throttle applies. Not cleared on release (the task is short-lived), and release is driven by the returned
