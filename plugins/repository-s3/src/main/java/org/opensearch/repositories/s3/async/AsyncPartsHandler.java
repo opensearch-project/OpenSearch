@@ -9,6 +9,7 @@
 package org.opensearch.repositories.s3.async;
 
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
@@ -334,9 +335,20 @@ public class AsyncPartsHandler {
     ) {
         CompletedPart.Builder completedPartBuilder = CompletedPart.builder().eTag(partResponse.eTag()).partNumber(partNumber);
         if (isRemoteDataIntegrityCheckEnabled) {
-            completedPartBuilder.checksumCRC32(partResponse.checksumCRC32());
+            String checksumCRC32 = partResponse.checksumCRC32();
+            if (checksumCRC32 == null) {
+                // Some S3-compatible endpoints accept UploadPart requests but omit the
+                // x-amz-checksum-crc32 response header. Failing here — before the null is
+                // stored — aborts the multipart upload with a clear message instead of
+                // surfacing a NullPointerException from Base64 decoding in
+                // AsyncTransferManager#mergeAndVerifyChecksum.
+                throw SdkClientException.create(
+                    "S3 endpoint did not return a CRC32 checksum for part " + partNumber + " although integrity checking was requested"
+                );
+            }
+            completedPartBuilder.checksumCRC32(checksumCRC32);
             CheckedContainer inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
-            inputStreamCRC32Container.setChecksum(partResponse.checksumCRC32());
+            inputStreamCRC32Container.setChecksum(checksumCRC32);
             inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
         }
         CompletedPart completedPart = completedPartBuilder.build();
