@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
@@ -65,6 +66,27 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         final AliasMetadata after = new AliasMetadata(in);
 
         assertThat(after, equalTo(before));
+    }
+
+    public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        before.writeTo(out);
+        assertThat(new AliasMetadata(out.bytes().streamInput()).enforcement(), equalTo("filtered_stats"));
+    }
+
+    public void testEnforcementIsNotSentToANodeThatPredatesIt() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_9_0);
+        before.writeTo(out);
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_9_0);
+        final AliasMetadata after = new AliasMetadata(in);
+        // The stream must be fully consumed, or the next field in cluster state would be read from the wrong offset.
+        assertThat(in.available(), equalTo(0));
+        assertNull(after.enforcement());
+        assertThat(after.alias(), equalTo("alias"));
     }
 
     @Override

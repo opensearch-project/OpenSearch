@@ -123,14 +123,10 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     }
 
     /**
-     * First OpenSearch version that carries the {@link Enforcement} field on the wire.
-     * <p>
-     * TODO(filter-aware-alias): pinned to V_3_8_0 for now because main is still on 3.8 and V_3_9_0 does
-     * not yet exist; bump to the release this actually ships in once main is bumped. The same gate is
-     * duplicated for this field's other wire representations in IndicesAliasesRequest.AliasActions and
-     * AliasMetadata (grep "TODO(filter-aware-alias)") -- update all three together.
+     * First version that carries {@link Enforcement} on the wire. The alias request and alias metadata gate their copy
+     * of the field on the same version.
      */
-    static final Version ENFORCEMENT_VERSION = Version.V_3_8_0;
+    static final Version ENFORCEMENT_VERSION = Version.V_3_10_0;
 
     private final String[] aliases;
     private final QueryBuilder filter;

@@ -244,8 +244,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden());
-        // TODO(filter-aware-alias): bump to V_3_9_0 once main is on 3.9 (see AliasFilter.ENFORCEMENT_VERSION).
-        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
             out.writeOptionalString(enforcement);
         }
     }
@@ -271,8 +270,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
-        // TODO(filter-aware-alias): bump to V_3_9_0 once main is on 3.9 (see AliasFilter.ENFORCEMENT_VERSION).
-        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
             enforcement = in.readOptionalString();
         } else {
             enforcement = null;

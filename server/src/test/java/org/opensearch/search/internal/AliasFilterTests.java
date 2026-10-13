@@ -93,8 +93,7 @@ public class AliasFilterTests extends OpenSearchTestCase {
         assertThat(AliasFilter.EMPTY.getEnforcement(), equalTo(AliasFilter.Enforcement.POST_FILTER));
     }
 
-    /** Serialization round-trip at the current (V_3_8_0+) wire version must
-     *  preserve every field, including the new enforcement enum. */
+    /** A round trip at the current wire version preserves every field, including the enforcement mode. */
     public void testSerializationRoundTrip() throws Exception {
         final AliasFilter original = new AliasFilter(
             QueryBuilders.termQuery("field", "value"),
@@ -113,12 +112,11 @@ public class AliasFilterTests extends OpenSearchTestCase {
         }
     }
 
-    /** BWC: talking to a pre-3.8 node the enforcement field is not on the wire.
-     *  Receivers must default to POST_FILTER so mixed-version clusters do not
-     *  silently change behavior. */
+    /** Against a node that predates the field, it is not on the wire and the receiver defaults to POST_FILTER. */
     public void testBackwardCompatibilityBeforeEnforcementVersion() throws Exception {
-        final Version legacy = Version.V_3_7_0;
-        assertTrue("test premise: legacy < 3.8 gate", legacy.before(AliasFilter.ENFORCEMENT_VERSION));
+        // The newest release without the field, which is what a mixed-version cluster during upgrade contains.
+        final Version legacy = Version.V_3_9_0;
+        assertTrue("test premise: legacy predates the gate", legacy.before(AliasFilter.ENFORCEMENT_VERSION));
 
         final AliasFilter original = new AliasFilter(
             QueryBuilders.termQuery("field", "value"),
