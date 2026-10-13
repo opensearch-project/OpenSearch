@@ -1060,7 +1060,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
         boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
         if (useCompoundFile) {
             try {
-                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info);
+                // the codec which wrote the segment, which may not be the one the index is written with anymore
+                directory = segmentCommitInfo.info.getCodec()
+                    .compoundFormat()
+                    .getCompoundReader(segmentReader.directory(), segmentCommitInfo.info);
             } catch (IOException e) {
                 logger.warn(
                     () -> new ParameterizedMessage(

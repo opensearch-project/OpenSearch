@@ -1,0 +1,5 @@
+org.opensearch.index.codec.DecoratedCodecTests$SideFileDecoratorA
+org.opensearch.index.codec.DecoratedCodecTests$SideFileDecoratorB
+org.opensearch.index.codec.DecoratedCodecTests$StoredFieldsDecorator
+org.opensearch.index.codec.DecoratedCodecTests$SecondStoredFieldsDecorator
+org.opensearch.index.codec.DecoratedCodecTests$DelegateCapturingDecorator
