@@ -6198,4 +6198,102 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat("raised bound must apply without a restart", captor.getAllValues().get(1).size(), equalTo(4));
         }
     }
+
+    /** Flips {@link IndexSettings#BATCHED_UPDATE_GET_ENABLED_SETTING} on a live engine. */
+    private static void setBatchedUpdateGet(DataFormatAwareEngine engine, boolean enabled) {
+        IndexSettings live = engine.config().getIndexSettings();
+        live.updateIndexMetadata(
+            IndexMetadata.builder(live.getIndexMetadata())
+                .settings(
+                    Settings.builder()
+                        .put(live.getSettings())
+                        .put(IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING.getKey(), enabled)
+                        .build()
+                )
+                .build()
+        );
+    }
+
+    /**
+     * Turning the setting off is an off switch for the whole mechanism, not just for further
+     * read-ahead: the rows already cached are dropped, so none of them can be served afterwards.
+     * This is the property that makes the setting usable to disable the feature on a live cluster.
+     */
+    public void testDisablingDropsAlreadyCachedRows() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of("a", row("a")));
+        when(provider.getById(any(), any(), any(), any())).thenReturn(row("a"));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+
+            engine.prefetchUpdateGets(List.of("a"));
+            assertThat("a row is cached while enabled", engine.prefetchedDocCount(), equalTo(1L));
+
+            setBatchedUpdateGet(engine, false);
+
+            assertTrue("the get must still succeed", getByIdLookup(engine, realtimeGet("a")).exists());
+            assertThat("no cached row may be served once disabled", engine.prefetchHitCount(), equalTo(0L));
+            // The row came from the provider's per-document path instead.
+            verify(provider).getById(any(), any(), any(), any());
+        }
+    }
+
+    /** While disabled the engine reads nothing ahead, so re-enabling starts from an empty cache. */
+    public void testDisabledEngineReadsNothingAhead() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenReturn(Map.of("a", row("a")));
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+
+            setBatchedUpdateGet(engine, false);
+            engine.prefetchUpdateGets(List.of("a"));
+            assertThat("nothing may be read ahead while disabled", engine.prefetchedDocCount(), equalTo(0L));
+            verify(provider, never()).prefetchByIds(any(), any(), any(), any());
+
+            setBatchedUpdateGet(engine, true);
+            engine.prefetchUpdateGets(List.of("a"));
+            assertThat("re-enabling resumes the read-ahead", engine.prefetchedDocCount(), equalTo(1L));
+            assertTrue(getByIdLookup(engine, realtimeGet("a")).exists());
+            assertThat("and the cached row is served again", engine.prefetchHitCount(), equalTo(1L));
+        }
+    }
+
+    /**
+     * A prefetch that is already in flight when the setting is turned off must not land in the
+     * cache. It captured the generation it read under; the disable bumps that generation before
+     * clearing, so the late write fails its own freshness check rather than repopulating a cache
+     * that is meant to be empty.
+     */
+    public void testPrefetchInFlightWhenDisabledCachesNothing() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        AtomicReference<DataFormatAwareEngine> ref = new AtomicReference<>();
+        CountDownLatch inProvider = new CountDownLatch(1);
+        CountDownLatch disabled = new CountDownLatch(1);
+        when(provider.getById(any(), any(), any(), any())).thenReturn(row("a"));
+        when(provider.prefetchByIds(any(), any(), any(), any())).thenAnswer(invocation -> {
+            inProvider.countDown();
+            assertTrue("the setting must flip while this call is in flight", disabled.await(30, TimeUnit.SECONDS));
+            return Map.of("a", row("a"));
+        });
+        try (DataFormatAwareEngine engine = createPrefetchEngine(store, createTempDir(), provider, 10)) {
+            ref.set(engine);
+            engine.index(indexOp(createParsedDocWithInput("a", null)));
+            engine.refresh("test");
+
+            Thread prefetcher = new Thread(() -> ref.get().prefetchUpdateGets(List.of("a")), "prefetcher");
+            prefetcher.start();
+            assertTrue("the provider must be reached", inProvider.await(30, TimeUnit.SECONDS));
+            setBatchedUpdateGet(engine, false);
+            disabled.countDown();
+            prefetcher.join(TimeUnit.SECONDS.toMillis(30));
+            assertFalse("prefetcher must finish", prefetcher.isAlive());
+
+            setBatchedUpdateGet(engine, true);
+            assertThat("a row read under the old generation must not be cached", engine.prefetchHitCount(), equalTo(0L));
+            assertTrue("the get falls through to the normal read", getByIdLookup(engine, realtimeGet("a")).exists());
+            assertThat(engine.prefetchHitCount(), equalTo(0L));
+        }
+    }
 }

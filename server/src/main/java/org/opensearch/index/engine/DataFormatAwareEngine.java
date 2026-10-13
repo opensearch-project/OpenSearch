@@ -279,6 +279,13 @@ public class DataFormatAwareEngine implements Indexer {
      */
     private final ConcurrentHashMap<BytesRef, PrefetchedDocument> prefetchedUpdateDocs = new ConcurrentHashMap<>();
     private final AtomicLong prefetchCacheGeneration = new AtomicLong();
+    /**
+     * Mirrors {@link IndexSettings#BATCHED_UPDATE_GET_ENABLED_SETTING}, so turning the setting off
+     * is a kill switch for the whole mechanism and not only for further read-ahead: both ends of the
+     * cache check it, and the update that clears it drops whatever is already cached. Read on the
+     * realtime-get path, hence a field rather than a settings lookup per get.
+     */
+    private volatile boolean batchedUpdateGetEnabled;
     private final CounterMetric numPrefetchHits = new CounterMetric();
     private final CounterMetric numPrefetchedDocs = new CounterMetric();
 
@@ -332,6 +339,10 @@ public class DataFormatAwareEngine implements Indexer {
             ? engineConfig.getDocumentMetadataResolver()
             : DocumentMetadataResolver.NOOP;
         this.documentLookup = new DocumentLookupSupport(shardId, this.documentLookupProvider, this.documentMetadataResolver);
+        this.batchedUpdateGetEnabled = engineConfig.getIndexSettings().getValue(IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING);
+        engineConfig.getIndexSettings()
+            .getScopedSettings()
+            .addSettingsUpdateConsumer(IndexSettings.BATCHED_UPDATE_GET_ENABLED_SETTING, this::setBatchedUpdateGetEnabled);
         this.versionMap = new LiveVersionMap();
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
@@ -2513,7 +2524,7 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public void prefetchUpdateGets(List<String> ids) {
-        if (ids.isEmpty() || documentLookup.isSupported() == false) {
+        if (batchedUpdateGetEnabled == false || ids.isEmpty() || documentLookup.isSupported() == false) {
             return;
         }
         // Headroom left in the cache. Bounding the read here, rather than only the caching below,
@@ -2566,6 +2577,25 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     /**
+     * Applies a {@link IndexSettings#BATCHED_UPDATE_GET_ENABLED_SETTING} update. Disabling drops
+     * every cached row, so the setting is a true off switch: no row survives it to be served later,
+     * and the heap is released with them.
+     *
+     * <p>The generation is bumped before the clear, not after. A bulk already inside
+     * {@link #prefetchUpdateGets} has captured the generation it read under and may reach
+     * {@link #cachePrefetchedDocument} after this clear; bumping first makes that write fail its
+     * generation check instead of repopulating a cache that is meant to be empty. Same ordering, and
+     * the same reason, as the refresh listener.
+     */
+    private void setBatchedUpdateGetEnabled(boolean enabled) {
+        batchedUpdateGetEnabled = enabled;
+        if (enabled == false) {
+            prefetchCacheGeneration.incrementAndGet();
+            prefetchedUpdateDocs.clear();
+        }
+    }
+
+    /**
      * Caps the prefetch cache so a pathological bulk request cannot pin unbounded heap. Resolved per
      * call rather than held in a field, so
      * {@link IndexSettings#BATCHED_UPDATE_GET_CACHE_SIZE_SETTING} takes effect without a restart —
@@ -2605,7 +2635,7 @@ public class DataFormatAwareEngine implements Indexer {
      * the normal read. Callers must already have found no versionMap entry for the uid.
      */
     private DocumentLookupResult pollPrefetchedDocument(BytesRef uid) {
-        if (prefetchedUpdateDocs.isEmpty()) {
+        if (batchedUpdateGetEnabled == false || prefetchedUpdateDocs.isEmpty()) {
             return null;
         }
         PrefetchedDocument cached = prefetchedUpdateDocs.remove(uid);
