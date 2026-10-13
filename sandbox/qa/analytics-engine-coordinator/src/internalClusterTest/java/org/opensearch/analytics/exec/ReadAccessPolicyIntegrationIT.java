@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.get.MultiGetRequest;
+import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.support.ReadAccessContext;
 import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyProvider;
@@ -17,14 +19,14 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
+import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
-import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.AccessPolicyProviderPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -41,22 +43,42 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Verifies that query execution obtains any ReadAccessPolicy provided by the cluster and properly applies it.
- * In a full cluster, the ReadAccessPolicy is provided by the security plugin. In this case, this is provided by a
- * mock plugin.
+ * Verifies end-to-end enforcement of a cluster-provided {@link ReadAccessPolicy} for composite
+ * indices with Parquet as the primary data format and Lucene as a secondary data format. In a
+ * secured cluster the security plugin supplies this policy; this test installs a mock provider so
+ * it can exercise policy propagation and enforcement independently of the security plugin.
+ *
+ * <p>The suite covers the distinct read paths that must enforce Document Level Security:
+ * <ul>
+ *   <li>The normal analytics scan path translates the policy's {@link QueryBuilder}, includes it
+ *       in the logical plan, and filters the rows returned by DataFusion.</li>
+ *   <li>An unrestricted index remains unaffected, verifying that the absence of restrictions does
+ *       not accidentally filter ordinary analytics queries or document lookups.</li>
+ *   <li>GET follows the composite point-lookup path: Lucene first resolves the external document
+ *       ID to its Parquet row ID, after which DataFusion executes a row-ID-constrained plan together
+ *       with the policy predicate. A policy-rejected document is exposed as not found.</li>
+ *   <li>MGET applies the same decision independently to each item. The initial implementation does
+ *       not batch secured lookups, so the test verifies both an allowed and a rejected item in one
+ *       request without one result affecting the other.</li>
+ * </ul>
+ *
+ * <p>Together these assertions also exercise the integration wiring from policy-provider discovery,
+ * through QueryBuilder translation and plan construction, to enforcement by the analytics backend.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
 
     private static final String RESTRICTED_INDEX = "analytics-policy-restricted";
     private static final String UNRESTRICTED_INDEX = "analytics-policy-unrestricted";
+    private static final String BLUE_DOCUMENT_ID = "blue-document";
+    private static final String RED_DOCUMENT_ID = "red-document";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
             ArrowBasePlugin.class,
             CompositeDataFormatPlugin.class,
-            MockCommitterEnginePlugin.class,
+            LucenePlugin.class,
             TestPPLPlugin.class,
             TestAccessPolicyProviderPlugin.class
         );
@@ -67,7 +89,7 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -86,15 +108,27 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
         super.setUp();
         if (indexExists(RESTRICTED_INDEX) == false) {
             createAnalyticsIndex(RESTRICTED_INDEX);
-            client().prepareIndex(RESTRICTED_INDEX).setSource("tenant", "blue", "category", "blue-visible").get();
-            client().prepareIndex(RESTRICTED_INDEX).setSource("tenant", "red", "category", "red-hidden").get();
+            client().prepareIndex(RESTRICTED_INDEX)
+                .setId(BLUE_DOCUMENT_ID)
+                .setSource("tenant", "blue", "category", "blue-visible")
+                .get();
+            client().prepareIndex(RESTRICTED_INDEX)
+                .setId(RED_DOCUMENT_ID)
+                .setSource("tenant", "red", "category", "red-hidden")
+                .get();
             refresh(RESTRICTED_INDEX);
             client().admin().indices().prepareFlush(RESTRICTED_INDEX).get();
         }
         if (indexExists(UNRESTRICTED_INDEX) == false) {
             createAnalyticsIndex(UNRESTRICTED_INDEX);
-            client().prepareIndex(UNRESTRICTED_INDEX).setSource("tenant", "blue", "category", "blue-visible").get();
-            client().prepareIndex(UNRESTRICTED_INDEX).setSource("tenant", "red", "category", "red-visible").get();
+            client().prepareIndex(UNRESTRICTED_INDEX)
+                .setId(BLUE_DOCUMENT_ID)
+                .setSource("tenant", "blue", "category", "blue-visible")
+                .get();
+            client().prepareIndex(UNRESTRICTED_INDEX)
+                .setId(RED_DOCUMENT_ID)
+                .setSource("tenant", "red", "category", "red-visible")
+                .get();
             refresh(UNRESTRICTED_INDEX);
             client().admin().indices().prepareFlush(UNRESTRICTED_INDEX).get();
         }
@@ -115,6 +149,25 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
         assertEquals("red-visible", response.getRows().get(1)[0]);
     }
 
+    public void testGetAppliesPolicyAfterLuceneResolvesRowId() {
+        assertTrue(client().prepareGet(RESTRICTED_INDEX, BLUE_DOCUMENT_ID).setRealtime(false).get().isExists());
+        assertFalse(client().prepareGet(RESTRICTED_INDEX, RED_DOCUMENT_ID).setRealtime(false).get().isExists());
+        assertTrue(client().prepareGet(UNRESTRICTED_INDEX, RED_DOCUMENT_ID).setRealtime(false).get().isExists());
+    }
+
+    public void testMgetAppliesPolicyPerItemWithoutBatching() {
+        MultiGetResponse response = client().prepareMultiGet()
+            .setRealtime(false)
+            .add(new MultiGetRequest.Item(RESTRICTED_INDEX, BLUE_DOCUMENT_ID))
+            .add(new MultiGetRequest.Item(RESTRICTED_INDEX, RED_DOCUMENT_ID))
+            .get();
+
+        assertFalse(response.getResponses()[0].isFailed());
+        assertTrue(response.getResponses()[0].getResponse().isExists());
+        assertFalse(response.getResponses()[1].isFailed());
+        assertFalse(response.getResponses()[1].getResponse().isExists());
+    }
+
     private static PluginInfo classpathPlugin(Class<? extends Plugin> pluginClass, List<String> extendedPlugins) {
         return new PluginInfo(
             pluginClass.getName(),
@@ -130,13 +183,18 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     private void createAnalyticsIndex(String indexName) {
+        createAnalyticsIndex(indexName, false);
+    }
+
+    private void createAnalyticsIndex(String indexName, boolean appendOnly) {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly)
             .build();
 
         CreateIndexResponse response = client().admin()

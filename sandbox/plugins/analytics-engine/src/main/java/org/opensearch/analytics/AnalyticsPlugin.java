@@ -32,6 +32,7 @@ import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.DocumentLookupPlanBuilder;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.LogicalPlanDlsRewriter;
 import org.opensearch.analytics.query.QueryBuilderTranslationService;
@@ -255,7 +256,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             analyticsSearchSlowLog,
             statsCollector,
             queryBuilderTranslationService,
-            logicalPlanDlsRewriter
+            logicalPlanDlsRewriter,
+            new DocumentLookupPlanBuilder(ctx, logicalPlanDlsRewriter)
         );
     }
 

@@ -31,6 +31,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -332,9 +333,11 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     }
 
     @Override
-    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
-        throws IOException {
-        DocumentLookupResult result = documentLookup.getById(get, reader);
+    public Engine.GetResult getById(
+        DocumentLookupContext context,
+        BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory
+    ) throws IOException {
+        DocumentLookupResult result = documentLookup.getById(context, reader);
         return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
     }
 

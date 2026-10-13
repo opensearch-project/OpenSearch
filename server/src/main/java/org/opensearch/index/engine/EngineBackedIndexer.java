@@ -16,6 +16,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
@@ -506,8 +507,10 @@ public class EngineBackedIndexer implements Indexer {
 
     /** Engine-backed get-by-id: delegates to {@link Engine#get(Engine.Get, BiFunction)} with {@code searcherFactory}. */
     @Override
-    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
-        throws IOException {
-        return engine.get(get, searcherFactory);
+    public Engine.GetResult getById(
+        DocumentLookupContext context,
+        BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory
+    ) throws IOException {
+        return engine.get(context.get(), searcherFactory);
     }
 }
