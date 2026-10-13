@@ -33,6 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
@@ -422,6 +423,16 @@ public final class EngineConfig {
      */
     public Codec getCodec() {
         return codecService.codec(codecName);
+    }
+
+    /** Returns the compression mode for built-in codec settings, or null when the codec's mode is unknown. */
+    @Nullable
+    Lucene90StoredFieldsFormat.Mode getCodecCompressionMode() {
+        return switch (codecName) {
+            case CodecService.DEFAULT_CODEC, CodecService.LZ4 -> Lucene90StoredFieldsFormat.Mode.BEST_SPEED;
+            case CodecService.BEST_COMPRESSION_CODEC, CodecService.ZLIB -> Lucene90StoredFieldsFormat.Mode.BEST_COMPRESSION;
+            default -> null;
+        };
     }
 
     /**

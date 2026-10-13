@@ -36,13 +36,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormatComparator;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,11 +75,17 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     private final Codec actualCodec;
+    private final Lucene90StoredFieldsFormat.Mode targetCompressionMode;
 
-    /** @param delegate the merge policy to wrap */
-    public OpenSearchMergePolicy(MergePolicy delegate, Codec codec) {
+    /**
+     * @param delegate the merge policy to wrap
+     * @param codec the codec used for newly written segments
+     * @param targetCompressionMode the configured stored fields compression mode, or null if unknown
+     */
+    public OpenSearchMergePolicy(MergePolicy delegate, Codec codec, @Nullable Lucene90StoredFieldsFormat.Mode targetCompressionMode) {
         super(delegate);
         this.actualCodec = codec;
+        this.targetCompressionMode = targetCompressionMode;
     }
 
     /** return the wrapped merge policy */
@@ -108,20 +114,17 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
             return true;
         }
 
-        if (!info.info.getCodec().getName().equals(actualCodec.getName())) {
+        if (info.info.getCodec().getName().equals(actualCodec.getName()) == false) {
             // If difference in Codec we should upgrade segment
             return true;
         }
 
-        if (info.info.getAttributes() != null) {
-            if (info.info.getCodec().storedFieldsFormat() instanceof Lucene90StoredFieldsFormat
-                && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
-                var current = (Lucene90StoredFieldsFormat) info.info.getCodec().storedFieldsFormat();
-                var target = (Lucene90StoredFieldsFormat) actualCodec.storedFieldsFormat();
-                if (!Lucene90StoredFieldsFormatComparator.equal(current, target)) {
-                    return true;
-                }
-            }
+        if (targetCompressionMode != null
+            && info.info.getCodec().storedFieldsFormat() instanceof Lucene90StoredFieldsFormat
+            && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
+            // Reopened codecs use their default write mode. The segment attribute records the mode actually used on disk.
+            String segmentCompressionMode = info.info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
+            return segmentCompressionMode != null && targetCompressionMode.name().equals(segmentCompressionMode) == false;
         }
 
         // Version matches, or segment is not ancient and we are only upgrading ancient segments:
