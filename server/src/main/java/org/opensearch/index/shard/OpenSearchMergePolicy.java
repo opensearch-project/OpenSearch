@@ -93,6 +93,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
         return in;
     }
 
+    // VisibleForTesting
     boolean shouldUpgrade(SegmentCommitInfo info) {
         org.apache.lucene.util.Version old = info.info.getVersion();
         org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
@@ -124,6 +125,8 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
             && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
             // Reopened codecs use their default write mode. The segment attribute records the mode actually used on disk.
             String segmentCompressionMode = info.info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
+            // Lucene90 writers always record the mode and readers require it. Skip this comparison if the attribute is missing;
+            // an upgrade cannot repair that metadata because merging also needs to read the stored fields.
             return segmentCompressionMode != null && targetCompressionMode.name().equals(segmentCompressionMode) == false;
         }
 

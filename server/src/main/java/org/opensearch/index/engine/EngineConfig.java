@@ -425,7 +425,13 @@ public final class EngineConfig {
         return codecService.codec(codecName);
     }
 
-    /** Returns the compression mode for built-in codec settings, or null when the codec's mode is unknown. */
+    /**
+     * Returns the stored fields compression mode for the {@code default}, {@code lz4}, {@code best_compression}, and {@code zlib} settings.
+     * These setting aliases also apply to composite and context-aware codec wrappers.
+     * <p>
+     * Returns null for other settings, including {@code lucene_default} and SPI codec names, whose mode is not exposed through Lucene's
+     * public API. Upgrades still check codec names and Lucene versions, but skip compression-mode comparison when the mode is unknown.
+     */
     @Nullable
     Lucene90StoredFieldsFormat.Mode getCodecCompressionMode() {
         return switch (codecName) {
