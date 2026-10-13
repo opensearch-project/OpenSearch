@@ -92,10 +92,19 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     proceedListener.onFailure(e);
                 }
             }, listener::onFailure);
-            workloadGroupService.acquireThrottlePermit(workloadGroupTask, () -> false, admissionListener);
+            try {
+                workloadGroupService.acquireThrottlePermit(workloadGroupTask, () -> false, admissionListener);
+            } catch (Exception e) {
+                // Admission reports outcomes through its listener; anything thrown unexpectedly still reaches it.
+                listener.onFailure(e);
+            }
             return;
         }
-        executeScroll(task, request, listener);
+        try {
+            executeScroll(task, request, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {

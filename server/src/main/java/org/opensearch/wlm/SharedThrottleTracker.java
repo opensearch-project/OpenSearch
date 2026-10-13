@@ -109,16 +109,19 @@ final class SharedThrottleTracker {
     }
 
     /**
-     * Admits one request into {@code bucketKey} if fewer than {@code sharedLimit} permits are live, recording the permit
-     * against {@code coordinatorId} (an ephemeral node id, or {@link #UNKNOWN_COORDINATOR}) for {@link #releaseAllFrom}.
+     * Admits one request into its bucket if fewer than the request's {@code sharedLimit} permits are live. On a grant the
+     * owner-side {@link Permit} is created from the request's permit id, TTL, coordinator (an ephemeral node id, or
+     * {@link #UNKNOWN_COORDINATOR}, for {@link #releaseAllFrom}) and coordinator task id (for expiry checks).
      *
      * @return {@code true} if granted, {@code false} if the bucket is at its limit
      */
-    boolean tryAcquire(String bucketKey, int sharedLimit, String permitId, long ttlNanos, String coordinatorId) {
-        return tryAcquire(bucketKey, sharedLimit, permitId, ttlNanos, coordinatorId, UNKNOWN_TASK_ID);
-    }
-
-    boolean tryAcquire(String bucketKey, int sharedLimit, String permitId, long ttlNanos, String coordinatorId, long coordinatorTaskId) {
+    boolean tryAcquire(WorkloadGroupSharedThrottleService.AcquirePermitRequest request) {
+        final String bucketKey = request.bucketKey;
+        final int sharedLimit = request.sharedLimit;
+        final String permitId = request.permitId;
+        final long ttlNanos = request.ttlNanos;
+        final String coordinatorId = request.coordinatorId;
+        final long coordinatorTaskId = request.coordinatorTaskId;
         final long now = nanoTimeSupplier.getAsLong();
         final long expiresAt = now + ttlNanos;
         final Permit permit = new Permit(expiresAt, ttlNanos, coordinatorId, coordinatorTaskId);
