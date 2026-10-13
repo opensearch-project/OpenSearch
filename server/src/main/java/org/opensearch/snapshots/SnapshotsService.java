@@ -197,6 +197,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     // Incremented by each run of failover handling, so a scheduled cleanup retry can tell whether one ran.
     private final AtomicLong failovers = new AtomicLong();
 
+    private static final long UNSTAMPED = -1L;
+
     // Set of currently initializing clone operations
     private final Set<Snapshot> initializingClones = Collections.synchronizedSet(new HashSet<>());
 
@@ -3269,7 +3271,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         deleteEntry.getSnapshots().size(),
                         deleteEntry.repository()
                     );
-                    removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
+                    clusterService.submitStateUpdateTask(
+                        "remove snapshot deletion metadata",
+                        createRemoveSnapshotDeletionTask(0, deleteEntry, null, repositoryData, failoversAtEntry)
+                    );
                     return;
                 }
                 synchronized (currentlyFinalizing) {
@@ -3485,11 +3490,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Nullable final Exception failure,
         final RepositoryData repositoryData
     ) {
+        return createRemoveSnapshotDeletionTask(attempt, deleteEntry, failure, repositoryData, UNSTAMPED);
+    }
+
+    private ClusterStateUpdateTask createRemoveSnapshotDeletionTask(
+        final int attempt,
+        final SnapshotDeletionsInProgress.Entry deleteEntry,
+        @Nullable final Exception failure,
+        final RepositoryData repositoryData,
+        final long failoversAtClaim
+    ) {
         if (failure == null) {
             // If we didn't have a failure during the snapshot delete we will remove all snapshot ids that the delete successfully removed
             // from the repository from enqueued snapshot delete entries during the cluster state update. After the cluster state update we
             // resolve the delete listeners with the latest repository data from after the delete.
-            return new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData, attempt, null) {
+            return new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData, attempt, null, failoversAtClaim) {
                 @Override
                 protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
                     final SnapshotDeletionsInProgress updatedDeletions = deletionsWithoutSnapshots(
@@ -3514,7 +3529,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } else {
             // The delete failed to execute on the repository. We remove it from the cluster state and then fail all listeners associated
             // with it.
-            return new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData, attempt, failure) {
+            return new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData, attempt, failure, failoversAtClaim) {
                 @Override
                 protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
                     failListenersIgnoringException(deleteListeners, failure);
@@ -3702,21 +3717,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Nullable
         private final Exception deleteFailure;
 
+        private final long failoversAtClaim;
+
+        private boolean superseded;
+
+        private boolean alreadyRemoved;
+
         RemoveSnapshotDeletionAndContinueTask(
             SnapshotDeletionsInProgress.Entry deleteEntry,
             RepositoryData repositoryData,
             int attempt,
-            @Nullable Exception deleteFailure
+            @Nullable Exception deleteFailure,
+            long failoversAtClaim
         ) {
             this.deleteEntry = deleteEntry;
             this.repositoryData = repositoryData;
             this.attempt = attempt;
             this.deleteFailure = deleteFailure;
+            this.failoversAtClaim = failoversAtClaim;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
             final SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+            if (failoversAtClaim != UNSTAMPED) {
+                synchronized (currentlyFinalizing) {
+                    superseded = failovers.get() != failoversAtClaim || repositoryOperations.isNotRunning(deleteEntry.uuid());
+                }
+                if (superseded) {
+                    return currentState;
+                }
+                if (deletions == null || deletions.getEntries().stream().noneMatch(entry -> entry.uuid().equals(deleteEntry.uuid()))) {
+                    alreadyRemoved = attempt > 0;
+                    return currentState;
+                }
+            }
             assert deletions != null : "We only run this if there were deletions in the cluster state before";
             final SnapshotDeletionsInProgress updatedDeletions = deletions.withRemovedEntry(deleteEntry.uuid());
             if (updatedDeletions == deletions) {
@@ -3743,11 +3778,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // give-up, so that a repeated DELETE can re-drive the delete.
                 final boolean redrivable = ExceptionsHelper.unwrap(e, NotClusterManagerException.class) == null
                     && ExceptionsHelper.unwrap(e, FailedToCommitClusterStateException.class) != null
-                    && REMOTE_STORE_INDEX_SHALLOW_COPY.get(
-                        repositoriesService.repository(deleteEntry.repository()).getMetadata().settings()
-                    ) == false;
+                    && isFullCopy();
                 if (redrivable) {
                     unpublishedDeletes.add(deleteEntry.uuid());
+                }
+                final long failoversAtRetry;
+                synchronized (currentlyFinalizing) {
+                    failoversAtRetry = failoversAtClaim == UNSTAMPED ? failovers.get() : failoversAtClaim;
                 }
                 final Runnable giveUp = redrivable ? () -> {
                     logger.warn(
@@ -3767,11 +3804,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // A re-drive or a claiming worker took the mark first.
                         return null;
                     }
-                    return createRemoveSnapshotDeletionTask(attempt + 1, deleteEntry, deleteFailure, repositoryData);
+                    return createRemoveSnapshotDeletionTask(attempt + 1, deleteEntry, deleteFailure, repositoryData, failoversAtRetry);
                 }, giveUp);
             } else {
                 fallback.run();
             }
+        }
+
+        private boolean isFullCopy() {
+            return REMOTE_STORE_INDEX_SHALLOW_COPY.get(
+                repositoriesService.repository(deleteEntry.repository()).getMetadata().settings()
+            ) == false;
         }
 
         protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
@@ -3780,10 +3823,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            if (superseded) {
+                synchronized (currentlyFinalizing) {
+                    if (repositoryOperations.isNotRunning(deleteEntry.uuid()) && isFullCopy()) {
+                        unpublishedDeletes.add(deleteEntry.uuid());
+                    }
+                }
+                return;
+            }
             final List<ActionListener<Void>> deleteListeners;
             repositoryOperations.finishDeletion(deleteEntry.uuid());
             deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
             handleListeners(deleteListeners);
+            if (alreadyRemoved) {
+                runNextQueuedOperation(repositoryData, deleteEntry.repository(), true);
+                return;
+            }
             if (newFinalizations.isEmpty()) {
                 if (readyDeletions.isEmpty()) {
                     leaveRepoLoop(deleteEntry.repository());

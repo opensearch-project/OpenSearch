@@ -233,6 +233,10 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
         assertThat("a shallow-copy delete must never be marked for a re-drive", service.unpublishedDeletes, empty());
         scheduled.remove(0).run();
         assertThat("the retry of a shallow-copy delete must still be submitted", submitted, hasSize(1));
+
+        runFailoverHandling(service);
+        runTask(submitted.remove(0), stateWith(delete));
+        assertThat("a stale retry must never mark a shallow-copy delete", service.unpublishedDeletes, empty());
     }
 
     @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
@@ -575,6 +579,141 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
         assertThat("a delete the re-drive claimed must not stay marked", service.unpublishedDeletes, empty());
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStaleCleanupLeavesNewerRunAlone() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final ClusterState state = stateWith(delete);
+        retryTheDelete(service, state);
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+        final ClusterStateUpdateTask cleanup = submitted.remove(0);
+        runFailoverHandling(service);
+        newerRunClaims(service, delete);
+
+        assertSame("a stale cleanup must not remove the delete's entry", state, runTask(cleanup, state));
+        assertFalse("a stale cleanup must leave the newer run's claim", service.repositoryOperations.isNotRunning(delete.uuid()));
+        assertTrue("a stale cleanup must leave the newer run's repository", service.currentlyFinalizing.contains(REPO));
+        assertThat("a stale cleanup must not mark a delete the newer run holds", service.unpublishedDeletes, empty());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStaleCleanupKeepsDeleteRedrivable() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final ClusterState state = stateWith(delete);
+        retryTheDelete(service, state);
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+        final ClusterStateUpdateTask cleanup = submitted.remove(0);
+        runFailoverHandling(service);
+
+        assertSame("a stale cleanup must not remove the delete's entry", state, runTask(cleanup, state));
+        assertTrue("a stale cleanup must keep the delete re-drivable", service.unpublishedDeletes.contains(delete.uuid()));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testCleanupRetryArmedAfterFailoverHandlingKeepsClaimTimeCount() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final ClusterState state = stateWith(delete);
+        retryTheDelete(service, state);
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+        final ClusterStateUpdateTask cleanup = submitted.remove(0);
+        runFailoverHandling(service);
+        newerRunClaims(service, delete);
+
+        cleanup.onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        scheduled.remove(0).run();
+        assertSame("a stale retry must not remove the delete's entry", state, runTask(submitted.remove(0), state));
+        assertFalse("a stale retry must leave the newer run's claim", service.repositoryOperations.isNotRunning(delete.uuid()));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testCleanupOfReleasedDeleteHandsNothingOn() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = onlyDelete(startDeleteThroughTheService(service));
+        repositoryDeletes.remove(0).onResponse(RepositoryData.EMPTY);
+        submitted.remove(0).onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        scheduled.remove(0).run();
+        final ClusterStateUpdateTask retry = submitted.remove(0);
+        service.repositoryOperations.finishDeletion(delete.uuid());
+        service.leaveRepoLoop(REPO);
+        service.tryEnterRepoLoop(REPO);
+
+        runTask(retry, stateWith());
+        assertThat("a cleanup whose delete was released must not hand the repository on", submitted, empty());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRetryOfCommittedRemovalAnswersAndReleases() throws Exception {
+        final SnapshotsService service = service(false);
+        final List<String> answers = new ArrayList<>();
+        startDeleteThroughTheService(service, recordingInto(answers));
+        repositoryDeletes.remove(0).onResponse(RepositoryData.EMPTY);
+        submitted.remove(0).onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        scheduled.remove(0).run();
+        final ClusterState committed = ClusterState.builder(stateWith()).removeCustom(SnapshotDeletionsInProgress.TYPE).build();
+
+        runTask(submitted.remove(0), committed);
+        assertEquals("a retry whose earlier attempt was committed must answer the caller", List.of("success"), answers);
+        runTask(submitted.remove(0), committed);
+        assertFalse("with nothing queued the repository must be released", service.currentlyFinalizing.contains(REPO));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRetryOfCommittedRemovalRunsNextDelete() throws Exception {
+        final SnapshotsService service = service(false);
+        startDeleteThroughTheService(service);
+        repositoryDeletes.remove(0).onResponse(RepositoryData.EMPTY);
+        submitted.remove(0).onFailure(SOURCE, new FailedToCommitClusterStateException("publish failed"));
+        scheduled.remove(0).run();
+        final SnapshotDeletionsInProgress.Entry next = new SnapshotDeletionsInProgress.Entry(
+            List.of(new SnapshotId("snap-2", UUIDs.randomBase64UUID())),
+            REPO,
+            0L,
+            1L,
+            SnapshotDeletionsInProgress.State.STARTED
+        );
+        final ClusterState committed = ClusterState.builder(stateWith(next))
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+            .build();
+
+        runTask(submitted.remove(0), committed);
+        runTask(submitted.remove(0), committed);
+        assertThat("the delete queued behind the committed one must run", repositoryDeletes, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testFirstCleanupOfDeleteRemovedElsewhereReleasesRepository() throws Exception {
+        final SnapshotsService service = service(false);
+        final SnapshotDeletionsInProgress.Entry delete = startedDelete();
+        giveUpOnTheRemoval(service, delete);
+        final List<String> answers = new ArrayList<>();
+        retryTheDelete(service, stateWith(delete), recordingInto(answers));
+        repositoryReads.remove(0).onResponse(RepositoryData.EMPTY);
+
+        runTask(submitted.remove(0), stateWith());
+        assertEquals("a cleanup whose delete was removed elsewhere must answer the caller", List.of("success"), answers);
+        assertFalse("a cleanup whose delete was removed elsewhere must release the repository", service.currentlyFinalizing.contains(REPO));
+    }
+
+    private static ClusterState runTask(ClusterStateUpdateTask task, ClusterState state) throws Exception {
+        final ClusterState after = task.execute(state);
+        task.clusterStateProcessed(SOURCE, state, after);
+        return after;
+    }
+
+    private static void newerRunClaims(SnapshotsService service, SnapshotDeletionsInProgress.Entry delete) {
+        assertTrue("failover handling must have released the repository", service.tryEnterRepoLoop(REPO));
+        service.deleteSnapshotsFromRepository(delete, RepositoryData.EMPTY, Version.CURRENT);
+    }
+
+    private static ActionListener<Void> recordingInto(List<String> answers) {
+        return ActionListener.wrap(ignored -> answers.add("success"), e -> answers.add("failure"));
+    }
+
     private void giveUpOnTheRemoval(SnapshotsService service, SnapshotDeletionsInProgress.Entry delete) {
         final int retries = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
         service.createRemoveSnapshotDeletionTask(retries, delete, null, RepositoryData.EMPTY)
@@ -643,7 +782,11 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
     }
 
     private static void retryTheDelete(SnapshotsService service, ClusterState state) throws Exception {
-        final ClusterStateUpdateTask retry = deleteRequest(service);
+        retryTheDelete(service, state, ActionListener.wrap(() -> {}));
+    }
+
+    private static void retryTheDelete(SnapshotsService service, ClusterState state, ActionListener<Void> listener) throws Exception {
+        final ClusterStateUpdateTask retry = deleteRequest(service, listener);
         retry.clusterStateProcessed("delete snapshot", state, retry.execute(state));
     }
 
