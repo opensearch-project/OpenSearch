@@ -40,9 +40,11 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperServiceTestCase.CapturingDocumentInput;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -53,6 +55,7 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -153,5 +156,48 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         // SizeFieldMapper.postParse adds the source length via documentInput when pluggable format is enabled
         boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("_size"));
         assertTrue("Expected _size field captured via postParse pluggable format path", found);
+    }
+
+    /**
+     * On a pluggable-data-format index {@code _size} must be doc-values-only: an indexed integer requests
+     * {@code POINT_RANGE}, which no configured data format offers, and the metadata mapper is present in every
+     * mapping (even with {@code _size} disabled), so an indexed {@code _size} would fail capability assignment
+     * for every composite index on a node that carries this plugin.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testSizeIsDocValuesOnlyOnPluggableFormatIndex() throws Exception {
+        Settings settings = Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+        // _size not mentioned in the mapping: the default (disabled) metadata mapper is still built.
+        IndexService service = createIndexWithSimpleMappings("test", settings);
+        MappedFieldType sizeType = service.mapperService().documentMapper().metadataMapper(SizeFieldMapper.class).fieldType();
+        assertFalse("_size must not be indexed on a pluggable-format index", sizeType.isSearchable());
+        assertTrue(sizeType.hasDocValues());
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE), sizeType.requestedCapabilities());
+
+        // Explicitly enabling _size keeps the same shape.
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_size")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .toString();
+        DocumentMapper docMapper = service.mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        MappedFieldType enabledType = docMapper.metadataMapper(SizeFieldMapper.class).fieldType();
+        assertFalse(enabledType.isSearchable());
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE), enabledType.requestedCapabilities());
+    }
+
+    /** A regular index keeps the historical indexed + doc-values shape. */
+    public void testSizeStaysIndexedOnRegularIndex() throws Exception {
+        IndexService service = createIndexWithSimpleMappings("test", Settings.EMPTY);
+        MappedFieldType sizeType = service.mapperService().documentMapper().metadataMapper(SizeFieldMapper.class).fieldType();
+        assertTrue(sizeType.isSearchable());
+        assertTrue(sizeType.hasDocValues());
+        assertEquals(
+            Set.of(FieldTypeCapabilities.Capability.POINT_RANGE, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE),
+            sizeType.requestedCapabilities()
+        );
     }
 }
