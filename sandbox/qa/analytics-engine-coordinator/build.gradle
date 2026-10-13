@@ -62,6 +62,8 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
   // TestPPLPlugin + UnifiedPPL action for driving queries from ITs.
   internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
+  // Translates the policy query builder into the logical-plan predicate.
+  internalClusterTestImplementation project(':sandbox:plugins:dsl-query-executor')
 
   // Guava is excluded from analytics-engine's runtime classpath (provided by
   // arrow-flight-rpc at runtime in production). The classpath-plugin test
