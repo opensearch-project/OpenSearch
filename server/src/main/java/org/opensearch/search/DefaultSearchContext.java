@@ -948,7 +948,7 @@ final class DefaultSearchContext extends SearchContext {
     /**
      * Small-view guardrail for {@code filtered_stats}. Estimates how many documents the statistics filter matches and
      * returns {@code false} when that exceeds {@link #filteredStatisticsMaxVisibleDocs()}, so the caller falls back to
-     * the {@code constant_score} behavior (still leak-free and flat, but unranked) instead of paying an unbounded
+     * the {@code constant_score} behavior (flat and unranked, and reads no corpus statistics) instead of paying an unbounded
      * first-query cost on a very large view.
      * <p>
      * The estimate uses {@link ScorerSupplier#cost()}, which is an upper bound derived from postings metadata -- it
@@ -997,7 +997,7 @@ final class DefaultSearchContext extends SearchContext {
                 );
             }
         } catch (IOException e) {
-            // Fail closed onto constant_score: it is leak-free and cheaper, so an estimation failure degrades
+            // Fail closed onto constant_score: it reads no corpus statistics and is cheaper, so an estimation failure degrades
             // ranking rather than correctness or latency.
             logger.warn("could not estimate how many documents filtered statistics would cover; falling back to constant_score", e);
             withinBudget = false;

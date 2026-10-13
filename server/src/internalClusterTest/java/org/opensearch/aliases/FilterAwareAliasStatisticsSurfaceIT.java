@@ -24,8 +24,8 @@ import java.util.Map;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
- * Does anything other than BM25 search scoring expose whole-corpus statistics through a filter-aware
- * alias?
+ * Which APIs other than BM25 search scoring report corpus statistics over the documents a filter-aware alias
+ * admits, and which report them over the whole index?
  * <p>
  * {@code filtered_stats} makes the scoring path read statistics over only the documents an alias
  * admits. Several other APIs also surface corpus statistics, and none of them were covered by the work
@@ -39,9 +39,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * The method is the same one used for the scoring property: plant a term in one visible document and a
  * large number of hidden ones, then compare what each surface reports through the alias against what it
  * reports on an index that physically contains only the visible documents. A difference means the
- * hidden documents are observable.
+ * reported statistic includes documents outside the alias.
  */
-public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
+public class FilterAwareAliasStatisticsSurfaceIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX = "surfaces";
     private static final String REF = "surfaces_ref";
@@ -68,8 +68,8 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
                 ).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
             );
         }
-        // The sample document is visible and carries the planted term, so its score and its statistics
-        // are what an attacker would read.
+        // The sample document is visible and carries the planted term, so its score and statistics are what
+        // each surface is compared on.
         sampleId = "sample";
         for (String ix : new String[] { INDEX, REF }) {
             client().prepareIndex(ix)
@@ -108,8 +108,8 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
         T get() throws Exception;
     }
 
-    /** Baseline: the scoring path is known to be visible-only. Establishes that the corpus is set up so a
-     *  leak would be visible at all, which every other assertion here depends on. */
+    /** Baseline: the scoring path is scoped to the alias. Establishes that the corpus separates scoped from
+     *  whole-index statistics at all, which every other assertion here depends on. */
     public void testScoringPathIsVisibleOnly() throws Exception {
         build();
         Map<String, Float> scores = withGate(() -> {
@@ -127,7 +127,7 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
             1e-4
         );
         assertNotEquals(
-            "control: the unfiltered index must differ, or the corpus does not expose a leak at all",
+            "control: the unfiltered index must differ, or the corpus cannot tell scoped from whole-index statistics",
             scores.get("raw"),
             scores.get("alias"),
             1e-4
@@ -142,8 +142,7 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
         return r.getHits().getHits().length == 0 ? 0f : r.getHits().getHits()[0].getScore();
     }
 
-    /** {@code _explain} renders the IDF calculation. If it explains using whole-corpus document
-     *  frequency, the explanation itself discloses how many hidden documents contain the term. */
+    /** {@code _explain} renders the IDF calculation, so it must use the same document frequency as the score. */
     public void testExplainIsVisibleOnly() throws Exception {
         build();
         Map<String, Float> v = withGate(() -> {
@@ -164,8 +163,8 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
     }
 
     /** {@code _termvectors} with {@code term_statistics} returns document frequency and total term
-     *  frequency directly, which is the rawest form of the statistic the scoring path protects. */
-    public void testTermVectorsLeaksWholeCorpusDocFreq_knownDefect() throws Exception {
+     *  frequency directly, the same statistics the scoring path scopes. */
+    public void testTermVectorsReportWholeIndexDocFreq() throws Exception {
         build();
         long[] dfs = withGate(() -> {
             TermVectorsResponse alias = client().prepareTermVectors(ALIAS, sampleId)
@@ -178,13 +177,12 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
             logger.info("SURFACE termvectors alias_df={} ref_df={} hidden_copies={}", a, r, HIDDEN_COPIES);
             return new long[] { a, r };
         });
-        // KNOWN LEAK. _termvectors reads statistics straight off the segment with no view awareness, so it
-        // reports 1 visible plus HIDDEN_COPIES hidden. This asserts the defect rather than the desired
-        // behaviour, deliberately: it keeps the build honest and fails the moment someone fixes the leak,
-        // at which point the expected value becomes dfs[1].
+        // Not scoped yet: _termvectors reads statistics straight off the segment, so it reports 1 visible plus
+        // HIDDEN_COPIES outside the alias. This asserts current behaviour so the test fails, and its expected
+        // value becomes dfs[1], once _termvectors is scoped.
         assertEquals("visible-only document frequency should be 1", 1L, dfs[1]);
         assertEquals(
-            "KNOWN LEAK: _termvectors reports whole-index document frequency through a restricted view. Flip to dfs[1] when fixed.",
+            "_termvectors is not scoped yet and reports whole-index document frequency through the alias. Expect dfs[1] once it is.",
             1L + HIDDEN_COPIES,
             dfs[0]
         );
@@ -204,10 +202,9 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
         return -1;
     }
 
-    /** {@code significant_terms} scores a term by comparing a foreground count against a background
-     *  count. If the background is the whole index, the bucket's bg_count is a direct read of how many
-     *  hidden documents carry the value. */
-    public void testSignificantTermsLeaksWholeIndexBackground_knownDefect() throws Exception {
+    /** {@code significant_terms} scores a term by comparing a foreground count against a background count,
+     *  which is taken from the whole index rather than from the documents the alias admits. */
+    public void testSignificantTermsUseWholeIndexBackground() throws Exception {
         build();
         long[] bg = withGate(() -> {
             long a = bgCount(ALIAS);
@@ -220,11 +217,10 @@ public class FilterAwareAliasLeakSurfaceIT extends OpenSearchIntegTestCase {
         // keyword, no term is significant and the aggregation returns no buckets. Compare against the
         // number of documents the view actually admits instead.
         long visibleDocs = client().prepareSearch(ALIAS).setSize(0).get().getHits().getTotalHits().value();
-        // KNOWN LEAK, same shape as the _termvectors one: the background is the whole index, so the
-        // reported superset size states how many documents exist outside the view. Flip to visibleDocs
-        // when fixed.
+        // Not scoped yet, like _termvectors: the background is the whole index, so the superset size counts
+        // documents outside the alias. The expected value becomes visibleDocs once the background is scoped.
         assertEquals(
-            "KNOWN LEAK: significant_terms compares against a whole-index background through a restricted view",
+            "significant_terms is not scoped yet and uses a whole-index background through the alias",
             visibleDocs + HIDDEN_COPIES,
             bg[0]
         );

@@ -372,7 +372,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      * visible-doc budget the request falls back to the default constant_score behavior instead of paying that
      * cost. Asserts both sides of the switch on the same corpus and alias: with a generous budget the sample
      * scores with real BM25 (not 1.0), and with a budget below the visible-subset size every hit scores exactly
-     * 1.0 -- still leak-free, just unranked.
+     * 1.0, still scoped to the alias, just unranked.
      */
     public void testFilteredStatisticsGuardrailFallsBackToConstantScore() throws Exception {
         buildCorpus();
