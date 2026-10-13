@@ -62,6 +62,7 @@ import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -2342,15 +2343,18 @@ public class DataFormatAwareEngine implements Indexer {
      * Throws {@link UnsupportedOperationException} if no plugin is wired.
      */
     @Override
-    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
-        throws IOException {
+    public Engine.GetResult getById(
+        DocumentLookupContext context,
+        BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory
+    ) throws IOException {
+        Engine.Get get = context.get();
         if (documentLookup.isSupported() == false) {
             throw new UnsupportedOperationException("getById not supported: no DocumentLookupProvider installed");
         }
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
+            VersionValue versionValue = null;
             if (get.realtime()) {
-                VersionValue versionValue;
                 try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
                     versionValue = getVersionFromMap(get.uid().bytes());
                 }
@@ -2376,7 +2380,12 @@ public class DataFormatAwareEngine implements Indexer {
                             versionValue.term
                         );
                     }
-                    if (get.isReadFromTranslog() && versionValue.getLocation() != null) {
+                    // A translog hit contains the unfiltered source and cannot enforce the
+                    // logical DLS predicate. Restricted lookups therefore continue to the
+                    // snapshot-backed provider.
+                    if (context.readAccessPolicy().hasRestrictions() == false
+                        && get.isReadFromTranslog()
+                        && versionValue.getLocation() != null) {
                         try {
                             Translog.Operation operation = translogManager.readOperation(versionValue.getLocation());
                             if (operation != null) {
@@ -2400,15 +2409,23 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             }
 
-            // Fall through: read from parquet. Resolved through DocumentLookupSupport#getById,
-            // which applies read-time version/if_seq_no conflicts to the result — the realtime
-            // branch above checks them inline, and the read-only and NRT replica engines already
-            // go through this same helper. Calling lookupFromReader directly skipped the checks,
-            // so a stale precondition on a get (and therefore on an update of any committed
-            // document, since UpdateHelper rebuilds the index request from the get's seqNo) was
-            // silently dropped rather than enforced.
+            // Fall through: read from parquet. The lookup stays separate from the conflict check
+            // so a restricted realtime lookup can first reject a stale snapshot row. All other
+            // results still receive the same version/if_seq_no checks as DocumentLookupSupport#getById.
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.lookupFromReader(context, readerRef.get());
+                if (context.readAccessPolicy().hasRestrictions()
+                    && versionValue != null
+                    && result.exists()
+                    && (result.version() != versionValue.version
+                        || result.seqNo() != versionValue.seqNo
+                        || result.primaryTerm() != versionValue.term)) {
+                    // The current version exists only in the translog. Returning the older
+                    // snapshot row could evaluate DLS against stale values, so fail closed
+                    // until the current row is searchable by the secured lookup provider.
+                    return Engine.GetResult.NOT_EXISTS;
+                }
+                documentLookup.applyReadVersionConflicts(get, result);
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         } // readLock

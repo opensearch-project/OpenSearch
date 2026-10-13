@@ -41,6 +41,18 @@ public interface DocumentRowReader {
     Map<String, Object> executeSingleRow(long rowId, WriterFileSet fileSet) throws IOException;
 
     /**
+     * Executes a backend plan constrained to the resolved row. Implementations must not fall
+     * back to the unfiltered point lookup when a non-empty plan is supplied.
+     *
+     * @param rowId the resolved row offset to constrain the plan to
+     * @param fileSet the file set containing the resolved row
+     * @param tableName the table name referenced by the plan
+     * @param plan the serialized backend plan containing the row constraint and access policy
+     * @return the row as a field-name → value map, or null when the plan produces no row
+     */
+    Map<String, Object> executeSingleRow(long rowId, WriterFileSet fileSet, String tableName, byte[] plan) throws IOException;
+
+    /**
      * Fetch all rows with {@code _seq_no > fromSeqNoExclusive} from the Core-resolved file sets
      * (one per segment for this backend's format).
      *
