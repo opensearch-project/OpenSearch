@@ -516,7 +516,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         proceedListener.onFailure(e);
                     }
                 }, outerListener::onFailure);
-                workloadGroupService.acquireThrottlePermit((WorkloadGroupTask) task, () -> parentAlreadyCounted(task), admissionListener);
+                try {
+                    workloadGroupService.acquireThrottlePermit(
+                        (WorkloadGroupTask) task,
+                        () -> parentAlreadyCounted(task),
+                        admissionListener
+                    );
+                } catch (Exception e) {
+                    // Admission reports outcomes through its listener; anything thrown unexpectedly still takes the normal
+                    // listener path (span end, status stats, timeout cleanup) rather than escaping to the caller.
+                    outerListener.onFailure(e);
+                }
             } else {
                 proceedWithSearch(
                     task,

@@ -37,10 +37,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.wlm.SharedThrottleTestPermits.tryAcquire;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase {
@@ -371,6 +374,45 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         return new ClusterChangedEvent("test", current, previous);
     }
 
+    public void testCheckQueueOverflowExtendsPermitsInsteadOfStrandingThem() {
+        AtomicLong now = new AtomicLong();
+        // An executor that never runs the drain, so the queue fills up.
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(Mockito.mock(ExecutorService.class));
+        WorkloadGroupSharedThrottleService service = new WorkloadGroupSharedThrottleService(
+            clusterService,
+            threadPool,
+            transportService,
+            WorkloadGroupSharedThrottleService.ACQUIRE_TIMEOUT,
+            now::get
+        );
+        deliverNodesChanged(service, clusterService.state().nodes());
+        int permits = WorkloadGroupSharedThrottleService.MAX_QUEUED_CHECKS + 1;
+        for (int i = 0; i < permits; i++) {
+            assertTrue(
+                tryAcquire(
+                    service.tracker(),
+                    "b",
+                    permits,
+                    "p" + i,
+                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                    localNode.getEphemeralId(),
+                    i + 1
+                )
+            );
+        }
+
+        now.addAndGet(WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS + 1);
+        service.tracker().sweepExpired();
+        assertEquals(WorkloadGroupSharedThrottleService.MAX_QUEUED_CHECKS, service.queuedChecks().size());
+        assertEquals("the overflowing permit stays counted", permits, service.tracker().inFlight("b"));
+
+        // The overflowing permit was extended rather than left pending: once the extension passes, a scan collects it again.
+        service.queuedChecks().clear();
+        now.addAndGet(WorkloadGroupSharedThrottleService.FAILED_CHECK_TTL.nanos() + 1);
+        service.tracker().sweepExpired();
+        assertEquals(1, service.queuedChecks().size());
+    }
+
     public void testRemovedCoordinatorPermitsArePurged() {
         // Coordinating-only peers: the ring stays on the single local data node, so this node owns every bucket.
         DiscoveryNode leaving = coordinatingOnlyNode("leaving");
@@ -402,8 +444,14 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertTrue(service.handleAcquire(acquireRequest("b", "old", firstIncarnation.getEphemeralId())).granted);
         // The new incarnation can reach the owner before the owner applies the restart: its permit must survive the purge.
         assertTrue(
-            service.tracker()
-                .tryAcquire("b", 5, "new", WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS, secondIncarnation.getEphemeralId())
+            tryAcquire(
+                service.tracker(),
+                "b",
+                5,
+                "new",
+                WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                secondIncarnation.getEphemeralId()
+            )
         );
 
         ClusterChangedEvent restart = nodesChangedEvent(before, after);

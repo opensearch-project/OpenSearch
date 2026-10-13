@@ -20,6 +20,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.transport.TransportResponse;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.wlm.SharedThrottleTestPermits.tryAcquire;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -283,7 +285,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         try {
             for (int i = 0; i < 3; i++) {
                 assertTrue(
-                    ownerService.tracker().tryAcquire("batch-" + i, 1, "permit-" + i, 100, coordinatorNode.getEphemeralId(), task.getId())
+                    tryAcquire(ownerService.tracker(), "batch-" + i, 1, "permit-" + i, 100, coordinatorNode.getEphemeralId(), task.getId())
                 );
             }
             CountDownLatch applied = expectTaskChecks(1);
@@ -313,8 +315,15 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         try {
             for (int i = 0; i < permits; i++) {
                 assertTrue(
-                    ownerService.tracker()
-                        .tryAcquire(remoteKey, permits, "permit-" + i, 100, coordinatorNode.getEphemeralId(), task.getId())
+                    tryAcquire(
+                        ownerService.tracker(),
+                        remoteKey,
+                        permits,
+                        "permit-" + i,
+                        100,
+                        coordinatorNode.getEphemeralId(),
+                        task.getId()
+                    )
                 );
             }
             CountDownLatch applied = expectTaskChecks(2);
@@ -542,14 +551,14 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testRemoteAcquireDeniedReturns429() throws Exception {
         // Pre-fill the owner's tracker to the limit directly so the next acquire is denied at the source.
         assertTrue(
-            ownerService.tracker()
-                .tryAcquire(
-                    remoteKey,
-                    1,
-                    "pre",
-                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                    SharedThrottleTracker.UNKNOWN_COORDINATOR
-                )
+            tryAcquire(
+                ownerService.tracker(),
+                remoteKey,
+                1,
+                "pre",
+                WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                SharedThrottleTracker.UNKNOWN_COORDINATOR
+            )
         );
         assertEquals(1, ownerService.tracker().inFlight(remoteKey));
 
@@ -569,14 +578,14 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     /** A caller that proceeds on denial (MONITOR) continues the search from the callback, so it gets it on the search pool. */
     public void testRemoteDenialForCallerThatProceedsIsDeliveredOnSearch() throws Exception {
         assertTrue(
-            ownerService.tracker()
-                .tryAcquire(
-                    remoteKey,
-                    1,
-                    "pre",
-                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                    SharedThrottleTracker.UNKNOWN_COORDINATOR
-                )
+            tryAcquire(
+                ownerService.tracker(),
+                remoteKey,
+                1,
+                "pre",
+                WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                SharedThrottleTracker.UNKNOWN_COORDINATOR
+            )
         );
 
         CapturingListener listener = new CapturingListener();
@@ -881,14 +890,14 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSearchPoolRejectionDeliversDenialInlineForCallerThatProceeds() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             assertTrue(
-                ownerService.tracker()
-                    .tryAcquire(
-                        key,
-                        1,
-                        "pre",
-                        WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                        SharedThrottleTracker.UNKNOWN_COORDINATOR
-                    )
+                tryAcquire(
+                    ownerService.tracker(),
+                    key,
+                    1,
+                    "pre",
+                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                    SharedThrottleTracker.UNKNOWN_COORDINATOR
+                )
             );
             CapturingListener listener = new CapturingListener();
             service.acquireAsync(key, 1, true, listener);
@@ -906,14 +915,14 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSaturatedSearchPoolDoesNotMaskDenial() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             assertTrue(
-                ownerService.tracker()
-                    .tryAcquire(
-                        key,
-                        1,
-                        "pre",
-                        WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                        SharedThrottleTracker.UNKNOWN_COORDINATOR
-                    )
+                tryAcquire(
+                    ownerService.tracker(),
+                    key,
+                    1,
+                    "pre",
+                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                    SharedThrottleTracker.UNKNOWN_COORDINATOR
+                )
             );
             CapturingListener listener = new CapturingListener();
             service.acquireAsync(key, 1, false, listener);
@@ -976,6 +985,115 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         } finally {
             unblock.countDown();
             ThreadPool.terminate(saturatedPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static final String TEST_HEADER = "x-wlm-test-header";
+    private static final String TEST_TRANSIENT = "x-wlm-test-transient";
+
+    /**
+     * A remote grant resumes the search on the coordinator's SEARCH pool, not on the thread that called acquireAsync. The
+     * caller's ThreadContext (request headers and transients, e.g. the security user) must be restored for that
+     * continuation, not the network thread's.
+     */
+    public void testRemoteGrantResumesOnSearchWithCallersThreadContext() throws Exception {
+        ContextCapturingListener listener = acquireWithCallerContext(coordinatorService, remoteKey, false);
+        assertNotNull("remote owner granted a permit", listener.response.get());
+        assertOnSearchThread(listener);
+        listener.assertSawCallerContext();
+        listener.response.get().close();
+    }
+
+    /** A MONITOR denial also continues the search, on the SEARCH pool, with the caller's context. */
+    public void testRemoteDenialForCallerThatProceedsKeepsCallersThreadContext() throws Exception {
+        fillOwner(remoteKey);
+        ContextCapturingListener listener = acquireWithCallerContext(coordinatorService, remoteKey, true);
+        assertTrue(WorkloadGroupSharedThrottleService.isDenial(listener.failure.get()));
+        assertOnSearchThread(listener);
+        listener.assertSawCallerContext();
+    }
+
+    /** An ENFORCED denial is delivered inline on the response (network) thread, still with the caller's context. */
+    public void testInlineDenialKeepsCallersThreadContext() throws Exception {
+        fillOwner(remoteKey);
+        ContextCapturingListener listener = acquireWithCallerContext(coordinatorService, remoteKey, false);
+        assertTrue(WorkloadGroupSharedThrottleService.isDenial(listener.failure.get()));
+        assertNotOnSearchThread(listener);
+        listener.assertSawCallerContext();
+    }
+
+    /** A timed-out acquire is reported from the GENERIC timer thread, still with the caller's context. */
+    public void testTimeoutKeepsCallersThreadContext() throws Exception {
+        withShortTimeoutCoordinator((transport, service, key) -> {
+            transport.addSendBehavior(ownerTransport, (connection, requestId, action, request, options) -> {
+                if (WorkloadGroupSharedThrottleService.ACQUIRE_ACTION_NAME.equals(action) == false) {
+                    connection.sendRequest(requestId, action, request, options);
+                } // the ACQUIRE is swallowed so the timer decides
+            });
+            ContextCapturingListener listener = acquireWithCallerContext(service, key, false);
+            assertTrue(WorkloadGroupSharedThrottleService.isUnavailable(listener.failure.get()));
+            listener.assertSawCallerContext();
+        });
+    }
+
+    private void fillOwner(String key) {
+        assertTrue(
+            tryAcquire(
+                ownerService.tracker(),
+                key,
+                1,
+                "pre",
+                WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+                SharedThrottleTracker.UNKNOWN_COORDINATOR
+            )
+        );
+    }
+
+    // Calls acquireAsync under a caller context carrying a header and a transient, then restores the test thread's own
+    // context before waiting, so anything the listener sees must have come from the captured caller context.
+    private ContextCapturingListener acquireWithCallerContext(WorkloadGroupSharedThrottleService service, String key, boolean proceeds)
+        throws InterruptedException {
+        ContextCapturingListener listener = new ContextCapturingListener(threadPool.getThreadContext());
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(TEST_HEADER, "caller");
+            threadPool.getThreadContext().putTransient(TEST_TRANSIENT, "caller-transient");
+            service.acquireAsync(key, 1, proceeds, listener);
+        }
+        assertNull("the caller context must not leak into the test thread", threadPool.getThreadContext().getHeader(TEST_HEADER));
+        listener.await();
+        return listener;
+    }
+
+    /** Records the header and transient visible in the ThreadContext when the outcome is delivered. */
+    private static final class ContextCapturingListener extends CapturingListener {
+        private final ThreadContext threadContext;
+        final AtomicReference<String> header = new AtomicReference<>();
+        final AtomicReference<Object> transientValue = new AtomicReference<>();
+
+        ContextCapturingListener(ThreadContext threadContext) {
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public void onResponse(Releasable releasable) {
+            capture();
+            super.onResponse(releasable);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            capture();
+            super.onFailure(e);
+        }
+
+        private void capture() {
+            header.set(threadContext.getHeader(TEST_HEADER));
+            transientValue.set(threadContext.getTransient(TEST_TRANSIENT));
+        }
+
+        void assertSawCallerContext() {
+            assertEquals("caller header must survive the hop to [" + thread.get() + "]", "caller", header.get());
+            assertEquals("caller transient must survive the hop to [" + thread.get() + "]", "caller-transient", transientValue.get());
         }
     }
 
