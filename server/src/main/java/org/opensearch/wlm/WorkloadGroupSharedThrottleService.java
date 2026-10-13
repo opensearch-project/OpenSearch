@@ -46,7 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -112,7 +113,10 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     // preserving accounting for potentially active searches at the cost of extra 429s. A successful check resolves
     // liveness; node removal purges the coordinator's permits.
     static final TimeValue FAILED_CHECK_TTL = TimeValue.timeValueSeconds(30);
-    static final int MAX_TASKS_PER_CHECK = 1_024;
+    static final int MAX_TASKS_PER_CHECK = 500;
+    // Cap on expired permits waiting for a check. It holds only permits that outlived their TTL (long-running or leaked),
+    // so it should never fill; an overflowing permit is treated like a failed check (extended by FAILED_CHECK_TTL).
+    static final int MAX_QUEUED_CHECKS = 1_000;
 
     private static final Logger logger = LogManager.getLogger(WorkloadGroupSharedThrottleService.class);
 
@@ -123,7 +127,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     private final SharedThrottleTracker tracker;
     private final TimeValue acquireTimeout;
     // Owner-side queue only for expired permits; no coordinator registry or per-search renewal timer.
-    private final ConcurrentLinkedQueue<ExpiredPermit> expiredChecks = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<ExpiredPermit> expiredChecks = new LinkedBlockingQueue<>(MAX_QUEUED_CHECKS);
     private final AtomicBoolean checksScheduled = new AtomicBoolean();
     private volatile Map<String, DiscoveryNode> coordinatorsByEphemeralId = Map.of();
     private volatile boolean stopped;
@@ -296,15 +300,16 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
         // Local-owner short-circuit; the post-acquire fence re-reads the live ring.
         final DiscoveryNode localNode = clusterService.localNode();
+        final AcquirePermitRequest request = new AcquirePermitRequest(
+            bucketKey,
+            sharedLimit,
+            permitId,
+            PERMIT_TTL_NANOS,
+            localNode.getEphemeralId(),
+            coordinatorTaskId
+        );
         if (owner.equals(localNode)) {
-            if (tracker.tryAcquire(
-                bucketKey,
-                sharedLimit,
-                permitId,
-                PERMIT_TTL_NANOS,
-                localNode.getEphemeralId(),
-                coordinatorTaskId
-            ) == false) {
+            if (tracker.tryAcquire(request) == false) {
                 listener.onFailure(deniedMarker());
             } else if (fenceIfOwnershipLost(bucketKey, permitId)) {
                 listener.onFailure(unavailableMarker());
@@ -334,13 +339,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         }
         beforeRemoteAcquireSent.accept(acquire);
         final TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(ACQUIRE_REPLY_BACKSTOP).build();
-        transportService.sendRequest(
-            owner,
-            ACQUIRE_ACTION_NAME,
-            new AcquirePermitRequest(bucketKey, sharedLimit, permitId, PERMIT_TTL_NANOS, localNode.getEphemeralId(), coordinatorTaskId),
-            options,
-            acquire
-        );
+        transportService.sendRequest(owner, ACQUIRE_ACTION_NAME, request, options, acquire);
     }
 
     /**
@@ -508,14 +507,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         }
         // Intentional: the owner trusts the coordinator's limit rather than re-resolving it, so while a shared_limit change
         // propagates, coordinators that have not applied it yet enforce the old value. Short and self-correcting.
-        if (tracker.tryAcquire(
-            request.bucketKey,
-            request.sharedLimit,
-            request.permitId,
-            request.ttlNanos,
-            request.coordinatorId,
-            request.coordinatorTaskId
-        ) == false) {
+        if (tracker.tryAcquire(request) == false) {
             return AcquirePermitResponse.DENIED;
         }
         return fenceIfOwnershipLost(request.bucketKey, request.permitId) ? AcquirePermitResponse.NOT_OWNER : AcquirePermitResponse.GRANTED;
@@ -541,12 +533,31 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         return selector.ownerFor(bucketKey).filter(localNode::equals).isPresent();
     }
 
+    /**
+     * Checks permits whose TTL expired (found by the periodic sweep or by an acquire on a full bucket). Each check ends in
+     * exactly one outcome:
+     * <ul>
+     *   <li>task still registered on its coordinator: the permit is renewed for the full TTL;</li>
+     *   <li>task finished (which also covers a lost release): the permit is removed and its slot freed;</li>
+     *   <li>coordinator no longer in cluster membership: the permit is removed, as in the departed-coordinator purge;</li>
+     *   <li>check could not complete (coordinator still a member but not connected, RPC failure or timeout, executor
+     *       rejection, shutdown, or a full check queue): the permit is extended by {@link #FAILED_CHECK_TTL}.</li>
+     * </ul>
+     * The last outcome repeats for as long as its cause persists, but paced: an extended permit is checked again only when
+     * a later scan finds it expired, so at most once per {@link #FAILED_CHECK_TTL}, batched per coordinator. Retries end
+     * when a check succeeds or the coordinator leaves the cluster; until then the permit stays counted (extra 429s rather
+     * than over-admission).
+     */
     private void checkExpiredPermits(List<ExpiredPermit> expired) {
         if (stopped) {
             retryChecks(expired);
             return;
         }
-        expiredChecks.addAll(expired);
+        for (ExpiredPermit permit : expired) {
+            if (expiredChecks.offer(permit) == false) {
+                tracker.renewForRetry(permit, FAILED_CHECK_TTL.nanos());
+            }
+        }
         scheduleChecks();
     }
 
@@ -688,6 +699,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         afterTaskCheck.run();
     }
 
+    // The "check could not complete" outcome described on checkExpiredPermits.
     private void retryChecks(List<ExpiredPermit> expired) {
         for (ExpiredPermit permit : expired) {
             tracker.renewForRetry(permit, FAILED_CHECK_TTL.nanos());
@@ -795,6 +807,11 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
      */
     public int ownedInFlight(String bucketKey) {
         return tracker.inFlight(bucketKey);
+    }
+
+    // Visible for tests.
+    BlockingQueue<ExpiredPermit> queuedChecks() {
+        return expiredChecks;
     }
 
     // Visible for tests.
