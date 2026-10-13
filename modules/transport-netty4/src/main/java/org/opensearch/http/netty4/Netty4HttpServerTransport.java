@@ -84,7 +84,6 @@ import io.netty.handler.codec.compression.GzipOptions;
 import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpContentEncoder;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -451,7 +450,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      * Used in instances to conditionally decompress depending on the outcome from header verification
      */
     protected ChannelInboundHandlerAdapter createDecompressor() {
-        return new HttpContentDecompressor();
+        return new Netty4HttpContentDecompressor();
     }
 
     /**
