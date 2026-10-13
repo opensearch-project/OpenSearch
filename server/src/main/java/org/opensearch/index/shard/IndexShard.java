@@ -66,6 +66,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -148,6 +149,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
@@ -1719,13 +1721,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
+        return get(get, ReadAccessPolicy.unrestricted());
+    }
+
+    /** Resolves a get while carrying its effective read-access policy to pluggable lookup providers. */
+    public Engine.GetResult get(Engine.Get get, ReadAccessPolicy readAccessPolicy) {
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
         try {
-            return getIndexer().getById(get, this::acquireSearcher);
+            return getIndexer().getById(DocumentLookupContext.of(get, shardId.getIndex(), readAccessPolicy), this::acquireSearcher);
         } catch (IOException e) {
             throw new OpenSearchException("get-by-id failed for id [" + get.id() + "]", e);
         }

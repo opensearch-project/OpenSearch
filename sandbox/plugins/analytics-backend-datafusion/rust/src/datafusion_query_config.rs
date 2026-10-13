@@ -8,10 +8,16 @@
 use crate::indexed_table::stream::FilterStrategy;
 
 /// Engine-internal point lookup driven through the normal `df_execute_query`
-/// entry point. When active, the Substrait `plan_ptr` is ignored and the plan
-/// is built natively via the DataFrame API with a single pushed-down filter on
-/// a stored reserved column — no Substrait, no planner round-trip. Used by the
-/// pluggable-dataformat get-by-id path (`GetService`), not by user search.
+/// entry point. For the native modes (`ByRowId` and `SeqNoAbove`), the Substrait
+/// `plan_ptr` is ignored and the plan is built natively via the DataFrame API with
+/// a single pushed-down filter on a stored reserved column — no Substrait, no
+/// planner round-trip. These modes are used by the pluggable-dataformat get-by-id
+/// path (`GetService`), not by user search.
+///
+/// `PlannedDocumentLookup` is the exception to that native-plan behavior. It marks
+/// a Java-planned GET/MGET request whose supplied Substrait contains both the
+/// resolved row-id predicate and the Document Level Security (DLS) predicate, so
+/// that plan must still be decoded and executed rather than replaced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalSearch {
     /// Not an internal lookup — decode `plan_ptr` as Substrait as usual.
@@ -22,23 +28,36 @@ pub enum InternalSearch {
     /// Seq-no scan: `_seq_no > bound`, projecting only id/seq/term/version.
     /// Used by version-map restore on crash recovery.
     SeqNoAbove(i64),
+    /// Decode the supplied Substrait document-lookup plan, but use the ListingTable path even
+    /// though its row-id predicate necessarily mentions `__row_id__`.
+    PlannedDocumentLookup,
 }
 
 impl InternalSearch {
     /// Decodes the FFM wire pair `(mode, bound)`. `mode`: 0 = Off, 1 = ByRowId,
-    /// 2 = SeqNoAbove. Any other value is treated as Off (forward-compatible).
+    /// 2 = SeqNoAbove, 3 = PlannedDocumentLookup. Any other value is treated as Off.
     pub fn from_wire(mode: i64, bound: i64) -> Self {
         match mode {
             1 => InternalSearch::ByRowId(bound),
             2 => InternalSearch::SeqNoAbove(bound),
+            3 => InternalSearch::PlannedDocumentLookup,
             _ => InternalSearch::Off,
         }
     }
 
-    /// Whether this is an engine-internal point lookup (i.e. not [`InternalSearch::Off`],
-    /// the normal user-search path).
+    /// Whether execution should ignore the supplied Substrait and synthesize a native
+    /// DataFrame plan in `internal_search_dataframe`.
+    ///
+    /// `PlannedDocumentLookup` is intentionally excluded even though it is an internal
+    /// GET/MGET mode: Java has already supplied its row-id-plus-DLS plan, and treating it
+    /// as a native internal search would discard the DLS predicate. `Off` is excluded
+    /// because it represents ordinary caller-supplied query plans.
     pub fn is_internal_search(self) -> bool {
-        !matches!(self, InternalSearch::Off)
+        // Only these modes replace the caller-supplied plan with a Rust-built plan.
+        matches!(
+            self,
+            InternalSearch::ByRowId(_) | InternalSearch::SeqNoAbove(_)
+        )
     }
 }
 
@@ -261,9 +280,14 @@ mod tests {
             InternalSearch::from_wire(2, 7),
             InternalSearch::SeqNoAbove(7)
         );
+        assert_eq!(
+            InternalSearch::from_wire(3, 5),
+            InternalSearch::PlannedDocumentLookup
+        );
         // Unknown modes are forward-compatible: treated as Off, bound ignored.
-        assert_eq!(InternalSearch::from_wire(3, 5), InternalSearch::Off);
+        assert_eq!(InternalSearch::from_wire(4, 5), InternalSearch::Off);
         assert!(!InternalSearch::Off.is_internal_search());
+        assert!(!InternalSearch::PlannedDocumentLookup.is_internal_search());
         assert!(InternalSearch::ByRowId(0).is_internal_search());
         assert!(InternalSearch::SeqNoAbove(0).is_internal_search());
     }

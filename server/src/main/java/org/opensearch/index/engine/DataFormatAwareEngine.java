@@ -62,6 +62,7 @@ import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -2201,15 +2202,18 @@ public class DataFormatAwareEngine implements Indexer {
      * Throws {@link UnsupportedOperationException} if no plugin is wired.
      */
     @Override
-    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
-        throws IOException {
+    public Engine.GetResult getById(
+        DocumentLookupContext context,
+        BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory
+    ) throws IOException {
+        Engine.Get get = context.get();
         if (documentLookup.isSupported() == false) {
             throw new UnsupportedOperationException("getById not supported: no DocumentLookupProvider installed");
         }
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
+            VersionValue versionValue = null;
             if (get.realtime()) {
-                VersionValue versionValue;
                 try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
                     versionValue = getVersionFromMap(get.uid().bytes());
                 }
@@ -2235,7 +2239,12 @@ public class DataFormatAwareEngine implements Indexer {
                             versionValue.term
                         );
                     }
-                    if (get.isReadFromTranslog() && versionValue.getLocation() != null) {
+                    // A translog hit contains the unfiltered source and cannot enforce the
+                    // logical DLS predicate. Restricted lookups therefore continue to the
+                    // snapshot-backed provider.
+                    if (context.readAccessPolicy().hasRestrictions() == false
+                        && get.isReadFromTranslog()
+                        && versionValue.getLocation() != null) {
                         try {
                             Translog.Operation operation = translogManager.readOperation(versionValue.getLocation());
                             if (operation != null) {
@@ -2261,7 +2270,18 @@ public class DataFormatAwareEngine implements Indexer {
 
             // Fall through: read from parquet
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.lookupFromReader(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.lookupFromReader(context, readerRef.get());
+                if (context.readAccessPolicy().hasRestrictions()
+                    && versionValue != null
+                    && result.exists()
+                    && (result.version() != versionValue.version
+                        || result.seqNo() != versionValue.seqNo
+                        || result.primaryTerm() != versionValue.term)) {
+                    // The current version exists only in the translog. Returning the older
+                    // snapshot row could evaluate DLS against stale values, so fail closed
+                    // until the current row is searchable by the secured lookup provider.
+                    return Engine.GetResult.NOT_EXISTS;
+                }
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         } // readLock

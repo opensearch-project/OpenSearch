@@ -10,6 +10,7 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.query.QueryBuilderTranslatorProvider;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
@@ -41,5 +42,20 @@ public class DslQueryBuilderTranslatorProviderTests extends OpenSearchTestCase {
             .orElse(null);
 
         assertNotNull(provider);
+    }
+
+    public void testUnsupportedPolicyQueryFailsClosed() {
+        ConversionContext context = TestUtils.createContext();
+
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> new DslQueryBuilderTranslatorProvider().translate(
+                QueryBuilders.idsQuery().addIds("doc-1"),
+                context.getCluster(),
+                context.getTable()
+            )
+        );
+
+        assertTrue(exception.getMessage(), exception.getMessage().contains("No analytics translator"));
     }
 }

@@ -8,9 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.analytics.planner.DocumentLookupPlanBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
@@ -44,10 +46,11 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver.DocumentMetadata;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.get.DocumentLookupResult;
@@ -62,6 +65,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -493,6 +497,7 @@ public class DataFusionPlugin extends Plugin
     private volatile DatafusionSettings datafusionSettings;
     // DocumentLookupProvider implementation. Construction deferred until the DataFusion service is live.
     private volatile GetService getService;
+    private volatile DocumentLookupPlanBuilder documentLookupPlanBuilder;
     private volatile CircuitBreaker datafusionBreaker;
 
     /**
@@ -500,6 +505,50 @@ public class DataFusionPlugin extends Plugin
      */
     public DataFusionPlugin() {}
 
+    // --- Plugin component-discovery phase ---
+
+    // TODO: Remove this cross-plugin lookup hook in a follow-up. Using Plugin#createComponents
+    // only to capture DocumentLookupPlanBuilder (while returning no components) splits DataFusion
+    // initialization across two lifecycle phases, relies on analytics-engine being initialized
+    // first, and leaves a late-bound mutable dependency. Replace it with a narrow document-lookup
+    // plan provider/consumer SPI wired through the existing AnalyticsSearchBackendPlugin extension
+    // relationship; DataFusion's SearchBackEndPlugin phase should remain responsible only for its
+    // storage/native runtime initialization.
+
+    /**
+     * Runs during the ordinary {@link Plugin} component phase, in plugin dependency order.
+     * Analytics-engine has already published its {@link DocumentLookupPlanBuilder}, so this
+     * hook captures that cross-plugin dependency for DLS-aware GET/MGET. It deliberately does
+     * not initialize DataFusion: the {@link SearchBackEndPlugin} phase below supplies the
+     * {@link DataFormatRegistry} and optional {@link NativeAllocator} needed for that work.
+     */
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
+    ) {
+        this.documentLookupPlanBuilder = pluginComponentRegistry.getComponent(DocumentLookupPlanBuilder.class)
+            .orElseThrow(() -> new IllegalStateException("DocumentLookupPlanBuilder not available; analytics-engine must be installed"));
+        return List.of();
+    }
+
+    // --- SearchBackEndPlugin initialization phase ---
+
+    /**
+     * Backward-compatible backend initialization entry point for callers that do not supply
+     * a {@link NativeAllocator}. All initialization is delegated to the allocator-aware
+     * overload below so the two entry points cannot diverge.
+     */
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -532,6 +581,12 @@ public class DataFusionPlugin extends Plugin
         );
     }
 
+    /**
+     * Primary {@link SearchBackEndPlugin} initialization hook. OpenSearch invokes this after
+     * ordinary plugin components have been created and after constructing the
+     * {@link DataFormatRegistry}. This is the phase that starts the native DataFusion runtime,
+     * installs dynamic settings consumers, and creates {@link GetService}.
+     */
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -1076,13 +1131,30 @@ public class DataFusionPlugin extends Plugin
     }
 
     /**
-     * Get-by-id entry point. Delegates to {@link GetService}, which fetches the row through the native runtime.
+     * {@link DocumentLookupProvider} GET/MGET entry point. Unrestricted requests retain the
+     * native row-id lookup. Restricted requests first resolve the id through Lucene, then ask
+     * analytics-engine to construct the row-id-plus-DLS plan executed by DataFusion.
      */
     @Override
-    public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, Index index, DocumentMetadataResolver resolver)
+    public DocumentLookupResult getById(DocumentLookupContext context, IndexReaderProvider.Reader reader, DocumentMetadataResolver resolver)
         throws IOException {
         GetService getService = getServiceOrThrow();
-        return getService.documentLookupService(resolver).getById(get.id(), reader, index);
+        var lookupService = getService.documentLookupService(resolver);
+        if (context.readAccessPolicy().hasRestrictions() == false) {
+            return lookupService.getById(context.get().id(), reader, context.index());
+        }
+
+        DocumentMetadata metadata = resolver.resolveMetadata(reader, context.get().id());
+        if (metadata == null) {
+            return DocumentLookupResult.notFound(context.get().id());
+        }
+        DocumentLookupPlanBuilder planBuilder = documentLookupPlanBuilder;
+        if (planBuilder == null) {
+            throw new IllegalStateException("DocumentLookupPlanBuilder is not initialized");
+        }
+        RelNode plan = planBuilder.build(context.index(), metadata.rowId(), context.readAccessPolicy());
+        byte[] substraitPlan = new DataFusionFragmentConvertor(getSubstraitExtensions()).convertFragment(plan);
+        return lookupService.getByResolvedMetadata(context.get().id(), metadata, reader, context.index(), substraitPlan);
     }
 
     @Override
