@@ -89,6 +89,7 @@ import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecide
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.ClusterSettingsValidatorRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -120,6 +121,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -148,6 +150,7 @@ public class ClusterModule extends AbstractModule {
     final ShardsAllocator shardsAllocator;
     private final ClusterManagerMetrics clusterManagerMetrics;
     private final Class<? extends ShardStateAction> shardStateActionClass;
+    private final ClusterSettingsValidatorRegistry clusterSettingsValidatorRegistry;
 
     public ClusterModule(
         Settings settings,
@@ -160,6 +163,7 @@ public class ClusterModule extends AbstractModule {
         Class<? extends ShardStateAction> shardStateActionClass
     ) {
         this.clusterPlugins = clusterPlugins;
+        this.clusterSettingsValidatorRegistry = createClusterSettingsValidatorRegistry(settings, clusterPlugins);
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -469,8 +473,21 @@ public class ClusterModule extends AbstractModule {
         return allocationService;
     }
 
+    public static ClusterSettingsValidatorRegistry createClusterSettingsValidatorRegistry(Settings settings, List<ClusterPlugin> plugins) {
+        Map<Setting<?>, BiConsumer<Settings, ClusterState>> validators = new LinkedHashMap<>();
+        for (ClusterPlugin plugin : plugins) {
+            plugin.getClusterSettingsValidators().forEach((setting, validator) -> {
+                if (validators.putIfAbsent(setting, validator) != null) {
+                    throw new IllegalArgumentException("Cluster settings validator for [" + setting.getKey() + "] is already registered");
+                }
+            });
+        }
+        return new ClusterSettingsValidatorRegistry(settings, validators);
+    }
+
     @Override
     protected void configure() {
+        bind(ClusterSettingsValidatorRegistry.class).toInstance(clusterSettingsValidatorRegistry);
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(ShardsBatchGatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);

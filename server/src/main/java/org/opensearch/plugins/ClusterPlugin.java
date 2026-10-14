@@ -32,17 +32,21 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -51,6 +55,21 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 public interface ClusterPlugin {
+
+    /**
+     * Returns validators for dynamic node settings whose validity depends on cluster state. Settings must also be
+     * registered through {@link Plugin#getSettings()}. Each setting may have only one stateful validator.
+     * <p>
+     * A validator runs before publication when a request touches its setting or one of its fallbacks, including resets.
+     * It receives node settings overlaid with the proposed persistent and transient cluster settings, and the final proposed cluster state.
+     * Validators must not mutate state and should throw {@link IllegalArgumentException} to reject an update.
+     *
+     * @return A map from settings to their cluster state validators
+     */
+    @ExperimentalApi
+    default Map<Setting<?>, BiConsumer<Settings, ClusterState>> getClusterSettingsValidators() {
+        return Collections.emptyMap();
+    }
 
     /**
      * Return deciders used to customize where shards are allocated.
