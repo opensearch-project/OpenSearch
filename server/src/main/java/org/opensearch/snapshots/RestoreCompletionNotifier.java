@@ -14,9 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.PluginSubject;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -30,8 +27,8 @@ import java.util.Set;
  * Tells every {@link RestoreListenerPlugin} that a snapshot restore finished. {@link RestoreService}'s cleanup task
  * calls {@link #restoreCompleted} once the cluster state that removes the finished restore is published, so each
  * restore is reported once. Each plugin runs in its own task on the generic thread pool, off the cluster-state thread,
- * so a slow plugin delays neither cluster-state updates nor the other plugins. Each task runs as that plugin's own
- * {@link PluginSubject}. A plugin that throws is logged and does not affect the others.
+ * so a slow plugin delays neither cluster-state updates nor the other plugins. A plugin that throws is logged and does
+ * not affect the others.
  *
  * @opensearch.internal
  */
@@ -41,20 +38,11 @@ final class RestoreCompletionNotifier {
 
     private final ThreadPool threadPool;
 
-    private final List<Listener> listeners;
+    private final List<RestoreListenerPlugin> plugins;
 
-    /**
-     * @param identityService holds the subject core assigned to each plugin; every plugin must have one
-     */
-    RestoreCompletionNotifier(ThreadPool threadPool, List<RestoreListenerPlugin> plugins, IdentityService identityService) {
+    RestoreCompletionNotifier(ThreadPool threadPool, List<RestoreListenerPlugin> plugins) {
         this.threadPool = threadPool;
-        this.listeners = plugins.stream().map(plugin -> {
-            final PluginSubject subject = identityService.getPluginSubject((Plugin) plugin);
-            if (subject == null) {
-                throw new IllegalStateException("restore listener plugin [" + plugin.getClass().getName() + "] has no plugin subject");
-            }
-            return new Listener(plugin, subject);
-        }).toList();
+        this.plugins = List.copyOf(plugins);
     }
 
     /**
@@ -62,7 +50,7 @@ final class RestoreCompletionNotifier {
      * restored.
      */
     void restoreCompleted(RestoreInProgress.Entry entry) {
-        if (listeners.isEmpty()) {
+        if (plugins.isEmpty()) {
             return;
         }
         final RestoreContext context = contextOf(entry);
@@ -74,17 +62,15 @@ final class RestoreCompletionNotifier {
             );
             return;
         }
-        // This runs on the cluster manager service thread in system context. Plugins must not block that thread, so each
-        // call is forked. runAs replaces the inherited system context with the plugin's own identity.
-        for (Listener listener : listeners) {
-            threadPool.generic().execute(() -> callPlugin(listener, context));
+        // This runs on the cluster manager service thread. Plugins must not block that thread, so each call is forked.
+        for (RestoreListenerPlugin plugin : plugins) {
+            threadPool.generic().execute(() -> callPlugin(plugin, context));
         }
     }
 
-    private static void callPlugin(Listener listener, RestoreContext context) {
-        final RestoreListenerPlugin plugin = listener.plugin();
+    private void callPlugin(RestoreListenerPlugin plugin, RestoreContext context) {
         try {
-            listener.subject().runAs(() -> plugin.onRestore(context));
+            plugin.onRestore(context);
         } catch (Exception e) {
             logger.error(
                 () -> new ParameterizedMessage(
@@ -117,8 +103,5 @@ final class RestoreCompletionNotifier {
         }
         final List<Index> restored = indices.stream().sorted(Comparator.comparing(Index::getName)).toList();
         return new RestoreContext(entry.snapshot(), entry.uuid(), restored, notRestored.isEmpty() == false);
-    }
-
-    private record Listener(RestoreListenerPlugin plugin, PluginSubject subject) {
     }
 }

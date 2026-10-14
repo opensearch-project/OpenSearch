@@ -1619,8 +1619,7 @@ public class Node implements Closeable {
                 clusterInfoService::getClusterInfo,
                 new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio,
                 threadPool,
-                pluginsService.filterPlugins(RestoreListenerPlugin.class),
-                identityService
+                pluginsService.filterPlugins(RestoreListenerPlugin.class)
             );
 
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(

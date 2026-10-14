@@ -10,41 +10,22 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.PluginSubject;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 
-import java.security.Principal;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 public class RestoreCompletionNotifierTests extends OpenSearchTestCase {
-
-    private static final String SUBJECT = "test_subject";
 
     private DeterministicTaskQueue taskQueue;
 
@@ -137,98 +118,8 @@ public class RestoreCompletionNotifierTests extends OpenSearchTestCase {
         assertEquals(List.of("restore-uuid"), other.restoreUUIDs());
     }
 
-    public void testEachPluginRunsAsItsOwnSubject() {
-        final ThreadPool threadPool = taskQueue.getThreadPool();
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final List<String> seen = new CopyOnWriteArrayList<>();
-        final RecordingPlugin first = new RecordingPlugin(context -> seen.add("first ran as " + threadContext.getTransient(SUBJECT)));
-        final RecordingPlugin second = new RecordingPlugin(context -> seen.add("second ran as " + threadContext.getTransient(SUBJECT)));
-        final Map<Plugin, String> names = Map.of(first, "first", second, "second");
-        final List<RestoreListenerPlugin> plugins = List.of(first, second);
-
-        new RestoreCompletionNotifier(threadPool, plugins, identityService(threadPool, plugins, names::get)).restoreCompleted(
-            restoredEntry("restore-uuid")
-        );
-        taskQueue.runAllTasks();
-
-        assertEquals(Set.of("first ran as first", "second ran as second"), Set.copyOf(seen));
-        assertNull("the subject is not left on the calling thread", threadContext.getTransient(SUBJECT));
-    }
-
-    public void testPluginWithoutASubjectIsRejected() {
-        final ThreadPool threadPool = taskQueue.getThreadPool();
-        final RecordingPlugin plugin = new RecordingPlugin(context -> {});
-        // The identity service never assigned this plugin a subject.
-        final IdentityService identityService = identityService(threadPool, List.of(), p -> "unused");
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new RestoreCompletionNotifier(threadPool, List.of(plugin), identityService)
-        );
-        assertEquals("restore listener plugin [" + RecordingPlugin.class.getName() + "] has no plugin subject", e.getMessage());
-    }
-
-    public void testPluginDoesNotInheritTheCallersContextWithCoreSubject() throws Exception {
-        // A real thread pool, because it carries the submitting thread's context into the task, and the subject that core
-        // assigns when no identity plugin is installed.
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            final ThreadContext threadContext = threadPool.getThreadContext();
-            final CompletableFuture<Optional<String>> headerSeen = new CompletableFuture<>();
-            final CompletableFuture<Boolean> systemContextSeen = new CompletableFuture<>();
-            final RecordingPlugin plugin = new RecordingPlugin(context -> {
-                headerSeen.complete(Optional.ofNullable(threadContext.getHeader("caller-header")));
-                systemContextSeen.complete(threadContext.isSystemContext());
-            });
-            final IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
-            identityService.initializeIdentityAwarePlugins(List.of(plugin));
-            final RestoreCompletionNotifier notifier = new RestoreCompletionNotifier(threadPool, List.of(plugin), identityService);
-
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.putHeader("caller-header", "from the cluster manager thread");
-                threadContext.markAsSystemContext();
-                notifier.restoreCompleted(restoredEntry("restore-uuid"));
-            }
-
-            assertEquals(Optional.empty(), headerSeen.get(10, TimeUnit.SECONDS));
-            assertFalse(systemContextSeen.get(10, TimeUnit.SECONDS));
-        } finally {
-            terminate(threadPool);
-        }
-    }
-
     private RestoreCompletionNotifier notifier(List<RestoreListenerPlugin> plugins) {
-        final ThreadPool threadPool = taskQueue.getThreadPool();
-        return new RestoreCompletionNotifier(threadPool, plugins, identityService(threadPool, plugins, p -> "plugin"));
-    }
-
-    /**
-     * An identity service whose identity plugin gives each plugin a {@link NamedSubject}, already assigned to the given
-     * plugins the way {@code Node} does at startup.
-     */
-    private static IdentityService identityService(
-        ThreadPool threadPool,
-        List<RestoreListenerPlugin> plugins,
-        Function<Plugin, String> nameOf
-    ) {
-        final IdentityPlugin namingIdentityPlugin = new IdentityPlugin() {
-            @Override
-            public Subject getCurrentSubject() {
-                return null;
-            }
-
-            @Override
-            public TokenManager getTokenManager() {
-                return null;
-            }
-
-            @Override
-            public PluginSubject getPluginSubject(Plugin plugin) {
-                return new NamedSubject(nameOf.apply(plugin), threadPool.getThreadContext());
-            }
-        };
-        final IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of(namingIdentityPlugin));
-        identityService.initializeIdentityAwarePlugins(new ArrayList<>(plugins));
-        return identityService;
+        return new RestoreCompletionNotifier(taskQueue.getThreadPool(), plugins);
     }
 
     private static RestoreInProgress.Entry restoredEntry(String uuid) {
@@ -246,25 +137,6 @@ public class RestoreCompletionNotifierTests extends OpenSearchTestCase {
             shardStates.keySet().stream().map(ShardId::getIndexName).distinct().toList(),
             shards
         );
-    }
-
-    /**
-     * Runs code with its name in the thread context, the way a real subject runs code as its plugin.
-     */
-    private record NamedSubject(String name, ThreadContext threadContext) implements PluginSubject {
-
-        @Override
-        public Principal getPrincipal() {
-            return new NamedPrincipal(name);
-        }
-
-        @Override
-        public <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.putTransient(SUBJECT, name);
-                r.run();
-            }
-        }
     }
 
     private static final class RecordingPlugin extends Plugin implements RestoreListenerPlugin {

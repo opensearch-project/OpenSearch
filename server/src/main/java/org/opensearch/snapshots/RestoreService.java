@@ -84,7 +84,6 @@ import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -308,8 +307,7 @@ public class RestoreService implements ClusterStateApplier {
         Supplier<ClusterInfo> clusterInfoSupplier,
         Supplier<Double> dataToFileCacheSizeRatioSupplier,
         ThreadPool threadPool,
-        List<RestoreListenerPlugin> restoreListenerPlugins,
-        IdentityService identityService
+        List<RestoreListenerPlugin> restoreListenerPlugins
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -326,7 +324,7 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterInfoSupplier = clusterInfoSupplier;
         this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(
-            new RestoreCompletionNotifier(threadPool, restoreListenerPlugins, identityService)::restoreCompleted
+            new RestoreCompletionNotifier(threadPool, restoreListenerPlugins)::restoreCompleted
         );
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
