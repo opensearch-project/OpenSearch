@@ -237,6 +237,7 @@ import org.opensearch.plugins.DefaultPluginComponentRegistry;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
+import org.opensearch.plugins.FieldFilterProvider;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -1205,6 +1206,8 @@ public class Node implements Closeable {
             final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
             final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
+            pluginComponentRegistry.register(new FieldFilterProvider(indicesService.getFieldFilter()));
+            pluginComponentRegistry.register(dataFormatRegistry);
             final List<Object> pluginComponents = new ArrayList<>();
             for (Plugin p : pluginsService.filterPlugins(Plugin.class)) {
                 Collection<Object> components = p.createComponents(
@@ -1226,6 +1229,7 @@ public class Node implements Closeable {
                 }
                 pluginComponents.addAll(components);
             }
+            final NativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(NativeAllocator.class).orElse(null);
             pluginComponentRegistry.seal();
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
@@ -1251,37 +1255,6 @@ public class Node implements Closeable {
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
-
-            // Extract the NativeAllocator instance (published by ArrowBasePlugin in phase 1)
-            // so it can be passed to SearchBackEndPlugin.createComponents for virtual pool registration.
-            final NativeAllocator nativeAllocator = pluginComponents.stream()
-                .filter(c -> c instanceof NativeAllocator)
-                .map(c -> (NativeAllocator) c)
-                .findFirst()
-                .orElse(null);
-
-            @SuppressWarnings("rawtypes")
-            Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
-                .stream()
-                .flatMap(
-                    p -> ((SearchBackEndPlugin<?>) p).createComponents(
-                        client,
-                        clusterService,
-                        threadPool,
-                        resourceWatcherService,
-                        scriptService,
-                        xContentRegistry,
-                        environment,
-                        nodeEnvironment,
-                        namedWriteableRegistry,
-                        clusterModule.getIndexNameExpressionResolver(),
-                        repositoriesServiceReference::get,
-                        dataFormatRegistry,
-                        nativeAllocator
-                    ).stream()
-                )
-                .collect(Collectors.toList());
-            pluginComponents.addAll(searchBackEndPluginComponents);
 
             pluginsService.filterPlugins(SearchBackEndPlugin.class)
                 .stream()
