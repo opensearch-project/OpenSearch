@@ -128,10 +128,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
+    /** Name of the shared {@code multi_value} mapping parameter. */
+    public static final String MULTI_VALUE_PARAMETER = "multi_value";
+
     /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
     protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
         return new Parameter<>(
-            "multi_value",
+            MULTI_VALUE_PARAMETER,
             true,
             () -> MappedFieldType.MultiValueState.AUTO,
             (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
@@ -183,7 +186,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             );
         }
         Builder updateBuilder = getMergeBuilder();
-        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        updateBuilder.setParameterValue(MULTI_VALUE_PARAMETER, MappedFieldType.MultiValueState.LIST);
         ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
         if (update.fieldType().isMultiValued() == false) {
             throw new IllegalStateException(
