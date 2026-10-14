@@ -85,6 +85,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.Assertions;
@@ -158,6 +159,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -1294,6 +1296,45 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         expectThrows(AssertionError.class, () -> primaryShard.getHistoryOperationsFromTranslog(0, 1));
         closeShard(primaryShard, false);
+    }
+
+    /**
+     * A translog that is uploaded to a remote store must keep the buffered processor so that the uploads are batched.
+     * This covers the window during a migration where the node is already configured with a translog repository but
+     * the index has not been stamped with one, which is why the node attribute is consulted and not just the setting.
+     */
+    public void testRemoteTranslogConfiguredOnNodeUsesBufferedSyncProcessor() throws IOException {
+        IndexShard shard = newShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        try {
+            assertFalse("the index has no translog repository yet", shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertTrue(
+                "the node does have one, so the translog is already remote",
+                RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings())
+            );
+            assertTrue(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Without a remote translog there is nothing to batch, so the fsync is issued inline on the calling thread.
+     */
+    public void testLocalTranslogUsesInlineSyncProcessor() throws IOException {
+        IndexShard shard = newShard(true);
+        try {
+            assertFalse(shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertFalse(RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings()));
+            assertFalse(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testGlobalCheckpointSync() throws IOException {
@@ -2935,25 +2976,55 @@ public class IndexShardTests extends IndexShardTestCase {
         testRestoreShardFromRemoteStore(true);
     }
 
+    /**
+     * The same restore against a segments_only shard, which has a segment repository and no translog repository. Only
+     * segments were uploaded, so the shard comes back at its last uploaded segment with an empty translog rather than
+     * replaying a remote one, and the restore has to succeed without a translog repository to read.
+     */
+    public void testCommitLevelRestoreSegmentsOnlyShardFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(true, true, true);
+    }
+
+    /**
+     * A shard that never refreshed uploaded nothing, so the download leaves only the segments_N written locally and
+     * the restore has to bootstrap an empty shard rather than open one from segments that are not there.
+     */
+    public void testRestoreShardThatUploadedNothingFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(false, false, false);
+    }
+
+    public void testRestoreSegmentsOnlyShardThatUploadedNothingFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(false, true, false);
+    }
+
     public void testRestoreShardFromRemoteStore(boolean performFlush) throws IOException {
+        testRestoreShardFromRemoteStore(performFlush, false, true);
+    }
+
+    public void testRestoreShardFromRemoteStore(boolean performFlush, boolean segmentsOnly, boolean uploadSegments) throws IOException {
         String remoteStorePath = createTempDir().toString();
-        IndexShard target = newStartedShard(
-            true,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
-                .build(),
-            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test");
+        if (segmentsOnly == false) {
+            settings.put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test");
+        }
+        IndexShard target = newStartedShard(true, settings.build(), new EngineBackedIndexerFactory(new InternalEngineFactory()));
+        assertEquals(
+            "the translog is remote exactly when a translog repository is configured",
+            segmentsOnly == false,
+            target.indexSettings().isTranslogDurableInRemoteStore()
         );
 
-        indexDoc(target, "_doc", "1");
-        indexDoc(target, "_doc", "2");
-        target.refresh("test");
-        assertDocs(target, "1", "2");
-        if (performFlush) {
-            flushShard(target);
+        if (uploadSegments) {
+            indexDoc(target, "_doc", "1");
+            indexDoc(target, "_doc", "2");
+            target.refresh("test");
+            assertDocs(target, "1", "2");
+            if (performFlush) {
+                flushShard(target);
+            }
         }
 
         ShardRouting routing = ShardRoutingHelper.initWithSameId(
@@ -2998,13 +3069,18 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertEquals(0, storeDirectory.listAll().length);
 
-        Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
+        // A shard that never refreshed wrote no metadata file, and listing a remote directory without one fails.
+        if (uploadSegments) {
+            Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate())
+                .getDelegate();
 
-        // extra0 file is added as a part of https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
-        // Safe to remove without impacting the test
-        for (String file : remoteDirectory.listAll()) {
-            if (ExtrasFS.isExtra(file)) {
-                remoteDirectory.deleteFile(file);
+            // extra0 file is added as a part of
+            // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+            // Safe to remove without impacting the test
+            for (String file : remoteDirectory.listAll()) {
+                if (ExtrasFS.isExtra(file)) {
+                    remoteDirectory.deleteFile(file);
+                }
             }
         }
 
@@ -3017,7 +3093,11 @@ public class IndexShardTests extends IndexShardTestCase {
         target.restoreFromRemoteStore(future);
         target.remoteStore().decRef();
         assertTrue(future.actionGet());
-        assertDocs(target, "1", "2");
+        if (uploadSegments) {
+            assertDocs(target, "1", "2");
+        } else {
+            assertDocCount(target, 0);
+        }
 
         storeDirectory = ((FilterDirectory) ((FilterDirectory) target.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);

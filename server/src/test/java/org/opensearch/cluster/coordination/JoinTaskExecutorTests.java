@@ -72,6 +72,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -610,6 +611,75 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote " + "store cluster"));
+    }
+
+    public void testJoinClusterWithSegmentsOnlyNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    /**
+     * A segments_only node has no cluster state repository, so it is not a {@code DiscoveryNode#isRemoteStoreNode()}.
+     * The checks below are the ones that predicate used to gate, which left a segments_only cluster accepting any
+     * node at all.
+     */
+    public void testPreventJoinClusterWithSegmentsOnlyNodeWithDifferentRepositoryJoining() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes("a-different-segment-repo"));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithNonRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertEquals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster", e.getMessage());
+    }
+
+    /**
+     * The two kinds of remote store node have different durability semantics, and {@code IndexSettings#isTranslogDurableInRemoteStore}
+     * reads the node attribute, so a shard that moved between them would change which copy of its operations is the
+     * durable one.
+     */
+    public void testPreventJoinClusterWithRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithSegmentsOnlyNodeJoiningRemoteStoreCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    private ClusterState clusterStateWithSingleNode(Map<String, String> attributes) {
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeWithPartialAttributesJoiningRemoteStoreCluster() {
@@ -1579,6 +1649,30 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
         return remoteStoreNodeAttributes(segmentRepoName, translogRepoName, CLUSTER_STATE_REPO);
+    }
+
+    /** A segment repository and deliberately no translog or cluster state repository, which is what segments_only is. */
+    private Map<String, String> segmentsOnlyNodeAttributes(String segmentRepoName) {
+        String segmentRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String segmentRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+
+        return new HashMap<>() {
+            {
+                put(REMOTE_STORE_MODE_KEY, "segments_only");
+                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(segmentRepositoryTypeAttributeKey, "s3");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
+            }
+        };
     }
 
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {
