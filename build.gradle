@@ -743,3 +743,11 @@ allprojects { project ->
     }
   }
 }
+
+allprojects {
+  configurations.all {
+    resolutionStrategy {
+      force 'org.eclipse.jetty:jetty-security:9.4.63'
+    }
+  }
+}
