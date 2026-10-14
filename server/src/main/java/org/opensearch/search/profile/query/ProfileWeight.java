@@ -33,6 +33,7 @@
 package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
@@ -45,9 +46,9 @@ import org.opensearch.search.profile.Timer;
 import java.io.IOException;
 
 /**
- * Weight wrapper that will compute how much time it takes to build the
- * {@link Scorer} and then return a {@link Scorer} that is wrapped in
- * order to compute timings as well.
+ * Weight wrapper that times scorer construction and execution. Native bulk scorers
+ * retain their execution strategy and are timed as a bulk operation. Scorers obtained
+ * through {@link ScorerSupplier#get(long)} retain method-level instrumentation.
  *
  * @opensearch.internal
  */
@@ -89,10 +90,31 @@ public final class ProfileWeight extends Weight {
             }
 
             @Override
+            public BulkScorer bulkScorer() throws IOException {
+                timer.start();
+                try {
+                    BulkScorer bulkScorer = subQueryScorerSupplier.bulkScorer();
+                    return bulkScorer == null ? null : new ProfileBulkScorer(bulkScorer, profile.context(context));
+                } finally {
+                    timer.stop();
+                }
+            }
+
+            @Override
             public long cost() {
                 timer.start();
                 try {
                     return subQueryScorerSupplier.cost();
+                } finally {
+                    timer.stop();
+                }
+            }
+
+            @Override
+            public void setTopLevelScoringClause() throws IOException {
+                timer.start();
+                try {
+                    subQueryScorerSupplier.setTopLevelScoringClause();
                 } finally {
                     timer.stop();
                 }
