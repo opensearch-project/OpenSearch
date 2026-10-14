@@ -27,9 +27,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Batched translog appends are on by default for remote-store segment-replication indexes. A single bulk mixing
- * indexes, updates and deletes of the same ids, with dynamic mapping updates arriving part way through, must leave the
- * shard in request order: visible state, realtime GETs and the translog replayed by a node restart all agree.
+ * Batched translog appends are opt-in ({@code index.translog.batch_append.enabled}, default false) on remote-store
+ * segment-replication indexes. With the setting on, a single bulk mixing indexes, updates and deletes of the same ids,
+ * with dynamic mapping updates arriving part way through, must leave the shard in request order: visible state,
+ * realtime GETs and the translog replayed by a node restart all agree.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreBatchedTranslogIT extends RemoteStoreBaseIntegTestCase {
@@ -45,11 +46,16 @@ public class RemoteStoreBatchedTranslogIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(remoteStoreIndexSettings(0))
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getKey(), true)
                 .build()
         );
         ensureGreen(INDEX);
+        assertFalse(
+            "batching must be opt-in: an eligible index without the setting keeps the per-operation path",
+            IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getDefault(Settings.EMPTY)
+        );
         assertTrue(
-            "batching must be the default on an eligible index",
+            "the index under test opted in",
             IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.get(
                 client().admin().indices().prepareGetSettings(INDEX).get().getIndexToSettings().get(INDEX)
             )

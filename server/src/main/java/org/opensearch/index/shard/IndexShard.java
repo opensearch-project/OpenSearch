@@ -670,6 +670,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return shardMigrationState == REMOTE_MIGRATING_SEEDED;
     }
 
+    /**
+     * Whether this shard's translog has an authoritative copy in the remote store, so that the local translog directory
+     * is a cache of that copy: a remote-store index, or a docrep index whose shard was seeded into the remote store by a
+     * remote source while migrating ({@link ShardMigrationState#REMOTE_MIGRATING_SEEDED}). Every decision that reads the
+     * remote translog during recovery ({@link #hydrateFromRemoteStore}, {@link #resetEngineToGlobalCheckpoint}) and the
+     * one that discards a local copy proven corrupt ({@link #discardCorruptLocalRemoteTranslog}) must agree on this, so
+     * they all go through here. An unseeded migrating shard has no remote copy yet, and its local translog is the only one.
+     */
+    boolean isTranslogBackedByRemoteStore() {
+        return isTranslogBackedByRemoteStore(indexSettings, shardMigrationState);
+    }
+
+    static boolean isTranslogBackedByRemoteStore(IndexSettings indexSettings, ShardMigrationState shardMigrationState) {
+        return indexSettings.isRemoteTranslogStoreEnabled() || shardMigrationState == REMOTE_MIGRATING_SEEDED;
+    }
+
     public Store remoteStore() {
         return this.remoteStore;
     }
@@ -3390,12 +3406,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <p>
      * Since the remote store holds an intact copy, delete the local directory so that the next attempt starts from the
      * remote store instead. This is what a recovery did unconditionally before local generations were reused; it is now
-     * done only once the local copy has been proven wrong. Shards without a remote translog are left alone - their local
-     * translog is the only copy, and discarding it would lose data.
+     * done only once the local copy has been proven wrong. The decision uses the same predicate as the download that
+     * reused the generation ({@link #isTranslogBackedByRemoteStore()}), so a shard whose translog came from the remote
+     * store - a remote-store index, or a migrating docrep shard seeded by a remote source - always gets the retry, and a
+     * shard without a remote translog is left alone: its local translog is the only copy, and discarding it would lose data.
      */
     private void discardCorruptLocalRemoteTranslog(Exception failure) {
-        if (indexSettings.isRemoteTranslogStoreEnabled() == false
-            || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
+        if (isTranslogBackedByRemoteStore() == false || ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class) == null) {
             return;
         }
         final Path translogLocation = shardPath().resolveTranslog();
@@ -3551,13 +3568,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 cancellableThreads.executeIO(() -> {
                     // A primary must claim the fence before reading either remote flow. Peer-recovery relocation targets
                     // deliberately skip the seal inside sealRemoteStoreFenceForRecovery.
-                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                    if (shardRouting.primary() && isTranslogBackedByRemoteStore()) {
                         sealRemoteStoreFenceForRecovery();
                     }
                     if (syncFromRemote) {
                         syncSegmentsFromRemoteSegmentStore(false);
                     }
-                    if (shardRouting.primary() && (indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded())) {
+                    if (shardRouting.primary() && isTranslogBackedByRemoteStore()) {
                         if (syncFromRemote) {
                             syncRemoteTranslogAndUpdateGlobalCheckpoint();
                         } else if (isSnapshotV2Restore() == false) {
@@ -6121,7 +6138,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
+            if (isTranslogBackedByRemoteStore() && shardRouting.primary()) {
                 // On replica-to-primary promotion the operation term has already been bumped, and the previous primary
                 // may be alive behind a partition, still holding a valid fence token. Seal before reading the remote
                 // translog restore point, or that primary could keep acknowledging writes landing after it. A primary
