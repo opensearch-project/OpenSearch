@@ -252,8 +252,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
          * before comparing (scaled_float). Half-float and unsigned-long comparators decode their own
          * point encoding, so they keep skipping when the target type matches the field type.
          */
-        if (targetNumericType != getNumericType()
-            || (sortRequiresCustomComparator() && targetNumericType == NumericType.DOUBLE)) {
+        if (targetNumericType != getNumericType() || (sortRequiresCustomComparator() && targetNumericType == NumericType.DOUBLE)) {
             source.disableSkipping();
         }
         return source;

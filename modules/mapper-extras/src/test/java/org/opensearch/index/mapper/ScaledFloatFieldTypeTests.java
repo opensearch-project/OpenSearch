@@ -420,9 +420,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testFilteredSortMatchesFullOrder() throws IOException {
         final double scalingFactor = 100d;
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("amount", scalingFactor);
-        IndexNumericFieldData fieldData = (IndexNumericFieldData) ft.fielddataBuilder("index", () -> {
-            throw new UnsupportedOperationException();
-        }).build(null, null);
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) ft.fielddataBuilder(
+            "index",
+            () -> { throw new UnsupportedOperationException(); }
+        ).build(null, null);
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
