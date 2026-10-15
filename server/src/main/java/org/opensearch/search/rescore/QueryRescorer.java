@@ -86,7 +86,7 @@ public final class QueryRescorer implements Rescorer {
         };
 
         // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
+        TopDocs topNFirstPass = RescoreProcessor.topN(topDocs, rescoreContext.getWindowSize());
 
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topNDocIDs = Collections.unmodifiableSet(
@@ -152,19 +152,6 @@ public final class QueryRescorer implements Rescorer {
             return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
         }
     };
-
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
-     *  topN. */
-    private TopDocs topN(TopDocs in, int topN) {
-        if (in.scoreDocs.length < topN) {
-            return in;
-        }
-
-        ScoreDoc[] subset = new ScoreDoc[topN];
-        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
-
-        return new TopDocs(in.totalHits, subset);
-    }
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
     private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
