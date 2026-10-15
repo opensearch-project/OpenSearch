@@ -466,6 +466,46 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
         assertTrue("Field should have keyword term field", hasTermField);
     }
 
+    public void testTermAndTermsQueryMatchOnEveryExecutionPath() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        IndexSearcher searcher = setupSearcher(mapper);
+        QueryShardContext context = mock(QueryShardContext.class);
+
+        MappedFieldType indexed = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "field",
+            Collections.emptyMap(),
+            true,
+            true,
+            false
+        );
+        assertMatchesOnEveryPath(searcher, indexed.termQuery("1.0.0", context), 1);
+        assertMatchesOnEveryPath(searcher, indexed.termQuery("1.0.0+build.123", context), 1);
+        assertMatchesOnEveryPath(searcher, indexed.termsQuery(Arrays.asList("1.0.0", "2.0.0"), context), 2);
+
+        // Doc values only store the normalized form, so a non-indexed field matches by version precedence
+        MappedFieldType docValuesOnly = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "field",
+            Collections.emptyMap(),
+            false,
+            true,
+            false
+        );
+        assertMatchesOnEveryPath(searcher, docValuesOnly.termQuery("1.0.0", context), 2);
+        assertMatchesOnEveryPath(searcher, docValuesOnly.termsQuery(Arrays.asList("1.0.0", "2.0.0"), context), 3);
+
+        searcher.getIndexReader().close();
+    }
+
+    private static void assertMatchesOnEveryPath(IndexSearcher searcher, Query query, int expected) throws IOException {
+        if (query instanceof IndexOrDocValuesQuery) {
+            IndexOrDocValuesQuery q = (IndexOrDocValuesQuery) query;
+            assertEquals("index path of " + query, expected, searcher.count(q.getIndexQuery()));
+            assertEquals("doc values path of " + query, expected, searcher.count(q.getRandomAccessQuery()));
+        } else {
+            assertEquals(query.toString(), expected, searcher.count(query));
+        }
+    }
+
     public void testNullValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
