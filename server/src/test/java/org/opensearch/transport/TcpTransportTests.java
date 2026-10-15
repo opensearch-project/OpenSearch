@@ -281,6 +281,54 @@ public class TcpTransportTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * A socket that cannot even be created fails before any connect listener is registered, so this path has to
+     * count the failure itself. Unresolvable hosts and exhausted file descriptors both land here.
+     */
+    public void testConnectFailuresCountChannelsThatFailToOpen() {
+        final Settings settings = Settings.EMPTY;
+        final TestThreadPool testThreadPool = new TestThreadPool("test");
+        final TcpTransport tcpTransport = new TcpTransport(
+            settings,
+            Version.CURRENT,
+            testThreadPool,
+            new MockPageCacheRecycler(settings),
+            new NoneCircuitBreakerService(),
+            writableRegistry(),
+            new NetworkService(Collections.emptyList()),
+            NoopTracer.INSTANCE
+        ) {
+
+            @Override
+            protected TcpServerChannel bind(String name, InetSocketAddress address) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+                throw new IOException("cannot open a socket");
+            }
+
+            @Override
+            protected void stopInternal() {}
+        };
+
+        try {
+            tcpTransport.start();
+            assertEquals(0L, tcpTransport.getStats().getConnectFailures());
+
+            DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            tcpTransport.openConnection(node, ConnectionProfile.buildDefaultConnectionProfile(settings), future);
+
+            expectThrows(ConnectTransportException.class, future::actionGet);
+            assertEquals(1L, tcpTransport.getStats().getConnectFailures());
+        } finally {
+            tcpTransport.close();
+            testThreadPool.shutdown();
+        }
+    }
+
     public void testReadMessageLengthWithIncompleteHeader() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
