@@ -41,7 +41,9 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * RescoreProcessor of a search request, used to run potentially expensive scoring models against the top matching documents.
@@ -66,7 +68,7 @@ public class RescoreProcessor {
     }
 
     /**
-     * Runs each rescorer on all of the given docs, then keeps only the top {@code numDocs}.
+     * Runs each rescorer on all of the given docs, then keeps only the top {@code numDocs} and their rescored doc ids.
      */
     public static TopDocsAndMaxScore rescore(TopDocs topDocs, IndexSearcher searcher, List<RescoreContext> rescore, int numDocs)
         throws IOException {
@@ -78,7 +80,21 @@ public class RescoreProcessor {
         }
         // Before the cut, because the cut can remove all docs.
         float maxScore = topDocs.scoreDocs.length > 0 ? topDocs.scoreDocs[0].score : Float.NaN;
-        return new TopDocsAndMaxScore(topN(topDocs, numDocs), maxScore);
+        TopDocs top = topN(topDocs, numDocs);
+        // The rescored doc ids go to the coordinator and back, and the fetch phase loads only the top docs.
+        for (RescoreContext ctx : rescore) {
+            Set<Integer> rescoredDocs = ctx.getRescoredDocs();
+            if (rescoredDocs != null) {
+                Set<Integer> topRescoredDocs = new HashSet<>();
+                for (ScoreDoc doc : top.scoreDocs) {
+                    if (rescoredDocs.contains(doc.doc)) {
+                        topRescoredDocs.add(doc.doc);
+                    }
+                }
+                ctx.setRescoredDocs(topRescoredDocs);
+            }
+        }
+        return new TopDocsAndMaxScore(top, maxScore);
     }
 
     /**

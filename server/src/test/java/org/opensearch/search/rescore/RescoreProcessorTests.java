@@ -21,7 +21,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,6 +82,27 @@ public class RescoreProcessorTests extends OpenSearchTestCase {
         assertEquals(windowSize, result.maxScore, 0f);
     }
 
+    public void testRescoredDocsOnlyTopDocs() throws IOException {
+        int numDocs = randomIntBetween(1, 10);
+        int windowSize = randomIntBetween(numDocs + 1, 100);
+        // Even docs only, thus some top docs are not rescored.
+        Set<Integer> evenDocs = new HashSet<>();
+        for (int i = 0; i < windowSize; i += 2) {
+            evenDocs.add(i);
+        }
+        RescoreContext tracked = new RescoreContext(windowSize, new ReverseRescorer(new ArrayList<>(), evenDocs));
+        RescoreContext notTracked = new RescoreContext(windowSize, new ReverseRescorer(new ArrayList<>()));
+        RescoreProcessor.rescore(collectedDocs(windowSize), null, List.of(tracked, notTracked), numDocs);
+
+        // Two reverses give the collected order again, thus the top docs are the first collected docs.
+        Set<Integer> expected = new HashSet<>();
+        for (int i = 0; i < numDocs; i += 2) {
+            expected.add(i);
+        }
+        assertEquals(expected, tracked.getRescoredDocs());
+        assertNull(notTracked.getRescoredDocs());
+    }
+
     private TopDocs runRescore(int from, int size, int windowSize) {
         return runRescore(from, size, windowSize, new ReverseRescorer(new ArrayList<>()));
     }
@@ -117,14 +140,26 @@ public class RescoreProcessorTests extends OpenSearchTestCase {
     /** Gives the docs the reverse of their order, and records how many docs it got. */
     private static class ReverseRescorer implements Rescorer {
         private final List<Integer> seenSizes;
+        private final Set<Integer> rescoredDocs;
 
         ReverseRescorer(List<Integer> seenSizes) {
+            this(seenSizes, null);
+        }
+
+        /**
+         * @param rescoredDocs the ids to set as rescored, or null to not set them
+         */
+        ReverseRescorer(List<Integer> seenSizes, Set<Integer> rescoredDocs) {
             this.seenSizes = seenSizes;
+            this.rescoredDocs = rescoredDocs;
         }
 
         @Override
         public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) {
             seenSizes.add(topDocs.scoreDocs.length);
+            if (rescoredDocs != null) {
+                rescoreContext.setRescoredDocs(rescoredDocs);
+            }
             ScoreDoc[] scoreDocs = new ScoreDoc[topDocs.scoreDocs.length];
             for (int i = 0; i < scoreDocs.length; i++) {
                 ScoreDoc doc = topDocs.scoreDocs[scoreDocs.length - 1 - i];
