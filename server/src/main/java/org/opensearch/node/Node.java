@@ -252,6 +252,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
@@ -1587,7 +1588,9 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 indicesService,
                 clusterInfoService::getClusterInfo,
-                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio
+                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio,
+                threadPool,
+                pluginsService.filterPlugins(RestoreListenerPlugin.class)
             );
 
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
