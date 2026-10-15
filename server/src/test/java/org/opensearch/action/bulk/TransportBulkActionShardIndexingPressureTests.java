@@ -8,6 +8,8 @@
 
 package org.opensearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.indices.stats.DocStatusStats;
@@ -48,7 +50,12 @@ import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -77,6 +84,8 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +96,7 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
     private final List<BulkShardRequest> dispatchedShards = new ArrayList<>();
     private final Map<ShardId, AtomicInteger> permitCloses = new HashMap<>();
     private final AtomicInteger requestPermitCloses = new AtomicInteger();
+    private final List<Span> spans = new ArrayList<>();
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
@@ -94,7 +104,12 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
     private IndexingPressureService pressureService;
     private IndicesService indicesService;
     private TransportBulkAction action;
+    private Tracer tracer;
+    private LongSupplier relativeTimeProvider = System::nanoTime;
     private boolean holdFirstShard;
+    private boolean failAfterSecondResponse;
+    private long serviceTimeNanos = BulkShardResponse.DEFAULT_SERVICE_TIME_IN_NANOS;
+    private int nodeQueueSize = BulkShardResponse.DEFAULT_QUEUE_SIZE;
     private Exception executionFailure;
     private Tuple<BulkShardRequest, ActionListener<BulkShardResponse>> heldShard;
 
@@ -157,6 +172,14 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
             }
         );
         indicesService = mock(IndicesService.class);
+        tracer = mock(Tracer.class);
+        when(tracer.isRecording()).thenReturn(true);
+        when(tracer.startSpan(any(SpanCreationContext.class))).thenAnswer(invocation -> {
+            Span span = mock(Span.class);
+            spans.add(span);
+            return span;
+        });
+        when(tracer.withSpanInScope(any(Span.class))).thenReturn(SpanScope.NO_OP);
         ActionFilters filters = new ActionFilters(Set.of());
         SystemIndices systemIndices = new SystemIndices(Map.of());
         TransportShardBulkAction shardAction = new TransportShardBulkAction(
@@ -184,6 +207,9 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
                     listener.onFailure(executionFailure);
                 } else {
                     listener.onResponse(successfulResponse(request));
+                    if (failAfterSecondResponse && dispatchedShards.size() == 2) {
+                        throw new IllegalStateException("failure after synchronous response");
+                    }
                 }
             }
         };
@@ -201,7 +227,8 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
             pressureService,
             indicesService,
             systemIndices,
-            NoopTracer.INSTANCE
+            () -> relativeTimeProvider.getAsLong(),
+            tracer
         ) {
             @Override
             protected boolean needToCheck() {
@@ -278,6 +305,23 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
         assertReleased();
     }
 
+    public void testBulkTookIncludesTimeBeforeSuccessfulShardDispatch() throws Exception {
+        useClockWithPreShardDelay();
+        BulkResponse response = ActionTestUtils.executeBlocking(action, parseBulk(bulkContent()));
+        assertFalse(response.hasFailures());
+        assertEquals(50, response.getTook().getMillis());
+        assertReleased();
+    }
+
+    public void testBulkTookIncludesTimeBeforeRejectedShardAdmission() throws Exception {
+        useClockWithPreShardDelay();
+        rejectedAdmissions.addAll(Set.of(1, 2, 3));
+        BulkResponse response = ActionTestUtils.executeBlocking(action, parseBulk(bulkContent()));
+        assertBulkResult(response, 6);
+        assertEquals(50, response.getTook().getMillis());
+        assertReleased();
+    }
+
     public void testShardPressureRejectionCompletesLastShard() throws Exception {
         rejectedAdmissions.add(3);
         BulkResponse response = ActionTestUtils.executeBlocking(action, parseBulk(bulkContent()));
@@ -302,6 +346,112 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
         assertReleased();
     }
 
+    public void testSynchronousDispatchFailureWaitsForInFlightRequestBuffers() throws Exception {
+        holdFirstShard = true;
+        IllegalStateException failure = new IllegalStateException("failed to enter dispatch scope");
+        Set<Span> failedScopes = new HashSet<>();
+        when(tracer.withSpanInScope(any(Span.class))).thenAnswer(invocation -> {
+            Span span = invocation.getArgument(0);
+            // Fail only the second shard's dispatch entry; its failure callback must be able to enter its own scope.
+            if (spans.indexOf(span) == 1 && failedScopes.add(span)) {
+                throw failure;
+            }
+            return SpanScope.NO_OP;
+        });
+        AtomicInteger releases = new AtomicInteger();
+        PlainActionFuture<BulkResponse> future = executeWithTrackedBuffer(bulkContent(), releases);
+
+        assertHeldRequestPending(future, releases);
+        assertEquals(3, attemptedShards.size());
+        assertEquals(2, dispatchedShards.size());
+        assertEquals(attemptedShards.get(2), dispatchedShards.get(1).shardId());
+        assertEquals(1, permitCloses.get(attemptedShards.get(1)).get());
+        verify(spans.get(1)).setError(failure);
+
+        completeHeldShard();
+
+        assertTrue(future.isDone());
+        BulkResponse response = future.actionGet();
+        assertEquals(RestStatus.OK, response.status());
+        assertTrue(response.hasFailures());
+        assertEquals(6, response.getItems().length);
+        int failedItems = 0;
+        for (BulkItemResponse item : response.getItems()) {
+            if (item.getIndex().equals(attemptedShards.get(1).getIndexName())) {
+                assertTrue(item.isFailed());
+                assertEquals(RestStatus.INTERNAL_SERVER_ERROR, item.status());
+                assertSame(failure, item.getFailure().getCause());
+                failedItems++;
+            } else {
+                assertFalse(item.isFailed());
+                assertEquals(RestStatus.CREATED, item.status());
+            }
+        }
+        assertEquals(2, failedItems);
+        assertEquals(1, releases.get());
+        assertDocStatusStats(4, 0, 2);
+        assertReleased();
+    }
+
+    public void testFailureAfterSynchronousResponseDoesNotCompleteShardTwice() throws Exception {
+        holdFirstShard = true;
+        failAfterSecondResponse = true;
+        AtomicInteger releases = new AtomicInteger();
+        PlainActionFuture<BulkResponse> future = executeWithTrackedBuffer(bulkContent(), releases);
+
+        assertHeldRequestPending(future, releases);
+        assertEquals(3, dispatchedShards.size());
+        assertEquals(1, permitCloses.get(dispatchedShards.get(1).shardId()).get());
+        verify(spans.get(1), never()).setError(any(Exception.class));
+
+        completeHeldShard();
+
+        assertTrue(future.isDone());
+        BulkResponse response = future.actionGet();
+        assertFalse(response.hasFailures());
+        assertEquals(6, response.getItems().length);
+        assertEquals(1, releases.get());
+        assertDocStatusStats(6, 0, 0);
+        assertReleased();
+    }
+
+    public void testScopeCloseFailureAfterDispatchWaitsForActualCallback() throws Exception {
+        holdFirstShard = true;
+        SpanScope failingScope = mock(SpanScope.class);
+        doThrow(new IllegalStateException("failed to close dispatch scope")).when(failingScope).close();
+        Set<Span> enteredScopes = new HashSet<>();
+        when(tracer.withSpanInScope(any(Span.class))).thenAnswer(invocation -> {
+            Span span = invocation.getArgument(0);
+            // Only the dispatch scope fails. The later response callback has its own, successful scope.
+            if (spans.indexOf(span) == 0 && enteredScopes.add(span)) {
+                return failingScope;
+            }
+            return SpanScope.NO_OP;
+        });
+        AtomicInteger releases = new AtomicInteger();
+        PlainActionFuture<BulkResponse> future = executeWithTrackedBuffer(bulkContent(), releases);
+
+        assertHeldRequestPending(future, releases);
+        assertEquals(3, dispatchedShards.size());
+        verify(spans.get(0), never()).endSpan();
+
+        completeHeldShard();
+
+        assertTrue(future.isDone());
+        assertFalse(future.actionGet().hasFailures());
+        assertEquals(1, releases.get());
+        assertDocStatusStats(6, 0, 0);
+        assertReleased();
+    }
+
+    public void testNegativeQueueSizeDoesNotFailIndexedItems() throws Exception {
+        assertInvalidMetricsDoNotFailIndexedItems(BulkShardResponse.DEFAULT_SERVICE_TIME_IN_NANOS, -1);
+    }
+
+    public void testNegativeServiceTimeDoesNotFailIndexedItems() throws Exception {
+        assertInvalidMetricsDoNotFailIndexedItems(-1, BulkShardResponse.DEFAULT_QUEUE_SIZE);
+    }
+
     public void testWholeRequestPressureRejectionRemainsRequestFailure() throws Exception {
         when(pressureService.markCoordinatingOperationStarted(any(LongSupplier.class), anyBoolean())).thenThrow(rejection);
         Exception failure = expectThrows(
@@ -314,15 +464,21 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
         assertEquals(0, requestPermitCloses.get());
     }
 
-    public void testUnexpectedAdmissionFailureRemainsRequestFailure() throws Exception {
+    public void testUnexpectedAdmissionFailureIsReturnedAsItemFailures() throws Exception {
         IllegalArgumentException failure = new IllegalArgumentException("unexpected admission failure");
         doThrow(failure).when(pressureService).markCoordinatingOperationStarted(any(ShardId.class), any(LongSupplier.class), anyBoolean());
-        assertSame(
-            failure,
-            expectThrows(IllegalArgumentException.class, () -> ActionTestUtils.executeBlocking(action, parseBulk(bulkContent())))
-        );
+        BulkResponse response = ActionTestUtils.executeBlocking(action, parseBulk(bulkContent()));
+        assertEquals(RestStatus.OK, response.status());
+        assertTrue(response.hasFailures());
+        assertEquals(6, response.getItems().length);
+        for (BulkItemResponse item : response.getItems()) {
+            assertTrue(item.isFailed());
+            assertEquals(RestStatus.BAD_REQUEST, item.status());
+            assertSame(failure, item.getFailure().getCause());
+        }
+        verify(pressureService, times(3)).markCoordinatingOperationStarted(any(ShardId.class), any(LongSupplier.class), anyBoolean());
         assertTrue(dispatchedShards.isEmpty());
-        assertEquals(1, requestPermitCloses.get());
+        assertReleased();
     }
 
     public void testSystemOnlyBulkPreservesForcedAdmission() {
@@ -367,10 +523,15 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
             }
         }
         assertEquals(failures, actualFailures);
+        assertDocStatusStats(6 - failures, failures, 0);
+    }
+
+    private void assertDocStatusStats(int successes, int clientErrors, int serverErrors) {
         ArgumentCaptor<DocStatusStats> stats = ArgumentCaptor.forClass(DocStatusStats.class);
         verify(indicesService).addDocStatusStats(stats.capture());
-        assertEquals(6 - failures, stats.getValue().getDocStatusCounter()[1].longValue());
-        assertEquals(failures, stats.getValue().getDocStatusCounter()[3].longValue());
+        assertEquals(successes, stats.getValue().getDocStatusCounter()[1].longValue());
+        assertEquals(clientErrors, stats.getValue().getDocStatusCounter()[3].longValue());
+        assertEquals(serverErrors, stats.getValue().getDocStatusCounter()[4].longValue());
     }
 
     private void assertReleased() {
@@ -378,6 +539,90 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
         for (AtomicInteger closes : permitCloses.values()) {
             assertEquals(1, closes.get());
         }
+        for (Span span : spans) {
+            verify(span).endSpan();
+        }
+    }
+
+    private PlainActionFuture<BulkResponse> executeWithTrackedBuffer(byte[] content, AtomicInteger releases) throws Exception {
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(action, null, parseBulk(content), ActionListener.runBefore(future, () -> {
+            releases.incrementAndGet();
+            Arrays.fill(content, (byte) '?');
+        }));
+        return future;
+    }
+
+    private void assertHeldRequestPending(PlainActionFuture<BulkResponse> future, AtomicInteger releases) {
+        assertFalse("the bulk must wait for the accepted shard", future.isDone());
+        assertEquals(0, releases.get());
+        assertEquals(0, requestPermitCloses.get());
+        assertNotNull(heldShard);
+        assertEquals(0, permitCloses.get(heldShard.v1().shardId()).get());
+        for (BulkItemRequest item : heldShard.v1().items()) {
+            assertEquals(source(item.id()), ((IndexRequest) item.request()).source().utf8ToString());
+        }
+    }
+
+    private void assertInvalidMetricsDoNotFailIndexedItems(long serviceTimeNanos, int nodeQueueSize) throws Exception {
+        this.serviceTimeNanos = serviceTimeNanos;
+        this.nodeQueueSize = nodeQueueSize;
+        String index = "test-index-0";
+        ClusterState state = clusterService.state();
+        IndexMetadata current = state.metadata().index(index);
+        IndexMetadata appendOnly = IndexMetadata.builder(current)
+            .settings(
+                Settings.builder()
+                    .put(current.getSettings())
+                    .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+                    .put(IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED.getKey(), true)
+            )
+            .build();
+        setState(clusterService, ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(appendOnly, false)).build());
+        BulkRequest request = new BulkRequest().add(
+            new IndexRequest(index).id("0").opType(DocWriteRequest.OpType.CREATE).source(Map.of("value", "first"))
+        ).add(new IndexRequest(index).id("1").opType(DocWriteRequest.OpType.CREATE).source(Map.of("value", "second")));
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(TransportBulkAction.class))) {
+            // The warning proves the response reached the invalid statistics check.
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "invalid node statistics",
+                    TransportBulkAction.class.getCanonicalName(),
+                    Level.WARN,
+                    "Ignoring invalid node statistics from * for *: queue size ["
+                        + nodeQueueSize
+                        + "], service time EWMA ["
+                        + serviceTimeNanos
+                        + "]"
+                )
+            );
+            ActionTestUtils.execute(action, null, request, future);
+            appender.assertAllExpectationsMatched();
+        }
+
+        assertTrue("invalid metrics must not leave the shard counter unfinished", future.isDone());
+        BulkResponse response = future.actionGet();
+        assertEquals(RestStatus.OK, response.status());
+        assertFalse(response.hasFailures());
+        assertEquals(2, response.getItems().length);
+        for (int i = 0; i < response.getItems().length; i++) {
+            BulkItemResponse item = response.getItems()[i];
+            assertEquals(i, item.getItemId());
+            assertEquals(Integer.toString(i), item.getId());
+            assertEquals(index, item.getIndex());
+            assertEquals(RestStatus.CREATED, item.status());
+        }
+        assertEquals(1, dispatchedShards.size());
+        assertDocStatusStats(2, 0, 0);
+        assertReleased();
+    }
+
+    private void useClockWithPreShardDelay() {
+        LongSupplier clock = mock(LongSupplier.class);
+        // The first reading starts the bulk operation; subsequent readings include 50ms of bulk preparation.
+        when(clock.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(50));
+        relativeTimeProvider = clock;
     }
 
     private void completeHeldShard() {
@@ -388,7 +633,7 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
         }
     }
 
-    private static BulkShardResponse successfulResponse(BulkShardRequest request) {
+    private BulkShardResponse successfulResponse(BulkShardRequest request) {
         BulkItemResponse[] items = new BulkItemResponse[request.items().length];
         for (int i = 0; i < items.length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -398,7 +643,7 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
                 new IndexResponse(request.shardId(), item.request().id(), 0, 1, 1, true)
             );
         }
-        BulkShardResponse response = new BulkShardResponse(request.shardId(), items);
+        BulkShardResponse response = new BulkShardResponse(request.shardId(), items, serviceTimeNanos, nodeQueueSize);
         response.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
         return response;
     }

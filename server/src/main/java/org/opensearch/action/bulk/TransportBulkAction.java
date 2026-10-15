@@ -119,6 +119,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
@@ -723,6 +724,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
+            final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
 
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
@@ -738,7 +740,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                final long startTimeNanos = relativeTime();
+                final long shardStartTimeNanos = relativeTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
                 String targetNodeId = primary != null ? primary.currentNodeId() : null;
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
@@ -750,19 +752,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onResponse(BulkShardResponse bulkShardResponse) {
                         if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
                             if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
-                                throw new IllegalStateException(
-                                    "node queue size and service time ewma must be non-negative, got "
-                                        + bulkShardResponse.getNodeQueueSize()
-                                        + " and "
-                                        + bulkShardResponse.getServiceTimeEWMAInNanos()
+                                // The shard already applied these items, so skip the statistics instead of failing the items.
+                                logger.warn(
+                                    "Ignoring invalid node statistics from [{}] for [{}]: queue size [{}], service time EWMA [{}]",
+                                    targetNodeId,
+                                    shardId,
+                                    bulkShardResponse.getNodeQueueSize(),
+                                    bulkShardResponse.getServiceTimeEWMAInNanos()
+                                );
+                            } else {
+                                nodeMetricsCollector.addNodeStatistics(
+                                    targetNodeId,
+                                    bulkShardResponse.getNodeQueueSize(),
+                                    relativeTime() - shardStartTimeNanos,
+                                    bulkShardResponse.getServiceTimeEWMAInNanos()
                                 );
                             }
-                            nodeMetricsCollector.addNodeStatistics(
-                                targetNodeId,
-                                bulkShardResponse.getNodeQueueSize(),
-                                relativeTime() - startTimeNanos,
-                                bulkShardResponse.getServiceTimeEWMAInNanos()
-                            );
                         }
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
                             // we may have no response if item failed
@@ -803,13 +808,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     private void finishHim() {
                         indicesService.addDocStatusStats(docStatusStats);
                         listener.onResponse(
-                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+                            new BulkResponse(
+                                responses.toArray(new BulkItemResponse[responses.length()]),
+                                buildTookInMillis(BulkOperation.this.startTimeNanos)
+                            )
                         );
                     }
                 };
 
                 // Add the shard level accounting for coordinating and supply the listener
-                final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
                 final Releasable releasable;
                 try {
                     releasable = indexingPressureService.markCoordinatingOperationStarted(
@@ -817,39 +824,44 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         bulkShardRequest::ramBytesUsed,
                         isOnlySystem
                     );
-                } catch (OpenSearchRejectedExecutionException e) {
+                } catch (Exception e) {
+                    if (e instanceof OpenSearchRejectedExecutionException == false) {
+                        logger.warn("Unexpected failure during coordinating admission for [{}]", shardId, e);
+                    }
                     // Other shards may still be using request buffers. Complete this shard, not the entire bulk request.
                     shardListener.onFailure(e);
                     continue;
                 }
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
-                boolean incrementedConnections = false;
-                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                final AtomicBoolean incrementedConnections = new AtomicBoolean();
+                final ActionListener<BulkShardResponse> dispatchListener = ActionListener.notifyOnce(
+                    TraceableActionListener.create(
+                        ActionListener.runAfter(ActionListener.runBefore(shardListener, releasable::close), () -> {
+                            if (incrementedConnections.getAndSet(false)) {
+                                clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                            }
+                        }),
+                        span,
+                        tracer
+                    )
+                );
+                boolean dispatchReturned = false;
+                try {
                     if (targetNodeId != null) {
                         clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
-                        incrementedConnections = true;
+                        incrementedConnections.set(true);
                     }
-                    shardBulkAction.execute(
-                        bulkShardRequest,
-                        TraceableActionListener.create(
-                            ActionListener.runAfter(ActionListener.runBefore(shardListener, releasable::close), () -> {
-                                if (targetNodeId != null) {
-                                    clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
-                                }
-                            }),
-                            span,
-                            tracer
-                        )
-                    );
+                    try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                        shardBulkAction.execute(bulkShardRequest, dispatchListener);
+                        dispatchReturned = true;
+                    }
                 } catch (Exception e) {
-                    releasable.close();
-                    if (incrementedConnections && targetNodeId != null) {
-                        clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                    logger.warn("Exception during bulk shard dispatch for [{}]", shardId, e);
+                    if (dispatchReturned == false) {
+                        dispatchListener.onFailure(e);
                     }
-                    span.setError(e);
-                    span.endSpan();
-                    throw e;
+                    // After dispatch returned, only its actual callback may complete the shard and release its request buffers.
                 }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
