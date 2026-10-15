@@ -64,8 +64,12 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -101,8 +105,17 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final Map<AzureStorageSettings, ClientState> versionedReadClients = new ConcurrentHashMap<>();
     private final Map<AzureStorageSettings, ClientState> conditionalWriteClients = new ConcurrentHashMap<>();
+    private final Object clientLifecycleMutex = new Object();
     private final ExecutorService executor;
+    private boolean closed;
+
+    private enum ClientMode {
+        LOCATION_AWARE,
+        PRIMARY_ONLY_RETRYING,
+        PRIMARY_ONLY_SINGLE_ATTEMPT
+    }
 
     private static final class IdentityClientThreadFactory implements ThreadFactory {
         final ThreadGroup group;
@@ -172,7 +185,15 @@ public class AzureStorageService implements AutoCloseable {
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-        return client(clientName, statsCollector, clients, false);
+        return client(clientName, statsCollector, clients, ClientMode.LOCATION_AWARE);
+    }
+
+    Tuple<BlobServiceClient, Supplier<Context>> clientForVersionedRead(
+        String clientName,
+        BiConsumer<HttpRequest, HttpResponse> statsCollector
+    ) {
+        // Version tokens must describe primary state. Reads are safe to retry, but must never fail over to a secondary.
+        return client(clientName, statsCollector, versionedReadClients, ClientMode.PRIMARY_ONLY_RETRYING);
     }
 
     Tuple<BlobServiceClient, Supplier<Context>> clientForConditionalWrite(
@@ -181,39 +202,40 @@ public class AzureStorageService implements AutoCloseable {
     ) {
         // Retrying a conditional write after its response is lost can turn an applied write into a 412 and falsely
         // report a lost CAS. Use a dedicated one-attempt client so the caller can reconcile an ambiguous IOException.
-        return client(clientName, statsCollector, conditionalWriteClients, true);
+        return client(clientName, statsCollector, conditionalWriteClients, ClientMode.PRIMARY_ONLY_SINGLE_ATTEMPT);
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client(
         String clientName,
         BiConsumer<HttpRequest, HttpResponse> statsCollector,
         Map<AzureStorageSettings, ClientState> clientCache,
-        boolean disableRetries
+        ClientMode clientMode
     ) {
-        final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
 
-        // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
-        // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
-        ClientState state = clientCache.get(azureStorageSettings);
-
-        if (state == null) {
-            state = clientCache.computeIfAbsent(azureStorageSettings, key -> {
+            // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
+            // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
+            ClientState state = clientCache.get(azureStorageSettings);
+            if (state == null) {
                 try {
-                    return buildClient(azureStorageSettings, statsCollector, disableRetries);
+                    state = buildClient(azureStorageSettings, statsCollector, clientMode);
+                    clientCache.put(azureStorageSettings, state);
                 } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
                     throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
                 }
-            });
+            }
+            return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
         }
-
-        return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
     private ClientState buildClient(
         AzureStorageSettings azureStorageSettings,
         BiConsumer<HttpRequest, HttpResponse> statsCollector,
-        boolean disableRetries
+        ClientMode clientMode
     ) throws InvalidKeyException, URISyntaxException {
+        beforeClientBuild();
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
@@ -253,7 +275,7 @@ public class AzureStorageService implements AutoCloseable {
 
         // We define a default exponential retry policy
         return new ClientState(
-            applyLocationMode(builder, azureStorageSettings, disableRetries).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
+            applyLocationMode(builder, azureStorageSettings, clientMode).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
             eventLoopGroup
         );
     }
@@ -266,7 +288,7 @@ public class AzureStorageService implements AutoCloseable {
     private BlobServiceClientBuilder applyLocationMode(
         final BlobServiceClientBuilder builder,
         final AzureStorageSettings settings,
-        final boolean disableRetries
+        final ClientMode clientMode
     ) {
         final StorageEndpoint endpoint = settings.getStorageEndpoint(logger);
 
@@ -274,9 +296,12 @@ public class AzureStorageService implements AutoCloseable {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
         }
 
-        if (disableRetries) {
+        if (clientMode == ClientMode.PRIMARY_ONLY_SINGLE_ATTEMPT) {
             return builder.endpoint(endpoint.getPrimaryUri())
                 .retryOptions(new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, 1, (Integer) null, null, null, null));
+        }
+        if (clientMode == ClientMode.PRIMARY_ONLY_RETRYING) {
+            return builder.endpoint(endpoint.getPrimaryUri()).retryOptions(createRetryPolicy(settings, null));
         }
 
         final LocationMode locationMode = settings.getLocationMode();
@@ -337,26 +362,32 @@ public class AzureStorageService implements AutoCloseable {
      * @return the old settings
      */
     public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
-        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
-        final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
-        prevClients.values().forEach(this::closeInternally);
-        this.conditionalWriteClients.values().forEach(this::closeInternally);
-        prevClients.clear();
-
-        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
-        this.clients.clear();
-        this.conditionalWriteClients.clear();
-
-        // clients are built lazily by {@link client(String)}
+        beforeRefresh();
+        final Map<String, AzureStorageSettings> prevSettings;
+        final List<ClientState> detachedClients;
+        synchronized (clientLifecycleMutex) {
+            ensureOpen();
+            prevSettings = this.storageSettings;
+            this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+            detachedClients = detachClientStates();
+        }
+        detachedClients.forEach(this::closeInternally);
         return prevSettings;
     }
 
     @Override
     public void close() throws IOException {
-        this.clients.values().forEach(this::closeInternally);
-        this.conditionalWriteClients.values().forEach(this::closeInternally);
-        this.clients.clear();
-        this.conditionalWriteClients.clear();
+        beforeClose();
+        final List<ClientState> detachedClients;
+        synchronized (clientLifecycleMutex) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            this.storageSettings = emptyMap();
+            detachedClients = detachClientStates();
+        }
+        detachedClients.forEach(this::closeInternally);
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
@@ -432,6 +463,42 @@ public class AzureStorageService implements AutoCloseable {
         if (shutdownFuture.isSuccess() == false) {
             logger.warning("Error closing Netty Event Loop group", shutdownFuture.cause());
         }
+    }
+
+    int versionedReadClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return versionedReadClients.size();
+        }
+    }
+
+    int conditionalWriteClientCount() {
+        synchronized (clientLifecycleMutex) {
+            return conditionalWriteClients.size();
+        }
+    }
+
+    // Package-private no-op hooks for deterministic lifecycle tests.
+    void beforeClientBuild() {}
+
+    void beforeRefresh() {}
+
+    void beforeClose() {}
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Azure storage service is closed");
+        }
+    }
+
+    private List<ClientState> detachClientStates() {
+        final Set<ClientState> detached = Collections.newSetFromMap(new IdentityHashMap<>());
+        detached.addAll(clients.values());
+        detached.addAll(versionedReadClients.values());
+        detached.addAll(conditionalWriteClients.values());
+        clients.clear();
+        versionedReadClients.clear();
+        conditionalWriteClients.clear();
+        return new ArrayList<>(detached);
     }
 
     /**

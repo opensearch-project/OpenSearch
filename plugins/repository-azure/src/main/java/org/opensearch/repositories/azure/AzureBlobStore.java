@@ -190,7 +190,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        // The storage service is node-wide and is closed by AzureRepositoryPlugin.
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
@@ -448,7 +448,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForVersionedRead(clientName, metricsCollector);
         final BlobClient blob = client.v1().getBlobContainerClient(container).getBlobClient(blobName);
         try {
             final BlobDownloadContentResponse response = AccessController.doPrivileged(
