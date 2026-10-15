@@ -428,11 +428,26 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRejectsDuplicatePluginSettingsValidators() {
         Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
         ClusterPlugin plugin = settingsValidatorPlugin(setting, (settings, state) -> {});
+        ClusterPlugin otherPlugin = settingsValidatorPlugin(
+            Setting.intSetting("plugin.limit", 3, Property.Dynamic, Property.NodeScope),
+            (settings, state) -> {}
+        );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Arrays.asList(plugin, plugin))
+            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Arrays.asList(plugin, otherPlugin))
         );
         assertEquals("Cluster settings validator for [plugin.limit] is already registered", e.getMessage());
+    }
+
+    public void testRejectsNullPluginValidatorBeforeMerging() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        ClusterPlugin plugin = settingsValidatorPlugin(setting, null);
+        ClusterPlugin otherPlugin = settingsValidatorPlugin(setting, (settings, state) -> {});
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Arrays.asList(plugin, otherPlugin))
+        );
+        assertEquals("cluster settings validator", e.getMessage());
     }
 
     public void testPluginCannotReplaceBuiltInSettingsValidator() {

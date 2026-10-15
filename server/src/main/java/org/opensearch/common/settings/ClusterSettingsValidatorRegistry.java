@@ -62,8 +62,9 @@ public final class ClusterSettingsValidatorRegistry {
     }
 
     /**
-     * Runs validators only for settings or their fallbacks touched by the request, including resets. Validators receive node settings
-     * overlaid with the proposed persistent and transient settings, and the final proposed cluster state.
+     * Runs validators only for settings or explicit fallbacks touched by the request, including resets. Dependencies inside affix
+     * delegates or default value functions require separate registrations. Validators receive node settings overlaid with the
+     * proposed persistent and transient settings, and the final proposed cluster state.
      */
     public void validate(Settings transientUpdates, Settings persistentUpdates, ClusterState currentState, ClusterState updatedState) {
         Settings effectiveSettings = Settings.builder().put(nodeSettings).put(updatedState.metadata().settings()).build();
@@ -77,7 +78,7 @@ public final class ClusterSettingsValidatorRegistry {
     }
 
     /**
-     * Returns whether a request touches a setting or one of its fallbacks, expanding wildcard resets against existing concrete keys.
+     * Returns whether a request touches a setting or its explicit fallback chain, expanding wildcard resets against existing concrete keys.
      */
     public static boolean isUpdated(Setting<?> setting, Settings updates, Settings currentSettings) {
         for (Setting<?> relevantSetting = setting; relevantSetting != null; relevantSetting = relevantSetting.fallbackSetting) {

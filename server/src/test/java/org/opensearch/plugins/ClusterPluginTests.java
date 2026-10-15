@@ -11,6 +11,8 @@ package org.opensearch.plugins;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.AffixSetting;
+import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -70,6 +72,59 @@ public class ClusterPluginTests extends OpenSearchSingleNodeTestCase {
         assertFalse(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().hasValue(key));
     }
 
+    public void testRegisteredNamespaceFallbackValidatorRejectsBeforePublication() {
+        createIndex("test");
+        String fallbackKey = DummyClusterPlugin.DEFAULT_INDEX_LIMIT_SETTING.getKey();
+        String namespaceKey = DummyClusterPlugin.NAMESPACED_INDEX_LIMIT_SETTING.getConcreteSettingForNamespace("test").getKey();
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(fallbackKey, 0)).get()
+            );
+            assertThat(e.getMessage(), containsString("current index count"));
+            assertFalse(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().hasValue(fallbackKey));
+
+            assertTrue(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(fallbackKey, 0))
+                    .setTransientSettings(Settings.builder().put(namespaceKey, 1))
+                    .get()
+                    .isAcknowledged()
+            );
+
+            IllegalArgumentException resetError = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(namespaceKey))
+                    .get()
+            );
+            assertThat(resetError.getMessage(), containsString("current index count"));
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            assertEquals("0", state.metadata().persistentSettings().get(fallbackKey));
+            assertEquals("1", state.metadata().transientSettings().get(namespaceKey));
+
+            assertTrue(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(fallbackKey, 1))
+                    .setTransientSettings(Settings.builder().putNull(namespaceKey))
+                    .get()
+                    .isAcknowledged()
+            );
+            ClusterState updatedState = client().admin().cluster().prepareState().get().getState();
+            assertEquals("1", updatedState.metadata().persistentSettings().get(fallbackKey));
+            assertFalse(updatedState.metadata().transientSettings().hasValue(namespaceKey));
+        } finally {
+            Settings resets = Settings.builder().putNull(fallbackKey).putNull(namespaceKey).build();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resets).setTransientSettings(resets).get();
+        }
+    }
+
 }
 
 final class DummyClusterPlugin extends Plugin implements ClusterPlugin {
@@ -78,8 +133,20 @@ final class DummyClusterPlugin extends Plugin implements ClusterPlugin {
         "plugin.index_limit",
         10,
         0,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    static final Setting<Integer> DEFAULT_INDEX_LIMIT_SETTING = Setting.intSetting(
+        "plugin.default_index_limit",
+        10,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    static final AffixSetting<Integer> NAMESPACED_INDEX_LIMIT_SETTING = Setting.affixKeySetting(
+        "plugin.index_limits.",
+        "limit",
+        key -> Setting.intSetting(key, DEFAULT_INDEX_LIMIT_SETTING, 0, Property.Dynamic, Property.NodeScope)
     );
     private static volatile DiscoveryNode localNode;
 
@@ -87,18 +154,30 @@ final class DummyClusterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(INDEX_LIMIT_SETTING);
+        return List.of(INDEX_LIMIT_SETTING, DEFAULT_INDEX_LIMIT_SETTING, NAMESPACED_INDEX_LIMIT_SETTING);
     }
 
     @Override
     public Map<Setting<?>, BiConsumer<Settings, ClusterState>> getClusterSettingsValidators() {
-        return Map.of(INDEX_LIMIT_SETTING, (settings, state) -> {
-            int limit = INDEX_LIMIT_SETTING.get(settings);
-            int indices = state.metadata().indices().size();
-            if (indices > limit) {
-                throw new IllegalArgumentException("index limit [" + limit + "] is below current index count [" + indices + "]");
-            }
-        });
+        BiConsumer<Settings, ClusterState> namespaceValidator = (settings, state) -> validateIndexLimit(
+            NAMESPACED_INDEX_LIMIT_SETTING.getConcreteSettingForNamespace("test").get(settings),
+            state
+        );
+        return Map.of(
+            INDEX_LIMIT_SETTING,
+            (settings, state) -> validateIndexLimit(INDEX_LIMIT_SETTING.get(settings), state),
+            DEFAULT_INDEX_LIMIT_SETTING,
+            namespaceValidator,
+            NAMESPACED_INDEX_LIMIT_SETTING,
+            namespaceValidator
+        );
+    }
+
+    private static void validateIndexLimit(int limit, ClusterState state) {
+        int indices = state.metadata().indices().size();
+        if (indices > limit) {
+            throw new IllegalArgumentException("index limit [" + limit + "] is below current index count [" + indices + "]");
+        }
     }
 
     @Override

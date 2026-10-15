@@ -477,6 +477,7 @@ public class ClusterModule extends AbstractModule {
         Map<Setting<?>, BiConsumer<Settings, ClusterState>> validators = new LinkedHashMap<>();
         for (ClusterPlugin plugin : plugins) {
             plugin.getClusterSettingsValidators().forEach((setting, validator) -> {
+                Objects.requireNonNull(validator, "cluster settings validator");
                 if (validators.putIfAbsent(setting, validator) != null) {
                     throw new IllegalArgumentException("Cluster settings validator for [" + setting.getKey() + "] is already registered");
                 }

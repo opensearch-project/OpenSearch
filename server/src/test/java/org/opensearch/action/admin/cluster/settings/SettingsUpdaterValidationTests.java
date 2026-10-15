@@ -220,6 +220,63 @@ public class SettingsUpdaterValidationTests extends OpenSearchTestCase {
         assertEquals(0, validations.get());
     }
 
+    public void testTransientFallbackUpdatePreservesPersistentDirectValue() {
+        AtomicInteger validations = new AtomicInteger();
+        SettingsUpdater updater = createUpdater(Settings.EMPTY, LIMIT, (settings, state) -> {
+            assertEquals(1, (int) LIMIT.get(settings));
+            validations.incrementAndGet();
+        }, BASE_LIMIT);
+        ClusterState state = indexState(Settings.builder().put(LIMIT.getKey(), 1).build(), Settings.EMPTY);
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.builder().put(BASE_LIMIT.getKey(), 0).build(),
+            Settings.EMPTY,
+            logger
+        );
+        assertEquals(1, (int) LIMIT.get(updatedState.metadata().settings()));
+        assertEquals(1, validations.get());
+    }
+
+    public void testWildcardResetAndReplacementValidateFinalValueOnce() {
+        AtomicInteger validations = new AtomicInteger();
+        SettingsUpdater updater = createUpdater(Settings.builder().put(LIMIT.getKey(), 0).build(), LIMIT, (settings, state) -> {
+            assertEquals(1, (int) LIMIT.get(settings));
+            validations.incrementAndGet();
+        }, BASE_LIMIT);
+        ClusterState state = indexState(Settings.builder().put(LIMIT.getKey(), 2).build(), Settings.EMPTY);
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.EMPTY,
+            Settings.builder().putNull("plugin.*").put(LIMIT.getKey(), 1).build(),
+            logger
+        );
+        assertEquals(1, (int) LIMIT.get(updatedState.metadata().persistentSettings()));
+        assertEquals(1, validations.get());
+    }
+
+    public void testRejectedValidationPreservesOtherSettingsAndBlocks() {
+        Setting<Boolean> allowIndices = Setting.boolSetting("plugin.allow_indices", true, Property.Dynamic, Property.NodeScope);
+        SettingsUpdater updater = createUpdater(Settings.EMPTY, allowIndices, (settings, state) -> {
+            assertTrue(state.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK));
+            if (allowIndices.get(settings) == false && state.metadata().indices().isEmpty() == false) {
+                throw new IllegalArgumentException("existing indices are disallowed");
+            }
+        });
+        ClusterState state = indexState(Settings.builder().put(allowIndices.getKey(), true).build(), Settings.EMPTY);
+        Settings persistentUpdates = Settings.builder()
+            .put(allowIndices.getKey(), false)
+            .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true)
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(state, Settings.EMPTY, persistentUpdates, logger)
+        );
+        assertEquals("existing indices are disallowed", e.getMessage());
+        assertTrue(allowIndices.get(state.metadata().settings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings()));
+        assertFalse(state.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK));
+    }
+
     private SettingsUpdater limitUpdater(Settings nodeSettings, Setting<Integer> limit, Setting<?>... fallbacks) {
         return createUpdater(nodeSettings, limit, (settings, state) -> {
             if (limit.get(settings) < state.metadata().indices().size()) {
