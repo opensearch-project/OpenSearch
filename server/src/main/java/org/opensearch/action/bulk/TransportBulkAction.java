@@ -84,6 +84,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
@@ -744,13 +745,83 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
                     && indexMetaData.bulkAdaptiveShardSelectionEnabled();
 
+                final ActionListener<BulkShardResponse> shardListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkShardResponse) {
+                        if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
+                            if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
+                                throw new IllegalStateException(
+                                    "node queue size and service time ewma must be non-negative, got "
+                                        + bulkShardResponse.getNodeQueueSize()
+                                        + " and "
+                                        + bulkShardResponse.getServiceTimeEWMAInNanos()
+                                );
+                            }
+                            nodeMetricsCollector.addNodeStatistics(
+                                targetNodeId,
+                                bulkShardResponse.getNodeQueueSize(),
+                                relativeTime() - startTimeNanos,
+                                bulkShardResponse.getServiceTimeEWMAInNanos()
+                            );
+                        }
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                            // we may have no response if item failed
+                            if (bulkItemResponse.getResponse() != null) {
+                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                            }
+
+                            docStatusStats.inc(bulkItemResponse.status());
+                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                        }
+
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // create failures for all relevant requests
+                        for (BulkItemRequest request : requests) {
+                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final DocWriteRequest<?> docWriteRequest = request.request();
+                            final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                                request.id(),
+                                docWriteRequest.opType(),
+                                new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                            );
+
+                            docStatusStats.inc(bulkItemResponse.status());
+                            responses.set(request.id(), bulkItemResponse);
+                        }
+
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
+                    }
+
+                    private void finishHim() {
+                        indicesService.addDocStatusStats(docStatusStats);
+                        listener.onResponse(
+                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+                        );
+                    }
+                };
+
                 // Add the shard level accounting for coordinating and supply the listener
                 final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-                final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(
-                    shardId,
-                    bulkShardRequest::ramBytesUsed,
-                    isOnlySystem
-                );
+                final Releasable releasable;
+                try {
+                    releasable = indexingPressureService.markCoordinatingOperationStarted(
+                        shardId,
+                        bulkShardRequest::ramBytesUsed,
+                        isOnlySystem
+                    );
+                } catch (OpenSearchRejectedExecutionException e) {
+                    // Other shards may still be using request buffers. Complete this shard, not the entire bulk request.
+                    shardListener.onFailure(e);
+                    continue;
+                }
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
                 boolean incrementedConnections = false;
@@ -762,71 +833,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     shardBulkAction.execute(
                         bulkShardRequest,
                         TraceableActionListener.create(
-                            ActionListener.runAfter(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
-                                @Override
-                                public void onResponse(BulkShardResponse bulkShardResponse) {
-                                    if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
-                                        if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
-                                            throw new IllegalStateException(
-                                                "node queue size and service time ewma must be non-negative, got "
-                                                    + bulkShardResponse.getNodeQueueSize()
-                                                    + " and "
-                                                    + bulkShardResponse.getServiceTimeEWMAInNanos()
-                                            );
-                                        }
-                                        nodeMetricsCollector.addNodeStatistics(
-                                            targetNodeId,
-                                            bulkShardResponse.getNodeQueueSize(),
-                                            relativeTime() - startTimeNanos,
-                                            bulkShardResponse.getServiceTimeEWMAInNanos()
-                                        );
-                                    }
-                                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                                        // we may have no response if item failed
-                                        if (bulkItemResponse.getResponse() != null) {
-                                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
-                                        }
-
-                                        docStatusStats.inc(bulkItemResponse.status());
-                                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
-                                    }
-
-                                    if (counter.decrementAndGet() == 0) {
-                                        finishHim();
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    // create failures for all relevant requests
-                                    for (BulkItemRequest request : requests) {
-                                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                                        final DocWriteRequest<?> docWriteRequest = request.request();
-                                        final BulkItemResponse bulkItemResponse = new BulkItemResponse(
-                                            request.id(),
-                                            docWriteRequest.opType(),
-                                            new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
-                                        );
-
-                                        docStatusStats.inc(bulkItemResponse.status());
-                                        responses.set(request.id(), bulkItemResponse);
-                                    }
-
-                                    if (counter.decrementAndGet() == 0) {
-                                        finishHim();
-                                    }
-                                }
-
-                                private void finishHim() {
-                                    indicesService.addDocStatusStats(docStatusStats);
-                                    listener.onResponse(
-                                        new BulkResponse(
-                                            responses.toArray(new BulkItemResponse[responses.length()]),
-                                            buildTookInMillis(startTimeNanos)
-                                        )
-                                    );
-                                }
-                            }, releasable::close), () -> {
+                            ActionListener.runAfter(ActionListener.runBefore(shardListener, releasable::close), () -> {
                                 if (targetNodeId != null) {
                                     clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
                                 }
