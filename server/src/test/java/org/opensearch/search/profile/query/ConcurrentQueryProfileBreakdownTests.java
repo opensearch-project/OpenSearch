@@ -25,18 +25,22 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.store.Directory;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileMetricTests;
 import org.opensearch.search.profile.ProfileMetricUtil;
+import org.opensearch.search.profile.SliceProfileResult;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
@@ -117,7 +121,8 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final Map<String, Long> leafProfileBreakdownMap = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
         final ContextualProfileBreakdown leafProfileBreakdown = new TestQueryProfileBreakdown(leafProfileBreakdownMap);
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector, sliceLeaf);
-        testQueryProfileBreakdown.getContexts().put(sliceLeaf, leafProfileBreakdown);
+        testQueryProfileBreakdown.getContexts()
+            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), sliceLeaf), leafProfileBreakdown);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown();
         assertFalse(sliceBreakdownMap == null || sliceBreakdownMap.isEmpty());
         assertEquals(1, sliceBreakdownMap.size());
@@ -167,8 +172,16 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final ContextualProfileBreakdown leafProfileBreakdown_2 = new TestQueryProfileBreakdown(leafProfileBreakdownMap_2);
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
-        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
-        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
+        testQueryProfileBreakdown.getContexts()
+            .put(
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
+                leafProfileBreakdown_1
+            );
+        testQueryProfileBreakdown.getContexts()
+            .put(
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(1)),
+                leafProfileBreakdown_2
+            );
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown();
         assertFalse(sliceBreakdownMap == null || sliceBreakdownMap.isEmpty());
         assertEquals(2, sliceBreakdownMap.size());
@@ -210,6 +223,56 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         assertEquals(10, testQueryProfileBreakdown.getMaxSliceNodeTime());
         assertEquals(10, testQueryProfileBreakdown.getMinSliceNodeTime());
         assertEquals(10, testQueryProfileBreakdown.getAvgSliceNodeTime());
+
+        // The additive per-slice breakdowns are captured alongside the (unchanged) max/min/avg
+        // aggregates: one SliceProfileResult per slice, each covering exactly its one segment, with a
+        // node time equal to the slice node time computed above (10 for both slices here).
+        final List<SliceProfileResult> sliceProfileResults = testQueryProfileBreakdown.getSliceProfileResults();
+        assertEquals(2, sliceProfileResults.size());
+        final Set<Integer> sliceIds = new HashSet<>();
+        final Set<Integer> coveredSegmentOrds = new HashSet<>();
+        for (SliceProfileResult sliceProfileResult : sliceProfileResults) {
+            sliceIds.add(sliceProfileResult.getSliceId());
+            assertEquals(1, sliceProfileResult.getPartitions().size());
+            final SliceProfileResult.PartitionInfo partition = sliceProfileResult.getPartitions().get(0);
+            coveredSegmentOrds.add(partition.getSegmentOrd());
+            // These leaves were associated without an explicit doc-range, so the whole-segment
+            // fallback applies: [0, segment maxDoc). Each leaf here holds exactly one document.
+            assertEquals(0, partition.getMinDocId());
+            assertEquals(1, partition.getMaxDocId());
+            assertEquals(10, sliceProfileResult.getSliceNodeTime());
+            // create_weight is a query-level timing and must not appear in a per-slice breakdown
+            assertNull(sliceProfileResult.getBreakdown().get(QueryTimingType.CREATE_WEIGHT.toString()));
+            // a leaf-level timing is present
+            assertNotNull(sliceProfileResult.getBreakdown().get(QueryTimingType.NEXT_DOC.toString()));
+            // the internal *_slice_start_time/*_slice_end_time scratch keys (raw nanoTime timestamps
+            // used only to derive durations) must be stripped from the user-facing per-slice breakdown
+            for (String key : sliceProfileResult.getBreakdown().keySet()) {
+                assertFalse(
+                    "per-slice breakdown must not leak internal key: " + key,
+                    key.endsWith(SLICE_START_TIME_SUFFIX) || key.endsWith(SLICE_END_TIME_SUFFIX)
+                );
+            }
+        }
+        assertEquals(Set.of(0, 1), sliceIds);
+        assertEquals(Set.of(0, 1), coveredSegmentOrds);
+
+        // buildSliceLevelBreakdown may be invoked more than once for the same breakdown; the
+        // captured per-slice results must be rebuilt (not appended), so the count stays stable.
+        // Also assert slice_id is STABLE across invocations: the id maps to the same partition
+        // (segment ordinal) each time, rather than depending on the ConcurrentHashMap iteration order.
+        final Map<Integer, Integer> firstIdToSegment = new HashMap<>();
+        for (SliceProfileResult r : testQueryProfileBreakdown.getSliceProfileResults()) {
+            firstIdToSegment.put(r.getSliceId(), r.getPartitions().get(0).getSegmentOrd());
+        }
+        testQueryProfileBreakdown.buildSliceLevelBreakdown();
+        assertEquals(2, testQueryProfileBreakdown.getSliceProfileResults().size());
+        final Map<Integer, Integer> secondIdToSegment = new HashMap<>();
+        for (SliceProfileResult r : testQueryProfileBreakdown.getSliceProfileResults()) {
+            secondIdToSegment.put(r.getSliceId(), r.getPartitions().get(0).getSegmentOrd());
+        }
+        assertEquals("slice_id -> segment mapping must be stable across invocations", firstIdToSegment, secondIdToSegment);
+
         directoryReader.close();
         directory.close();
     }
@@ -227,8 +290,16 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final ContextualProfileBreakdown leafProfileBreakdown_2 = new TestQueryProfileBreakdown(leafProfileBreakdownMap_2);
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
-        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
-        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
+        testQueryProfileBreakdown.getContexts()
+            .put(
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
+                leafProfileBreakdown_1
+            );
+        testQueryProfileBreakdown.getContexts()
+            .put(
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(1)),
+                leafProfileBreakdown_2
+            );
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
@@ -281,7 +352,11 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final ContextualProfileBreakdown leafProfileBreakdown_1 = new TestQueryProfileBreakdown(leafProfileBreakdownMap_1);
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
-        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
+        testQueryProfileBreakdown.getContexts()
+            .put(
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
+                leafProfileBreakdown_1
+            );
         // leaf2 profile breakdown is not present in contexts map
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
@@ -323,6 +398,47 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         assertEquals(5, testQueryProfileBreakdown.getAvgSliceNodeTime());
         directoryReader.close();
         directory.close();
+    }
+
+    public void testIntraSegmentPartitionsGetSeparateBreakdownPerThread() throws Exception {
+        // Reproduces the intra-segment race: one segment (leaf) is searched by two partitions on two
+        // different threads. Before the fix, context() keyed breakdowns by segment only, so both
+        // threads shared ONE breakdown — and therefore one non-thread-safe Timer — corrupting the
+        // timings. The fix keys by (thread, segment); this asserts each thread gets its OWN breakdown.
+        final DirectoryReader directoryReader = getDirectoryReader(1);
+        final Directory directory = directoryReader.directory();
+        try {
+            final LeafReaderContext sharedLeaf = directoryReader.leaves().get(0);
+
+            // Thread A resolves the breakdown for the segment; a second call on the same thread must
+            // return the SAME instance (per-partition reuse within one thread).
+            final AbstractProfileBreakdown[] fromThreadA = new AbstractProfileBreakdown[2];
+            final Thread threadA = new Thread(() -> {
+                fromThreadA[0] = testQueryProfileBreakdown.context(sharedLeaf);
+                fromThreadA[1] = testQueryProfileBreakdown.context(sharedLeaf);
+            });
+            threadA.start();
+            threadA.join();
+            assertSame("same thread must reuse its breakdown for a leaf", fromThreadA[0], fromThreadA[1]);
+
+            // Thread B resolves the breakdown for the SAME segment.
+            final AbstractProfileBreakdown[] fromThreadB = new AbstractProfileBreakdown[1];
+            final Thread threadB = new Thread(() -> fromThreadB[0] = testQueryProfileBreakdown.context(sharedLeaf));
+            threadB.start();
+            threadB.join();
+
+            // The crux: two threads searching the same segment must NOT share a breakdown (or its Timer).
+            assertNotSame(
+                "intra-segment partitions of the same segment on different threads must get distinct breakdowns",
+                fromThreadA[0],
+                fromThreadB[0]
+            );
+            // Two distinct breakdowns are stored (one per thread), not one shared by segment.
+            assertEquals(2, testQueryProfileBreakdown.getContexts().size());
+        } finally {
+            directoryReader.close();
+            directory.close();
+        }
     }
 
     public void testOneLeafContextWithEmptySliceCollectorsToLeaves() throws Exception {
@@ -384,7 +500,8 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final Map<String, Long> leafProfileBreakdownMap = getCombinedLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
         final ContextualProfileBreakdown leafProfileBreakdown = new TestQueryProfileBreakdown(leafProfileBreakdownMap);
         testQueryProfileBreakdownCombined.associateCollectorToLeaves(sliceCollector, sliceLeaf);
-        testQueryProfileBreakdownCombined.getContexts().put(sliceLeaf, leafProfileBreakdown);
+        testQueryProfileBreakdownCombined.getContexts()
+            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), sliceLeaf), leafProfileBreakdown);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdownCombined.buildSliceLevelBreakdown();
         assertFalse(sliceBreakdownMap == null || sliceBreakdownMap.isEmpty());
         assertEquals(1, sliceBreakdownMap.size());
