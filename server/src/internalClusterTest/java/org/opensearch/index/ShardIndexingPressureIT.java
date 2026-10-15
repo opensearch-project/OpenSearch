@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -343,7 +344,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
             replicaRelease.close();
 
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
 
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -450,7 +451,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             assertRejectedBulkResponse(largeBulkRequest, client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet());
 
             replicaRelease.close();
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -503,7 +504,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 });
 
                 replicaReleaseSmallRequest.close();
-                assertFalse(successFutureSmallRequest.actionGet().hasFailures());
+                assertNoFailures(successFutureSmallRequest.actionGet());
                 assertEquals(0, primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -581,7 +582,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             assertRejectedBulkResponse(bulkRequest, responses);
 
             replicaRelease.close();
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
 
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -687,7 +688,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             assertRejectedBulkResponse(largeBulkRequest, responses);
 
             replicaRelease.close();
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -741,7 +742,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 });
 
                 replicaReleaseSmallRequest.close();
-                assertFalse(successFutureSmallRequest.actionGet().hasFailures());
+                assertNoFailures(successFutureSmallRequest.actionGet());
                 assertEquals(0, primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());

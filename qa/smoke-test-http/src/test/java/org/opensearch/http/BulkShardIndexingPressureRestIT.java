@@ -30,6 +30,9 @@ import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
 
+    // A single document exceeds the node limit, so rejection does not depend on concurrent indexing or timing.
+    private static final String OVERSIZED_SOURCE = "{\"message\":\"" + "x".repeat(64 * 1024) + "\"}";
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -41,23 +44,16 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testShardPressureRejectionsReturnBulkItemErrors() throws Exception {
+    public void testShardPressureRejectionReturnsBulkItemErrors() throws Exception {
         final String index = "bulk-pressure";
-        final Request createIndex = new Request("PUT", "/" + index);
-        createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
-        final Response createResponse = getRestClient().performRequest(createIndex);
-        assertEquals(OK.getStatus(), createResponse.getStatusLine().getStatusCode());
-        assertEquals(Boolean.TRUE, entityAsMap(createResponse).get("acknowledged"));
-        ensureGreen(index);
+        createSingleShardIndex(index);
 
-        // A single request exceeds the node limit, so rejection does not depend on concurrent indexing or timing.
-        final String oversizedSource = "{\"message\":\"" + "x".repeat(64 * 1024) + "\"}";
         final Request rejectedBulk = new Request("POST", "/" + index + "/_bulk");
         rejectedBulk.setJsonEntity(
             "{\"index\":{\"_id\":\"rejected-1\"}}\n"
-                + oversizedSource
+                + OVERSIZED_SOURCE
                 + "\n{\"index\":{\"_id\":\"rejected-2\"}}\n"
-                + oversizedSource
+                + OVERSIZED_SOURCE
                 + "\n"
         );
         final Response rejectedResponse = getRestClient().performRequest(rejectedBulk);
@@ -75,7 +71,20 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
             assertEquals("rejected_execution_exception", error.get("type"));
             assertDocumentMissing(index, "rejected-" + (i + 1));
         }
+    }
 
+    @SuppressWarnings("unchecked")
+    public void testBulkSucceedsAfterShardPressureRejection() throws Exception {
+        final String index = "bulk-pressure";
+        createSingleShardIndex(index);
+
+        final Request rejectedBulk = new Request("POST", "/" + index + "/_bulk");
+        rejectedBulk.setJsonEntity("{\"index\":{\"_id\":\"rejected\"}}\n" + OVERSIZED_SOURCE + "\n");
+        final Response rejectedResponse = getRestClient().performRequest(rejectedBulk);
+        assertEquals(OK.getStatus(), rejectedResponse.getStatusLine().getStatusCode());
+        assertEquals(Boolean.TRUE, entityAsMap(rejectedResponse).get("errors"));
+
+        // The rejection must release its accounting so a later request on the same shard is admitted.
         final Request successfulBulk = new Request("POST", "/" + index + "/_bulk");
         successfulBulk.setJsonEntity(
             "{\"index\":{\"_id\":\"accepted\"}}\n{\"message\":\"small bulk request after rejection\",\"sequence\":42}\n"
@@ -94,18 +103,28 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
         final Map<String, Object> storedBody = entityAsMap(storedResponse);
         assertEquals(Boolean.TRUE, storedBody.get("found"));
         assertEquals(Map.of("message", "small bulk request after rejection", "sequence", 42), storedBody.get("_source"));
+    }
+
+    public void testSingleDocumentShardPressureRejectionReturnsTooManyRequests() throws Exception {
+        final String index = "bulk-pressure";
+        createSingleShardIndex(index);
 
         // The single-document API must still unwrap its one failed bulk item into an HTTP-level rejection.
         final Request rejectedSingle = new Request("PUT", "/" + index + "/_doc/rejected-single");
-        rejectedSingle.setJsonEntity(oversizedSource);
+        rejectedSingle.setJsonEntity(OVERSIZED_SOURCE);
         assertRequestRejected(rejectedSingle);
         assertDocumentMissing(index, "rejected-single");
+    }
+
+    public void testNodePressureRejectionReturnsTooManyRequestsWhenShardPressureDisabled() throws Exception {
+        final String index = "bulk-pressure";
+        createSingleShardIndex(index);
 
         try {
             setShardPressureEnabled(false);
             // With shard pressure disabled, whole-request coordinating admission must still return HTTP 429.
             final Request rejectedNodeBulk = new Request("POST", "/" + index + "/_bulk");
-            rejectedNodeBulk.setJsonEntity("{\"index\":{\"_id\":\"rejected-node\"}}\n" + oversizedSource + "\n");
+            rejectedNodeBulk.setJsonEntity("{\"index\":{\"_id\":\"rejected-node\"}}\n" + OVERSIZED_SOURCE + "\n");
             assertRequestRejected(rejectedNodeBulk);
             assertDocumentMissing(index, "rejected-node");
         } finally {
@@ -118,17 +137,10 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
         final String successfulIndex = "bulk-pressure-success";
         final String rejectedIndex = "bulk-pressure-rejected";
         // Separate one-shard indices guarantee distinct shard groups without relying on document routing.
-        for (String index : List.of(successfulIndex, rejectedIndex)) {
-            final Request createIndex = new Request("PUT", "/" + index);
-            createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
-            final Response createResponse = getRestClient().performRequest(createIndex);
-            assertEquals(OK.getStatus(), createResponse.getStatusLine().getStatusCode());
-            assertEquals(Boolean.TRUE, entityAsMap(createResponse).get("acknowledged"));
-        }
-        ensureGreen(successfulIndex, rejectedIndex);
+        createSingleShardIndex(successfulIndex);
+        createSingleShardIndex(rejectedIndex);
 
         final String successfulSource = "{\"message\":\"small request on a healthy shard\",\"sequence\":42}";
-        final String rejectedSource = "{\"message\":\"" + "x".repeat(64 * 1024) + "\"}";
         final Request bulk = new Request("POST", "/_bulk");
         bulk.setJsonEntity(
             "{\"index\":{\"_index\":\""
@@ -138,7 +150,7 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
                 + "\n{\"index\":{\"_index\":\""
                 + rejectedIndex
                 + "\",\"_id\":\"rejected\"}}\n"
-                + rejectedSource
+                + OVERSIZED_SOURCE
                 + "\n"
         );
 
@@ -169,6 +181,15 @@ public class BulkShardIndexingPressureRestIT extends HttpSmokeTestCase {
         assertEquals(Boolean.TRUE, storedBody.get("found"));
         assertEquals(Map.of("message", "small request on a healthy shard", "sequence", 42), storedBody.get("_source"));
         assertDocumentMissing(rejectedIndex, "rejected");
+    }
+
+    private void createSingleShardIndex(String index) throws IOException {
+        final Request createIndex = new Request("PUT", "/" + index);
+        createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
+        final Response createResponse = getRestClient().performRequest(createIndex);
+        assertEquals(OK.getStatus(), createResponse.getStatusLine().getStatusCode());
+        assertEquals(Boolean.TRUE, entityAsMap(createResponse).get("acknowledged"));
+        ensureGreen(index);
     }
 
     @SuppressWarnings("unchecked")

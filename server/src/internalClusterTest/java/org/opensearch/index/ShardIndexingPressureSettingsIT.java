@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.instanceOf;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
@@ -244,7 +245,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
         ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
@@ -332,7 +333,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Send first request which gets successful to set the last successful time-stamp
         ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         // Send couple of more requests which remains outstanding
         Releasable primaryReleasable = blockPrimary(primaryName);
@@ -352,8 +353,8 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Complete the outstanding requests
         primaryReleasable.close();
-        assertFalse(successFuture.actionGet().hasFailures());
-        assertFalse(secondSuccessFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
+        assertNoFailures(secondSuccessFuture.actionGet());
 
         // Disable the enforced mode by setting it to false
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -365,7 +366,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         // Repeat the previous set of request patterns; but no actual rejection this time
         // First successful request
         successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         // Send couple of requests which remains outstanding
         primaryReleasable = blockPrimary(primaryName);
@@ -394,9 +395,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         );
 
         primaryReleasable.close();
-        assertFalse(successFuture.actionGet().hasFailures());
-        assertFalse(secondSuccessFuture.actionGet().hasFailures());
-        assertFalse(thirdSuccessFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
+        assertNoFailures(secondSuccessFuture.actionGet());
+        assertNoFailures(thirdSuccessFuture.actionGet());
 
         // Enable the enforced mode again by setting it to true
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -407,7 +408,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Repeat the previous set of requests; to get an actual rejection again this time
         successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         // Send couple of requests which remains outstanding
         primaryReleasable = blockPrimary(primaryName);
@@ -428,8 +429,8 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         );
 
         primaryReleasable.close();
-        assertFalse(successFuture.actionGet().hasFailures());
-        assertFalse(secondSuccessFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
+        assertNoFailures(secondSuccessFuture.actionGet());
     }
 
     public void testShardIndexingPressureEnforcedEnabledNoOpIfFeatureDisabled() throws Exception {
@@ -621,10 +622,10 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         // Send first request which gets successful to set the last successful time-stamp
         if (randomBoolean) {
             ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
         } else {
             ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
         }
 
         // Send couple of more requests which remains outstanding to increase time-stamp value
@@ -670,8 +671,8 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         }
 
         primaryReleasable.close();
-        assertFalse(successFuture.actionGet().hasFailures());
-        assertFalse(secondSuccessFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
+        assertNoFailures(secondSuccessFuture.actionGet());
 
         // Update the outstanding threshold setting to see no rejections
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -720,9 +721,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         }
 
         primaryReleasable.close();
-        assertFalse(successFuture.actionGet().hasFailures());
-        assertFalse(secondSuccessFuture.actionGet().hasFailures());
-        assertFalse(thirdSuccessFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
+        assertNoFailures(secondSuccessFuture.actionGet());
+        thirdSuccessFuture.actionGet();
     }
 
     public void testShardIndexingPressureRequestSizeWindowSettingUpdate() throws Exception {
@@ -773,7 +774,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         } else {
             successFuture = client(primaryName).bulk(bulkRequest);
         }
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         final CountDownLatch replicationSendPointReached = new CountDownLatch(1);
         final CountDownLatch latchBlockingReplicationSend = new CountDownLatch(1);
@@ -807,7 +808,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         Thread.sleep(3000);
         latchBlockingReplicationSend.countDown();
         replicaRelease.close();
-        assertFalse(successFuture.actionGet().hasFailures());
+        assertNoFailures(successFuture.actionGet());
 
         // This request breaches the threshold and hence will be rejected
         if (randomBoolean) {
@@ -824,11 +825,11 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         // Verify no rejection with similar request pattern
         if (randomBoolean) {
             successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
             successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             Thread.sleep(10);
-            assertFalse(successFuture.actionGet().hasFailures());
-            assertFalse(client(coordinatingOnlyNode).bulk(bulkRequest).actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
+            assertNoFailures(client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
 
             ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
                 IndexingPressureService.class,
@@ -843,11 +844,11 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             );
         } else {
             successFuture = client(primaryName).bulk(bulkRequest);
-            assertFalse(successFuture.actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
             successFuture = client(primaryName).bulk(bulkRequest);
             Thread.sleep(10);
-            assertFalse(successFuture.actionGet().hasFailures());
-            assertFalse(client(primaryName).bulk(bulkRequest).actionGet().hasFailures());
+            assertNoFailures(successFuture.actionGet());
+            assertNoFailures(client(primaryName).bulk(bulkRequest).actionGet());
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
                 .getShardIndexingPressure()
                 .getShardIndexingPressureTracker(shardId);
