@@ -179,16 +179,13 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException, IOException {
-        // Existence is deliberately authoritative: always consult primary, even for secondary-only repositories.
-        // This sacrifices availability during a primary outage rather than reporting a replication-lagged false negative.
         for (int attempt = 0; attempt < 2; attempt++) {
-            final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForPrimaryOnly(clientName);
+            final Tuple<BlobServiceClient, Supplier<Context>> client = client();
             final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
             try {
                 AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
-                stats.headOperations.incrementAndGet();
                 beforeExistenceResultValidation();
-                if (service.isPrimaryClientCurrent(clientName, client.v1())) {
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
                     return true;
                 }
             } catch (BlobStorageException e) {
@@ -197,7 +194,7 @@ public class AzureBlobStore implements BlobStore {
                     throw e;
                 }
                 beforeExistenceResultValidation();
-                if (service.isPrimaryClientCurrent(clientName, client.v1())) {
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
                     return false;
                 }
             }
