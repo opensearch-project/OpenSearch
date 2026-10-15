@@ -245,8 +245,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 assert !targetNumericType.isFloatingPoint();
                 source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
-        if (targetNumericType != getNumericType()) {
-            source.disableSkipping(); // disable skipping logic for cast of sort field
+        /*
+         * Competitive skipping compares indexed points with the comparator's bottom value and assumes
+         * those points use the same encoding as the values being sorted. That does not hold when the
+         * comparator casts to another numeric type, or when it decodes a stored long into a double
+         * before comparing (scaled_float). Half-float and unsigned-long comparators decode their own
+         * point encoding, so they keep skipping when the target type matches the field type.
+         */
+        if (targetNumericType != getNumericType()
+            || (sortRequiresCustomComparator() && targetNumericType == NumericType.DOUBLE)) {
+            source.disableSkipping();
         }
         return source;
     }
