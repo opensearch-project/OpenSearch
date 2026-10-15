@@ -138,7 +138,7 @@ public class TransportBulkActionShardIndexingPressureTests extends OpenSearchTes
                     .addShard(TestShardRouting.newShardRouting(shardId, node.getId(), true, ShardRoutingState.STARTED))
             );
         }
-        setState(clusterService, ClusterState.builder(clusterService.state()).metadata(metadata).routingTable(routing).build());
+        setState(clusterService, ClusterState.builder(clusterService.state()).metadata(metadata).routingTable(routing.build()).build());
 
         pressureService = mock(IndexingPressureService.class);
         when(pressureService.markCoordinatingOperationStarted(any(LongSupplier.class), anyBoolean())).thenReturn(
