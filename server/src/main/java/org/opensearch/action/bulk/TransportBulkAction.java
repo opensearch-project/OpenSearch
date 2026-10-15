@@ -808,10 +808,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     private void finishHim() {
                         indicesService.addDocStatusStats(docStatusStats);
                         listener.onResponse(
-                            new BulkResponse(
-                                responses.toArray(new BulkItemResponse[responses.length()]),
-                                buildTookInMillis(BulkOperation.this.startTimeNanos)
-                            )
+                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
                         );
                     }
                 };
@@ -838,7 +835,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 final ActionListener<BulkShardResponse> dispatchListener = ActionListener.notifyOnce(
                     TraceableActionListener.create(
                         ActionListener.runAfter(ActionListener.runBefore(shardListener, releasable::close), () -> {
-                            if (incrementedConnections.getAndSet(false)) {
+                            if (targetNodeId != null && incrementedConnections.getAndSet(false)) {
                                 clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
                             }
                         }),
