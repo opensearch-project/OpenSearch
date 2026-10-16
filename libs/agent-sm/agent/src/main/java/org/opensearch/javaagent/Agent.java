@@ -74,11 +74,18 @@ public class Agent {
     }
 
     private static AgentBuilder createAgentBuilder() throws Exception {
-        final Junction<TypeDescription> socketType = ElementMatchers.isSubTypeOf(SocketChannel.class)
-            .or(ElementMatchers.isSubTypeOf(Socket.class));
-        final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
-        final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
-        final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.isSubTypeOf(FileSystemProvider.class);
+        final Junction<TypeDescription> socketType = ElementMatchers.nameStartsWith(Socket.class.getPackageName() + ".")
+            .or(ElementMatchers.nameStartsWith("sun.nio.ch."))
+            .or(ElementMatchers.nameStartsWith("sun.security.ssl."))
+            .and(ElementMatchers.isSubTypeOf(SocketChannel.class).or(ElementMatchers.isSubTypeOf(Socket.class)));
+        final Junction<TypeDescription> pathType = ElementMatchers.named(Files.class.getName());
+        final Junction<TypeDescription> fileChannelType = ElementMatchers.nameStartsWith(FileChannel.class.getPackageName() + ".")
+            .or(ElementMatchers.nameStartsWith("sun.nio.ch."))
+            .and(ElementMatchers.isSubTypeOf(FileChannel.class));
+        final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.nameStartsWith("sun.nio.fs.")
+            .or(ElementMatchers.nameStartsWith("jdk.nio.zipfs."))
+            .or(ElementMatchers.nameStartsWith("jdk.internal.jrtfs."))
+            .and(ElementMatchers.isSubTypeOf(FileSystemProvider.class));
 
         final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
@@ -102,13 +109,13 @@ public class Agent {
             .transform(socketTransformer)
             .type(pathType.or(fileChannelType).or(fileSystemProviderType))
             .transform(fileTransformer)
-            .type(ElementMatchers.is(java.lang.System.class))
+            .type(ElementMatchers.named(java.lang.System.class.getName()))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(
                     Advice.to(SystemExitInterceptor.class).on(ElementMatchers.named("exit"))
                 )
             )
-            .type(ElementMatchers.is(java.lang.Runtime.class))
+            .type(ElementMatchers.named(java.lang.Runtime.class.getName()))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(
                     Advice.to(RuntimeHaltInterceptor.class).on(ElementMatchers.named("halt"))
@@ -117,7 +124,7 @@ public class Agent {
 
         // Only apply the transformation when running on JDK-24 or above
         if (Runtime.version().feature() >= 24) {
-            builder = builder.type(ElementMatchers.is(Subject.class)).transform(subjectTransformer);
+            builder = builder.type(ElementMatchers.named(Subject.class.getName())).transform(subjectTransformer);
         }
 
         return builder;
