@@ -53,6 +53,10 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
+tasks.named('bundlePlugin').configure {
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /netty-.*/, to: 'netty'
