@@ -100,6 +100,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.opensearch.cluster.node.DiscoveryNode.isWarmNode;
+
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
@@ -151,6 +153,7 @@ public abstract class TransportReplicationAction<
     protected final TransportRequestOptions transportOptions;
     protected final String executor;
     protected final boolean forceExecutionOnPrimary;
+    protected final boolean isWarmNode;
 
     // package private for testing
     protected final String transportReplicaAction;
@@ -253,6 +256,7 @@ public abstract class TransportReplicationAction<
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = getRetryTimeoutSetting().get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.isWarmNode = isWarmNode(settings);
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
