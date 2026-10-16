@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.util.CollectionUtils;
@@ -86,17 +87,22 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            this(name, false);
+            this(name, false, Settings.EMPTY);
         }
 
         public Builder(String name, boolean hasDocValues) {
+            this(name, hasDocValues, Settings.EMPTY);
+        }
+
+        public Builder(String name, boolean hasDocValues, Settings settings) {
             super(name);
             this.hasDocValues.setValue(hasDocValues);
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         @Override
         public List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, stored, hasDocValues);
+            return withMultiValueParameter(Arrays.asList(meta, stored, hasDocValues));
         }
 
         @Override
@@ -107,11 +113,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 hasDocValues.getValue(),
                 meta.getValue()
             );
+            applyMultiValueParameter(bft);
             return new BinaryFieldMapper(name, bft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, false, c.getSettings()));
 
     /**
      * Binary field type
@@ -184,7 +191,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }
@@ -224,7 +231,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (value == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), value);
+        addFieldForPluggableFormat(context, value);
     }
 
     private byte[] parseBinaryValue(ParseContext context) throws IOException {
