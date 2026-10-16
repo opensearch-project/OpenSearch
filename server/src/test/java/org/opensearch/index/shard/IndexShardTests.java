@@ -93,6 +93,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -147,8 +148,10 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
@@ -191,6 +194,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -726,6 +730,184 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
 
         closeShards(indexShard);
+    }
+
+    /**
+     * A promoted primary must reject relocation hand-off for as long as its primary-replica resync is pending.
+     */
+    public void testPrimaryRelocationBlockedWhilePrimaryReplicaResyncIsPending() throws Exception {
+        // The timeout is far longer than this test runs, so nothing can clear the flag while the test checks it.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final ShardRouting primaryRouting = promoteReplicaWithPendingResync(indexShard);
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        final String targetAllocationId = relocatingRouting.getTargetRelocatingShard().allocationId().getId();
+
+        assertTrue(indexShard.isPrimaryReplicaResyncInProgress());
+        final IllegalIndexShardStateException e = expectThrows(
+            IllegalIndexShardStateException.class,
+            () -> indexShard.relocated(targetAllocationId, primaryContext -> {}, () -> {})
+        );
+        assertThat(e.getMessage(), containsString("primary relocation is forbidden while primary-replica resync is in progress"));
+        closeShards(indexShard);
+    }
+
+    /**
+     * If the primary-replica resync never completes, the resync timeout clears the in-progress flag so the promoted primary can
+     * relocate, and it does so without failing the shard.
+     */
+    public void testPrimaryReplicaResyncTimeoutUnblocksPrimaryRelocation() throws Exception {
+        // 10s is the shortest timeout the setting accepts.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueSeconds(10));
+        final ShardRouting primaryRouting = promoteReplicaWithPendingResync(indexShard);
+
+        // The resync never completes, so only the timeout can clear the flag. Wait well past the 10s timeout.
+        assertBusy(() -> assertFalse(indexShard.isPrimaryReplicaResyncInProgress()), 30, TimeUnit.SECONDS);
+
+        // The timeout must only clear the flag: the promoted primary still accepts writes and can now relocate.
+        indexDoc(indexShard, "_doc", "0");
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        indexShard.relocated(relocatingRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+        assertTrue(indexShard.isRelocatedPrimary());
+        closeShards(indexShard);
+    }
+
+    /**
+     * Creates a started replica whose recovery settings use the given primary-replica resync timeout.
+     */
+    private IndexShard newStartedReplicaWithResyncTimeout(TimeValue resyncTimeout) throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), resyncTimeout).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final ShardRouting replicaRouting = TestShardRouting.newShardRouting(
+            new ShardId("index", "_na_", 0),
+            randomAlphaOfLength(10),
+            false,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final IndexMetadata indexMetadata = IndexMetadata.builder(replicaRouting.getIndexName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            )
+            .primaryTerm(0, primaryTerm)
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        final IndexShard replica = newShard(
+            replicaRouting,
+            indexMetadata,
+            null,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            recoverySettings,
+            null,
+            MergedSegmentPublisher.EMPTY
+        );
+        recoveryEmptyReplica(replica, true);
+        return replica;
+    }
+
+    /**
+     * When the primary-replica resync completes successfully, its onResponse must clear the in-progress flag so the promoted
+     * primary can relocate, and it must not fail the shard.
+     */
+    public void testPrimaryReplicaResyncOnResponseUnblocksPrimaryRelocation() throws Exception {
+        // The timeout is far longer than this test runs, so only the resync completing can clear the flag.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final AtomicBoolean shardFailed = new AtomicBoolean(false);
+        indexShard.addShardFailureCallback(ig -> shardFailed.set(true));
+
+        // The syncer immediately completes the resync listener successfully.
+        final ShardRouting primaryRouting = promoteReplicaWithResyncSyncer(
+            indexShard,
+            (shard, resyncListener) -> resyncListener.onResponse(newResyncTask())
+        );
+
+        // onResponse must have cleared the flag without failing the shard.
+        assertFalse(indexShard.isPrimaryReplicaResyncInProgress());
+        assertFalse("a successful resync must not fail the shard", shardFailed.get());
+
+        // The promoted primary can now relocate.
+        indexDoc(indexShard, "_doc", "0");
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        indexShard.relocated(relocatingRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+        assertTrue(indexShard.isRelocatedPrimary());
+        closeShards(indexShard);
+    }
+
+    /**
+     * When the primary-replica resync fails, its onFailure must clear the in-progress flag and fail the shard (since the shard is
+     * not closed), rather than silently leaving the shard running.
+     */
+    public void testPrimaryReplicaResyncOnFailureClearsFlagAndFailsShard() throws Exception {
+        // Failing the shard is the behaviour under test, so allow it rather than letting the harness treat it as an error.
+        allowShardFailures();
+        // The timeout is far longer than this test runs, so only the resync failing can clear the flag.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final AtomicBoolean shardFailed = new AtomicBoolean(false);
+        indexShard.addShardFailureCallback(ig -> shardFailed.set(true));
+
+        // Capture the resync listener during promotion but fail it only afterwards: the real onFailure path fails the shard,
+        // which it must only do once the shard has finished transitioning to primary (otherwise state is still CLOSED and the
+        // failure is skipped as "shutting down").
+        final AtomicReference<ActionListener<PrimaryReplicaSyncer.ResyncTask>> capturedListener = new AtomicReference<>();
+        promoteReplicaWithResyncSyncer(indexShard, (shard, resyncListener) -> capturedListener.set(resyncListener));
+        assertTrue(indexShard.isPrimaryReplicaResyncInProgress());
+
+        capturedListener.get().onFailure(new RuntimeException("simulated resync failure"));
+
+        // onFailure must clear the flag and, because the shard is not closed, fail the shard.
+        assertFalse(indexShard.isPrimaryReplicaResyncInProgress());
+        assertBusy(() -> assertTrue("a failed resync must fail the shard", shardFailed.get()));
+        // The engine was intentionally failed, so skip the translog/Lucene consistency assertion on close.
+        closeShard(indexShard, false);
+    }
+
+    private static PrimaryReplicaSyncer.ResyncTask newResyncTask() {
+        return new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+    }
+
+    /**
+     * Promotes a started replica to primary with a primary-replica resync whose listener never completes, which is what happens
+     * when the resync response is lost. Waits until the resync has been handed to the syncer and returns the new primary routing.
+     */
+    private ShardRouting promoteReplicaWithPendingResync(IndexShard replica) throws Exception {
+        // The stub never completes the resync listener, so the resync stays pending.
+        return promoteReplicaWithResyncSyncer(replica, (shard, resyncListener) -> {});
+    }
+
+    /**
+     * Promotes a started replica to primary, driving the primary-replica resync through the supplied syncer. The syncer receives
+     * the shard and the wrapped resync listener and decides whether to leave it pending, complete it, or fail it. Waits until the
+     * resync has been handed to the syncer and returns the new primary routing.
+     */
+    private ShardRouting promoteReplicaWithResyncSyncer(
+        IndexShard replica,
+        BiConsumer<IndexShard, ActionListener<PrimaryReplicaSyncer.ResyncTask>> syncer
+    ) throws Exception {
+        final ShardRouting primaryRouting = replica.routingEntry().moveActiveReplicaToPrimary();
+        final CountDownLatch resyncDispatched = new CountDownLatch(1);
+        replica.updateShardState(primaryRouting, replica.getPendingPrimaryTerm() + 1, (shard, resyncListener) -> {
+            try {
+                syncer.accept(shard, resyncListener);
+            } finally {
+                resyncDispatched.countDown();
+            }
+        },
+            currentClusterStateVersion.incrementAndGet(),
+            Collections.singleton(primaryRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
+        );
+        resyncDispatched.await();
+        return primaryRouting;
     }
 
     public void testOperationPermitsOnPrimaryShards() throws Exception {
