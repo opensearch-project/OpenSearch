@@ -82,6 +82,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         } catch (TimeoutException e) {
             throw new OpenSearchTimeoutException(e);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof OpenSearchException openSearchException) {

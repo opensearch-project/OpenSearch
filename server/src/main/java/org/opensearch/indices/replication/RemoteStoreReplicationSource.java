@@ -225,6 +225,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 );
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             notifyOnceListener.onFailure(e);
             logger.warn(() -> new ParameterizedMessage("Exception thrown while trying to get merged segment files. Continuing. {}", e));
         }
