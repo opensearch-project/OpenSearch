@@ -45,6 +45,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
@@ -784,6 +785,110 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
+    }
+
+    /**
+     * A restore uploads the source commit's segments into the restored shard's own remote store and must then record
+     * them: the restored shard has no metadata file to reconcile against, so an unrecorded upload is discarded when
+     * the engine opens and re-done by the first refresh, leaving the first copy referenced by nothing.
+     */
+    public void testUploadMetadataForRestoredCommit() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedToTarget = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        // The commit as it was described in the source shard's remote store: the same Lucene files, but blobs under
+        // the source's own path and a Lucene version that must be carried across rather than re-derived.
+        Map<String, String> sourceEntries = new HashMap<>();
+        uploadedToTarget.forEach(
+            (file, uploaded) -> sourceEntries.put(
+                file,
+                String.join(
+                    "::",
+                    file,
+                    file + "__sourceuuid",
+                    uploaded.getChecksum(),
+                    String.valueOf(uploaded.getLength()),
+                    String.valueOf(Version.LATEST.major)
+                )
+            )
+        );
+        byte[] segmentInfosBytes = new byte[] { 4, 8, 15, 16, 23, 42 };
+        ReplicationCheckpoint sourceCheckpoint = new ReplicationCheckpoint(indexShard.shardId(), 5, 7, 11, 0L, "codec", Map.of());
+        RemoteSegmentMetadata sourceMetadata = new RemoteSegmentMetadata(
+            RemoteSegmentMetadata.fromMapOfStrings(sourceEntries),
+            segmentInfosBytes,
+            sourceCheckpoint
+        );
+
+        String primaryTermLong = RemoteStoreUtils.invertLong(5);
+        String generationLong = RemoteStoreUtils.invertLong(7);
+        Directory storeDirectory = mock(Directory.class);
+        BytesStreamOutput output = new BytesStreamOutput();
+        IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
+            .thenReturn(indexOutput);
+
+        remoteSegmentStoreDirectory.uploadMetadataForRestoredCommit(sourceMetadata, indexShard.shardId(), 5L, storeDirectory, "node-1");
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            eq(IOContext.DEFAULT)
+        );
+
+        VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
+            new RemoteSegmentMetadataHandlerFactory(),
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            RemoteSegmentMetadata.METADATA_CODEC
+        );
+        RemoteSegmentMetadata written = streamWrapper.readStream(
+            new ByteArrayIndexInput("written", BytesReference.toBytes(output.bytes()))
+        );
+
+        assertEquals(uploadedToTarget.keySet(), written.getMetadata().keySet());
+        for (String file : written.getMetadata().keySet()) {
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata entry = written.getMetadata().get(file);
+            assertEquals(
+                "the restored shard's own blob must be recorded, not the source's",
+                uploadedToTarget.get(file).getUploadedFilename(),
+                entry.getUploadedFilename()
+            );
+            assertEquals(uploadedToTarget.get(file).getChecksum(), entry.getChecksum());
+            assertEquals(Version.LATEST.major, entry.getWrittenByMajor());
+        }
+        assertArrayEquals(segmentInfosBytes, written.getSegmentInfosBytes());
+        assertEquals(5, written.getPrimaryTerm());
+        assertEquals(7, written.getGeneration());
+    }
+
+    public void testUploadMetadataForRestoredCommitSegmentNotUploaded() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        ReplicationCheckpoint sourceCheckpoint = new ReplicationCheckpoint(indexShard.shardId(), 5, 7, 11, 0L, "codec", Map.of());
+        RemoteSegmentMetadata sourceMetadata = new RemoteSegmentMetadata(
+            RemoteSegmentMetadata.fromMapOfStrings(Map.of("_9.si", "_9.si::_9.si__sourceuuid::1234::512::" + Version.LATEST.major)),
+            new byte[0],
+            sourceCheckpoint
+        );
+
+        Directory storeDirectory = mock(Directory.class);
+        when(storeDirectory.createOutput(startsWith("metadata__"), eq(IOContext.DEFAULT))).thenReturn(mock(IndexOutput.class));
+
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadataForRestoredCommit(
+                sourceMetadata,
+                indexShard.shardId(),
+                5L,
+                storeDirectory,
+                "node-1"
+            )
+        );
     }
 
     @SuppressWarnings("deprecation")
