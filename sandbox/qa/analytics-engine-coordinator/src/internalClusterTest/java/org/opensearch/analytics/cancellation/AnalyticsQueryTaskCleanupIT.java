@@ -579,7 +579,7 @@ public class AnalyticsQueryTaskCleanupIT extends OpenSearchIntegTestCase {
         createAndSeedQtfIndex();
         assertQtfInjectedFailureSurfacesAndCleansUp(
             FetchByRowIdsAction.NAME,
-            (channel, victim) -> channel.sendResponse(new TaskCancelledException("sbp cancel (qtf fetch phase) on " + victim))
+            (channel, victim) -> channel.sendResponse(new StreamException(StreamErrorCode.CANCELLED, "sbp cancel (qtf fetch phase) on " + victim))
         );
     }
 
