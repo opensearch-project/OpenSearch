@@ -9,6 +9,8 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.crypto.CryptoHandler;
@@ -42,6 +44,16 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
         EncryptedWriteContext<T, U> encryptedWriteContext = new EncryptedWriteContext<>(writeContext, cryptoHandler);
         blobContainer.asyncBlobUpload(encryptedWriteContext, completionListener);
+    }
+
+    @Override
+    public void asyncBlobUploadConditionally(
+        WriteContext writeContext,
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> completionListener
+    ) throws IOException {
+        EncryptedWriteContext<T, U> encryptedWriteContext = new EncryptedWriteContext<>(writeContext, cryptoHandler);
+        blobContainer.asyncBlobUploadConditionally(encryptedWriteContext, options, completionListener);
     }
 
     @Override
