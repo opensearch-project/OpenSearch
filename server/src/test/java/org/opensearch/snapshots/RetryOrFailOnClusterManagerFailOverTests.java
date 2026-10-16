@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -34,7 +35,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase {
@@ -591,6 +598,95 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
             null
         );
         task.onFailure("test-source", new NotClusterManagerException("simulated"));
+    }
+
+    // A retained-cluster-manager publish failure schedules a fresh removal task (retry) rather than giving up
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveSnapshotDeletionRetriesOnTransientPublishFailure() {
+        SnapshotDeletionsInProgress.Entry deleteEntry = createMockDeleteEntry();
+        snapshotsService.seedDeleteInProgressForTest(deleteEntry.repository(), deleteEntry.uuid());
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveSnapshotDeletionTask(
+            "test-source",
+            0,
+            deleteEntry,
+            new RuntimeException("repo failure"),
+            null
+        );
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+        verify(clusterService, timeout(2000)).submitStateUpdateTask(eq("test-source"), any(ClusterStateUpdateTask.class));
+
+        // A retry must not release bookkeeping yet — the operation is still in flight.
+        assertTrue("repo loop should still be held mid-retry", snapshotsService.isRepoLoopHeld(deleteEntry.repository()));
+        assertTrue("delete should still be tracked as running mid-retry", snapshotsService.isDeletionRunningForTest(deleteEntry.uuid()));
+    }
+
+    // Once retries are exhausted, the fallback must release both the repo loop and the running-deletion tracking
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveSnapshotDeletionReleasesBookkeepingWhenRetriesExhausted() {
+        final int exhausted = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
+        SnapshotDeletionsInProgress.Entry deleteEntry = createMockDeleteEntry();
+        snapshotsService.seedDeleteInProgressForTest(deleteEntry.repository(), deleteEntry.uuid());
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveSnapshotDeletionTask(
+            "test-source",
+            exhausted,
+            deleteEntry,
+            new RuntimeException("repo failure"),
+            null
+        );
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated"));
+
+        verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        assertFalse("repo loop should be released on terminal failure", snapshotsService.isRepoLoopHeld(deleteEntry.repository()));
+        assertFalse("delete should no longer be tracked as running", snapshotsService.isDeletionRunningForTest(deleteEntry.uuid()));
+    }
+
+    // With the feature flag off, the retry machinery is bypassed entirely: today's give-up behavior is preserved
+    public void testRemoveSnapshotDeletionDoesNotRetryWhenFeatureDisabled() {
+        SnapshotDeletionsInProgress.Entry deleteEntry = createMockDeleteEntry();
+        snapshotsService.seedDeleteInProgressForTest(deleteEntry.repository(), deleteEntry.uuid());
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveSnapshotDeletionTask(
+            "test-source",
+            0,
+            deleteEntry,
+            new RuntimeException("repo failure"),
+            null
+        );
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated"));
+        verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        assertFalse(
+            "bookkeeping should release immediately when the feature is off",
+            snapshotsService.isRepoLoopHeld(deleteEntry.repository())
+        );
+    }
+
+    // The ready-deletions promoter also retries a retained-cluster-manager publish failure instead of giving up
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRunReadyDeletionsRetriesOnTransientPublishFailure() {
+        ClusterStateUpdateTask task = snapshotsService.createRunReadyDeletionsTask("test-source", 0, null, "test-repo");
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+        verify(clusterService, timeout(2000)).submitStateUpdateTask(eq("test-source"), any(ClusterStateUpdateTask.class));
+    }
+
+    // ...and falls back once retries are exhausted, scheduling nothing further.
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRunReadyDeletionsFallsBackWhenRetriesExhausted() {
+        final int exhausted = SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getDefault(Settings.EMPTY);
+        ClusterStateUpdateTask task = snapshotsService.createRunReadyDeletionsTask("test-source", exhausted, null, "test-repo");
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated"));
+        verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+    }
+
+    private SnapshotDeletionsInProgress.Entry createMockDeleteEntry() {
+        return new SnapshotDeletionsInProgress.Entry(
+            Collections.singletonList(new SnapshotId("snap-1", UUIDs.randomBase64UUID())),
+            "test-repo",
+            System.currentTimeMillis(),
+            0L,
+            SnapshotDeletionsInProgress.State.STARTED
+        );
     }
 
 }
