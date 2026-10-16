@@ -113,6 +113,47 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
         assertEquals(0, cacheStatsHolder.getStatsRoot().children.size());
     }
 
+    /**
+     * When a shard is closed and a new copy with the same dimension values is created on the same node
+     * within one cleanup cycle, both copies share the same leaf node in the stats tree. Removing the
+     * dimensions for the closed copy must not leave stale stats behind on that leaf, otherwise the next
+     * removal subtracts those values a second time and drives size_in_bytes / item_count negative.
+     * Serializing such negative stats (as _nodes/stats does) then throws
+     * "Negative longs unsupported" from StreamOutput.writeVLong.
+     */
+    public void testRemoveDimensionsTwiceForSameDimensionsDoesNotGoNegative() throws Exception {
+        List<String> dimensionNames = List.of("index", "shard");
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        List<String> dims = List.of("test1", "0");
+
+        // Copy 1 caches a single entry of 100 bytes.
+        cacheStatsHolder.incrementSizeInBytes(dims, 100);
+        cacheStatsHolder.incrementItems(dims);
+
+        // Copy 1 is closed and removed; copy 2 with the same dimensions starts caching on the same node.
+        cacheStatsHolder.removeDimensions(dims);
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+
+        cacheStatsHolder.incrementSizeInBytes(dims, 120);
+        cacheStatsHolder.incrementItems(dims);
+        assertEquals(120, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+
+        // Copy 2 is removed too. Without the fix the stale stats from copy 1 are subtracted again.
+        cacheStatsHolder.removeDimensions(dims);
+
+        ImmutableCacheStats total = cacheStatsHolder.getStatsRoot().getImmutableStats();
+        assertTrue("size_in_bytes must not go negative but was " + total.getSizeInBytes(), total.getSizeInBytes() >= 0);
+        assertTrue("item_count must not go negative but was " + total.getItems(), total.getItems() >= 0);
+        assertEquals(0, total.getSizeInBytes());
+        assertEquals(0, total.getItems());
+
+        // Serializing the snapshot goes down the same path as _nodes/stats (writeVLong) and must not throw.
+        ImmutableCacheStatsHolder immutable = cacheStatsHolder.getImmutableCacheStatsHolder(new String[] { "index", "shard" });
+        try (org.opensearch.common.io.stream.BytesStreamOutput out = new org.opensearch.common.io.stream.BytesStreamOutput()) {
+            immutable.writeTo(out);
+        }
+    }
+
     public void testCount() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
         DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
