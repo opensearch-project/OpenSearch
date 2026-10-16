@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cli.MockTerminal;
@@ -56,6 +55,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import picocli.CommandLine;
+
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -78,30 +79,28 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         Boolean applyClusterReadOnlyBlock
     ) throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        final OptionSet options;
+
+        // Build CLI args for picocli
+        final List<String> args = new ArrayList<>();
+        args.add("--ordinal");
+        args.add(Integer.toString(nodeOrdinal));
         if (Objects.nonNull(applyClusterReadOnlyBlock)) {
-            options = command.getParser()
-                .parse(
-                    "-ordinal",
-                    Integer.toString(nodeOrdinal),
-                    "-apply-cluster-read-only-block",
-                    Boolean.toString(applyClusterReadOnlyBlock)
-                );
-        } else {
-            options = command.getParser().parse("-ordinal", Integer.toString(nodeOrdinal));
-        }
-        final String input;
-
-        if (abort) {
-            input = randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1));
-        } else {
-            input = randomBoolean() ? "y" : "Y";
+            args.add("--apply-cluster-read-only-block");
+            args.add(Boolean.toString(applyClusterReadOnlyBlock));
         }
 
+        // Parse with picocli (fills @Option fields on `command`)
+        new CommandLine(command).parseArgs(args.toArray(new String[0]));
+
+        // Simulate user confirmation input
+        final String input = abort
+            ? randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1))
+            : (randomBoolean() ? "y" : "Y");
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            // Execute using the picocli-enabled command: this calls into OpenSearchNodeCommand's flow
+            command.execute(terminal, environment);
         } finally {
             assertThat(terminal.getOutput(), containsString(OpenSearchNodeCommand.STOP_WARNING_MSG));
         }
@@ -544,7 +543,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(clusterManagerNodeDataPathSettings).build()
         );
         detachCluster(environment);
-        unsafeBootstrap(environment); // read-only block will remain same as one before bootstrap, in this case it is false
+        unsafeBootstrap(environment); // read-only block remains the same as before bootstrap (false)
 
         String clusterManagerNode2 = internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         ensureGreen();
