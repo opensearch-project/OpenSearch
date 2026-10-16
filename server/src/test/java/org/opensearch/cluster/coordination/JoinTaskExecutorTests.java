@@ -213,7 +213,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -271,13 +272,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
-        ) {
-            @Override
-            protected boolean isJoiningNodeConnected(DiscoveryNode node) {
-                return node.equals(disconnectedNode) == false;
-            }
-        };
+            remoteStoreNodeService,
+            node -> node.equals(disconnectedNode) == false
+        );
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
@@ -341,7 +338,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final View view = new View("logs", "all logs", 1L, 1L, Set.of(new View.Target("logs-*")));
@@ -427,7 +425,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -874,7 +873,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -919,7 +919,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -982,7 +983,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1027,7 +1029,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1088,7 +1091,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1158,7 +1162,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1223,7 +1228,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1505,7 +1511,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(

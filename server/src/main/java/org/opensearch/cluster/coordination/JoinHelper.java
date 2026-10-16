@@ -159,15 +159,11 @@ public class JoinHelper {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            transportService::nodeConnected
         ) {
 
             private final long term = currentTermSupplier.getAsLong();
-
-            @Override
-            protected boolean isJoiningNodeConnected(DiscoveryNode node) {
-                return transportService.nodeConnected(node);
-            }
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
