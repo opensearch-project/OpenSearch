@@ -159,9 +159,34 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     public void testLinearRingShapeToString() throws IOException {
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
         GeoShapeQueryBuilder geoQuery = new GeoShapeQueryBuilder(fieldName(), linearRing);
-        String json = geoQuery.toString();
-        assertThat(json, containsString("LineString"));
-        assertThat(json, containsString("coordinates"));
+        String expected = """
+            {
+              "geo_shape" : {
+                "%s" : {
+                  "shape" : {
+                    "type" : "LineString",
+                    "coordinates" : [
+                      [
+                        -25.0,
+                        -25.0
+                      ],
+                      [
+                        -35.0,
+                        -35.0
+                      ],
+                      [
+                        -25.0,
+                        -25.0
+                      ]
+                    ]
+                  },
+                  "relation" : "intersects"
+                },
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""".formatted(fieldName());
+        assertThat(geoQuery.toString(), equalTo(expected));
     }
 
     // see #3878
