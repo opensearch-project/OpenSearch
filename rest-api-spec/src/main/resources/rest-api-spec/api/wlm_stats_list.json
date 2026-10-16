@@ -2,7 +2,7 @@
   "wlm_stats_list": {
     "stability": "experimental",
     "documentation": {
-      "url": "https://docs.opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/workload-management/wlm-feature-overview/",
+      "url": "https://docs.opensearch.org/latest/tuning-your-cluster/availability-and-recovery/workload-management/wlm-feature-overview/",
       "description": "This API endpoint returns a list of WLM stats with pagination support."
     },
     "url": {
