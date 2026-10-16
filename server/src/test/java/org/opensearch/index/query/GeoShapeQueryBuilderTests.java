@@ -58,6 +58,7 @@ import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import org.locationtech.jts.geom.Coordinate;
 
@@ -159,7 +160,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     public void testLinearRingShapeToString() throws IOException {
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
         GeoShapeQueryBuilder geoQuery = new GeoShapeQueryBuilder(fieldName(), linearRing);
-        String expected = """
+        String expected = String.format(Locale.ROOT, """
             {
               "geo_shape" : {
                 "%s" : {
@@ -185,7 +186,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
                 "ignore_unmapped" : false,
                 "boost" : 1.0
               }
-            }""".formatted(fieldName());
+            }""", fieldName());
         assertThat(geoQuery.toString(), equalTo(expected));
     }
 
