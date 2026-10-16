@@ -8,8 +8,6 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -21,10 +19,11 @@ public class DeleteRuleRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         DeleteRuleRequest request = new DeleteRuleRequest(_ID_ONE, RuleTestUtils.MockRuleFeatureType.INSTANCE);
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        DeleteRuleRequest deserialized = new DeleteRuleRequest(in);
+        DeleteRuleRequest deserialized = copyWriteable(
+            request,
+            RuleTestUtils.namedWriteableRegistry(RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            DeleteRuleRequest::new
+        );
         assertEquals(request.getRuleId(), deserialized.getRuleId());
         assertEquals(request.getFeatureType(), deserialized.getFeatureType());
     }
