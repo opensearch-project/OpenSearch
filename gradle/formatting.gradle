@@ -72,6 +72,7 @@ allprojects {
           // Normally this isn't necessary, but we have Java sources in
           // non-standard places
           target '**/*.java'
+          targetExclude '**/build/**', '**/build-bootstrap/**'
 
           removeUnusedImports()
           forbidWildcardImports()

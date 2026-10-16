@@ -45,9 +45,11 @@ if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
 }
 
 if (project == rootProject) {
-  // change the build dir used during build init, so that doing a clean
-  // won't wipe out the buildscript jar
-  buildDir = 'build-bootstrap'
+  // Keep bootstrap outputs (including the reaper) separate from :build-tools outputs.
+  // A clean of the main build must not wipe out the buildscript jars.
+  allprojects {
+    layout.buildDirectory = layout.projectDirectory.dir('build-bootstrap')
+  }
 }
 
 /*****************************************************************************

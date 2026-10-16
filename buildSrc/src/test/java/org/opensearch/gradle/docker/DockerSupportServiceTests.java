@@ -32,6 +32,8 @@
 package org.opensearch.gradle.docker;
 
 import org.opensearch.gradle.test.GradleIntegrationTestCase;
+import org.gradle.internal.jvm.Jvm;
+import org.gradle.testfixtures.ProjectBuilder;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,6 +45,20 @@ import static org.opensearch.gradle.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DockerSupportServiceTests extends GradleIntegrationTestCase {
+
+    public void testCommandOutput() {
+        var providers = ProjectBuilder.builder().build().getProviders();
+        var result = DockerSupportService.runCommand(providers, Jvm.current().getJavaExecutable().getAbsolutePath(), "--version");
+        assertTrue(result.isSuccess());
+        assertFalse(result.stdout.isEmpty());
+    }
+
+    public void testUnsuccessfulCommandOutput() {
+        var providers = ProjectBuilder.builder().build().getProviders();
+        var result = DockerSupportService.runCommand(providers, Jvm.current().getJavaExecutable().getAbsolutePath(), "--not-a-java-option");
+        assertFalse(result.isSuccess());
+        assertFalse(result.stderr.isEmpty());
+    }
 
     public void testParseOsReleaseOnOracle() {
         final List<String> lines = Arrays.asList(

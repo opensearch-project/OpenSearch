@@ -38,14 +38,13 @@ import org.opensearch.gradle.util.ExecutableUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.process.ExecOperations;
-import org.gradle.process.ExecResult;
+import org.gradle.process.ExecOutput;
 
 import javax.inject.Inject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -82,12 +81,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
-    private final ExecOperations execOperations;
+    private final ProviderFactory providers;
     private DockerAvailability dockerAvailability;
 
     @Inject
-    public DockerSupportService(ExecOperations execOperations) {
-        this.execOperations = execOperations;
+    public DockerSupportService(ProviderFactory providers) {
+        this.providers = providers;
     }
 
     /**
@@ -109,7 +108,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 dockerPath = dockerBinary.get();
 
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
-                lastResult = runCommand(execOperations, dockerPath, "version", "--format", "{{.Server.Version}}");
+                lastResult = runCommand(providers, dockerPath, "version", "--format", "{{.Server.Version}}");
 
                 if (lastResult.isSuccess()) {
                     // On some systems, Docker reports version prefixed with 'v', on some without,
@@ -134,10 +133,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
                     if (isVersionHighEnough) {
                         // Check that we can execute a privileged command
-                        lastResult = runCommand(execOperations, dockerPath, "images");
+                        lastResult = runCommand(providers, dockerPath, "images");
                         // If docker all checks out, see if docker-compose is available and working
                         if (lastResult.isSuccess()) {
-                            dockerComposeAvailability = DockerComposeAvailability.detect(execOperations, dockerPath).orElse(null);
+                            dockerComposeAvailability = DockerComposeAvailability.detect(providers, dockerPath).orElse(null);
                         }
                     }
                 }
@@ -312,26 +311,23 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      * Runs a command and captures the exit code, standard output and standard error.
      *
      * @param args the command and any arguments to execute
-     * @return a object that captures the result of running the command. If an exception occurring
-     * while running the command, or the process was killed after reaching the 10s timeout,
-     * then the exit code will be -1.
+     * @return the exit code and captured output, including output from unsuccessful commands
      */
-    private static Result runCommand(ExecOperations execOperations, String... args) {
+    static Result runCommand(ProviderFactory providers, String... args) {
         if (args.length == 0) {
             throw new IllegalArgumentException("Cannot execute with no command");
         }
 
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-
-        final ExecResult execResult = execOperations.exec(spec -> {
+        final ExecOutput output = providers.exec(spec -> {
             // The redundant cast is to silence a compiler warning.
             spec.setCommandLine((Object[]) args);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
             spec.setIgnoreExitValue(true);
         });
-        return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
+        return new Result(
+            output.getResult().get().getExitValue(),
+            output.getStandardOutput().getAsText().get(),
+            output.getStandardError().getAsText().get()
+        );
     }
 
     /**
@@ -403,15 +399,15 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         /**
          * Detects Docker Compose V1/V2 availability
          */
-        private static Optional<DockerComposeAvailability> detect(ExecOperations execOperations, String dockerPath) {
+        private static Optional<DockerComposeAvailability> detect(ProviderFactory providers, String dockerPath) {
             Optional<String> composePath = getDockerComposePath();
             if (composePath.isPresent()) {
-                if (runCommand(execOperations, composePath.get(), "version").isSuccess()) {
+                if (runCommand(providers, composePath.get(), "version").isSuccess()) {
                     return Optional.of(new DockerComposeV1Availability(composePath.get()));
                 }
             }
 
-            if (runCommand(execOperations, dockerPath, "compose", "version").isSuccess()) {
+            if (runCommand(providers, dockerPath, "compose", "version").isSuccess()) {
                 return Optional.of(new DockerComposeV2Availability(dockerPath));
             }
 
@@ -467,7 +463,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     /**
      * This class models the result of running a command. It captures the exit code, standard output and standard error.
      */
-    private static class Result {
+    static class Result {
         final int exitCode;
         final String stdout;
         final String stderr;
