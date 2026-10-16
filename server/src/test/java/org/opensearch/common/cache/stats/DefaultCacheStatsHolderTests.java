@@ -9,6 +9,7 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.Randomness;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -114,32 +115,37 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
     }
 
     /**
-     * When a shard is closed and a new copy with the same dimension values is created on the same node
-     * within one cleanup cycle, both copies share the same leaf node in the stats tree. Removing the
-     * dimensions for the closed copy must not leave stale stats behind on that leaf, otherwise the next
-     * removal subtracts those values a second time and drives size_in_bytes / item_count negative.
-     * Serializing such negative stats (as _nodes/stats does) then throws
-     * "Negative longs unsupported" from StreamOutput.writeVLong.
+     * When a shard is closed and reassigned to the same node within one cleanup cycle, the node-level stats entry
+     * for that index+shard is dropped while a second live copy of the shard still has entries counted against it.
+     * A later decrement for those already-dropped entries must not drive size_in_bytes/item_count negative, which
+     * is what makes _nodes/stats fail to serialize with "Negative longs unsupported".
      */
-    public void testRemoveDimensionsTwiceForSameDimensionsDoesNotGoNegative() throws Exception {
+    public void testRemoveDimensionsWhileLiveCopyUsesSameDimensionsDoesNotGoNegative() throws Exception {
         List<String> dimensionNames = List.of("index", "shard");
         DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
         List<String> dims = List.of("test1", "0");
+        List<String> dimsNoItems = List.of("test1", "0");
 
-        // Copy 1 caches a single entry of 100 bytes.
+        // Copy 1 caches A, copy 2 (same shard id on the same node) caches B against the same stats entry.
         cacheStatsHolder.incrementSizeInBytes(dims, 100);
         cacheStatsHolder.incrementItems(dims);
-
-        // Copy 1 is closed and removed; copy 2 with the same dimensions starts caching on the same node.
-        cacheStatsHolder.removeDimensions(dims);
-        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
-
-        cacheStatsHolder.incrementSizeInBytes(dims, 120);
+        cacheStatsHolder.incrementSizeInBytes(dims, 20);
         cacheStatsHolder.incrementItems(dims);
         assertEquals(120, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
 
-        // Copy 2 is removed too. Without the fix the stale stats from copy 1 are subtracted again.
+        // Cleanup removes A and drops the node-level stats for this index+shard, even though B is still live.
         cacheStatsHolder.removeDimensions(dims);
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+
+        // Copy 2 caches C, creating a fresh stats entry for the same dimensions.
+        cacheStatsHolder.incrementSizeInBytes(dims, 100);
+        cacheStatsHolder.incrementItems(dims);
+
+        // Copy 2's reader closes and cleanup removes B and C. B's bytes would come off a second time.
+        cacheStatsHolder.decrementSizeInBytes(dims, 20);
+        cacheStatsHolder.decrementItems(dims);
+        cacheStatsHolder.decrementSizeInBytes(dims, 100);
+        cacheStatsHolder.decrementItems(dims);
 
         ImmutableCacheStats total = cacheStatsHolder.getStatsRoot().getImmutableStats();
         assertTrue("size_in_bytes must not go negative but was " + total.getSizeInBytes(), total.getSizeInBytes() >= 0);
@@ -149,7 +155,7 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
 
         // Serializing the snapshot goes down the same path as _nodes/stats (writeVLong) and must not throw.
         ImmutableCacheStatsHolder immutable = cacheStatsHolder.getImmutableCacheStatsHolder(new String[] { "index", "shard" });
-        try (org.opensearch.common.io.stream.BytesStreamOutput out = new org.opensearch.common.io.stream.BytesStreamOutput()) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             immutable.writeTo(out);
         }
     }
