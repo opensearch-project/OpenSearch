@@ -1,0 +1,44 @@
+{
+  "testName": "ids_query_single",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "ids": {
+        "values": ["doc1"]
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[IDS(MAP('values.0', 'doc1'))])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price"],
+  "mockResultRows": [
+    ["laptop", 999]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 1,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": [
+        {
+          "_source": {
+            "name": "laptop",
+            "price": 999
+          },
+          "_score": null
+        }
+      ]
+    }
+  }
+}
