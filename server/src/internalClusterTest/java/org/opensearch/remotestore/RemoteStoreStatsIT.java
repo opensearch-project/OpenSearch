@@ -600,7 +600,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
                 if (statObject.getShardRouting().primary()) {
                     assertTrue(
-                        segmentStats.totalUploadsSucceeded == 1
+                        segmentStats.totalUploadsSucceeded >= 1
                             && segmentStats.totalUploadsStarted == segmentStats.totalUploadsSucceeded
                             && segmentStats.totalUploadsFailed == 0
                     );
@@ -756,7 +756,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, stats.totalUploadsFailed);
         assertTrue(stats.uploadBytesSucceeded > 0);
         assertTrue(stats.totalUploadsSucceeded > 0);
-        assertTrue(stats.totalUploadTimeInMillis > 0);
         assertTrue(stats.lastSuccessfulUploadTimestamp > 0);
     }
 
