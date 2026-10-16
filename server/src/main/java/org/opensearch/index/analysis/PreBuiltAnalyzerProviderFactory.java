@@ -35,6 +35,7 @@ package org.opensearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -55,6 +56,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
     private final Function<Version, Analyzer> create;

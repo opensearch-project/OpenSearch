@@ -198,7 +198,13 @@ public class NodeService implements Closeable {
             builder.setHttp(httpServerTransport.info());
         }
         if (plugin && pluginService != null) {
-            builder.setPlugins(pluginService.info());
+            // Use enhanced plugin info with status if available
+            try {
+                builder.setPlugins(pluginService.infoWithStatus());
+            } catch (Exception e) {
+                // Fallback to regular plugin info if enhanced version fails
+                builder.setPlugins(pluginService.info());
+            }
         }
         if (ingest && ingestService != null) {
             builder.setIngest(ingestService.info());
