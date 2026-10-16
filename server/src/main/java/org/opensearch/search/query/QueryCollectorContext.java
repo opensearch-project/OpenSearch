@@ -293,10 +293,7 @@ public abstract class QueryCollectorContext {
             Collector create(Collector in) {
                 assert collector == null;
 
-                List<Collector> subCollectors = new ArrayList<>();
-                subCollectors.add(new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true));
-                subCollectors.add(in);
-                this.collector = MultiCollector.wrap(subCollectors);
+                this.collector = new EarlyTerminatingCollector(in, numHits, true);
                 return collector;
             }
 
