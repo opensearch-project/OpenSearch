@@ -1144,14 +1144,17 @@ async unsafe fn execute_indexed_with_context_inner(
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
     let context_id = query_context.context_id();
 
-    // The substrait scan binds to the plan's NamedTable name (the alias/pattern like "tb-1,tb-2"
-    // for multi-index queries, the concrete name otherwise), not the per-shard table_name.
-    // create_session_context registered the provider under that name, so re-register under the
-    // same name. Using table_name for a multi-index query leaves the scan unbound, so DataFusion
-    // never consults supports_filters_pushdown and keeps the delegated_predicate FilterExec —
-    // which then executes the marker UDF and errors.
-    let register_name = crate::api::first_named_table_name(substrait_bytes.as_slice())
-        .unwrap_or_else(|| table_name.clone());
+    // Re-register the shard's table under the SAME name create_session_context chose, so the
+    // substrait scan stays bound and DataFusion consults supports_filters_pushdown instead of
+    // keeping the delegated_predicate FilterExec (whose marker UDF body errors). That name is the
+    // planner's logical table name (the alias/pattern like "tb-1,tb-2" for multi-index queries,
+    // the concrete index otherwise), which the coordinator ships on the shard-scan instruction
+    // node; see session_context::resolve_register_name for why it is NOT reverse-engineered from
+    // the plan bytes. Deriving it here from the plan's first NamedTable read bound the indexed
+    // provider to the injected `broadcast-N` memtable whenever a broadcast build was the join's
+    // left input — a silent zero-row result.
+    let register_name =
+        crate::session_context::resolve_register_name(&table_name, substrait_bytes.as_slice());
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
