@@ -15,6 +15,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchService;
@@ -36,9 +38,10 @@ import java.util.Map;
  *
  * <p>Legacy-compat choices, constrained by what the analytics engine exposes today:
  * <ul>
- *   <li>{@code _id} is omitted (null): the engine schema exposes only mapped source fields,
- *       no metadata columns. TODO: populate once the engine can project the stored
- *       {@code _id} (and {@code _source}) parquet columns for HITS plans.</li>
+ *   <li>{@code _id} is populated from the row's {@code _id} metadata column (the stored
+ *       Uid-encoded bytes; requested by the plan via {@code IdColumnSchema}). The column is
+ *       lifted out of the row and never appears in {@code _source}. Rows without the column
+ *       render {@code _id} null.</li>
  *   <li>{@code _score}/{@code max_score} are {@link Float#NaN} (rendered {@code null}): the
  *       engine has no relevance scoring, matching legacy's non-scored (field-sorted) responses.</li>
  *   <li>{@code hits.total}: classic {@code track_total_hits} semantics. The COUNT plan's
@@ -81,6 +84,7 @@ public final class HitsResponseBuilder {
 
         int size = resolveSize(request);
         List<String> fieldNames = hitsResult.getFieldNames();
+        int idOrdinal = fieldNames.indexOf(IdFieldMapper.NAME);
         List<Object[]> rows = new ArrayList<>();
         for (Object[] row : hitsResult.getRows()) {
             rows.add(row);
@@ -90,7 +94,7 @@ public final class HitsResponseBuilder {
         int hitCount = Math.min(rows.size(), size);
         SearchHit[] hits = new SearchHit[hitCount];
         for (int i = 0; i < hitCount; i++) {
-            hits[i] = buildHit(i, fieldNames, rows.get(i));
+            hits[i] = buildHit(i, fieldNames, rows.get(i), idOrdinal);
         }
 
         return new SearchHits(hits, resolveTotal(request, countTotals, rows.size()), Float.NaN);
@@ -131,10 +135,25 @@ public final class HitsResponseBuilder {
         return source != null && source.size() != -1 ? source.size() : SearchService.DEFAULT_SIZE;
     }
 
-    private static SearchHit buildHit(int docId, List<String> fieldNames, Object[] row) throws ConversionException {
-        Map<String, Object> source = buildSourceMap(fieldNames, row);
-        // id=null renders the hit without an _id field (see class javadoc).
-        SearchHit hit = new SearchHit(docId, null, null, null);
+    /** Decodes the {@code _id} cell: Uid-encoded bytes from the engine, or a plain string in tests. */
+    private static String decodeId(Object cell) throws ConversionException {
+        if (cell == null) {
+            return null;
+        }
+        if (cell instanceof byte[] bytes) {
+            return Uid.decodeId(bytes);
+        }
+        if (cell instanceof String s) {
+            return s;
+        }
+        throw new ConversionException("Unsupported _id cell type: " + cell.getClass().getName());
+    }
+
+    private static SearchHit buildHit(int docId, List<String> fieldNames, Object[] row, int idOrdinal) throws ConversionException {
+        Map<String, Object> source = buildSourceMap(fieldNames, row, idOrdinal);
+        // Rows without the _id column render the hit without an _id field (id = null).
+        String id = idOrdinal >= 0 ? decodeId(row[idOrdinal]) : null;
+        SearchHit hit = new SearchHit(docId, id, null, null);
         hit.score(Float.NaN);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(source);
@@ -151,7 +170,7 @@ public final class HitsResponseBuilder {
      * rendered {@code _source} matches the legacy document shape. Null cells are omitted —
      * after the columnar round trip an absent field and an explicit null are indistinguishable.
      */
-    static Map<String, Object> buildSourceMap(List<String> fieldNames, Object[] row) throws ConversionException {
+    static Map<String, Object> buildSourceMap(List<String> fieldNames, Object[] row, int idOrdinal) throws ConversionException {
         if (fieldNames.size() != row.length) {
             throw new ConversionException(
                 "HITS row has " + row.length + " cells but the plan row type declares " + fieldNames.size() + " columns"
@@ -159,7 +178,8 @@ public final class HitsResponseBuilder {
         }
         Map<String, Object> source = new LinkedHashMap<>();
         for (int i = 0; i < row.length; i++) {
-            if (row[i] == null) {
+            // _id lives in the hit envelope, never in _source; null cells are omitted.
+            if (i == idOrdinal || row[i] == null) {
                 continue;
             }
             insertNested(source, fieldNames.get(i), row[i]);

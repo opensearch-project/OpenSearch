@@ -30,7 +30,8 @@
     "price",
     "brand",
     "rating",
-    "created_at"
+    "created_at",
+    "_id"
   ],
   "mockResultRows": [
     [
@@ -38,7 +39,8 @@
       999,
       "BrandA",
       4.5,
-      "2024-06-15T10:30:00.000Z"
+      "2024-06-15T10:30:00.000Z",
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -58,7 +60,8 @@
             "brand": "BrandA",
             "rating": 4.5,
             "created_at": "2024-06-15T10:30:00.000Z"
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
