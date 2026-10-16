@@ -154,9 +154,10 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
             try {
                 long checksum = createChecksum(checksumTask);
                 checksumConsumer.accept(checksum);
-                latch.countDown();
             } catch (IOException e) {
                 throw new RemoteStateTransferException("Failed to execute checksum task", e);
+            } finally {
+                latch.countDown();
             }
         });
     }
