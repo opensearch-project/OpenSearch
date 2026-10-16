@@ -22,11 +22,14 @@ import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
+import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -50,6 +53,7 @@ import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -329,6 +333,60 @@ public class AnalyticsSearchTransportService {
         } catch (Exception ignore) {}
     }
 
+    /**
+     * Arranges for cancelling {@code parentTask} to cancel {@code stream}, and returns a handle that
+     * deregisters that arrangement, or {@code null} when the task cannot carry one.
+     *
+     * <p>Why this is needed: both the drain's {@code stream.nextResponse()} and the transport's own
+     * first-batch prefetch park with no deadline, so a peer that stalls without erroring the stream
+     * never lets the read return. The drain's {@code stream.cancel(...)} lives in its {@code finally}
+     * and therefore runs on the parked thread itself, and stage cancellation only flips state flags —
+     * neither can release the read. Cancel has to be delivered from whichever thread invokes it, which
+     * is what this does.
+     *
+     * <p>Bound from {@link TransportResponseHandler#onStreamCreated}, not from
+     * {@code handleStreamResponse}: that callback only runs once the prefetch has produced a first
+     * batch, so a producer that stalls before sending anything parks the prefetch thread in a window a
+     * later registration would never cover — the shape the wedged-query reports show.
+     *
+     * <p>Registered ADDITIVELY: the task's single-slot {@code setOnCancelCallback} belongs to the query
+     * driver and is replaced across dispatch phases, so using it here would silently drop one concern.
+     */
+    @Nullable
+    private static Releasable cancelStreamOnTaskCancel(Task parentTask, StreamTransportResponse<?> stream) {
+        if (parentTask instanceof AnalyticsQueryTask queryTask) {
+            // cancelStreamOnly(), never cancel(): this runs on whichever thread cancelled the task while
+            // the drain may be mid-batch inside nextResponse(). cancel() closes the stream, freeing the
+            // Arrow root that reader is copying out of. Signalling is enough — the released read throws,
+            // and the drain's own finally then cancel()s from its own thread, which is what tears the
+            // data-node producer's FlightServerChannel down.
+            Runnable hook = () -> {
+                try {
+                    stream.cancelStreamOnly("analytics query task cancelled");
+                } catch (Exception ignore) {
+                    // Best effort: the drain still fails through its normal path once the read returns.
+                }
+            };
+            queryTask.addCancellationListener(hook);
+            // Closes over both, so a caller cannot deregister the hook against the wrong task.
+            return () -> queryTask.removeCancellationListener(hook);
+        }
+        return null;
+    }
+
+    /**
+     * Deregisters the stream-cancel hook a handler registered, exactly once. Called from whichever
+     * terminal callback the request reaches: the stream is then finished with, and holding the hook
+     * would both cancel a closed stream and accumulate for the lifetime of a query whose fragments open
+     * hundreds of streams.
+     */
+    private static void releaseStreamCancel(AtomicReference<Releasable> hook) {
+        Releasable registration = hook.getAndSet(null);
+        if (registration != null) {
+            registration.close();
+        }
+    }
+
     Transport.Connection getConnection(DiscoveryNode node) {
         if (node == null) {
             // The target left the cluster between planning and dispatch. Surface a clean
@@ -351,6 +409,9 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
+        // Holds this request's stream-cancel registration between onStreamCreated (sending thread) and
+        // whichever terminal callback releases it (stream thread).
+        final AtomicReference<Releasable> cancelStream = new AtomicReference<>();
         TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
             @Override
             public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
@@ -365,6 +426,11 @@ public class AnalyticsSearchTransportService {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public void onStreamCreated(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                cancelStream.set(cancelStreamOnTaskCancel(parentTask, stream));
             }
 
             @Override
@@ -391,6 +457,7 @@ public class AnalyticsSearchTransportService {
                 } catch (Exception e) {
                     listener.onFailure(e);
                 } finally {
+                    releaseStreamCancel(cancelStream);
                     try {
                         stream.close();
                     } catch (Exception ignore) {}
@@ -403,6 +470,7 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onStreamResponse(response, true);
                 } finally {
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
@@ -412,6 +480,7 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onFailure(e);
                 } finally {
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
@@ -433,6 +502,9 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onFailure(e);
                 } finally {
+                    // The send failed here rather than through a handler callback, so release the hook
+                    // in case the transport got as far as creating a stream. Idempotent.
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
@@ -496,6 +568,9 @@ public class AnalyticsSearchTransportService {
         PendingExecutions pending,
         BooleanSupplier stillNeeded
     ) {
+        // Holds this request's stream-cancel registration between onStreamCreated (sending thread) and
+        // whichever terminal callback releases it (stream thread).
+        final AtomicReference<Releasable> cancelStream = new AtomicReference<>();
         TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
             @Override
             public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
@@ -510,6 +585,11 @@ public class AnalyticsSearchTransportService {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public void onStreamCreated(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                cancelStream.set(cancelStreamOnTaskCancel(parentTask, stream));
             }
 
             @Override
@@ -587,6 +667,8 @@ public class AnalyticsSearchTransportService {
                 } catch (Exception e) {
                     listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
+                    // This stream can no longer block, so stop holding it on the task's cancel list.
+                    releaseStreamCancel(cancelStream);
                     // Release any batches the loop still owns and never delivered.
                     closeResponseQuietly(last);
                     closeResponseQuietly(next);
@@ -609,6 +691,7 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onStreamResponse(response, true);
                 } finally {
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
@@ -618,6 +701,7 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
@@ -635,6 +719,9 @@ public class AnalyticsSearchTransportService {
                 try {
                     listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
                 } finally {
+                    // The send failed here rather than through a handler callback, so release the hook
+                    // in case the transport got as far as creating a stream. Idempotent.
+                    releaseStreamCancel(cancelStream);
                     pending.finishAndRunNext();
                 }
             }
