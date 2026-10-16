@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Deprecated
 
 ### Removed
+- Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
 
 ### Fixed
 - Fix handling of unsupported HTTP content encodings ([#23324](https://github.com/opensearch-project/OpenSearch/pull/23324))
