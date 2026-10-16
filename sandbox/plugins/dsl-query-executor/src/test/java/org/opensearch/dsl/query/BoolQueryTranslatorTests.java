@@ -732,4 +732,103 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(2, fieldRef.getIndex());
         assertTrue("brand field must be nullable in test schema", fieldRef.getType().isNullable());
     }
+
+    // ── Optional should clauses must still be validated (#23011) ───────────────
+
+    public void testOptionalShouldRejectsBoost() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery("name", "laptop"))
+                    .should(QueryBuilders.termsQuery("brand", "acme").boost(5f)),
+                ctx
+            )
+        );
+        assertTrue("Must mention 'boost', got: " + ex.getMessage(), ex.getMessage().contains("boost"));
+    }
+
+    public void testOptionalShouldRejectsName() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery("name", "laptop"))
+                    .should(QueryBuilders.termsQuery("brand", "acme").queryName("my_terms")),
+                ctx
+            )
+        );
+        assertTrue("Must mention '_name', got: " + ex.getMessage(), ex.getMessage().contains("_name"));
+    }
+
+    public void testOptionalShouldRejectsBoostWithFilterAsRequiredClause() {
+        expectThrows(
+            ConversionException.class,
+            () -> translator.convert(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("name", "laptop"))
+                    .should(QueryBuilders.termsQuery("brand", "acme").boost(5f)),
+                ctx
+            )
+        );
+    }
+
+    public void testOptionalShouldRejectsBoostWithExplicitZeroMinimumShouldMatch() {
+        expectThrows(
+            ConversionException.class,
+            () -> translator.convert(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery("name", "laptop"))
+                    .should(QueryBuilders.termsQuery("brand", "acme").boost(5f))
+                    .minimumShouldMatch(0),
+                ctx
+            )
+        );
+    }
+
+    public void testOptionalShouldRejectsBoostNestedInsideBool() {
+        expectThrows(
+            ConversionException.class,
+            () -> translator.convert(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery("name", "laptop"))
+                    .should(QueryBuilders.boolQuery().must(QueryBuilders.termsQuery("brand", "acme").boost(5f))),
+                ctx
+            )
+        );
+    }
+
+    public void testOptionalShouldWithDefaultOptionsKeepsPredicateUnchanged() throws ConversionException {
+        RexNode withOptionalShould = translator.convert(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "laptop")).should(QueryBuilders.termsQuery("brand", "acme")),
+            ctx
+        );
+        RexNode mustOnly = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "laptop")), ctx);
+
+        // The optional clause is still skipped — validation must not change the plan.
+        assertEquals(mustOnly.toString(), withOptionalShould.toString());
+    }
+
+    public void testOptionalShouldAllowsOptionsOnUnregisteredQueryType() throws ConversionException {
+        // No translator is registered for match — QueryRegistry#convert leaves it to
+        // UnresolvedQueryCall rather than rejecting it, so validation must not reject it either.
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("name", "laptop"))
+                .should(QueryBuilders.matchQuery("brand", "acme").boost(5f).queryName("m")),
+            ctx
+        );
+        RexNode mustOnly = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "laptop")), ctx);
+        assertEquals(mustOnly.toString(), result.toString());
+    }
+
+    public void testOptionalShouldWithUnknownFieldIsNotConverted() throws ConversionException {
+        // Converting would throw for the unknown field; skipping must still skip.
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "laptop")).should(QueryBuilders.termQuery("nonexistent", "x")),
+            ctx
+        );
+        RexNode mustOnly = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "laptop")), ctx);
+        assertEquals(mustOnly.toString(), result.toString());
+    }
 }
