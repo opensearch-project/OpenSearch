@@ -32,6 +32,7 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -42,6 +43,13 @@ public class BootstrapSettingsTests extends OpenSearchTestCase {
         assertFalse(BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED.get(Settings.EMPTY));
+    }
+
+    public void testJavaAgentEnforcementIsDynamic() {
+        assertTrue(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED.isDynamic());
+        assertTrue(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED.hasNodeScope());
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED));
     }
 
 }
