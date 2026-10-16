@@ -167,4 +167,57 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
             table.shardsMatchingPredicate(shardRouting -> !shardRouting.primary() && shardRouting.relocating())
         );
     }
+
+    /**
+     * With writable data replicas present, search-replica preference must still
+     * pick fairly among search-only copies. Rotating the full replica list
+     * before filtering used to pin ~75% of first picks on one search copy.
+     */
+    public void testSearchReplicaRoutingIsFairWhenWriterReplicasPresent() {
+        ShardId shardId = new ShardId(new Index("test", UUID.randomUUID().toString()), 0);
+        ShardRouting primary = TestShardRouting.newShardRouting(shardId, "data-0", true, ShardRoutingState.STARTED);
+        ShardRouting writer0 = TestShardRouting.newShardRouting(shardId, "data-1", false, ShardRoutingState.STARTED);
+        ShardRouting writer1 = TestShardRouting.newShardRouting(shardId, "data-2", false, ShardRoutingState.STARTED);
+        ShardRouting search0 = TestShardRouting.newShardRouting(shardId, "search-0", null, false, true, ShardRoutingState.STARTED, null);
+        ShardRouting search1 = TestShardRouting.newShardRouting(shardId, "search-1", null, false, true, ShardRoutingState.STARTED, null);
+
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, Arrays.asList(primary, writer0, writer1, search0, search1));
+
+        int search0First = 0;
+        int search1First = 0;
+        final int iterations = 400;
+        for (int i = 0; i < iterations; i++) {
+            ShardRouting first = table.searchReplicaActiveInitializingShardIt().nextOrNull();
+            assertNotNull(first);
+            assertTrue("expected a search replica, got " + first, first.isSearchOnly());
+            if ("search-0".equals(first.currentNodeId())) {
+                search0First++;
+            } else if ("search-1".equals(first.currentNodeId())) {
+                search1First++;
+            } else {
+                fail("unexpected node " + first.currentNodeId());
+            }
+        }
+
+        assertEquals("only search replicas should be selected", iterations, search0First + search1First);
+        assertEquals("search-0 and search-1 must split first-picks evenly", search0First, search1First);
+        assertEquals(iterations / 2, search0First);
+    }
+
+    public void testSearchReplicaRoutingIgnoresWriterReplicas() {
+        ShardId shardId = new ShardId(new Index("test", UUID.randomUUID().toString()), 0);
+        ShardRouting primary = TestShardRouting.newShardRouting(shardId, "data-0", true, ShardRoutingState.STARTED);
+        ShardRouting writer = TestShardRouting.newShardRouting(shardId, "data-1", false, ShardRoutingState.STARTED);
+        ShardRouting search = TestShardRouting.newShardRouting(shardId, "search-0", null, false, true, ShardRoutingState.STARTED, null);
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, Arrays.asList(primary, writer, search));
+
+        for (int i = 0; i < 20; i++) {
+            ShardIterator it = table.searchReplicaActiveInitializingShardIt();
+            assertEquals(1, it.size());
+            ShardRouting first = it.nextOrNull();
+            assertNotNull(first);
+            assertTrue(first.isSearchOnly());
+            assertEquals("search-0", first.currentNodeId());
+        }
+    }
 }
