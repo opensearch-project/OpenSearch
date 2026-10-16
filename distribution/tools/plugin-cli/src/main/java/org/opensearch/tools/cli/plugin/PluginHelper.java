@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A helper class for the plugin-cli tasks.
@@ -31,10 +32,12 @@ public class PluginHelper {
      * @throws IOException if any I/O exception occurs while performing a file operation
      */
     public static Path verifyIfPluginExists(Path pluginPath, String pluginName) throws IOException {
-        List<Path> pluginSubFolders = Files.walk(pluginPath, 1)
-            .filter(Files::isDirectory)
-            .filter(f -> !f.getFileName().toString().equals("lib"))
-            .collect(Collectors.toList());
+        final List<Path> pluginSubFolders;
+        try (Stream<Path> paths = Files.walk(pluginPath, 1)) {
+            pluginSubFolders = paths.filter(Files::isDirectory)
+                .filter(f -> !f.getFileName().toString().equals("lib"))
+                .collect(Collectors.toList());
+        }
         for (Path customPluginFolderPath : pluginSubFolders) {
             if (customPluginFolderPath != pluginPath
                 && !((customPluginFolderPath.getFileName().toString()).contains(".installing"))
