@@ -51,6 +51,13 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
     IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader);
 
     /**
+     * Returns true if global ordinals are already cached for this reader without triggering a build.
+     */
+    default boolean isGlobalOrdinalsCached(DirectoryReader indexReader) {
+        return false;
+    }
+
+    /**
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
     @Override

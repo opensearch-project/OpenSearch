@@ -52,6 +52,16 @@ public interface IndexFieldDataCache {
         throws Exception;
 
     /**
+     * Returns true if global ordinals for the given field data are already cached for this reader.
+     */
+    default <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> boolean isCached(
+        DirectoryReader indexReader,
+        IFD indexFieldData
+    ) {
+        return false;
+    }
+
+    /**
      * Clears all the field data stored cached in on this index.
      */
     void clear();
