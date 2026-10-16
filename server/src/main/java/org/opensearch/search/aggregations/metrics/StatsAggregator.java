@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -129,40 +128,40 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             }
 
             @Override
-            public void collect(DocIdStream stream, long bucket) throws IOException {
+            public void collect(int[] docs, int count, long bucket) throws IOException {
                 growStats(bucket);
 
-                double[] min = { mins.get(bucket) };
-                double[] max = { maxes.get(bucket) };
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
+                double min = mins.get(bucket);
+                double max = maxes.get(bucket);
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
                         final int valuesCount = values.docValueCount();
                         counts.increment(bucket, valuesCount);
 
-                        for (int i = 0; i < valuesCount; i++) {
+                        for (int j = 0; j < valuesCount; j++) {
                             double value = values.nextValue();
                             kahanSummation.add(value);
-                            min[0] = Math.min(min[0], value);
-                            max[0] = Math.max(max[0], value);
+                            min = Math.min(min, value);
+                            max = Math.max(max, value);
                         }
                     }
-                });
+                }
                 sums.set(bucket, kahanSummation.value());
                 compensations.set(bucket, kahanSummation.delta());
-                mins.set(bucket, min[0]);
-                maxes.set(bucket, max[0]);
+                mins.set(bucket, min);
+                maxes.set(bucket, max);
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                growStats(0);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                growStats(bucket);
 
-                double minimum = mins.get(0);
-                double maximum = maxes.get(0);
+                double minimum = mins.get(bucket);
+                double maximum = maxes.get(bucket);
                 for (int doc = min; doc < max; doc++) {
                     if (values.advanceExact(doc)) {
                         final int valuesCount = values.docValueCount();
-                        counts.increment(0, valuesCount);
+                        counts.increment(bucket, valuesCount);
 
                         for (int i = 0; i < valuesCount; i++) {
                             double value = values.nextValue();
@@ -172,10 +171,10 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                         }
                     }
                 }
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
-                mins.set(0, minimum);
-                maxes.set(0, maximum);
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+                mins.set(bucket, minimum);
+                maxes.set(bucket, maximum);
             }
 
             private void growStats(long bucket) {

@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.matrix.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -116,13 +115,10 @@ final class MatrixStatsAggregator extends MetricsAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+            public void collect(int[] docs, int count, long bucket) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    collect(docs[i], bucket);
+                }
             }
 
             /**
