@@ -732,7 +732,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues.toXContent(builder, params);
         if (!matchedQueries.isEmpty()) {
             boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
-            if (includeMatchedQueriesScore) {
+            // When the flag is provided in the request body, it is parsed into the SearchSourceBuilder
+            // and used by MatchedQueriesPhase to compute scores, but it is not propagated to the
+            // response-rendering params. Detect it from the data instead: the scoring path stores real
+            // Float scores, while the non-scoring path stores Float.NaN placeholders.
+            if (includeMatchedQueriesScore || matchedQueries.values().stream().anyMatch(score -> !Float.isNaN(score))) {
                 builder.startObject(Fields.MATCHED_QUERIES);
                 for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
