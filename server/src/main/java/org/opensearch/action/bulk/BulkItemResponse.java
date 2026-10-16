@@ -96,6 +96,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
+            builder.field(_INDEX, failure.getIndex());
+            builder.field(_ID, failure.getId());
+            builder.field(STATUS, failure.getStatus().getStatus());
             OpenSearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
