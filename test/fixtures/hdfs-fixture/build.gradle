@@ -96,9 +96,3 @@ dependencies {
   runtimeOnly "com.squareup.okio:okio:3.16.4"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.8"
 }
-
-configurations.all {
-  resolutionStrategy {
-    force 'io.netty:netty-transport-native-epoll:4.2.15.Final'
-  }
-}
