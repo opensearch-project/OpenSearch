@@ -71,7 +71,7 @@ public class AnalysisTests extends OpenSearchTestCase {
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Settings nodeSettings = Settings.builder()
-            .put("foo.bar_path", config.resolve("foo.dict"))
+            .put("foo.bar_path", "foo.dict")
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
@@ -88,7 +88,10 @@ public class AnalysisTests extends OpenSearchTestCase {
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Path dict = config.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Settings nodeSettings = Settings.builder()
+            .put("foo.bar_path", "foo.dict")
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .build();
         try (OutputStream writer = Files.newOutputStream(dict)) {
             writer.write(new byte[] { (byte) 0xff, 0x00, 0x00 }); // some invalid UTF-8
             writer.write('\n');
@@ -107,7 +110,10 @@ public class AnalysisTests extends OpenSearchTestCase {
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Path dict = config.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Settings nodeSettings = Settings.builder()
+            .put("foo.bar_path", "foo.dict")
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
             writer.write("hello");
             writer.write('\n');
@@ -124,7 +130,10 @@ public class AnalysisTests extends OpenSearchTestCase {
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Path dict = config.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Settings nodeSettings = Settings.builder()
+            .put("foo.bar_path", "foo.dict")
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
             writer.write("abcd");
             writer.write('\n');
@@ -150,7 +159,7 @@ public class AnalysisTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> s)
         );
-        assertTrue(ex.getMessage().contains("Resource path must be inside config directory"));
+        assertTrue(ex.getMessage().contains("setting [foo.bar_path] must be a relative path"));
     }
 
     public void testResolveAnalyzerPathRejectsPathTraversal() {
