@@ -193,7 +193,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             listener,
             new GroupShardsIterator<>(Arrays.asList(shards)),
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            () -> ClusterState.EMPTY_STATE,
             null,
             results,
             request.getMaxConcurrentShardRequests(),

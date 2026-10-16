@@ -24,6 +24,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Stream search async action for query then fetch mode
@@ -48,7 +49,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
@@ -68,7 +69,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             listener,
             shardsIts,
             timeProvider,
-            clusterState,
+            clusterStateSupplier,
             task,
             clusters,
             searchRequestContext,
