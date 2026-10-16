@@ -149,6 +149,61 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
+     * Adds the given index to the data stream's backing indices and returns a new {@code DataStream} instance. Backing
+     * indices are ordered oldest-to-newest so the write index remains last: convention-named indices
+     * ({@code .ds-<name>-NNNNNN}) order by their counter, and non-convention names sort first. The generation is derived
+     * as the highest backing-index counter, so adding an index whose counter exceeds the current generation advances
+     * the generation and makes it the new write index; adding a lower-counter or non-convention index leaves the
+     * generation unchanged.
+     *
+     * @param index the backing index to add
+     * @return new {@code DataStream} instance with the index added
+     */
+    public DataStream addBackingIndex(Index index) {
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(index);
+        backingIndices.sort(Comparator.comparingLong(i -> backingIndexCounterOrMin(name, i.getName())));
+        long newGeneration = Math.max(generation, backingIndexCounterOrMin(name, index.getName()));
+        return new DataStream(name, timeStampField, backingIndices, newGeneration);
+    }
+
+    /**
+     * Returns the generation counter of a backing index named {@code .ds-<dataStreamName>-NNNNNN}, or
+     * {@link Long#MIN_VALUE} for any other name so that non-convention indices sort before convention-named ones and
+     * never become the write index.
+     */
+    static long backingIndexCounterOrMin(String dataStreamName, String indexName) {
+        if (dataStreamName.equals(parseDataStreamName(indexName)) == false) {
+            return Long.MIN_VALUE;
+        }
+        return Long.parseLong(indexName.substring(indexName.lastIndexOf('-') + 1));
+    }
+
+    /**
+     * If {@code indexName} follows the data stream backing-index naming convention {@code .ds-<dataStream>-NNNNNN}
+     * (a numeric counter suffix), returns the {@code <dataStream>} portion; otherwise returns {@code null}.
+     */
+    public static String parseDataStreamName(String indexName) {
+        if (indexName.startsWith(BACKING_INDEX_PREFIX) == false) {
+            return null;
+        }
+        int counterDash = indexName.lastIndexOf('-');
+        if (counterDash <= BACKING_INDEX_PREFIX.length()) {
+            return null;
+        }
+        String counter = indexName.substring(counterDash + 1);
+        if (counter.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < counter.length(); i++) {
+            if (Character.isDigit(counter.charAt(i)) == false) {
+                return null;
+            }
+        }
+        return indexName.substring(BACKING_INDEX_PREFIX.length(), counterDash);
+    }
+
+    /**
      * Replaces the specified backing index with a new index and returns a new {@code DataStream} instance with
      * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
      * is not a backing index for this data stream or if it is the {@code DataStream}'s write index.

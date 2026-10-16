@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Add API to modify a data stream's backing indices, and an `attach_to_data_stream` option on snapshot restore ([#22487](https://github.com/opensearch-project/OpenSearch/pull/22487), [#22539](https://github.com/opensearch-project/OpenSearch/pull/22539))
 
 ### Dependencies
 - Update Jackson to 2.18.9 and Log4j to 2.25.5 ([#22990](https://github.com/opensearch-project/OpenSearch/pull/22990))
