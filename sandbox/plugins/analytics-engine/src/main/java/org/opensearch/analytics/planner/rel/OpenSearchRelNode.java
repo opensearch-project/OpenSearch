@@ -8,8 +8,15 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
+import org.apache.calcite.rel.PhysicalNode;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
@@ -19,6 +26,12 @@ import java.util.function.Function;
 /**
  * Marker interface for all OpenSearch custom RelNodes that carry backend assignment
  * and per-column storage metadata.
+ *
+ * <p>Extends Calcite's {@link PhysicalNode} so distribution traits can propagate TOP-DOWN during
+ * Volcano costing ({@code setTopDownOpt(true)}): {@link #passThroughTraits} answers "given this
+ * required distribution, what do I demand of my inputs?" and {@link #deriveTraits} answers "given
+ * this child's distribution, what can I output?". Exchange placement then becomes emergent AND
+ * priced, instead of being re-derived after the fact.
  *
  * <p>TODO: consider making this an abstract class storing {@code viableBackends} centrally,
  * with a default {@link #copyResolved} that returns {@code this} when already narrowed to
@@ -30,7 +43,137 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public interface OpenSearchRelNode {
+public interface OpenSearchRelNode extends PhysicalNode {
+
+    /** Recursion cap for {@link #effectiveDistributionOf}, so a cyclic memo cannot spin. */
+    int EFFECTIVE_DISTRIBUTION_MAX_DEPTH = 64;
+
+    /**
+     * The distribution the data reaching {@code rel} actually lives at, seeing THROUGH the UNRESOLVED
+     * seeds the HEP marking phase leaves behind.
+     *
+     * <p>Why this exists rather than reading {@code rel.getTraitSet()} directly. The Volcano split rules
+     * ask a placement question about their input — "are both arms the same single-shard table?", "is this
+     * arm a shard-local scan?", "is this input partitioned?" — and they use the answer to decide whether to
+     * REGISTER an alternative at all. A marking rule that seeds {@code any()} answers that question with
+     * {@code locality=null, type=ANY}, which every one of those predicates reads as "no", so the
+     * alternative is never registered and the plan silently falls back to coordinator-gathering. That is
+     * not a costing question the search can recover from later: the alternative does not exist.
+     *
+     * <p>So an UNRESOLVED node is asked what it WOULD deliver over its input's effective distribution, via
+     * the same {@link #deriveTraits} hook the top-down search uses. Delegating keeps this resolver from
+     * drifting away from the hooks: an operator that changes its mind about what it delivers changes both
+     * answers at once. An operator that declines to derive (or is not single-input, or whose input is
+     * itself unresolved) keeps its UNRESOLVED answer, so callers stay as conservative as they were before.
+     *
+     * @return the effective distribution, or null when {@code rel} carries no distribution trait at all —
+     *         which is NOT the same as UNRESOLVED and callers already treat as "unknown, do not act"
+     */
+    static OpenSearchDistribution effectiveDistributionOf(RelNode rel) {
+        return effectiveDistributionOf(rel, EFFECTIVE_DISTRIBUTION_MAX_DEPTH);
+    }
+
+    private static OpenSearchDistribution effectiveDistributionOf(RelNode rel, int remainingDepth) {
+        if (rel == null || remainingDepth <= 0) {
+            return null;
+        }
+        RelNode current = RelNodeUtils.unwrapHep(rel);
+        // The node's OWN trait wins whenever it makes a claim, and that includes a RelSubset: a subset's
+        // trait set IS the placement its members deliver, so it must be read BEFORE resolving to a member.
+        // Resolving first and reading the member's traits reports something else entirely — the member may
+        // be the marking phase's UNRESOLVED seed, or sit at a different distribution than the subset — which
+        // silently changes every predicate built on this.
+        OpenSearchDistribution own = distributionOf(current.getTraitSet());
+        if (own == null || own.getType() != RelDistribution.Type.ANY) {
+            return own;
+        }
+        // UNRESOLVED from here down. During Volcano an input is a RelSubset whose getInputs() is empty, so
+        // resolve it to a concrete member first or the descent stops one hop short.
+        //
+        // getOriginal(), NOT getBestOrOriginal(). Two independent reasons, and the first is a hard
+        // constraint: `best` changes as the memo evolves, so a predicate built on it answers differently
+        // before and after a rule is queued, and Calcite asserts a rule's matches() is stable
+        // (`assert getRule().matches(this)` in VolcanoRuleCall#onMatch) — an unstable one fails there rather
+        // than merely planning oddly. Second, the original IS the member we want: it is the HEP-marked node
+        // whose input chain still carries the seeded scan traits, which is exactly the placement being
+        // asked about. Whatever currently wins on cost is a different question.
+        if (current instanceof RelSubset subset) {
+            RelNode member = subset.getOriginal();
+            if (member == null || member == current) {
+                return own;
+            }
+            OpenSearchDistribution resolved = effectiveDistributionOf(member, remainingDepth - 1);
+            return resolved == null ? own : resolved;
+        }
+        if (current.getInputs().size() != 1 || !(current instanceof OpenSearchRelNode physical)) {
+            return own;
+        }
+        OpenSearchDistribution childDistribution = effectiveDistributionOf(current.getInput(0), remainingDepth - 1);
+        if (childDistribution == null || childDistribution.getType() == RelDistribution.Type.ANY) {
+            return own;
+        }
+        Pair<RelTraitSet, List<RelTraitSet>> derived = physical.deriveTraits(
+            current.getInput(0).getTraitSet().replace(childDistribution),
+            0
+        );
+        if (derived == null) {
+            return own;
+        }
+        OpenSearchDistribution delivered = distributionOf(derived.left);
+        return delivered == null ? own : delivered;
+    }
+
+    /** Returns the {@link OpenSearchDistribution} carried by {@code traits}, or null if absent. */
+    static OpenSearchDistribution distributionOf(RelTraitSet traits) {
+        for (int i = 0; i < traits.size(); i++) {
+            RelTrait trait = traits.getTrait(i);
+            if (trait instanceof OpenSearchDistribution distribution) {
+                return distribution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Most operators do not propagate a distribution. Returning {@code null} is Calcite's contract for
+     * "no alternative for this request", which is the safe default: an operator that has not opted in
+     * simply produces no top-down alternative, and the existing enforcement path still applies. This
+     * is what lets the ~10 rel nodes with no distribution algebra of their own stay untouched.
+     */
+    @Override
+    default Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        return null;
+    }
+
+    /**
+     * True when any input's distribution is still UNRESOLVED ({@code Type.ANY}).
+     *
+     * <p>THE invariant that keeps placement legality out of the cost model's shape tables: an unresolved
+     * input has no decided location, so nothing above it has a defined cost — or a defined correctness.
+     * Every operator's {@code computeSelfCost} refuses such an input, which confines the seed nodes the HEP
+     * marking phase produces (they cannot demand traits of their inputs, so they claim nothing) to the ANY
+     * subset. Only their {@code passThroughTraits}/{@code deriveTraits} alternatives, which set self and
+     * input traits together, are consumable.
+     *
+     * <p>Miss this check in ONE operator and that operator becomes the hole: a Union that skipped it let a
+     * per-partition {@code SINGLE} aggregate through as an ANY subset, and the gather above concatenated
+     * three partial results without merging them.
+     */
+    default boolean hasUnresolvedInput() {
+        for (RelNode input : ((RelNode) this).getInputs()) {
+            OpenSearchDistribution dist = distributionOf(input.getTraitSet());
+            if (dist != null && dist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Counterpart to {@link #passThroughTraits} for bottom-up derivation. Null means "no alternative". */
+    @Override
+    default Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        return null;
+    }
 
     /** All backends that could execute this operator, including via delegation. */
     List<String> getViableBackends();

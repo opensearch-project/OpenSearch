@@ -56,7 +56,7 @@ public class OpenSearchBroadcastScan extends AbstractRelNode implements OpenSear
      * path), the consuming operator resolves {@code RexInputRef}s against the union of its inputs'
      * {@code getOutputFieldStorage()}. An empty list here truncates that union, so a ref to a column
      * past the truncation throws "RexInputRef[N] has no matching FieldStorageInfo entry" at fragment
-     * conversion (observed on TPC-H q5/q10). Use {@link #OpenSearchBroadcastScan(RelOptCluster,
+     * conversion. Use {@link #OpenSearchBroadcastScan(RelOptCluster,
      * RelTraitSet, int, RelDataType, List, List)} to pass the build subtree's exact storage instead.
      */
     public OpenSearchBroadcastScan(

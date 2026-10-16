@@ -103,7 +103,11 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         LOGGER.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
-        RelTraitSet aggregateTraits = child.getTraitSet();
+        // Seed UNRESOLVED. A SINGLE aggregate is only correct over gathered input, and this rule runs in
+        // HEP where convert() is a no-op — it cannot demand that of its input, so it must not claim a
+        // placement either. OpenSearchAggregate.passThroughTraits states the requirement instead, and no
+        // parent may consume an unresolved input (see computeSelfCost).
+        RelTraitSet aggregateTraits = child.getTraitSet().replace(context.getDistributionTraitDef().any());
 
         call.transformTo(
             new OpenSearchAggregate(
