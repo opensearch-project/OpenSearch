@@ -158,7 +158,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         builder.field(Fields.LIMIT, limit);
         builder.field(Fields.LIMIT_HUMAN, new ByteSizeValue(limit));
         builder.field(Fields.ESTIMATED, estimated);
-        builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
+        builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(sanitizeEstimated()));
         builder.field(Fields.OVERHEAD, overhead);
         builder.field(Fields.TRIPPED_COUNT, trippedCount);
         builder.endObject();
@@ -180,12 +180,22 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
             + ",estimated="
             + this.estimated
             + "/"
-            + new ByteSizeValue(this.estimated)
+            + new ByteSizeValue(sanitizeEstimated())
             + ",overhead="
             + this.overhead
             + ",tripped="
             + this.trippedCount
             + "]";
+    }
+
+    /**
+     * Returns the estimated value clamped to 0 if negative. Circuit breaker accounting can
+     * underflow due to caller-level bugs (e.g. unsynchronized double-release of tracked bytes),
+     * producing negative values that crash ByteSizeValue serialization and break /_nodes/stats API
+     * for the entire cluster.
+     */
+    private long sanitizeEstimated() {
+        return Math.max(0, estimated);
     }
 
     /**
