@@ -163,7 +163,7 @@ fn bounds_from_stats(stats: &Statistics, descriptor: &ColumnDescriptor) -> Optio
 /// generic integer domain distinct from every timestamp domain.
 fn int64_value_kind(descriptor: &ColumnDescriptor) -> u8 {
     match descriptor.logical_type_ref() {
-        Some(LogicalType::Timestamp { unit, .. }) => match unit {
+        Some(LogicalType::Timestamp(ts)) => match ts.unit {
             TimeUnit::MILLIS => VALUE_KIND_INT64_MILLIS,
             TimeUnit::MICROS => VALUE_KIND_INT64_MICROS,
             TimeUnit::NANOS => VALUE_KIND_INT64_NANOS,

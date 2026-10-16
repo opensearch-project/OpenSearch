@@ -21,4 +21,8 @@ combos:
       search.concurrent.max_slice_count: 4
       datafusion.reduce.target_partitions: 4
 
+# TODO [df55-followup]: both combos pin max_slice_count=4, so no golden reaches
+# target_partitions=1 — the only shape with TopK but no PartialReduce, which is what the
+# has_topk skip-partial pin guards. Add a combo with search.concurrent_segment_search.mode=none
+# and regenerate. See code_analysis/test_coverage_q32_skip_partial_pin.md.
 defaults: [prod2s, prod1s]
