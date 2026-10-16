@@ -98,6 +98,23 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         assertThat(val, equalTo(true));
     }
 
+    public void testReadOptionalBooleanProperty() {
+        Boolean val = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, "boolVal");
+        assertThat(val, equalTo(true));
+        assertFalse(config.containsKey("boolVal"));
+    }
+
+    public void testReadOptionalBooleanPropertyMissing() {
+        Boolean val = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, "missing");
+        assertThat(val, is(nullValue()));
+    }
+
+    public void testReadOptionalBooleanPropertyNullValue() {
+        Boolean val = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, "null");
+        assertThat(val, is(nullValue()));
+        assertFalse(config.containsKey("null"));
+    }
+
     public void testReadNullBooleanProperty() {
         Boolean val = ConfigurationUtils.readBooleanProperty(null, null, config, "null", false);
         assertThat(val, equalTo(false));
@@ -109,6 +126,14 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
         }
+    }
+
+    public void testReadOptionalBooleanPropertyInvalidType() {
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readOptionalBooleanProperty(null, null, config, "arr")
+        );
+        assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
     }
 
     public void testReadStringOrIntProperty() {
@@ -124,6 +149,38 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
         }
+    }
+
+    public void testReadOptionalIntProperty() {
+        Integer val = ConfigurationUtils.readOptionalIntProperty(null, null, config, "num");
+        assertThat(val, equalTo(1));
+        assertFalse(config.containsKey("num"));
+    }
+
+    public void testReadOptionalIntPropertyFromString() {
+        config.put("string_num", "42");
+        Integer val = ConfigurationUtils.readOptionalIntProperty(null, null, config, "string_num");
+        assertThat(val, equalTo(42));
+        assertFalse(config.containsKey("string_num"));
+    }
+
+    public void testReadOptionalIntPropertyMissing() {
+        Integer val = ConfigurationUtils.readOptionalIntProperty(null, null, config, "missing");
+        assertThat(val, is(nullValue()));
+    }
+
+    public void testReadOptionalIntPropertyNullValue() {
+        Integer val = ConfigurationUtils.readOptionalIntProperty(null, null, config, "null");
+        assertThat(val, is(nullValue()));
+        assertFalse(config.containsKey("null"));
+    }
+
+    public void testReadOptionalIntPropertyInvalidType() {
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readOptionalIntProperty(null, null, config, "arr")
+        );
+        assertThat(e.getMessage(), equalTo("[arr] property cannot be converted to an int [[1, 2, 3]]"));
     }
 
     public void testReadProcessors() throws Exception {
