@@ -20,6 +20,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
     private final String storeName = "dummy_store";
@@ -178,6 +179,92 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
             DefaultCacheStatsHolder.Node intermediateLevelNode = getNode(List.of("A" + indexA), cacheStatsHolder.getStatsRoot());
             assertNotNull(intermediateLevelNode);
             assertEquals(b1LeafNode.getImmutableStats(), intermediateLevelNode.getImmutableStats());
+        }
+    }
+
+    public void testRemovalDoesNotRaceWithDecrement() throws Exception {
+        List<String> dimensionNames = List.of("index", "shard");
+        List<String> dimensions = List.of("index-1", "shard-0");
+        BlockingCacheStatsHolder cacheStatsHolder = new BlockingCacheStatsHolder(dimensionNames, storeName);
+        cacheStatsHolder.incrementItems(dimensions);
+        cacheStatsHolder.incrementSizeInBytes(dimensions, 151325);
+
+        assertRemovalBlocksMutation(cacheStatsHolder, dimensions, () -> {
+            cacheStatsHolder.decrementItems(dimensions);
+            cacheStatsHolder.decrementSizeInBytes(dimensions, 151325);
+        }, "decrement");
+    }
+
+    public void testResetDoesNotRaceWithDimensionRemoval() throws Exception {
+        List<String> dimensionNames = List.of("index", "shard");
+        List<String> dimensions = List.of("index-1", "shard-0");
+        BlockingCacheStatsHolder cacheStatsHolder = new BlockingCacheStatsHolder(dimensionNames, storeName);
+        cacheStatsHolder.incrementItems(dimensions);
+        cacheStatsHolder.incrementSizeInBytes(dimensions, 151325);
+
+        assertRemovalBlocksMutation(cacheStatsHolder, dimensions, cacheStatsHolder::reset, "reset");
+    }
+
+    private static void assertRemovalBlocksMutation(
+        BlockingCacheStatsHolder cacheStatsHolder,
+        List<String> dimensions,
+        Runnable mutation,
+        String mutationName
+    ) throws Exception {
+        Thread removalThread = new Thread(() -> cacheStatsHolder.removeDimensions(dimensions), "stats-removal");
+        CountDownLatch mutationStarted = new CountDownLatch(1);
+        CountDownLatch mutationFinished = new CountDownLatch(1);
+        Thread mutationThread = new Thread(() -> {
+            mutationStarted.countDown();
+            mutation.run();
+            mutationFinished.countDown();
+        }, "stats-" + mutationName);
+
+        removalThread.start();
+        assertTrue(cacheStatsHolder.snapshotCaptured.await(10, TimeUnit.SECONDS));
+        mutationThread.start();
+        assertTrue(mutationStarted.await(10, TimeUnit.SECONDS));
+        try {
+            assertFalse(
+                mutationName + " completed while removeDimensions held the tree lock",
+                mutationFinished.await(100, TimeUnit.MILLISECONDS)
+            );
+        } finally {
+            cacheStatsHolder.allowRemoval.countDown();
+        }
+
+        removalThread.join(TimeUnit.SECONDS.toMillis(10));
+        mutationThread.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse(removalThread.isAlive());
+        assertFalse(mutationThread.isAlive());
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getItems());
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+        assertNull(getNode(dimensions, cacheStatsHolder.getStatsRoot()));
+    }
+
+    private static class BlockingCacheStatsHolder extends DefaultCacheStatsHolder {
+        private final CountDownLatch snapshotCaptured = new CountDownLatch(1);
+        private final CountDownLatch allowRemoval = new CountDownLatch(1);
+
+        BlockingCacheStatsHolder(List<String> dimensionNames, String storeName) {
+            super(dimensionNames, storeName);
+        }
+
+        @Override
+        protected ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
+            ImmutableCacheStats snapshot = super.removeDimensionsHelper(dimensionValues, node, depth);
+            if (depth == dimensionValues.size()) {
+                snapshotCaptured.countDown();
+                try {
+                    if (allowRemoval.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to continue removal");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted while waiting to continue removal", e);
+                }
+            }
+            return snapshot;
         }
     }
 
