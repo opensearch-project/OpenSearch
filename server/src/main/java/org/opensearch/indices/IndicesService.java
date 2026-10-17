@@ -1282,8 +1282,8 @@ public class IndicesService extends AbstractLifecycleComponent
             return NoOpEngine::new;
         }
 
-        // streaming ingestion
-        if (indexMetadata != null && indexMetadata.useIngestionSource()) {
+        // streaming ingestion; a searchable snapshot of an ingestion index is read-only and must never poll the streaming source
+        if (indexMetadata != null && indexMetadata.useIngestionSource() && idxSettings.isRemoteSnapshot() == false) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
             IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
                 indexMetadata.getIngestionSource().getDecoderType()

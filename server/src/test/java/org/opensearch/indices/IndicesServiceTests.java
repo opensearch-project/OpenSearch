@@ -80,6 +80,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.opensearch.indices.pollingingest.IngestionEngineFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
@@ -613,6 +614,29 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                 );
             }
         }
+    }
+
+    public void testRemoteSnapshotOfIngestionIndexDoesNotUseIngestionEngine() throws IOException {
+        final IndicesService indicesService = getIndicesService();
+        final Index index = new Index("ingestion-remote-snapshot", UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        // a searchable snapshot of an ingestion index is read-only and must not get the ingestion engine
+        final IndexService indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
+        assertThat(indexService.getIndexerFactory(), instanceOf(EngineBackedIndexerFactory.class));
+        assertThat(
+            ((EngineBackedIndexerFactory) indexService.getIndexerFactory()).getEngineFactory(),
+            not(instanceOf(IngestionEngineFactory.class))
+        );
     }
 
     public void testConflictingEngineFactories() {
