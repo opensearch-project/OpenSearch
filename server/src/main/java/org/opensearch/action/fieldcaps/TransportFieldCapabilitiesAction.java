@@ -32,6 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
@@ -43,6 +44,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
@@ -58,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Transport action for field capabilities requests
@@ -101,37 +104,40 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final int totalNumRequest = concreteIndices.size() + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
+        final Map<String, Exception> failures = new ConcurrentHashMap<>();
         final Runnable onResponse = () -> {
             if (completionCounter.countDown()) {
                 if (request.isMergeResults()) {
-                    listener.onResponse(merge(indexResponses, request.includeUnmapped()));
+                    listener.onResponse(merge(indexResponses, request.includeUnmapped(), failures));
                 } else {
-                    listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
+                    listener.onResponse(new FieldCapabilitiesResponse(indexResponses, failures));
                 }
             }
         };
         if (totalNumRequest == 0) {
             listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
         } else {
-            ActionListener<FieldCapabilitiesIndexResponse> innerListener = new ActionListener<FieldCapabilitiesIndexResponse>() {
-                @Override
-                public void onResponse(FieldCapabilitiesIndexResponse result) {
-                    if (result.canMatch()) {
-                        indexResponses.add(result);
-                    }
-                    onResponse.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // TODO we should somehow inform the user that we failed
-                    onResponse.run();
-                }
-            };
             for (String index : concreteIndices) {
                 shardAction.execute(
                     new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices, request.indexFilter(), nowInMillis),
-                    innerListener
+                    new ActionListener<FieldCapabilitiesIndexResponse>() {
+                        @Override
+                        public void onResponse(FieldCapabilitiesIndexResponse result) {
+                            if (result.canMatch()) {
+                                indexResponses.add(result);
+                            }
+                            onResponse.run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // Only an index deleted since it was resolved has nothing left to check.
+                            if (clusterService.state().metadata().hasIndex(index)) {
+                                failures.put(index, e);
+                            }
+                            onResponse.run();
+                        }
+                    }
                 );
             }
 
@@ -158,8 +164,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             )
                         );
                     }
+                    response.getFailures()
+                        .forEach((index, e) -> failures.put(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), e));
                     onResponse.run();
-                }, failure -> onResponse.run()));
+                }, failure -> {
+                    // Its index names are unknown, so report the expressions asked of it.
+                    if (ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) == null) {
+                        for (String expression : originalIndices.indices()) {
+                            failures.put(RemoteClusterAware.buildRemoteIndexName(clusterAlias, expression), failure);
+                        }
+                    }
+                    onResponse.run();
+                }));
             }
         }
     }
@@ -187,7 +203,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return ResolvedIndices.of(concreteIndices).withLocalOriginalIndices(localIndices).withRemoteIndices(remoteClusterIndices);
     }
 
-    private FieldCapabilitiesResponse merge(List<FieldCapabilitiesIndexResponse> indexResponses, boolean includeUnmapped) {
+    private FieldCapabilitiesResponse merge(
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        boolean includeUnmapped,
+        Map<String, Exception> failures
+    ) {
         String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
@@ -207,7 +227,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
 
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap));
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
