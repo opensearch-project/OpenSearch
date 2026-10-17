@@ -1267,6 +1267,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return shardRouting != null && (shardRouting.active() == false || shardRouting.primary() || shardRouting.isSearchOnly());
     }
 
+    /**
+     * Whether the replica holding {@code allocationId} is kept current by segment replication, and so needs a lag
+     * timer. The last clause asks the replica's own node rather than the index, because under {@code MIXED}
+     * compatibility one index can have a replica on each kind of node; it is blind to {@code segments_only}, whose
+     * nodes have no translog repository, hence the first.
+     */
+    private boolean isReplicatedBySegments(final String allocationId) {
+        return (indexSettings.isRemoteStoreEnabled() && indexSettings.isTranslogDurableInRemoteStore() == false)
+            || indexSettings.isSegRepLocalEnabled()
+            || isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId());
+    }
+
     private void createReplicationLagTimers() {
         for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
             final String allocationId = entry.getKey();
@@ -1278,8 +1290,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && shouldSkipReplicationLag(allocationId) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
-                    && (indexSettings.isSegRepLocalEnabled() == true
-                        || isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()))) {
+                    && isReplicatedBySegments(allocationId)) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
                         () -> new ParameterizedMessage(
