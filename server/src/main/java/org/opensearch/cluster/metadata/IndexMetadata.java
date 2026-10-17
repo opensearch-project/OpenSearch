@@ -96,6 +96,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
@@ -1228,6 +1229,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final Map<String, MappingMetadata> mappings;
 
+    private final MappingMetadata mapping;
+
     private final Map<String, DiffableStringMap> customData;
 
     private final Map<Integer, Set<String>> inSyncAllocationIds;
@@ -1313,6 +1316,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + numberOfSearchOnlyReplicas + 1);
         this.settings = settings;
         this.mappings = Collections.unmodifiableMap(mappings);
+        this.mapping = mappings.isEmpty() ? null : mappings.values().iterator().next();
         this.customData = Collections.unmodifiableMap(customData);
         this.aliases = Collections.unmodifiableMap(aliases);
         this.inSyncAllocationIds = Collections.unmodifiableMap(inSyncAllocationIds);
@@ -1348,6 +1352,51 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ingestionStatus = ingestionStatus;
         this.splitShardsMetadata = splitShardsMetadata;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+    }
+
+    /**
+     * Copies all fields from {@code source}, including the ones emerged from the settings, replaces its mappings.
+     */
+    private IndexMetadata(IndexMetadata source, MappingMetadata mapping) {
+        this.routingNumShards = source.routingNumShards;
+        this.routingFactor = source.routingFactor;
+        this.routingPartitionSize = source.routingPartitionSize;
+        this.numberOfShards = source.numberOfShards;
+        this.numberOfReplicas = source.numberOfReplicas;
+        this.numberOfSearchOnlyReplicas = source.numberOfSearchOnlyReplicas;
+        this.index = source.index;
+        this.version = source.version;
+        this.mappingVersion = source.mappingVersion;
+        this.settingsVersion = source.settingsVersion;
+        this.aliasesVersion = source.aliasesVersion;
+        this.primaryTermsMap = source.primaryTermsMap;
+        this.state = source.state;
+        this.aliases = source.aliases;
+        this.settings = source.settings;
+        this.mappings = Map.of(mapping.type(), mapping);
+        this.mapping = mapping;
+        this.customData = source.customData;
+        this.inSyncAllocationIds = source.inSyncAllocationIds;
+        this.totalNumberOfShards = source.totalNumberOfShards;
+        this.requireFilters = source.requireFilters;
+        this.includeFilters = source.includeFilters;
+        this.excludeFilters = source.excludeFilters;
+        this.initialRecoveryFilters = source.initialRecoveryFilters;
+        this.indexCreatedVersion = source.indexCreatedVersion;
+        this.indexUpgradedVersion = source.indexUpgradedVersion;
+        this.waitForActiveShards = source.waitForActiveShards;
+        this.rolloverInfos = source.rolloverInfos;
+        this.isSystem = source.isSystem;
+        this.isRemoteSnapshot = source.isRemoteSnapshot;
+        this.indexTotalShardsPerNodeLimit = source.indexTotalShardsPerNodeLimit;
+        this.indexTotalPrimaryShardsPerNodeLimit = source.indexTotalPrimaryShardsPerNodeLimit;
+        this.indexTotalRemoteCapableShardsPerNodeLimit = source.indexTotalRemoteCapableShardsPerNodeLimit;
+        this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = source.indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
+        this.isAppendOnlyIndex = source.isAppendOnlyIndex;
+        this.bulkAdaptiveShardSelectionEnabled = source.bulkAdaptiveShardSelectionEnabled;
+        this.context = source.context;
+        this.ingestionStatus = source.ingestionStatus;
+        this.splitShardsMetadata = source.splitShardsMetadata;
     }
 
     public Index getIndex() {
@@ -1552,10 +1601,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public MappingMetadata mapping() {
-        for (final MappingMetadata cursor : mappings.values()) {
-            return cursor;
+        return mapping;
+    }
+
+    IndexMetadata deduplicateMapping(UnaryOperator<MappingMetadata> mappingDeduplicator) {
+        if (mapping == null) {
+            return this;
         }
-        return null;
+        final MappingMetadata deduplicated = mappingDeduplicator.apply(mapping);
+        if (deduplicated == mapping) {
+            return this;
+        }
+        assert deduplicated.equals(mapping) : "replacement mapping for [" + index + "] must be equal to the current one";
+        return new IndexMetadata(this, deduplicated);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1917,6 +1975,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
+        return readFrom(in, UnaryOperator.identity());
+    }
+
+    static IndexMetadata readFrom(StreamInput in, UnaryOperator<MappingMetadata> mappingDeduplicator) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
@@ -1931,7 +1993,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
-            MappingMetadata mappingMd = new MappingMetadata(in);
+            MappingMetadata mappingMd = mappingDeduplicator.apply(new MappingMetadata(in));
             builder.putMapping(mappingMd);
         }
         int aliasesSize = in.readVInt();
@@ -2185,7 +2247,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.aliasesVersion = indexMetadata.aliasesVersion;
             this.settings = indexMetadata.getSettings();
             this.primaryTermsMap = new HashMap<>(indexMetadata.primaryTermsMap);
-            this.mappings = new HashMap<>(indexMetadata.mappings);
+            this.mappings = new HashMap<>();
+            if (indexMetadata.mapping != null) {
+                this.mappings.put(indexMetadata.mapping.type(), indexMetadata.mapping);
+            }
             this.aliases = new HashMap<>(indexMetadata.aliases);
             this.customMetadata = new HashMap<>(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
@@ -2284,6 +2349,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (mappingMd != null) {
                 mappings.put(mappingMd.type(), mappingMd);
             }
+            return this;
+        }
+
+        Builder deduplicateMapping(UnaryOperator<MappingMetadata> mappingDeduplicator) {
+            mappings.replaceAll((type, mapping) -> mappingDeduplicator.apply(mapping));
             return this;
         }
 
