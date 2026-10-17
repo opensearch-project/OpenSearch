@@ -853,6 +853,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
             "cluster.allocation_explain",
+            // New settings definitions API is available through the low-level client, not the deprecated high-level client.
+            "cluster.get_settings_definitions",
             "cluster.pending_tasks",
             "cluster.reroute",
             "cluster.state",
