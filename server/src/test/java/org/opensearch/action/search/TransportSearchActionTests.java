@@ -70,6 +70,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -136,6 +137,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1189,6 +1192,41 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest, indices, randomIntBetween(127, 10000))
             );
         }
+    }
+
+    public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+        TransportSearchAction action = new TransportSearchAction(
+            mock(NodeClient.class),
+            threadPool,
+            mock(CircuitBreakerService.class),
+            mock(TransportService.class),
+            mock(SearchService.class),
+            mock(SearchTransportService.class),
+            new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
+            clusterService,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            namedWriteableRegistry,
+            mock(SearchPipelineService.class),
+            mock(MetricsRegistry.class),
+            new SearchRequestOperationsCompositeListenerFactory(),
+            NoopTracer.INSTANCE,
+            mock(TaskResourceTrackingService.class),
+            mock(IndicesService.class),
+            workloadGroupService
+        );
+        SearchTask task = new SearchTask(1, "transport", SearchAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        action.executeRequest(task, new SearchRequest("index"), null, ActionListener.wrap(r -> fail("must not succeed"), failure::set));
+        assertSame("an exception thrown by admission must be delivered to the listener", boom, failure.get());
     }
 
     public void testResolveIndices() {
