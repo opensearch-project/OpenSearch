@@ -73,6 +73,11 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        return delegate.getBlobMetadata(blobName);
+    }
+
+    @Override
     public InputStream readBlob(String blobName) throws IOException {
         return delegate.readBlob(blobName);
     }
