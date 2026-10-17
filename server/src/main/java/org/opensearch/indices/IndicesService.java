@@ -1284,12 +1284,15 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
-            IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
-                indexMetadata.getIngestionSource().getDecoderType()
-            );
-            decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
-            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
+            // a searchable snapshot of an ingestion index is read-only and must never poll the streaming source
+            if (idxSettings.isRemoteSnapshot() == false) {
+                IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
+                IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
+                    indexMetadata.getIngestionSource().getDecoderType()
+                );
+                decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
+                return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
+            }
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
