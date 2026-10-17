@@ -33,6 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
@@ -83,13 +84,17 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
+    @Nullable
+    private final String enforcement;
+
     private AliasMetadata(
         String alias,
         CompressedXContent filter,
         String indexRouting,
         String searchRouting,
         Boolean writeIndex,
-        @Nullable Boolean isHidden
+        @Nullable Boolean isHidden,
+        @Nullable String enforcement
     ) {
         this.alias = alias;
         this.filter = filter;
@@ -102,6 +107,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         this.writeIndex = writeIndex;
         this.isHidden = isHidden;
+        this.enforcement = enforcement;
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
@@ -111,7 +117,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             aliasMetadata.indexRouting(),
             aliasMetadata.searchRouting(),
             aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden
+            aliasMetadata.isHidden,
+            aliasMetadata.enforcement
         );
     }
 
@@ -164,6 +171,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return isHidden;
     }
 
+    @Nullable
+    public String enforcement() {
+        return enforcement;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -192,6 +204,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         if (Objects.equals(searchRouting, that.searchRouting) == false) return false;
         if (Objects.equals(writeIndex, that.writeIndex) == false) return false;
         if (Objects.equals(isHidden, that.isHidden) == false) return false;
+        if (Objects.equals(enforcement, that.enforcement) == false) return false;
 
         return true;
     }
@@ -203,6 +216,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
         result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
+        result = 31 * result + (enforcement != null ? enforcement.hashCode() : 0);
         return result;
     }
 
@@ -230,6 +244,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden());
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalString(enforcement);
+        }
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -253,6 +270,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            enforcement = in.readOptionalString();
+        } else {
+            enforcement = null;
+        }
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -291,6 +313,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         @Nullable
         private Boolean isHidden;
+
+        @Nullable
+        private String enforcement;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -353,8 +378,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             return this;
         }
 
+        public Builder enforcement(@Nullable String enforcement) {
+            this.enforcement = enforcement;
+            return this;
+        }
+
         public AliasMetadata build() {
-            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden);
+            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, enforcement);
         }
 
         public static void toXContent(AliasMetadata aliasMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -382,6 +412,10 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
             if (aliasMetadata.isHidden != null) {
                 builder.field("is_hidden", aliasMetadata.isHidden());
+            }
+
+            if (aliasMetadata.enforcement() != null) {
+                builder.field("enforcement", aliasMetadata.enforcement());
             }
 
             builder.endObject();
@@ -419,6 +453,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                         builder.searchRouting(parser.text());
                     } else if ("filter".equals(currentFieldName)) {
                         builder.filter(new CompressedXContent(parser.binaryValue()));
+                    } else if ("enforcement".equals(currentFieldName)) {
+                        builder.enforcement(parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();

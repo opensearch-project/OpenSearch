@@ -37,6 +37,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 
 import java.io.Closeable;
@@ -52,11 +53,22 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;
     private final BitsetFilterCache bitsetFilterCache;
+    private final FilteredStatsCache filteredStatsCache;
 
     public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache) {
+        this(indexSettings, queryCache, bitsetFilterCache, null);
+    }
+
+    public IndexCache(
+        IndexSettings indexSettings,
+        QueryCache queryCache,
+        BitsetFilterCache bitsetFilterCache,
+        FilteredStatsCache filteredStatsCache
+    ) {
         super(indexSettings);
         this.queryCache = queryCache;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.filteredStatsCache = filteredStatsCache;
     }
 
     public QueryCache query() {
@@ -70,14 +82,25 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
         return bitsetFilterCache;
     }
 
+    /**
+     * Return the {@link FilteredStatsCache} for this index, or {@code null} when filtered-stats caching is unavailable
+     * (e.g. a cacheless index context). Callers must tolerate {@code null} and fall back to inline computation.
+     */
+    public FilteredStatsCache filteredStatsCache() {
+        return filteredStatsCache;
+    }
+
     @Override
     public void close() throws IOException {
-        IOUtils.close(queryCache, bitsetFilterCache);
+        IOUtils.close(queryCache, bitsetFilterCache, filteredStatsCache);
     }
 
     public void clear(String reason) {
         queryCache.clear(reason);
         bitsetFilterCache.clear(reason);
+        if (filteredStatsCache != null) {
+            filteredStatsCache.clear(reason);
+        }
     }
 
 }
