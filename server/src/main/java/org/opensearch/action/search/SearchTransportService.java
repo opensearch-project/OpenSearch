@@ -259,12 +259,14 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<QuerySearchResult> listener
     ) {
+        // record adaptive replica selection stats for the DFS query phase, like the ShardSearchRequest overload does
+        final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(handler, QuerySearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
 
