@@ -34,15 +34,20 @@ package org.opensearch.join.query;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
@@ -101,6 +106,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
+    /**
+     * Optional join-field term prefix used to build a group-scoped global ordinals map, avoiding the shard-wide
+     * global-ordinals rewrite. This is an optimisation for indices that store documents from many groups in the same
+     * index, whose document ids are prefixed with a group id, and that issue group-scoped {@code has_child} queries.
+     * See {@link org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder#buildScoped}.
+     */
+    private static final ParseField SCOPE_PREFIX_FIELD = new ParseField("scope_prefix");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(HasChildQueryBuilder.class);
     private final QueryBuilder query;
     private final String type;
@@ -109,6 +121,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private int minChildren = DEFAULT_MIN_CHILDREN;
     private int maxChildren = DEFAULT_MAX_CHILDREN;
     private boolean ignoreUnmapped = false;
+    private String scopePrefix = null;
 
     public HasChildQueryBuilder(String type, QueryBuilder query, ScoreMode scoreMode) {
         this(type, query, DEFAULT_MIN_CHILDREN, DEFAULT_MAX_CHILDREN, scoreMode, null);
@@ -142,6 +155,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         query = in.readNamedWriteable(QueryBuilder.class);
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            scopePrefix = in.readOptionalString();
+        } else {
+            scopePrefix = null;
+        }
     }
 
     @Override
@@ -153,6 +171,27 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalString(scopePrefix);
+        } else if (scopePrefix != null) {
+            throw new IllegalArgumentException(
+                "[has_child] scope_prefix is not supported on nodes with version [" + out.getVersion() + "], which is before 3.10.0"
+            );
+        }
+    }
+
+    /**
+     * Sets an optional join-field term prefix (e.g. {@code "<groupId>:"}) used to build a group-scoped global
+     * ordinals map instead of the shard-wide one. The caller must ensure the query is also filtered to the same
+     * prefix, otherwise matches outside the prefix will be missed.
+     */
+    public HasChildQueryBuilder scopePrefix(String scopePrefix) {
+        this.scopePrefix = scopePrefix;
+        return this;
+    }
+
+    public String scopePrefix() {
+        return scopePrefix;
     }
 
     /**
@@ -259,6 +298,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
         builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        if (scopePrefix != null) {
+            builder.field(SCOPE_PREFIX_FIELD.getPreferredName(), scopePrefix);
+        }
         printBoostAndQueryName(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
@@ -274,6 +316,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
         String queryName = null;
+        String scopePrefix = null;
         InnerHitBuilder innerHitBuilder = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -304,6 +347,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     ignoreUnmapped = parser.booleanValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if (SCOPE_PREFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    scopePrefix = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -314,6 +359,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+        hasChildQueryBuilder.scopePrefix(scopePrefix);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
         }
@@ -346,8 +392,20 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (parentIdFieldMapper != null) {
             Query parentFilter = parentIdFieldMapper.getParentFilter();
             Query childFilter = parentIdFieldMapper.getChildFilter(type);
-            Query innerQuery = Queries.filtered(query.toQuery(context), childFilter);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+            Query innerQuery = Queries.filtered(query.toQuery(context), childFilter);
+            if (scopePrefix != null) {
+                // When ordinals are group-scoped, only children whose parent-join key starts with the
+                // prefix have a slot in the scoped OrdinalMap. Restrict the collected children to that
+                // prefix as well, otherwise out-of-prefix children resolve to global ord -1 and the join's
+                // GlobalOrdinalsCollector throws (LongBitSet.set(-1)). The parent-id field is a keyword-like
+                // field whose value is the parent doc id ("<groupId>:<childId>"), so a prefix query is
+                // exactly the group filter we need.
+                Query childPrefixFilter = new PrefixQuery(new Term(fieldType.name(), new BytesRef(scopePrefix)));
+                innerQuery = new BooleanQuery.Builder().add(innerQuery, BooleanClause.Occur.MUST)
+                    .add(childPrefixFilter, BooleanClause.Occur.FILTER)
+                    .build();
+            }
             final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
             return new LateParsingQuery(
                 parentFilter,
@@ -357,7 +415,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 fieldType.name(),
                 scoreMode,
                 fieldData,
-                context.getSearchSimilarity()
+                context.getSearchSimilarity(),
+                scopePrefix
             );
         } else {
             if (ignoreUnmapped) {
@@ -391,6 +450,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         private final ScoreMode scoreMode;
         private final SortedSetOrdinalsIndexFieldData fieldDataJoin;
         private final Similarity similarity;
+        private final String scopePrefix;
 
         LateParsingQuery(
             Query toQuery,
@@ -400,7 +460,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             String joinField,
             ScoreMode scoreMode,
             SortedSetOrdinalsIndexFieldData fieldData,
-            Similarity similarity
+            Similarity similarity,
+            String scopePrefix
         ) {
             this.toQuery = toQuery;
             this.innerQuery = innerQuery;
@@ -410,6 +471,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             this.scoreMode = scoreMode;
             this.fieldDataJoin = fieldData;
             this.similarity = similarity;
+            this.scopePrefix = scopePrefix;
         }
 
         @Override
@@ -428,8 +490,30 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
-                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
+                final IndexOrdinalsFieldData indexParentChildFieldData;
+                if (scopePrefix != null) {
+                    // Group-scoped global ordinals: a map over only the "<scopePrefix>*" join terms, which is
+                    // dramatically cheaper on large shards. Now served from a dedicated node-level scoped cache
+                    // (keyed by field + reader-generation + prefix) so a burst of has_child legs/queries for the
+                    // same group reuses one build until the next refresh — instead of rebuilding the OrdinalMap on
+                    // the search thread for every clause, which caused the periodic latency spikes. The inner/parent
+                    // filters are already restricted to the same group, so out-of-prefix docs are never collected.
+                    // Breaker bytes are owned and released by the cache on eviction (reader close / refresh).
+                    indexParentChildFieldData = fieldDataJoin.loadGlobalScoped(
+                        (DirectoryReader) reader,
+                        new org.apache.lucene.util.BytesRef(scopePrefix)
+                    );
+                } else {
+                    indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
+                }
                 OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
+                if (scopePrefix != null && ordinalMap.getValueCount() == 0) {
+                    // The group-scoped ordinal map contains no join terms for this shard/segment set (i.e. this
+                    // shard holds no documents whose join key starts with the prefix). An empty OrdinalMap cannot
+                    // back a join query (JoinUtil indexes into per-segment ordinal structures), so short-circuit
+                    // to "match nothing here" — correct, since there are no parents for this group on this shard.
+                    return Queries.newMatchNoDocsQueryWithoutRewrite("no join terms for scope_prefix [" + scopePrefix + "] on this shard");
+                }
                 return JoinUtil.createJoinQuery(
                     joinField,
                     innerQuery,
@@ -465,12 +549,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             if (!toQuery.equals(that.toQuery)) return false;
             if (!innerQuery.equals(that.innerQuery)) return false;
             if (!joinField.equals(that.joinField)) return false;
+            if (!Objects.equals(scopePrefix, that.scopePrefix)) return false;
             return scoreMode == that.scoreMode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), toQuery, innerQuery, minChildren, maxChildren, joinField, scoreMode);
+            return Objects.hash(getClass(), toQuery, innerQuery, minChildren, maxChildren, joinField, scoreMode, scopePrefix);
         }
 
         @Override
@@ -507,12 +592,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             && Objects.equals(minChildren, that.minChildren)
             && Objects.equals(maxChildren, that.maxChildren)
             && Objects.equals(innerHitBuilder, that.innerHitBuilder)
-            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped)
+            && Objects.equals(scopePrefix, that.scopePrefix);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, scoreMode, minChildren, maxChildren, innerHitBuilder, ignoreUnmapped);
+        return Objects.hash(query, type, scoreMode, minChildren, maxChildren, innerHitBuilder, ignoreUnmapped, scopePrefix);
     }
 
     @Override
@@ -528,6 +614,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 innerHitBuilder
             );
             hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+            hasChildQueryBuilder.scopePrefix(scopePrefix);
             return hasChildQueryBuilder;
         }
         return this;
