@@ -119,6 +119,79 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         assertStreamHasNumberOfTokens(tokenFilterWithHashSetSize.create(tokenizerWithHashSetSize), 2);
     }
 
+    public void testExcessiveBucketCountRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.bucket_count", Integer.toString(MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(settings));
+        assertTrue(e.getMessage(), e.getMessage().contains("[bucket_count]"));
+    }
+
+    public void testExcessiveHashCountRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", Integer.toString(MinHashTokenFilterFactory.MAX_HASH_COUNT + 1))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(settings));
+        assertTrue(e.getMessage(), e.getMessage().contains("[hash_count]"));
+    }
+
+    public void testExcessiveHashSetSizeRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", Integer.toString(MinHashTokenFilterFactory.MAX_HASH_SET_SIZE + 1))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(settings));
+        assertTrue(e.getMessage(), e.getMessage().contains("[hash_set_size]"));
+    }
+
+    public void testExcessiveTotalAllocationRejected() throws IOException {
+        // Each value is individually within bounds, but their product is not. This is the ticket's
+        // 4000x4000 case reduced to in-bounds-per-axis values whose product still blows the budget.
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "1024")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "1024")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "2")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(settings));
+        assertTrue(e.getMessage(), e.getMessage().contains("product"));
+    }
+
+    public void testZeroBucketCountRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "0")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(settings));
+        assertTrue(e.getMessage(), e.getMessage().contains("[bucket_count]"));
+    }
+
+    public void testMaximumAllowedValuesAccepted() throws IOException {
+        // hash_count * bucket_count * hash_set_size == MAX_TOTAL_ALLOCATIONS exactly: must be accepted.
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", Integer.toString(MinHashTokenFilterFactory.MAX_HASH_COUNT))
+            .put("index.analysis.filter.test_min_hash.bucket_count", Integer.toString(MinHashTokenFilterFactory.MAX_BUCKET_COUNT))
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "1")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        OpenSearchTestCase.TestAnalysis analysis = getTestAnalysisFromSettings(settings);
+        assertNotNull(analysis.tokenFilter.get("test_min_hash"));
+    }
+
     private static OpenSearchTestCase.TestAnalysis getTestAnalysisFromSettings(Settings settingsWithBucketCount) throws IOException {
         return AnalysisTestsHelper.createTestAnalysisFromSettings(settingsWithBucketCount, new CommonAnalysisModulePlugin());
     }
