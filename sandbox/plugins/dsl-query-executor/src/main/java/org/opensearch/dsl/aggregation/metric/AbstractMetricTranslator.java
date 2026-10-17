@@ -13,39 +13,50 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
- * Base class for metric translators. Provides the common {@link #toAggregateCall}
- * logic — subclasses supply the SQL aggregate function, field name, and optionally
- * override the return type.
+ * Base class for simple metric translators (single value: AVG, SUM, MIN, MAX, COUNT).
+ * Provides default implementations for single-value metrics, including the shared
+ * {@code missing} handling (aggregate over {@code COALESCE(field, missing)}) and
+ * {@code format} validation.
  */
 public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
-    /** Creates a metric translator. */
-    protected AbstractMetricTranslator() {}
+    private final Supplier<MapperService> mapperServiceSupplier;
 
     /**
-     * Rejects {@code missing} (substitutes a value for docs lacking the field) and
-     * {@code script} (computes the metric input from a script): the translation implements
-     * neither — it emits plain {@code fn(field)}, whose result differs from classic search
-     * when either parameter is present.
+     * Creates a metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value
+     *        format resolution; supplying null fails rendering of format-bearing metrics
+     */
+    protected AbstractMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        this.mapperServiceSupplier = mapperServiceSupplier;
+    }
+
+    /** Resolves this metric's {@link DocValueFormat} from the index mapping — see {@link MetricTranslator#resolveFormat}. */
+    protected DocValueFormat resolveFormat(T agg) {
+        return MetricTranslator.resolveFormat(mapperServiceSupplier, getFieldName(agg), agg.format(), agg.getName());
+    }
+
+    /**
+     * Rejects request parameters the analytics path cannot honor, before any plan state
+     * accumulates — see {@link MetricTranslator#validateSupportedParams}.
      */
     @Override
     public void validate(T agg) throws ConversionException {
-        if (agg.missing() != null) {
-            throw new ConversionException(
-                "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-            );
-        }
-        if (agg.script() != null) {
-            throw new ConversionException(
-                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-            );
-        }
+        MetricTranslator.validateSupportedParams(agg);
     }
 
     /** Returns the SQL aggregate function (e.g., AVG, SUM, MIN, MAX). */
@@ -59,31 +70,58 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
      */
     protected abstract String getFieldName(T agg);
 
+    /**
+     * Resolves the aggregated field against the index row type. The default requires a
+     * numeric column; metrics legal on any type (value_count) override.
+     */
+    protected RelDataTypeField resolveField(T agg, RelDataType rowType) throws ConversionException {
+        return MetricTranslator.resolveNumericField(rowType, getFieldName(agg), agg.getType());
+    }
+
     @Override
-    public AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException {
-        String fieldName = getFieldName(agg);
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
-        }
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
+        MetricTranslator.validateFormat(agg.format(), agg.getName());
+        RelDataTypeField field = resolveField(agg, rowType);
 
         // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
-        return AggregateCall.create(
+        AggregateCall call = AggregateCall.create(
             getAggFunction(),
             false,
             false,
             false,
-            Collections.singletonList(field.getIndex()),
+            Collections.singletonList(inputColumn(agg, field, literals)),
             -1,
             RelCollations.EMPTY,
             field.getType(),
             agg.getName()
         );
+        return Collections.singletonList(call);
+    }
+
+    /**
+     * The aggregate's input column: the field, or {@code COALESCE(field, missing)} when the
+     * request sets {@code missing}. The coalesced column keeps the field's value type, so
+     * declared call types are unaffected. {@code literals} may be null only when missing is unset.
+     */
+    static int inputColumn(ValuesSourceAggregationBuilder<?> agg, RelDataTypeField field, LiteralColumnAllocator literals)
+        throws ConversionException {
+        if (agg.missing() == null) {
+            return field.getIndex();
+        }
+        return literals.coalescedColumnFor(field.getIndex(), MetricTranslator.missingValue(agg.missing(), agg.getName()));
     }
 
     @Override
-    public String getAggregateFieldName(T agg) {
-        return agg.getName();
+    public List<String> getAggregateFieldNames(T agg) {
+        return Collections.singletonList(agg.getName());
+    }
+
+    /**
+     * Returns this metric's result value from the execution output ({@code null} when
+     * execution produced no row or the value is SQL NULL).
+     */
+    static Object getResult(AggregationBuilder agg, Map<String, Object> values) {
+        return values == null ? null : values.get(agg.getName());
     }
 
     /**
